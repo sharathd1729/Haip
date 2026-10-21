@@ -18,6 +18,8 @@ from app.models.media_asset import MediaAsset
 from app.models.tenant import Tenant
 from app.services import marketing_content_service as content_svc
 from app.services.marketing_render import frames
+from app.services.marketing_vision import needs_consent
+from app.services.marketing_vision import words as tag_words
 from app.services.media_library_service import _panel_colour
 
 SOURCE_TYPES = ("image/jpeg", "image/png", "image/webp")
@@ -35,11 +37,13 @@ def _words(*texts: Optional[str]) -> set[str]:
 
 
 def library(db: Session, tenant_id: str) -> list[MediaAsset]:
-    """Approved photos a post may use (AI images only once approved; rendered outputs never)."""
-    return (db.query(MediaAsset)
+    """Approved photos a post may use (AI images only once approved; rendered outputs never). A photo the vision model
+    saw people in is left out until the owner confirms consent (media_assets.people_ok, agency M2)."""
+    rows = (db.query(MediaAsset)
             .filter(MediaAsset.tenant_id == tenant_id, MediaAsset.status == "active",
                     MediaAsset.mime_type.in_(SOURCE_TYPES))
             .order_by(MediaAsset.created_at.desc()).limit(500).all())
+    return [a for a in rows if not needs_consent(a)]
 
 
 def recent_use(db: Session, tenant_id: str, *, exclude_item: Optional[str] = None) -> Counter:
@@ -60,8 +64,11 @@ def recent_use(db: Session, tenant_id: str, *, exclude_item: Optional[str] = Non
 def score(asset: MediaAsset, want: set[str], *, property_id: Optional[str], uses: int, in_this_post: bool,
           context: frozenset[str] = frozenset()) -> float:
     """`want` = words of the slot's photo description; `context` = words of the slide text and title (weaker)."""
-    have = _words(asset.alt_text)
+    have = _words(asset.alt_text, tag_words(asset))
     s = 4.0 * len(want & have) + 1.0 * len((context - want) & have)
+    quality = (asset.tags or {}).get("quality")
+    if isinstance(quality, int):
+        s += 0.5 * (quality - 3)        # a sharper, better-lit photo wins a tie
     if property_id and asset.property_id == property_id:
         s += 2.0
     s -= 1.0 * min(uses, 5)
@@ -111,7 +118,7 @@ def fill(db: Session, tenant: Tenant, item: MarketingContent, payload: dict,
         taken.add(chosen.id)
         used[chosen.id] += 1
         filled += 1
-        if not (want | context) & _words(chosen.alt_text):
+        if not (want | context) & _words(chosen.alt_text, tag_words(chosen)):
             loose.append(n)                             # filled so the post can go out, but a person should look
     design = dict(payload.get("design") or {})
     if not design.get("colour"):

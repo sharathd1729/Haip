@@ -351,7 +351,8 @@ def _asset_out(a: MediaAsset) -> dict:
     return {"id": a.id, "url": get_presigned_media_url(a.storage_key, expires_in=900), "mime_type": a.mime_type, "status": a.status,
             "created_by": a.created_by,
             "width": a.width, "height": a.height, "bytes": a.bytes, "alt_text": a.alt_text, "source": a.source,
-            "provenance": a.provenance, "property_id": a.property_id, "created_at": a.created_at}
+            "provenance": a.provenance, "property_id": a.property_id, "created_at": a.created_at,
+            "tags": a.tags, "people_ok": bool(a.people_ok)}
 
 
 @router.get("/media")
@@ -369,6 +370,8 @@ async def upload_media(file: UploadFile = File(...), alt_text: Optional[str] = F
     raw = await file.read(media.MAX_UPLOAD_BYTES + 1)
     asset = _run(media.add_upload, db, user.tenant_id, raw, actor_id=user.id, alt_text=alt_text, property_id=property_id)
     db.commit()
+    from app.services.marketing_vision import queue as queue_tagging
+    queue_tagging(user.tenant_id, [asset.id] if asset.tagged_at is None else [])        # vision tags (M2), best effort
     return _asset_out(asset)
 
 

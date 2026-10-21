@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill } from "@/components/ui/kit";
 import { STUDIO, btn, btnPrimary, inputCls, studioError, type Asset } from "./types";
 import { AiImagesPanel } from "./AiImagesPanel";
+import { BrandDraftPanel, ClaimsEditor, PhotoTagsRow, TaggingBar, type Claim } from "./BrainPanels";
 import { useSession } from "next-auth/react";
 
 interface VoiceTrait { trait: string; we_are: string; we_are_not: string; sounds_like: string | null; not_like: string | null }
@@ -14,7 +15,7 @@ type Channel = "instagram" | "whatsapp" | "review_replies" | "ads";
 interface Profile {
   tagline: string | null; description: string | null; audience: string | null; tone: string | null;
   usps: string[]; avoid: string[]; city: string | null; region: string | null; default_hashtags: string[];
-  voice?: VoiceTrait[]; channel_tone?: Partial<Record<Channel, string | null>>;
+  voice?: VoiceTrait[]; channel_tone?: Partial<Record<Channel, string | null>>; claims?: Claim[]; home_state?: string | null;
   [k: string]: unknown;
 }
 
@@ -65,6 +66,7 @@ const TEXT: { key: keyof Profile; label: string; max: number; rows?: number; hin
   { key: "tone", label: "How you sound", max: 300, hint: "e.g. warm, understated, never salesy" },
   { key: "city", label: "City", max: 80 },
   { key: "region", label: "Region", max: 80 },
+  { key: "home_state", label: "State (for holidays)", max: 40, hint: "e.g. Karnataka" },
 ];
 const LISTS: { key: "usps" | "avoid" | "default_hashtags"; label: string; hint: string }[] = [
   { key: "usps", label: "What makes you different", hint: "One per line." },
@@ -90,6 +92,7 @@ export function ProfileTab() {
       avoid: lists.avoid.split("\n").map(s => s.trim()).filter(Boolean),
       default_hashtags: lists.default_hashtags.split(/\s+/).filter(Boolean),
       voice: (p?.voice ?? []).filter(t => t.trait.trim() && t.we_are.trim() && t.we_are_not.trim()),   // half-written traits are dropped
+      claims: (p?.claims ?? []).filter(c => c.text.trim().length >= 3),
     }),
     onSuccess: r => { qc.setQueryData(["studio-profile"], r.data); toast({ variant: "success", title: "Profile saved" }); },
     onError: e => toast({ variant: "error", title: "Not saved", description: studioError(e, "Check the fields.") }),
@@ -101,6 +104,15 @@ export function ProfileTab() {
       <CardHeader title={q.data?.brand_name ?? "Business profile"} description="What the AI may say about you. It never invents anything beyond this and your property details." />
       <CardBody>
         <form className="grid gap-4 md:grid-cols-2" onSubmit={e => { e.preventDefault(); save.mutate(); }}>
+          <div className="md:col-span-2">
+            <BrandDraftPanel onApply={d => {
+              setP({ ...p, tagline: d.tagline || p.tagline, audience: d.audience || p.audience, tone: d.tone || p.tone,
+                voice: d.voice.length ? d.voice : p.voice, channel_tone: { ...(p.channel_tone ?? {}), ...Object.fromEntries(Object.entries(d.channel_tone).filter(([, v]) => v)) },
+                claims: [...(p.claims ?? []), ...d.claims.filter(c => !(p.claims ?? []).some(x => x.text === c.text))] });
+              if (d.usps.length) setLists({ ...lists, usps: d.usps.join("\n") });
+              toast({ title: "Draft added to the form", description: "Check it, then press Save profile." });
+            }} />
+          </div>
           {TEXT.map(f => (
             <label key={f.key} className={f.rows ? "space-y-1 md:col-span-2" : "space-y-1"}>
               <span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">{f.label}</span>
@@ -123,6 +135,11 @@ export function ProfileTab() {
             <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">Brand voice</h3>
             <p className="text-xs text-[var(--haip-fg-subtle)]">Up to five traits. The copywriter follows them and the brand review checks every draft against them.</p>
             <VoiceEditor value={p.voice ?? []} onChange={voice => setP({ ...p, voice })} />
+          </section>
+          <section className="space-y-2 md:col-span-2">
+            <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">Facts you approve for posts</h3>
+            <p className="text-xs text-[var(--haip-fg-subtle)]">Distances, awards, what is included. The copywriter may use these as written; anything else with a number is flagged.</p>
+            <ClaimsEditor value={p.claims ?? []} onChange={claims => setP({ ...p, claims })} />
           </section>
           <section className="space-y-2 md:col-span-2">
             <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">Tone by channel</h3>
@@ -181,6 +198,7 @@ export function LibraryTab() {
           onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }} />
         <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photo"}</button>
       </div>
+      <TaggingBar />
       <AiImagesPanel />
       {render && (
         <Card className="p-4">
@@ -217,6 +235,7 @@ export function LibraryTab() {
                   <button type="button" className="min-h-11 px-1 text-xs font-semibold text-primary sm:min-h-0" onClick={() => setRender(a)}>Make creative</button>
                 )}
               </div>
+              <PhotoTagsRow a={a} canApprove={canReview} />
               {a.status === "pending_review" && canReview && (
                 <div className="flex gap-2 px-2 pb-2">
                   <button type="button" className={btnPrimary + " flex-1"} disabled={review.isPending || (role !== "owner" && a.created_by === session?.user?.id)}

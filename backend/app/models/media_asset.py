@@ -3,7 +3,7 @@
 The file lives in R2 under a tenant-prefixed key (services/media_storage.py); this row is the metadata and provenance.
 Read URLs are presigned on demand, never stored. `Property.photos` stays as it is and is not copied here.
 """
-from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, gen_uuid
@@ -28,5 +28,12 @@ class MediaAsset(Base, TimestampMixin):
     provenance = Column(JSON, nullable=True)                          # template id + inputs, or AI provider/model/prompt version
     created_by = Column(String, nullable=True)
     status = Column(String(20), nullable=False, default="active")     # active | archived | pending_review (AI, unapproved) | derived (rendered for posting)
+
+    # Agency M2 (migration 160): what a vision model saw (schemas.marketing.PhotoTags), and the owner's OK to post a
+    # photo that shows people. A photo tagged with people is never picked automatically until people_ok is true.
+    tags = Column(JSON, nullable=True)
+    tag_model = Column(String(80), nullable=True)
+    tagged_at = Column(DateTime(timezone=True), nullable=True)
+    people_ok = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (Index("ix_media_assets_tenant_sha", "tenant_id", "sha256"),)

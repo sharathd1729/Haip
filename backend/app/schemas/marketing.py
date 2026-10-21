@@ -70,6 +70,12 @@ class ChannelTone(_Strict):
     ads: Optional[str] = Field(default=None, max_length=200)
 
 
+class ApprovedClaim(_Strict):
+    """A fact the owner has confirmed may be said in public (agency M2), e.g. "12 km from Madikeri town"."""
+    text: str = Field(min_length=3, max_length=200)
+    source: Optional[str] = Field(default=None, max_length=200)    # where it comes from: "Google Maps", "award 2025"
+
+
 class BusinessProfile(_Strict):
     """What the AI may say about the business. `Tenant.brand_name` stays the canonical name and
     `brand_config.branding_theme` the visual source; this adds only what neither holds."""
@@ -89,6 +95,8 @@ class BusinessProfile(_Strict):
     default_hashtags: list[str] = Field(default_factory=list, max_length=HASHTAGS_MAX)
     voice: list[VoiceTrait] = Field(default_factory=list, max_length=5)
     channel_tone: ChannelTone = Field(default_factory=ChannelTone)   # `tone` above stays the overall "how you sound"
+    claims: list[ApprovedClaim] = Field(default_factory=list, max_length=40)
+    home_state: Optional[str] = Field(default=None, max_length=40)   # for state holidays; e.g. "KA" or "Karnataka"
 
     @field_validator("usps", "avoid")
     @classmethod
@@ -253,6 +261,31 @@ def text_of(payload: dict) -> str:
     return "\n".join(strings_of(payload))
 
 
+# ── Photo tags (services/marketing_vision.py) ────────────────────────────────────────────────────────────────────────
+
+PHOTO_SUBJECTS = ("bedroom", "bathroom", "living_room", "kitchen", "dining", "exterior", "pool", "garden", "view",
+                  "food", "drink", "activity", "vehicle", "detail", "amenity", "local_area", "people")
+
+
+class PhotoTags(_Strict):
+    """What a vision model saw in one library photo. Used to pick photos; `people` photos need the owner's OK."""
+    subjects: list[Literal["bedroom", "bathroom", "living_room", "kitchen", "dining", "exterior", "pool", "garden",
+                           "view", "food", "drink", "activity", "vehicle", "detail", "amenity", "local_area",
+                           "people"]] = Field(default_factory=list, max_length=6)
+    light: Literal["day", "golden_hour", "night", "indoor", "unknown"] = "unknown"
+    season: Literal["monsoon", "winter", "summer", "any"] = "any"
+    people: bool = False
+    text_or_logo: bool = False
+    quality: int = Field(default=3, ge=1, le=5)
+    mood: list[str] = Field(default_factory=list, max_length=4)
+    description: str = Field(min_length=1, max_length=200)
+
+    @field_validator("mood")
+    @classmethod
+    def _mood(cls, v):
+        return [m.strip().lower()[:20] for m in v if m and m.strip()]
+
+
 # ── Brand review (services/marketing_review_service.py) ─────────────────────────────────────────────────────────────
 
 class ReviewFinding(_Strict):
@@ -317,6 +350,19 @@ class CalendarEntry(_Strict):
     kind: Literal["post", "carousel", "story", "promo"]
     pillar: str = Field(min_length=1, max_length=60)
     idea: str = Field(min_length=1, max_length=300)
+    # Agency M2 (all optional so older plans still validate):
+    targets: Optional[str] = Field(default=None, max_length=80)        # the free dates or occasion it sells, e.g. "2026-11-13 to 2026-11-16"
+    campaign: Optional[str] = Field(default=None, max_length=80)
+    bucket: Optional[Literal["proven", "new", "experimental"]] = None
+    indicator: Optional[str] = Field(default=None, max_length=160)     # the early signal to watch
+    stop_if: Optional[str] = Field(default=None, max_length=160)       # when to stop doing this
+
+
+class Campaign(_Strict):
+    name: str = Field(min_length=1, max_length=80)
+    goal: str = Field(min_length=1, max_length=200)
+    targets: Optional[str] = Field(default=None, max_length=120)       # dates or occasion
+    channels: list[str] = Field(default_factory=list, max_length=6)
 
 
 class MarketingPlanBody(_Strict):
@@ -328,6 +374,8 @@ class MarketingPlanBody(_Strict):
     out_of_scope: list[str] = Field(default_factory=list, max_length=8)  # what the account does not post
     cadence: str = Field(min_length=1, max_length=200)
     calendar: list[CalendarEntry] = Field(default_factory=list, max_length=62)
+    campaigns: list[Campaign] = Field(default_factory=list, max_length=6)
+    reactive_days: list[str] = Field(default_factory=list, max_length=12)   # days kept free for what happens that week
 
     @model_validator(mode="after")
     def _pillars_known(self):

@@ -148,7 +148,7 @@ def _is_transient(exc: Exception) -> bool:
 
 # Output budgets per task. A two-week calendar overran 3,000 tokens on a live gpt-oss-20b run (18 Oct 2026) and the
 # tool call was cut off, so the plan gets more room.
-MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_review": 2000}
+MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000}
 
 
 def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tuple[dict, dict, str]:
@@ -250,16 +250,28 @@ def _latest_research(db: Session, tenant_id: str) -> str:
                 "formats": a.get("formats"), "opportunities": a.get("opportunities"), "avoid": a.get("avoid")})
 
 
+def _demand(db: Session, tenant: Tenant) -> Optional[dict]:
+    """The demand brief (marketing_demand) or None; a failure here never stops the plan."""
+    from app.services import marketing_demand
+    try:
+        return marketing_demand.brief(db, tenant)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("marketing_demand_failed", tenant_id=tenant.id, error=str(exc)[:200])
+        return None
+
+
 def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     plan = db.query(MarketingPlan).filter_by(id=plan_id, tenant_id=tenant_id).one()
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
     plan.prompt_version = get_version("marketing_plan")
     audit = db.query(MarketingAudit).filter_by(id=plan.audit_id, tenant_id=tenant_id).first() if plan.audit_id else None
+    demand = _demand(db, tenant)
     try:
         user = (f"Business facts:\n{_facts(db, tenant)}\n\nPeriod: {plan.period_start} to {plan.period_end}\n"
                 f"Owner's brief: {plan.brief or '(none)'}\n"
                 f"Audit findings: {audit.assessment if audit is not None and audit.status == 'ready' else '(no audit)'}\n"
-                f"Competitor research: {_latest_research(db, tenant_id)}")
+                f"Competitor research: {_latest_research(db, tenant_id)}\n"
+                f"Demand (computed from bookings and the holiday calendar): {demand or '(not available)'}")
         data, raw, provider = _call("marketing_plan", tenant_id, _system(prompts.PLAN_SYSTEM, tenant), user, prompts.PLAN_TOOL)
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_plan", ref_id=plan.id)
         body = MarketingPlanBody.model_validate(normalise_plan(data)).model_dump(mode="json")
@@ -268,6 +280,7 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
         problems = content_svc.check_text(db, tenant_id, {k: v for k, v in body.items() if k != "out_of_scope"})
         if problems:
             raise ValueError("; ".join(problems))
+        body["demand"] = demand                  # the computed input it was given, kept with the plan (not AI-written)
         plan.body, plan.model, plan.status, plan.error = body, raw.get("model"), "ready", None
     except ValidationError as exc:
         plan.status, plan.error = "failed", f"The AI's answer did not fit the plan format: {_errors(exc)}"

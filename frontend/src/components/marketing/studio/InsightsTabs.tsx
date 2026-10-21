@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, Stat, StatusPill } from "@/components/ui/kit";
+import { DemandCard } from "./BrainPanels";
 import { KIND_LABEL, STUDIO, btn, btnPrimary, day, inputCls, studioError, when, type Audit, type Plan } from "./types";
 
 const NUM = new Intl.NumberFormat("en-IN");
@@ -147,6 +148,7 @@ export function PlanTab() {
         </form>
         <p className="mt-2 text-xs text-[var(--haip-fg-subtle)]">{latestAudit ? `Uses your audit from ${when(latestAudit.created_at)}.` : "Run an audit first for a plan based on your numbers."} Up to 62 days.</p>
       </Card>
+      <DemandCard />
       {plans.isLoading ? <Skeleton className="h-48 w-full" /> : plans.isError ? (
         <Card><EmptyState title="Could not load plans" hint={studioError(plans.error, "Try again.")} /></Card>
       ) : !p ? (
@@ -167,13 +169,22 @@ export function PlanTab() {
                     {p.body.rotation && <><h3 className="mt-3 text-[13px] font-bold">Rotation</h3><p className="mt-1 text-sm">{p.body.rotation}</p></>}</div>
                   {p.body.position && <div className="md:col-span-2"><h3 className="text-[13px] font-bold">In one line</h3><p className="mt-1 text-sm">{p.body.position}</p></div>}
                   {!!p.body.out_of_scope?.length && <div className="md:col-span-2"><h3 className="text-[13px] font-bold">Not for this account</h3><p className="mt-1 text-sm">{p.body.out_of_scope.join(" · ")}</p></div>}
+                  {!!p.body.campaigns?.length && <div className="md:col-span-2"><h3 className="text-[13px] font-bold">Campaigns</h3>
+                    <ul className="mt-1 space-y-1 text-sm">{p.body.campaigns.map(c => <li key={c.name}><span className="font-semibold">{c.name}:</span> {c.goal}{c.targets ? ` (${c.targets})` : ""}</li>)}</ul></div>}
                 </div>
                 <ol className="divide-y divide-[var(--haip-border)] rounded-xl border border-[var(--haip-border)]">
                   {p.body.calendar.map((e, i) => (
                     <li key={i} className="flex flex-col gap-1 p-3 text-sm sm:flex-row sm:gap-4">
                       <span className="w-28 shrink-0 font-semibold">{day(e.date)}</span>
                       <span className="w-20 shrink-0 text-[var(--haip-fg-subtle)]">{KIND_LABEL[e.kind]}</span>
-                      <span className="min-w-0"><span className="font-semibold">{e.pillar}:</span> {e.idea}</span>
+                      <span className="min-w-0"><span className="font-semibold">{e.pillar}:</span> {e.idea}
+                        {(e.targets || e.bucket || e.indicator) && (
+                          <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[var(--haip-fg-subtle)]">
+                            {e.targets && <StatusPill tone="brand">Sells {e.targets}</StatusPill>}
+                            {e.bucket && <StatusPill tone={e.bucket === "proven" ? "success" : e.bucket === "new" ? "info" : "warning"}>{e.bucket}</StatusPill>}
+                            {e.indicator && <span>Watch: {e.indicator}{e.stop_if ? ` · stop if ${e.stop_if}` : ""}</span>}
+                          </span>)}
+                      </span>
                     </li>
                   ))}
                 </ol>

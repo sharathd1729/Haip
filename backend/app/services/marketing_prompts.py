@@ -45,7 +45,16 @@ Produce:
 - a realistic cadence for a small team, and a dated calendar inside the requested period (at most one entry per day,
   every entry's pillar exactly one of the pillar names).
 Base it on the business facts, the audit's stop/keep/test lists and, when given, the competitor research (borrow
-what works in the segment; never copy a competitor's post). Answer only by calling the tool.
+what works in the segment; never copy a competitor's post).
+Demand comes first. The "Demand" data lists open dates per vehicle/property (gaps), long weekends and festivals:
+- every post that sells a stay names the exact open dates or occasion it sells in `targets` (copy the dates from the
+  gaps; never invent dates or say dates are open that are not in the gaps); group related posts into `campaigns`
+  (e.g. "Diwali long weekend", with its goal, target dates and channels);
+- put the nearest, longest gaps first; a festival or long weekend 2-6 weeks away matters most;
+- `bucket` every entry: about 60% proven (what the audit says works), 30% new, 10% experimental;
+- `indicator`: the early signal to watch (e.g. "DMs asking about 13-16 Nov"); `stop_if`: when to drop the idea;
+- leave about one day in five free in `reactive_days` for what happens that week.
+Answer only by calling the tool.
 """ + _COMMON_RULES
 
 CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce exactly one piece of the requested kind.
@@ -67,6 +76,8 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
   bullets; stock phrases (nestled, hidden gem, look no further, unforgettable experience, hustle and bustle, embark on,
   elevate your, a haven of, awaits you, imagine waking up, in the heart of); guarantees; superlatives you can't prove;
   other businesses' names; invented guest quotes.
+- `profile.claims` are facts the owner approved for public use: use them as written. When the plan entry names
+  `targets` (open dates or an occasion), the post sells exactly those; never say other dates are available.
 - Use only figures that are in the facts. If you need a fact you don't have (a distance, a time, what's included),
   write [NEED: what is missing] in its place; a person fills it in. Never guess.
 - Fit the plan when one is given: its audience and position, this entry's pillar and idea. Do not repeat the hooks of

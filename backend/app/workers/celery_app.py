@@ -241,6 +241,8 @@ celery_app.conf.update(
         "marketing_studio.generate_content":         {"queue": "default"},
         "marketing_studio.generate_image":           {"queue": "default"},
         "marketing_studio.review_content":           {"queue": "default"},
+        "marketing_studio.tag_photo":                {"queue": "default"},
+        "marketing_studio.draft_profile":            {"queue": "default"},
         "marketing_agency.orchestrate":              {"queue": "default"},
         "marketing_agency.run_week":                 {"queue": "default"},
         "marketing_agency.step":                     {"queue": "default"},

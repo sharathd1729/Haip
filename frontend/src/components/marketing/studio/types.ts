@@ -48,7 +48,18 @@ export interface Audit {
   prompt_version: string | null; model: string | null; created_at: string;
 }
 
-export interface CalendarEntry { date: string; kind: Kind; pillar: string; idea: string }
+export interface CalendarEntry {
+  date: string; kind: Kind; pillar: string; idea: string;
+  targets?: string | null; campaign?: string | null; bucket?: "proven" | "new" | "experimental" | null;
+  indicator?: string | null; stop_if?: string | null;
+}
+
+export interface DemandGap { property: string; properties?: string[]; start: string; end: string; nights: number; why: string[]; days_away: number }
+export interface Demand {
+  from: string; to: string; state: string | null; gaps: DemandGap[];
+  occasions: { date: string; day: string; name: string; kind: "public" | "festival" }[];
+  long_weekends: { start: string; end: string; days: number; leave_days: number; reason: string }[];
+}
 
 export interface Plan {
   id: string; status: "pending" | "ready" | "failed" | "archived"; error: string | null; period_start: string; period_end: string;
@@ -56,6 +67,8 @@ export interface Plan {
   body: {
     goals: string[]; audience: string; pillars: string[]; cadence: string; calendar: CalendarEntry[];
     position?: string | null; rotation?: string | null; out_of_scope?: string[];
+    campaigns?: { name: string; goal: string; targets?: string | null; channels?: string[] }[];
+    reactive_days?: string[]; demand?: Demand | null;
   } | null;
 }
 
@@ -63,6 +76,13 @@ export interface Asset {
   id: string; url: string | null; mime_type: string; width: number | null; height: number | null; bytes: number;
   alt_text: string | null; source: "upload" | "template" | "ai" | "instagram"; created_at: string;
   status?: "active" | "pending_review" | "archived"; created_by?: string | null; provenance?: Record<string, unknown> | null;
+  tags?: PhotoTags | null; people_ok?: boolean;
+}
+
+/** What the vision model saw in a library photo (agency M2). */
+export interface PhotoTags {
+  subjects: string[]; light: string; season: string; people: boolean; text_or_logo: boolean; quality: number;
+  mood: string[]; description: string;
 }
 
 export const KIND_LABEL: Record<Kind, string> = { post: "Post", carousel: "Carousel", story: "Story", promo: "Promo" };

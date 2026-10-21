@@ -108,6 +108,49 @@ def review_content(self, tenant_id: str, item_id: str):
             give_up(db, f"The review failed unexpectedly: {type(exc).__name__}")
 
 
+@shared_task(name="marketing_studio.tag_photo", bind=True, max_retries=MAX_RETRIES)
+def tag_photo(self, tenant_id: str, asset_id: str):
+    """Vision tags for one library photo (agency M2). A permanent failure leaves the photo untagged and usable."""
+    from app.adapters.vision import VisionError
+    from app.models.tenant import Tenant
+    from app.services import marketing_vision as vision
+    from app.services.marketing_content_service import MarketingError
+
+    with SessionLocal() as db:
+        try:
+            vision.tag_asset(db, db.query(Tenant).filter_by(id=tenant_id).one(), asset_id)
+            db.commit()
+        except VisionError as exc:
+            db.rollback()
+            if exc.transient and self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            log.warning("marketing_tag_failed", tenant_id=tenant_id, asset_id=asset_id, error=str(exc)[:200])
+        except MarketingError as exc:
+            db.rollback()
+            log.info("marketing_tag_skipped", tenant_id=tenant_id, asset_id=asset_id, reason=exc.message)
+
+
+@shared_task(name="marketing_studio.draft_profile", bind=True, max_retries=MAX_RETRIES)
+def draft_profile(self, tenant_id: str):
+    """Brand DNA draft (agency M2): a suggestion the owner reviews; never applied automatically."""
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_brand_dna as dna
+
+    with SessionLocal() as db:
+        try:
+            dna.run(db, tenant_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            from app.models.tenant import Tenant
+            tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+            dna._store(tenant, {**(dna.get_draft(tenant) or {}), "status": "failed",
+                                "error": f"The AI service is unavailable right now ({exc}). Try again later."})
+            db.commit()
+
+
 # ── Agency (plan phase A) ───────────────────────────────────────────────────────────────────────────────────────────
 
 @shared_task(name="marketing_agency.orchestrate")
