@@ -175,9 +175,17 @@ def _open_vehicles(db: Session, tenant_id: str, vehicle_ids: list[str], ci: date
     return out
 
 
-def evaluate_discount(pol, percent: Decimal, base_total: Decimal) -> dict:
-    """What the published discount policy says about a requested percentage: applied / needs_approval / refused. The one place."""
+def evaluate_discount(pol, percent: Decimal, base_total: Decimal, floor_total: Optional[Decimal] = None) -> dict:
+    """What the published discount policy says about a requested percentage: applied / needs_approval / refused. The one place.
+    `floor_total` is the lowest the package price may go (the rates' floor_amount); below it is refused whatever the policy says."""
     amount = _money(base_total * percent / 100)
+    minimum = getattr(pol, "min_booking_amount", None)
+    if minimum is not None and base_total < minimum:
+        return {"requested_percent": str(percent), "status": "refused", "amount": None,
+                "reason": f"discounts apply only to bookings of {minimum} and above"}
+    if floor_total is not None and base_total - amount < floor_total:
+        return {"requested_percent": str(percent), "status": "refused", "amount": None,
+                "reason": f"below the lowest price of {floor_total} for these dates"}
     if percent > pol.max_discount_percent or (pol.max_discount_amount is not None and amount > pol.max_discount_amount):
         return {"requested_percent": str(percent), "status": "refused", "amount": None,
                 "reason": f"above the policy maximum of {pol.max_discount_percent}%" + (f" / {pol.max_discount_amount}" if pol.max_discount_amount is not None else "")}
@@ -291,8 +299,10 @@ def quote(
     if why == "conflict":
         return _refuse("conflicting_rates", f"Two equally specific package rates cover {check_in}.", **base)
     base_total = Decimal("0")
+    floors: list[Optional[Decimal]] = []                          # each rate used, its floor (None = no floor on that rate)
     if chosen is not None:
         base_total = chosen.amount
+        floors.append(chosen.floor_amount)
         detail = f"{pkg.duration_hours} hours, package price" if pkg.duration_hours else "package price (by check-in date)"
         lines.append(Line(f"{pkg.name} - {chosen.label}", chosen.amount, detail))
     else:
@@ -309,6 +319,7 @@ def quote(
                 missing.append(d.isoformat())
                 continue
             grouped[(r.label, r.amount, r.unit)] = grouped.get((r.label, r.amount, r.unit), 0) + 1
+            floors.append(r.floor_amount)
         if missing:
             return _refuse("no_rate_for_dates", f"No rate covers: {', '.join(missing[:5])}{' ...' if len(missing) > 5 else ''}.", **base)
         for (label, amount, unit), count in grouped.items():
@@ -376,7 +387,8 @@ def quote(
             return _refuse("no_discount_policy", "No discount policy is published, so no discount can be offered.", fix={"discount_percent": None}, **base)
         pol = bds.parse(pol_rec)
         refs.append(_ref("discount_policy", pol_rec, False))
-        discount = evaluate_discount(pol, discount_percent, base_total)         # a discount applies to the package price, not to extras
+        floor_total = sum(floors, Decimal("0")) if floors and all(f is not None for f in floors) else None
+        discount = evaluate_discount(pol, discount_percent, base_total, floor_total)   # on the package price, not on extras
         if discount["status"] == "applied":
             amount = Decimal(discount["amount"])
             lines.append(Line(f"Discount {discount_percent}%", -amount, "within the published discount policy"))

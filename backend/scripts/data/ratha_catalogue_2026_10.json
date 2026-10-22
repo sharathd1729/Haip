@@ -1,0 +1,1204 @@
+{
+  "_about": "Rathaa commercial master, 21 Oct 2026, as DRAFT business records + knowledge entries. Loaded by scripts/import_ratha_catalogue.py (dry run unless --apply). Owner decisions 21 Oct: a price band = top is the price, bottom is the floor (any discount needs a manager, never below the floor; sales meeting 22 Oct: discounts only on bookings of Rs 1,20,000 and above, at most 15% and Rs 10,000, never on peak dates); GST 18% on top; extra km ladder Rs 100 -> 60; circuits Rs 45,000/day, floor Rs 35,000; the Rs 15,000/day base is B2B only. 29 Dec - 1 Jan has no rate on purpose (special rate card): a quote for those dates is refused and goes to a person. Distances and nights marked in `review` are estimates to confirm before publishing.",
+  "review": [
+    "Distances and drive times on every route are road estimates from Bengaluru; correct them before publishing (they set the included km and extra km on quotes).",
+    "Fuel: the master includes fuel only in the Rs 25,000/day standard. Confirm whether fuel is included in the Mysuru packages, the circuits and the B2B base rate; add it to Included or Not included.",
+    "Guest limits: overnight packages allow 4 (sleeping), day trips 6 (travel). Change if your configuration differs.",
+    "Nights per circuit (Wild Karnataka 3N, Western Ghats 5N, Hampi 2N, Grand Karnataka 6N, Tirupati 1N, Kukke + Dharmasthala 2N) are proposals from the master's day plans.",
+    "Peak 29 Dec - 1 Jan: add a peak rate to each package when the special rate card is ready (until then those dates go to a person).",
+    "Not loaded, needs repricing first (master s.39): Rathaa for a Day (sunrise / day / sunset / night camping) and the North / South Bengaluru day circuits are routes only, with no package.",
+    "Reseller tiers: no minimum days or billing were set; add them if partners have minimums.",
+    "Payment, cancellation and stay rules are not in the master and are not touched."
+  ],
+  "valid": {
+    "from": "2026-10-22",
+    "peak_starts": "2026-12-29",
+    "peak_ends": "2027-01-01",
+    "to": "2027-03-31"
+  },
+  "common": {
+    "gst_percent": "18",
+    "extra_km_charge": {
+      "min_per_km": "60",
+      "max_per_km": "100",
+      "ladder": [
+        {
+          "up_to_extra_km": "100",
+          "per_km": "100"
+        },
+        {
+          "up_to_extra_km": "300",
+          "per_km": "90"
+        },
+        {
+          "up_to_extra_km": "600",
+          "per_km": "75"
+        },
+        {
+          "per_km": "60"
+        }
+      ]
+    },
+    "extra_hour_charge": {
+      "per_hour": "2500"
+    },
+    "kits": [
+      {
+        "name": "Culinary Kit",
+        "kind": "experience",
+        "amount": "5000",
+        "unit": "per_stay",
+        "optional": true
+      },
+      {
+        "name": "Wellness Kit",
+        "kind": "experience",
+        "amount": "5000",
+        "unit": "per_stay",
+        "optional": true
+      },
+      {
+        "name": "Adventure Kit",
+        "kind": "experience",
+        "amount": "5000",
+        "unit": "per_stay",
+        "optional": true
+      }
+    ],
+    "inclusions": [
+      "Rathaa with a commercial driver",
+      "Onboard lounge, bedroom, washroom and kitchenette",
+      "Air conditioning, refrigerator and entertainment onboard"
+    ],
+    "exclusions": [
+      "Self-drive (not offered)"
+    ],
+    "third_party": "Third-party experiences (safari, rafting, guides, tickets, resorts, meals at partner properties)"
+  },
+  "destinations": [
+    {
+      "key": "mysuru",
+      "data": {
+        "name": "Mysuru",
+        "description": "Heritage city day: Mysuru Palace, Chamundi Hills and the old city, with an evening drive back. During Dasara the palace is illuminated.",
+        "usual_nights": 0,
+        "distance_km_from_base": "145",
+        "travel_hours_from_base": "3.5",
+        "best_months": [
+          1,
+          2,
+          3,
+          9,
+          10,
+          11,
+          12
+        ],
+        "stops": [
+          {
+            "name": "Mysuru",
+            "order": 1,
+            "distance_km_from_previous": "145",
+            "travel_hours_from_previous": "3.5"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 2,
+            "distance_km_from_previous": "150",
+            "travel_hours_from_previous": "3.5"
+          }
+        ],
+        "sights": [
+          {
+            "name": "Chamundi Hills",
+            "km_round_trip": "26"
+          },
+          {
+            "name": "KRS (Brindavan Gardens)",
+            "km_round_trip": "40"
+          }
+        ]
+      }
+    },
+    {
+      "key": "mysuru-krs",
+      "data": {
+        "name": "Mysuru and KRS",
+        "description": "Mysuru's palace and Chamundi Hills, then the evening at KRS (Krishna Raja Sagara) and an overnight in Rathaa.",
+        "usual_nights": 1,
+        "distance_km_from_base": "145",
+        "travel_hours_from_base": "3.5",
+        "best_months": [
+          1,
+          2,
+          3,
+          9,
+          10,
+          11,
+          12
+        ],
+        "stops": [
+          {
+            "name": "Mysuru",
+            "order": 1,
+            "distance_km_from_previous": "145",
+            "travel_hours_from_previous": "3.5"
+          },
+          {
+            "name": "KRS",
+            "order": 2,
+            "overnight": true,
+            "distance_km_from_previous": "20",
+            "travel_hours_from_previous": "0.6"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 3,
+            "distance_km_from_previous": "140",
+            "travel_hours_from_previous": "3.5"
+          }
+        ],
+        "sights": [
+          {
+            "name": "Chamundi Hills",
+            "km_round_trip": "26"
+          }
+        ]
+      }
+    },
+    {
+      "key": "mysuru-coorg",
+      "data": {
+        "name": "Mysuru, KRS and Coorg",
+        "description": "Heritage, a lake evening and the Coorg hills in one journey: Mysuru, KRS, then Coorg's coffee country.",
+        "usual_nights": 2,
+        "distance_km_from_base": "145",
+        "travel_hours_from_base": "3.5",
+        "best_months": [
+          1,
+          2,
+          3,
+          9,
+          10,
+          11,
+          12
+        ],
+        "stops": [
+          {
+            "name": "Mysuru",
+            "order": 1,
+            "distance_km_from_previous": "145",
+            "travel_hours_from_previous": "3.5"
+          },
+          {
+            "name": "KRS",
+            "order": 2,
+            "overnight": true,
+            "distance_km_from_previous": "20",
+            "travel_hours_from_previous": "0.6"
+          },
+          {
+            "name": "Coorg (Madikeri)",
+            "order": 3,
+            "overnight": true,
+            "distance_km_from_previous": "125",
+            "travel_hours_from_previous": "3"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 4,
+            "distance_km_from_previous": "255",
+            "travel_hours_from_previous": "6"
+          }
+        ]
+      }
+    },
+    {
+      "key": "wild-karnataka",
+      "data": {
+        "name": "Wild Karnataka: Kabini, Bandipur, Bheemeshwari",
+        "description": "The flagship wildlife circuit with Jungle Lodges and Resorts (JLR): Kabini, the Bandipur corridor, then the river at Bheemeshwari. Rathaa is the private room that travels with you, so there is no packing and checking in at every stop. Safari, meals and activities at JLR are paid to JLR.",
+        "usual_nights": 3,
+        "distance_km_from_base": "210",
+        "travel_hours_from_base": "5",
+        "best_months": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          10,
+          11,
+          12
+        ],
+        "notes": "Daytime driving only on forest roads.",
+        "stops": [
+          {
+            "name": "Kabini (JLR)",
+            "order": 1,
+            "overnight": true,
+            "distance_km_from_previous": "210",
+            "travel_hours_from_previous": "5"
+          },
+          {
+            "name": "Bandipur (JLR)",
+            "order": 2,
+            "overnight": true,
+            "distance_km_from_previous": "75",
+            "travel_hours_from_previous": "2"
+          },
+          {
+            "name": "Bheemeshwari (JLR)",
+            "order": 3,
+            "overnight": true,
+            "distance_km_from_previous": "190",
+            "travel_hours_from_previous": "5"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 4,
+            "distance_km_from_previous": "100",
+            "travel_hours_from_previous": "3"
+          }
+        ]
+      }
+    },
+    {
+      "key": "western-ghats-sea",
+      "data": {
+        "name": "Western Ghats to the Sea",
+        "description": "Forest, river, coast and waterfall in one journey: Dandeli and the Kali river, Bheemgad, Karwar, Gokarna and Om Beach, then Sharavathi and Jog Falls. Runs as 4 to 7 days.",
+        "usual_nights": 5,
+        "distance_km_from_base": "470",
+        "travel_hours_from_base": "9",
+        "best_months": [
+          1,
+          2,
+          3,
+          10,
+          11,
+          12
+        ],
+        "notes": "Long first day; daytime driving on forest stretches.",
+        "stops": [
+          {
+            "name": "Dandeli / Kali (JLR)",
+            "order": 1,
+            "overnight": true,
+            "distance_km_from_previous": "470",
+            "travel_hours_from_previous": "9"
+          },
+          {
+            "name": "Bheemgad / Khanapur",
+            "order": 2,
+            "overnight": true,
+            "distance_km_from_previous": "90",
+            "travel_hours_from_previous": "2.5"
+          },
+          {
+            "name": "Karwar",
+            "order": 3,
+            "overnight": true,
+            "distance_km_from_previous": "150",
+            "travel_hours_from_previous": "4"
+          },
+          {
+            "name": "Gokarna / Om Beach",
+            "order": 4,
+            "overnight": true,
+            "distance_km_from_previous": "60",
+            "travel_hours_from_previous": "1.5"
+          },
+          {
+            "name": "Sharavathi / Jog Falls",
+            "order": 5,
+            "overnight": true,
+            "distance_km_from_previous": "115",
+            "travel_hours_from_previous": "3"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 6,
+            "distance_km_from_previous": "400",
+            "travel_hours_from_previous": "8"
+          }
+        ]
+      }
+    },
+    {
+      "key": "hampi",
+      "data": {
+        "name": "Hampi: Heritage on the Move",
+        "description": "The ruins of Vijayanagara with a curated sunset and nights in Rathaa. Can extend to Badami, Aihole and Pattadakal once parking is confirmed.",
+        "usual_nights": 2,
+        "distance_km_from_base": "340",
+        "travel_hours_from_base": "7",
+        "best_months": [
+          1,
+          2,
+          10,
+          11,
+          12
+        ],
+        "stops": [
+          {
+            "name": "Hampi",
+            "order": 1,
+            "overnight": true,
+            "distance_km_from_previous": "340",
+            "travel_hours_from_previous": "7"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 2,
+            "distance_km_from_previous": "340",
+            "travel_hours_from_previous": "7"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tirupati",
+      "data": {
+        "name": "Sacred Rathaa: Tirupati",
+        "description": "A comfortable temple journey: a private lounge, washroom, rest and food onboard the whole way, which suits elders and families.",
+        "usual_nights": 1,
+        "distance_km_from_base": "250",
+        "travel_hours_from_base": "5.5",
+        "stops": [
+          {
+            "name": "Tirupati",
+            "order": 1,
+            "overnight": true,
+            "distance_km_from_previous": "250",
+            "travel_hours_from_previous": "5.5"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 2,
+            "distance_km_from_previous": "250",
+            "travel_hours_from_previous": "5.5"
+          }
+        ]
+      }
+    },
+    {
+      "key": "kukke-dharmasthala",
+      "data": {
+        "name": "Sacred Rathaa: Kukke Subramanya and Dharmasthala",
+        "description": "Two coastal Karnataka temples in one unhurried journey, with rest and food onboard between darshans.",
+        "usual_nights": 2,
+        "distance_km_from_base": "280",
+        "travel_hours_from_base": "7",
+        "stops": [
+          {
+            "name": "Kukke Subramanya",
+            "order": 1,
+            "overnight": true,
+            "distance_km_from_previous": "280",
+            "travel_hours_from_previous": "7"
+          },
+          {
+            "name": "Dharmasthala",
+            "order": 2,
+            "overnight": true,
+            "distance_km_from_previous": "50",
+            "travel_hours_from_previous": "1.5"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 3,
+            "distance_km_from_previous": "300",
+            "travel_hours_from_previous": "7"
+          }
+        ]
+      }
+    },
+    {
+      "key": "grand-karnataka",
+      "data": {
+        "name": "Grand Karnataka",
+        "description": "Seven days or more of wildlife, the Western Ghats and the coast: Kabini, Bandipur, Mysuru, Coorg, Dandeli, Gokarna, Karwar and Sharavathi, without unpacking at every stop.",
+        "usual_nights": 6,
+        "distance_km_from_base": "210",
+        "travel_hours_from_base": "5",
+        "best_months": [
+          1,
+          2,
+          3,
+          10,
+          11,
+          12
+        ],
+        "stops": [
+          {
+            "name": "Kabini (JLR)",
+            "order": 1,
+            "overnight": true,
+            "distance_km_from_previous": "210",
+            "travel_hours_from_previous": "5"
+          },
+          {
+            "name": "Bandipur (JLR)",
+            "order": 2,
+            "overnight": true,
+            "distance_km_from_previous": "75",
+            "travel_hours_from_previous": "2"
+          },
+          {
+            "name": "Coorg (Madikeri)",
+            "order": 3,
+            "overnight": true,
+            "distance_km_from_previous": "200",
+            "travel_hours_from_previous": "5"
+          },
+          {
+            "name": "Dandeli (JLR)",
+            "order": 4,
+            "overnight": true,
+            "distance_km_from_previous": "400",
+            "travel_hours_from_previous": "9"
+          },
+          {
+            "name": "Gokarna / Om Beach",
+            "order": 5,
+            "overnight": true,
+            "distance_km_from_previous": "130",
+            "travel_hours_from_previous": "3.5"
+          },
+          {
+            "name": "Sharavathi / Jog Falls",
+            "order": 6,
+            "overnight": true,
+            "distance_km_from_previous": "115",
+            "travel_hours_from_previous": "3"
+          },
+          {
+            "name": "Bengaluru (return)",
+            "order": 7,
+            "distance_km_from_previous": "400",
+            "travel_hours_from_previous": "8"
+          }
+        ]
+      }
+    },
+    {
+      "key": "north-bengaluru",
+      "data": {
+        "name": "North Bengaluru circuit",
+        "description": "Nandi Hills, Skandagiri, Avalabetta, Gudibande, Adiyogi and Ghati Subramanya: sunrise, full-day, sunset-and-dinner or night-camping formats.",
+        "usual_nights": 0,
+        "distance_km_from_base": "60",
+        "travel_hours_from_base": "1.5",
+        "notes": "Day formats are being repriced; a person quotes these for now."
+      }
+    },
+    {
+      "key": "south-bengaluru",
+      "data": {
+        "name": "South Bengaluru circuit",
+        "description": "The Bannerghatta belt, Art of Living, Pyramid Valley, Sangama and Mekedatu: family, wellness and nature days or an overnight.",
+        "usual_nights": 0,
+        "distance_km_from_base": "100",
+        "travel_hours_from_base": "2.5",
+        "notes": "Day formats are being repriced; a person quotes these for now."
+      }
+    }
+  ],
+  "packages": [
+    {
+      "key": "mysuru-escape",
+      "band": [
+        "35000",
+        "30000"
+      ],
+      "unit": "package",
+      "data": {
+        "name": "Mysuru Escape (1 day)",
+        "summary": "A day in heritage Mysuru with Chamundi Hills, travelling in your own private lounge.",
+        "product": "same_day",
+        "max_guests": 6,
+        "included_km": "320",
+        "destination_keys": [
+          "mysuru"
+        ]
+      }
+    },
+    {
+      "key": "mysuru-krs",
+      "band": [
+        "45000",
+        "40000"
+      ],
+      "unit": "package",
+      "data": {
+        "name": "Mysuru and KRS (2 days)",
+        "summary": "Mysuru by day, the KRS evening and a night in Rathaa.",
+        "product": "overnight",
+        "min_nights": 1,
+        "max_nights": 1,
+        "max_guests": 4,
+        "included_km": "350",
+        "destination_keys": [
+          "mysuru-krs"
+        ]
+      }
+    },
+    {
+      "key": "mysuru-coorg",
+      "band": [
+        "65000",
+        "60000"
+      ],
+      "unit": "package",
+      "data": {
+        "name": "Mysuru and Coorg (3 days)",
+        "summary": "Heritage, a lake evening and the Coorg hills: a family, couple or small-group favourite.",
+        "product": "multiday",
+        "min_nights": 2,
+        "max_nights": 2,
+        "max_guests": 4,
+        "included_km": "600",
+        "destination_keys": [
+          "mysuru-coorg"
+        ]
+      }
+    },
+    {
+      "key": "wild-karnataka",
+      "band": [
+        "45000",
+        "35000"
+      ],
+      "unit": "day",
+      "jlr": true,
+      "data": {
+        "name": "Wild Karnataka",
+        "summary": "Kabini, Bandipur and Bheemeshwari with JLR: wildlife without changing hotels.",
+        "product": "multiday",
+        "min_nights": 2,
+        "max_nights": 4,
+        "max_guests": 4,
+        "included_km_per_day": "250",
+        "destination_keys": [
+          "wild-karnataka"
+        ]
+      }
+    },
+    {
+      "key": "western-ghats-sea",
+      "band": [
+        "45000",
+        "35000"
+      ],
+      "unit": "day",
+      "jlr": true,
+      "data": {
+        "name": "Western Ghats to the Sea",
+        "summary": "Dandeli, Bheemgad, Karwar, Gokarna and Jog Falls: forest to sea in 4 to 7 days.",
+        "product": "multiday",
+        "min_nights": 3,
+        "max_nights": 6,
+        "max_guests": 4,
+        "included_km_per_day": "250",
+        "destination_keys": [
+          "western-ghats-sea"
+        ]
+      }
+    },
+    {
+      "key": "hampi",
+      "band": [
+        "45000",
+        "35000"
+      ],
+      "unit": "day",
+      "data": {
+        "name": "Hampi: Heritage on the Move",
+        "summary": "Vijayanagara's ruins, a curated sunset and nights in Rathaa.",
+        "product": "multiday",
+        "min_nights": 1,
+        "max_nights": 4,
+        "max_guests": 4,
+        "included_km_per_day": "250",
+        "destination_keys": [
+          "hampi"
+        ]
+      }
+    },
+    {
+      "key": "sacred-rathaa",
+      "band": [
+        "45000",
+        "35000"
+      ],
+      "unit": "day",
+      "data": {
+        "name": "Sacred Rathaa",
+        "summary": "Temple journeys (Tirupati, Kukke Subramanya and Dharmasthala) with a private lounge, washroom and rest onboard.",
+        "product": "multiday",
+        "min_nights": 1,
+        "max_nights": 4,
+        "max_guests": 4,
+        "included_km_per_day": "250",
+        "destination_keys": [
+          "tirupati",
+          "kukke-dharmasthala"
+        ]
+      }
+    },
+    {
+      "key": "grand-karnataka",
+      "band": [
+        "45000",
+        "35000"
+      ],
+      "unit": "day",
+      "jlr": true,
+      "data": {
+        "name": "Grand Karnataka (7 to 10 days)",
+        "summary": "Wildlife, the Western Ghats and the coast in one long journey.",
+        "product": "multiday",
+        "min_nights": 6,
+        "max_nights": 9,
+        "max_guests": 4,
+        "included_km_per_day": "250",
+        "destination_keys": [
+          "grand-karnataka"
+        ]
+      }
+    },
+    {
+      "key": "build-your-own",
+      "band": [
+        "25000",
+        "25000"
+      ],
+      "unit": "day",
+      "data": {
+        "name": "Build Your Own Rathaa",
+        "summary": "Tell us what you would like to experience and we shape the route around it: duration, destination, overnights, activities and kits.",
+        "product": "multiday",
+        "min_nights": 0,
+        "max_guests": 4,
+        "included_km_per_day": "250",
+        "inclusions": [
+          "Fuel for the included kilometres"
+        ]
+      }
+    },
+    {
+      "key": "rathaa-base-b2b",
+      "band": [
+        "15000",
+        "15000"
+      ],
+      "unit": "day",
+      "b2b": true,
+      "data": {
+        "name": "Rathaa Base (partners)",
+        "summary": "Caravan, commercial driver and core onboard facilities for partners and long multi-day bookings. Experiences, food and activities are quoted separately.",
+        "product": "multiday",
+        "min_nights": 0,
+        "min_days": 3,
+        "max_guests": 4,
+        "included_km_per_day": "250"
+      }
+    }
+  ],
+  "itineraries": [
+    {
+      "key": "mysuru-escape",
+      "data": {
+        "name": "Mysuru Escape",
+        "destination_key": "mysuru",
+        "nights": 0,
+        "package_keys": [
+          "mysuru-escape"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Bengaluru to Mysuru and back",
+            "stops": [
+              "Mysuru Palace",
+              "Chamundi Hills",
+              "Old city food stop"
+            ],
+            "notes": "Early departure; evening drive back. During Dasara, stay for the palace illumination."
+          }
+        ]
+      }
+    },
+    {
+      "key": "mysuru-krs",
+      "data": {
+        "name": "Mysuru and KRS",
+        "destination_key": "mysuru-krs",
+        "nights": 1,
+        "package_keys": [
+          "mysuru-krs"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Mysuru heritage, KRS evening",
+            "stops": [
+              "Mysuru Palace",
+              "Chamundi Hills",
+              "KRS"
+            ],
+            "overnight_location": "KRS",
+            "notes": "Outdoor dining or a private celebration can be added."
+          },
+          {
+            "day": 2,
+            "title": "Slow morning, back to Bengaluru",
+            "stops": [
+              "KRS",
+              "Bengaluru"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "mysuru-coorg",
+      "data": {
+        "name": "Mysuru and Coorg",
+        "destination_key": "mysuru-coorg",
+        "nights": 2,
+        "package_keys": [
+          "mysuru-coorg"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Mysuru heritage, KRS evening",
+            "stops": [
+              "Mysuru Palace",
+              "Chamundi Hills",
+              "KRS"
+            ],
+            "overnight_location": "KRS"
+          },
+          {
+            "day": 2,
+            "title": "Into the Coorg hills",
+            "stops": [
+              "Coorg"
+            ],
+            "overnight_location": "Coorg",
+            "notes": "Coffee country; culinary, wellness or adventure kit fits here."
+          },
+          {
+            "day": 3,
+            "title": "Back to Bengaluru",
+            "stops": [
+              "Bengaluru"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "wild-karnataka",
+      "data": {
+        "name": "Wild Karnataka",
+        "destination_key": "wild-karnataka",
+        "nights": 3,
+        "package_keys": [
+          "wild-karnataka"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Bengaluru to Kabini",
+            "stops": [
+              "Kabini (JLR)"
+            ],
+            "overnight_location": "Kabini (JLR)",
+            "notes": "Safari, naturalist, outdoor dining and stargazing can be arranged; JLR safari and meals are paid to JLR."
+          },
+          {
+            "day": 2,
+            "title": "Kabini to Bandipur",
+            "stops": [
+              "Bandipur (JLR)"
+            ],
+            "overnight_location": "Bandipur (JLR)",
+            "notes": "Wildlife corridor, forest experience, sundowner."
+          },
+          {
+            "day": 3,
+            "title": "Bandipur to Bheemeshwari",
+            "stops": [
+              "Bheemeshwari (JLR)"
+            ],
+            "overnight_location": "Bheemeshwari (JLR)",
+            "notes": "River, trekking, outdoor dining; camping-style evening."
+          },
+          {
+            "day": 4,
+            "title": "Back to Bengaluru",
+            "stops": [
+              "Bengaluru"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "western-ghats-sea",
+      "data": {
+        "name": "Western Ghats to the Sea",
+        "destination_key": "western-ghats-sea",
+        "nights": 5,
+        "package_keys": [
+          "western-ghats-sea"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Bengaluru to Dandeli and the Kali river",
+            "stops": [
+              "Dandeli (JLR)"
+            ],
+            "overnight_location": "Dandeli",
+            "notes": "Forest, river, rafting and nature walks."
+          },
+          {
+            "day": 2,
+            "title": "Dandeli to Bheemgad / Khanapur",
+            "stops": [
+              "Bheemgad"
+            ],
+            "overnight_location": "Bheemgad",
+            "notes": "Wilderness, birding, trekking."
+          },
+          {
+            "day": 3,
+            "title": "Bheemgad to Karwar: forest to sea",
+            "stops": [
+              "Karwar"
+            ],
+            "overnight_location": "Karwar",
+            "notes": "Coastal drive, beach, sunset, private dining."
+          },
+          {
+            "day": 4,
+            "title": "Karwar to Gokarna and Om Beach",
+            "stops": [
+              "Gokarna",
+              "Om Beach"
+            ],
+            "overnight_location": "Gokarna",
+            "notes": "Beach time, sunset, culinary experience."
+          },
+          {
+            "day": 5,
+            "title": "Gokarna to Sharavathi and Jog Falls",
+            "stops": [
+              "Jog Falls"
+            ],
+            "overnight_location": "Sharavathi",
+            "notes": "Western Ghats waterfall and forest."
+          },
+          {
+            "day": 6,
+            "title": "Back to Bengaluru",
+            "stops": [
+              "Bengaluru"
+            ],
+            "notes": "A 7th day can be added for more exploring."
+          }
+        ]
+      }
+    },
+    {
+      "key": "hampi",
+      "data": {
+        "name": "Hampi: Heritage on the Move",
+        "destination_key": "hampi",
+        "nights": 2,
+        "package_keys": [
+          "hampi"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Bengaluru to Hampi",
+            "stops": [
+              "Hampi"
+            ],
+            "overnight_location": "Hampi",
+            "notes": "Curated sunset."
+          },
+          {
+            "day": 2,
+            "title": "Hampi heritage",
+            "stops": [
+              "Hampi ruins"
+            ],
+            "overnight_location": "Hampi"
+          },
+          {
+            "day": 3,
+            "title": "Back to Bengaluru",
+            "stops": [
+              "Bengaluru"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "sacred-tirupati",
+      "data": {
+        "name": "Sacred Rathaa: Tirupati",
+        "destination_key": "tirupati",
+        "nights": 1,
+        "package_keys": [
+          "sacred-rathaa"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Bengaluru to Tirupati",
+            "stops": [
+              "Tirupati"
+            ],
+            "overnight_location": "Tirupati",
+            "notes": "Rest and food onboard; suits elders."
+          },
+          {
+            "day": 2,
+            "title": "Darshan and return",
+            "stops": [
+              "Bengaluru"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "sacred-kukke-dharmasthala",
+      "data": {
+        "name": "Sacred Rathaa: Kukke and Dharmasthala",
+        "destination_key": "kukke-dharmasthala",
+        "nights": 2,
+        "package_keys": [
+          "sacred-rathaa"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Bengaluru to Kukke Subramanya",
+            "stops": [
+              "Kukke Subramanya"
+            ],
+            "overnight_location": "Kukke Subramanya"
+          },
+          {
+            "day": 2,
+            "title": "Kukke to Dharmasthala",
+            "stops": [
+              "Dharmasthala"
+            ],
+            "overnight_location": "Dharmasthala"
+          },
+          {
+            "day": 3,
+            "title": "Back to Bengaluru",
+            "stops": [
+              "Bengaluru"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "grand-karnataka",
+      "data": {
+        "name": "Grand Karnataka",
+        "destination_key": "grand-karnataka",
+        "nights": 6,
+        "package_keys": [
+          "grand-karnataka"
+        ],
+        "days": [
+          {
+            "day": 1,
+            "title": "Bengaluru to Kabini",
+            "stops": [
+              "Kabini (JLR)"
+            ],
+            "overnight_location": "Kabini"
+          },
+          {
+            "day": 2,
+            "title": "Kabini to Bandipur",
+            "stops": [
+              "Bandipur (JLR)"
+            ],
+            "overnight_location": "Bandipur"
+          },
+          {
+            "day": 3,
+            "title": "Bandipur to Coorg via Mysuru",
+            "stops": [
+              "Mysuru",
+              "Coorg"
+            ],
+            "overnight_location": "Coorg"
+          },
+          {
+            "day": 4,
+            "title": "Coorg to Dandeli",
+            "stops": [
+              "Dandeli (JLR)"
+            ],
+            "overnight_location": "Dandeli"
+          },
+          {
+            "day": 5,
+            "title": "Dandeli to Gokarna",
+            "stops": [
+              "Gokarna",
+              "Om Beach"
+            ],
+            "overnight_location": "Gokarna"
+          },
+          {
+            "day": 6,
+            "title": "Gokarna to Sharavathi and Jog Falls",
+            "stops": [
+              "Jog Falls"
+            ],
+            "overnight_location": "Sharavathi"
+          },
+          {
+            "day": 7,
+            "title": "Back to Bengaluru",
+            "stops": [
+              "Bengaluru"
+            ],
+            "notes": "Extends to 10 days with the coast and heritage."
+          }
+        ]
+      }
+    }
+  ],
+  "discount_policy": {
+    "max_discount_percent": "15",
+    "requires_approval_above_percent": "0",
+    "approver_roles": [
+      "owner",
+      "manager"
+    ],
+    "stackable": false,
+    "floor_rule": "none",
+    "valid_conditions": [
+      "Only on bookings of Rs 1,20,000 and above (package price before tax)",
+      "At most 15% or Rs 10,000, whichever is lower",
+      "Add value (a kit or an experience) before cutting the price",
+      "Long-duration booking, partner, volume or corporate group, repeat guest",
+      "Never on peak dates (29 Dec - 1 Jan, long weekends, Dasara)",
+      "Never below the package's lowest price"
+    ],
+    "max_discount_amount": "10000",
+    "min_booking_amount": "120000"
+  },
+  "reseller_terms": {
+    "tiers": [
+      {
+        "name": "Reseller",
+        "commission_percent": "7.5",
+        "min_commission_percent": "7.5",
+        "max_commission_percent": "11.5"
+      },
+      {
+        "name": "Strategic partner (reciprocal)",
+        "commission_percent": "20"
+      },
+      {
+        "name": "JLR pilot (Oct - Dec 2026)",
+        "commission_percent": "0"
+      }
+    ],
+    "settlement_notes": "Partner class decides the commission; 15% is never promised by default. Strategic partners (e.g. BookMyCaravan, JLR after the pilot): 20% reciprocal on net billing, as the contract says. JLR pilot: no commission; parking waived; guests pay JLR directly for meals, safari and activities."
+  },
+  "knowledge": [
+    {
+      "key": "what-is-rathaa",
+      "category": "about",
+      "question": "What is Rathaa?",
+      "answer": "Rathaa is a private retreat that travels with you: your lounge, bed, washroom and dining space come along while the destination keeps changing. It is not a caravan rental. Every trip has a commercial driver; self-drive is not offered. We have two Rathaas, so two trips can run at the same time or travel together for a larger group."
+    },
+    {
+      "key": "onboard",
+      "category": "about",
+      "question": "What is inside Rathaa?",
+      "answer": "A 30-foot Ashok Leyland coach with four recliner lounge chairs, a queen hydraulic drop-down bed, a sofa-cum-bed, a bathroom and toilet, a kitchenette with refrigerator and microwave, wardrobe and luggage storage, air conditioning, entertainment and audio, blackout curtains and a skylight in the washroom."
+    },
+    {
+      "key": "capacity",
+      "category": "about",
+      "question": "How many people can travel and sleep in Rathaa?",
+      "answer": "Up to 6 guests can travel comfortably by day (more depending on the configuration). Overnight, Rathaa sleeps 4 comfortably. Travelling and sleeping capacity are different, so tell us your group size and we will suggest the right set-up, including a second Rathaa or a partner stay for bigger groups."
+    },
+    {
+      "key": "kits",
+      "category": "experiences",
+      "question": "What are the Culinary, Wellness and Adventure kits?",
+      "answer": "Experience kits you can add to any journey. Culinary: curated dining, outdoor meals and a destination food experience. Wellness: meditation, sound, aroma and relaxation experiences outdoors. Adventure: camping and outdoor gear, trekking support and stargazing with a telescope. The team can tell you exactly what each kit holds for your route."
+    },
+    {
+      "key": "add-ons",
+      "category": "experiences",
+      "question": "What special requests can you arrange?",
+      "answer": "Camping set-up, outdoor chairs and tables, a bonfire where permitted, BBQ, a projector movie night, karaoke, stargazing, bicycles, outdoor games, a host, naturalist or guide, trekking, safari, boating, rafting, kayaking, photography, birthday or anniversary decoration, private dining, special meals, extra hours, extra kilometres and custom pick-ups or drop-offs. Third-party experiences are charged separately unless a package includes them."
+    },
+    {
+      "key": "jlr",
+      "category": "destinations",
+      "question": "Do you work with Jungle Lodges and Resorts (JLR)?",
+      "answer": "Yes. With JLR, Rathaa reaches wildlife, forest, river and coastal destinations across Karnataka such as Kabini, Bandipur, Bheemeshwari and Dandeli. Rathaa is your private room on the move; JLR provides the destination, parking and its safaris and activities. JLR safaris, meals and activities are paid to JLR separately."
+    },
+    {
+      "key": "occasions",
+      "category": "experiences",
+      "question": "Can Rathaa be booked for a birthday, anniversary or proposal?",
+      "answer": "Yes. We plan occasions, not just kilometres: a birthday with decoration, cake, dining and music; an anniversary with a private destination, sunset and dinner; a secret proposal set-up; family, friends, corporate off-site and wellness journeys. Tell us the occasion and the date and we will shape the trip."
+    },
+    {
+      "key": "custom",
+      "category": "packages",
+      "question": "Can I plan my own route?",
+      "answer": "Yes, Build Your Own Rathaa: tell us what you would like to experience (somewhere quiet near Bengaluru, wildlife without changing hotels, a temple trip for parents, forest and beach with friends) and we design the route, overnights, activities and kits around it."
+    },
+    {
+      "key": "peak-dates",
+      "category": "packages",
+      "question": "Do prices change on holidays?",
+      "answer": "Yes. Christmas and New Year (29 December to 1 January), long weekends, Dasara and peak wildlife dates have their own rates. The team confirms the price for those dates."
+    },
+    {
+      "key": "driving",
+      "category": "policies",
+      "question": "Do you drive at night?",
+      "answer": "On wildlife and forest circuits we drive by day. Every trip has a commercial driver, and a helper when the trip needs one."
+    },
+    {
+      "key": "value-vs-cab",
+      "category": "packages",
+      "question": "Why does Rathaa cost more than hiring a Tempo Traveller or an Innova?",
+      "answer": "A Tempo Traveller or Innova charges roughly Rs 20 to 50 per kilometre for transport alone: you still pay separately for hotel rooms, meals out and every check-in and check-out. Rathaa combines the ride with a private lounge, bed, washroom, kitchenette, entertainment and a commercial driver, and the room travels with you, so the journey itself becomes part of the holiday. Tell us your dates and group and we will show you the full value for your trip."
+    },
+    {
+      "key": "special-requests-check",
+      "category": "policies",
+      "question": "Can you do something that is not in your packages?",
+      "answer": "Very often, yes. Tell us what you have in mind and the team will check what is possible for your dates and come back to you with the best option."
+    }
+  ]
+}

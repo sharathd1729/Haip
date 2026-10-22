@@ -69,6 +69,7 @@ export const KIND_SPECS: KindSpec[] = [
         { k: "int", name: "min_nights", label: "Only for stays of at least (nights)", min: 0, max: 60 },
         { k: "choices", name: "days_of_week", label: "Only on these nights", options: WEEKDAYS, hint: "None selected = every day." },
         { k: "text", name: "level", label: "Level (optional)", max: 40, hint: "e.g. 40000. If one rate has a level, every rate needs one; the agent picks the level." },
+        { k: "decimal", name: "floor_amount", label: "Lowest price (optional)", unit: "₹", hint: "The bottom of the price band. A discount can never go below it; above it, discounts still need approval." },
       ] },
       { k: "object", name: "extra_guest_charge", label: "Extra guests", toggle: "Charge for extra guests", fields: [
         { k: "int", name: "free_guests", label: "Guests included", min: 0, max: 50 },
@@ -106,6 +107,8 @@ export const KIND_SPECS: KindSpec[] = [
       { k: "int", name: "quote_valid_days", label: "A quote stays valid for (days)", min: 1, max: 60 },
       { k: "bool", name: "auto_bookable", label: "The AI may send this quote and payment link on its own",
         hint: "Only for the AI sales agent on autopilot: the overnight stay needs no check with the partner first. Leave off if unsure." },
+      { k: "select", name: "audience", label: "Who it is for", options: [
+        { value: "retail", label: "Guests (the AI may quote it)" }, { value: "b2b", label: "Partners only (never shown to guests)" }] },
     ],
   },
   {
@@ -205,6 +208,7 @@ export const KIND_SPECS: KindSpec[] = [
     fields: [
       { k: "decimal", name: "max_discount_percent", label: "Largest discount allowed", required: true, unit: "%" },
       { k: "decimal", name: "max_discount_amount", label: "Largest discount in rupees", unit: "₹" },
+      { k: "decimal", name: "min_booking_amount", label: "No discount below this booking value", unit: "₹", hint: "Package price before tax. Smaller bookings are never discounted." },
       { k: "decimal", name: "requires_approval_above_percent", label: "Needs approval above", unit: "%" },
       { k: "choices", name: "approver_roles", label: "Who can approve", options: [
         { value: "owner", label: "Owner" }, { value: "manager", label: "Manager" }, { value: "reservations", label: "Reservations" }] },
