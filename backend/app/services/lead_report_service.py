@@ -6,7 +6,10 @@ downloaded list agrees with what the team sees on screen.
 
 Read-only, and no LLM: ai_summary and ai_next_action are returned as stored.
 
-Two rules worth knowing:
+Rules worth knowing:
+  * Who: the Leads list's own rule (leads.py _visibility_scope): owners and managers see the team, every other role their
+    own leads PLUS unassigned ones (it used to be "own only", so a report disagreed with the list).
+  * Guest enquiries only unless "Lead type" picks others (lead_types): b2b / partner are not guest leads.
   * Dates are IST calendar days, inclusive at both ends. "2026-09-01" to
     "2026-09-30" is the whole of September as the team lived it.
   * Nothing is silently cut short. `total` is how many enquiries match;
@@ -18,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import and_, exists, func
+from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.models.guest import Guest
@@ -26,6 +29,7 @@ from app.models.guest_identity import GuestIdentity
 from app.models.inquiry import Inquiry, InquirySource
 from app.models.pipeline_stage import PipelineStage
 from app.models.user import User
+from app.services import lead_paid, lead_types
 from app.services.date_presets import IST, clean_date_str, ist_range_to_utc
 
 # One download never holds more than this. The report says so when it hits it.
@@ -91,6 +95,9 @@ FIELDS: list[tuple[str, str, bool]] = [
     ("lost_reason", "Lost reason", False),
     ("tags", "Tags", False),
     ("qualification", "Qualification", False),
+    ("lead_type", "Lead type", True),
+    ("came_from", "Came from (paid ad / organic)", False),
+    ("validation", "Valid enquiry? (reviewed by a person)", False),
 ]
 
 # type "multiselect"/"select" with an "@name" options value are filled in per
@@ -106,6 +113,8 @@ FILTERS: list[dict[str, Any]] = [
     {"key": "stages", "label": "Stage", "type": "multiselect", "options": "@stages"},
     {"key": "owner", "label": "Owner", "type": "select", "options": "@owners"},
     {"key": "include_unqualified", "label": "Include spam / unqualified", "type": "boolean"},
+    {"key": "lead_types", "label": "Lead type (default: guests)", "type": "multiselect", "options": "@lead_types"},
+    {"key": "came_from", "label": "Came from", "type": "select", "options": "@came_from"},
 ]
 
 CATALOG_ENTRY: dict[str, Any] = {
@@ -135,6 +144,8 @@ class LeadFilters:
     stages: list[str] = field(default_factory=list)      # pipeline stage keys
     owner: Optional[str] = None                          # user id, or "unassigned"
     include_unqualified: bool = False
+    lead_types: list[str] = field(default_factory=list)  # empty = guests only
+    came_from: Optional[str] = None                      # paid | organic | unknown (lead_paid)
 
 
 @dataclass
@@ -177,6 +188,13 @@ def parse_filters(
     unknown = [s for s in sources if s not in SOURCE_LABELS]
     if unknown:
         raise ValueError(f"Unknown source: {', '.join(unknown)}")
+    types = _as_list(raw.get("lead_types", raw.get("lead_type")))
+    bad = [t for t in types if t not in lead_types.LEAD_TYPES]
+    if bad:
+        raise ValueError(f"Unknown lead type: {', '.join(bad)}")
+    came_from = (str(raw.get("came_from") or "").strip() or None)
+    if came_from and came_from not in lead_paid.VALUES:
+        raise ValueError("Came from must be paid, organic or unknown")
     return LeadFilters(
         date_from=clean_date_str(date_from),
         date_to=clean_date_str(date_to),
@@ -189,6 +207,8 @@ def parse_filters(
         stages=_as_list(raw.get("stages", raw.get("stage"))),
         owner=(str(raw["owner"]).strip() or None) if raw.get("owner") else None,
         include_unqualified=bool(_tri(raw.get("include_unqualified"))),
+        lead_types=types,
+        came_from=came_from,
     )
 
 
@@ -211,6 +231,9 @@ def resolve_options(db: Session, tenant_id: str) -> dict[str, list[dict[str, str
         "@stages": [{"value": s.key, "label": s.label} for s in stages],
         "@owners": [{"value": "unassigned", "label": "Unassigned"}]
         + [{"value": u.id, "label": u.name or u.email} for u in users],
+        "@lead_types": [{"value": k, "label": lead_types.LABELS[k]} for k in lead_types.LEAD_TYPES],
+        "@came_from": [{"value": "paid", "label": "Paid ad"}, {"value": "organic", "label": "Organic"},
+                       {"value": "unknown", "label": "Unknown"}],
     }
 
 
@@ -293,8 +316,10 @@ def _query(db: Session, tenant_id: str, f: LeadFilters, scope_user_id: Optional[
         q = q.filter(PipelineStage.key.in_(f.stages))
 
     if scope_user_id:
-        # An agent's report is their own leads, whatever the request says.
-        q = q.filter(Inquiry.assigned_to == scope_user_id)
+        # An agent's report is the Leads list's rule: their own leads plus unassigned ones, whatever the request says
+        # (asking for "unassigned" narrows it to those).
+        q = q.filter(Inquiry.assigned_to.is_(None) if f.owner == "unassigned"
+                     else or_(Inquiry.assigned_to == scope_user_id, Inquiry.assigned_to.is_(None)))
     elif f.owner == "unassigned":
         q = q.filter(Inquiry.assigned_to.is_(None))
     elif f.owner:
@@ -302,6 +327,13 @@ def _query(db: Session, tenant_id: str, f: LeadFilters, scope_user_id: Optional[
 
     if not f.include_unqualified:
         q = q.filter(Inquiry.qualification_status != "unqualified")
+    if f.lead_types:
+        wanted = Inquiry.lead_type.in_(f.lead_types)
+        q = q.filter(or_(wanted, Inquiry.lead_type.is_(None)) if lead_types.GUEST in f.lead_types else wanted)
+    else:
+        q = q.filter(lead_types.is_guest_sql(Inquiry.lead_type))
+    if f.came_from:
+        q = q.filter(lead_paid.filter_sql(db, tenant_id, f.came_from))
     return q
 
 
@@ -327,7 +359,15 @@ def _nights(inq: Inquiry) -> Any:
         return ""
 
 
-def _row(inq: Inquiry, ig_ids: dict[str, str]) -> dict[str, Any]:
+def _validation_text(inq: Inquiry) -> str:
+    if not inq.validation_status:
+        return "Not reviewed"
+    checks = [label for label, ok in (("dates confirmed", inq.validation_dates_confirmed), ("budget fits", inq.validation_budget_fits),
+                                      ("clear intent", inq.validation_clear_intent)) if ok]
+    return ("Valid" if inq.validation_status == "valid" else "Not valid") + (f" ({', '.join(checks)})" if checks else "")
+
+
+def _row(inq: Inquiry, ig_ids: dict[str, str], came: Optional[dict[str, str]] = None) -> dict[str, Any]:
     guest = inq.guest
     ai = inq.ai_analysis if isinstance(inq.ai_analysis, dict) else {}
     src = inq.source.value if hasattr(inq.source, "value") else (inq.source or "")
@@ -364,6 +404,9 @@ def _row(inq: Inquiry, ig_ids: dict[str, str]) -> dict[str, Any]:
         "lost_reason": _clean(inq.lost_reason.value if hasattr(inq.lost_reason, "value") else inq.lost_reason),
         "tags": ", ".join(str(t) for t in (inq.tags or [])),
         "qualification": _clean(inq.qualification_status),
+        "lead_type": lead_types.LABELS.get(inq.lead_type or lead_types.GUEST, inq.lead_type),
+        "came_from": {"paid": "Paid ad", "organic": "Organic"}.get((came or {}).get(inq.id), "Unknown"),
+        "validation": _validation_text(inq),
     }
 
 
@@ -395,8 +438,12 @@ def build_lead_report(
         .all()
     )
     ig_ids = _instagram_ids(db, tenant_id, list({i.guest_id for i in inquiries if i.guest_id}))
+    came = {}
+    if "came_from" in fields:
+        for i in range(0, len(inquiries), _IN_CHUNK):
+            came.update(lead_paid.classify(db, tenant_id, inquiries[i:i + _IN_CHUNK]))
     rows = []
     for inq in inquiries:
-        full = _row(inq, ig_ids)
+        full = _row(inq, ig_ids, came)
         rows.append({k: full[k] for k in fields if k in full})
     return LeadReport(rows=rows, total=total, truncated=total > len(rows) and cap >= MAX_ROWS)

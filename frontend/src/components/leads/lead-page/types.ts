@@ -29,6 +29,13 @@ export interface LeadDetail {
   custom_field_values?: FieldValue[]; recommended_actions?: RecommendedAction[]; autopilot?: AutopilotBlock | null;
   pending_draft?: { message_id: string; conversation_id: string; preview: string } | null;
   response_time_seconds?: number | null; response_time_status?: string | null;
+  /** CRM reporting (migration 169): guest | b2b | partner; paid | organic | unknown (derived); a person's review. */
+  lead_type?: string | null; came_from?: "paid" | "organic" | "unknown" | null; validation?: LeadValidation | null;
+}
+
+export interface LeadValidation {
+  status: "valid" | "invalid" | null; dates_confirmed?: boolean | null; budget_fits?: boolean | null; clear_intent?: boolean | null;
+  note?: string | null; by_id?: string | null; by_name?: string | null; at?: string | null;
 }
 
 export type FeedKind = "message" | "call" | "quote" | "booking" | "stage" | "task" | "merge";

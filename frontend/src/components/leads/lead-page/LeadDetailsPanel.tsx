@@ -12,6 +12,7 @@ import type { NextStep, NextStepAction, Temperature } from "@/lib/leadNextStep";
 import { AiAnalysis } from "./AiAnalysis";
 import { JourneyCard } from "./JourneyCard";
 import { WhereFromCard } from "./WhereFromCard";
+import { LeadReviewCard } from "./LeadReviewCard";
 import { TripFields } from "./TripFields";
 import { AiRepliesToggle, ContactCard, DealsCard, TasksCard, useReveal } from "./PanelSections";
 import { sourceName, istDate } from "./format";
@@ -148,6 +149,7 @@ export function LeadDetailsPanel({ lead, feed, stages, step, temp, perms, run, o
       </Card>
 
       <JourneyCard inquiryId={lead.inquiry_id} canEdit={perms.canEdit} />
+      <LeadReviewCard inquiryId={lead.inquiry_id} leadType={lead.lead_type} validation={lead.validation} canEdit={perms.canEdit} />
       <WhereFromCard inquiryId={lead.inquiry_id} canEdit={perms.canEdit} />
       <TripFields lead={lead} feed={feed} canEdit={perms.canEdit} />
       <TasksCard feed={feed} inquiryId={lead.inquiry_id} closed={closed} run={run} />

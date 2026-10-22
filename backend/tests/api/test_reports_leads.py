@@ -182,7 +182,7 @@ def test_another_workspaces_leads_never_appear(client, db):
 
 # ── agents: their own leads, nothing else ────────────────────────────────────
 
-def test_an_agent_downloads_only_their_own_leads(client, db):
+def test_an_agent_downloads_their_own_leads_and_unassigned_ones_like_the_leads_list(client, db):
     t = _tenant(db)
     asha = _user(db, t.id, UserRole.CONCIERGE, "Asha")
     ravi = _user(db, t.id, UserRole.RESERVATIONS, "Ravi")
@@ -191,13 +191,16 @@ def test_an_agent_downloads_only_their_own_leads(client, db):
     _lead(db, t.id, name="Unassigned", phone="+919833333333")
     db.commit()
 
+    # One visibility rule (22 Oct 2026): the Leads list's "mine + unassigned", never a teammate's.
     res = _preview(client, asha, ["guest_name"]).json()
-    assert [r["guest_name"] for r in res["rows"]] == ["Asha lead"]
+    assert sorted(r["guest_name"] for r in res["rows"]) == ["Asha lead", "Unassigned"]
     assert res["scope"] == "own"
 
-    # Asking for someone else's leads doesn't widen it.
+    # Asking for someone else's leads doesn't widen it; asking for unassigned narrows it.
     sneaky = _preview(client, asha, ["guest_name"], {"owner": ravi.id}).json()
-    assert [r["guest_name"] for r in sneaky["rows"]] == ["Asha lead"]
+    assert sorted(r["guest_name"] for r in sneaky["rows"]) == ["Asha lead", "Unassigned"]
+    only_free = _preview(client, asha, ["guest_name"], {"owner": "unassigned"}).json()
+    assert [r["guest_name"] for r in only_free["rows"]] == ["Unassigned"]
 
     dl = client.post("/api/v1/reports/download?format=csv", headers=_headers(asha),
                      json={"report_id": "inquiries", "fields": ["guest_name", "guest_phone"]})

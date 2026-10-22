@@ -177,7 +177,7 @@ def get_or_create_from_chat(
     See app/services/lead_auto_create.py for the routing rules.
     """
     from app.services.lead_auto_create import (
-        is_collab_message, text_contains_phone, resolve_entry_stage_id,
+        is_collab_message, lead_type_for_message, text_contains_phone, resolve_entry_stage_id,
     )
 
     closed_stages = [InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED]
@@ -215,6 +215,7 @@ def get_or_create_from_chat(
         stage=InquiryStage.NEW,
         stage_id=stage_id or _stage_id_for(db, tenant_id, InquiryStage.NEW),
         source=src,
+        lead_type=lead_type_for_message(message_text),   # b2b from the guest's own words (lead_types)
     )
     db.add(inquiry)
     db.flush()

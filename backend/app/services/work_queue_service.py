@@ -316,6 +316,8 @@ def _new_leads(db: Session, tenant_id: str, scope_user_id: Optional[str], now: d
         inq = open_by.get(g.id)
         if scope_user_id and inq is not None and inq.assigned_to not in (None, scope_user_id):
             continue
+        if inq is not None and (inq.lead_type or "guest") != "guest":   # a b2b / partner enquiry is not a new guest lead
+            continue
         rows.append((g, inq))
     owners = _names(db, tenant_id, {inq.assigned_to for _, inq in rows if inq is not None and inq.assigned_to})
 
