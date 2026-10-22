@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { DOWNLOAD_TIMEOUT_MS, downloadErrorMessage, saveBlob, toBlob } from "@/lib/download";
 import { cn } from "@/lib/utils";
 import { FilterControl, activeFilters, type FilterDef, type FilterValue } from "@/components/reports/ReportFilters";
 import { Phone, Users, MessageSquare, BarChart2, Star, Zap, Download, CheckSquare, Square, Loader2, AlertCircle, ChevronRight, FileText, RefreshCw, Check, FileSpreadsheet } from "@/lib/icons";
@@ -263,17 +264,17 @@ export default function ReportsPage() {
 
   // `format` goes on the query string: the backend reads it via Query(), not
   // from the JSON body.
+  // lib/download.ts: keeps the content type, a link in the document, the share sheet in an installed iOS app, a longer
+  // timeout than the global 20 s, and the server's own error text (a blob request's error body is a Blob).
   const downloadMutation = useMutation({
-    mutationFn: (fmt: "csv" | "json" | "xlsx") =>
-      api.post(`/reports/download?format=${fmt}`, currentPayload(), { responseType: "blob" }),
-    onSuccess: (res, fmt) => {
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement("a");
-      const slug = selectedReport!.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-      a.href = url;
-      a.download = `haip_${slug}_${dateFrom}_${dateTo}.${fmt}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+    mutationFn: async (fmt: "csv" | "json" | "xlsx") => {
+      try {
+        const res = await api.post(`/reports/download?format=${fmt}`, currentPayload(), { responseType: "blob", timeout: DOWNLOAD_TIMEOUT_MS });
+        const slug = selectedReport!.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "")), `haip_${slug}_${dateFrom}_${dateTo}.${fmt}`);
+      } catch (e) {
+        throw new Error(await downloadErrorMessage(e));
+      }
     },
   });
 
@@ -624,7 +625,7 @@ export default function ReportsPage() {
                   <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-medium">Download failed.</p>
-                    <p className="text-xs text-red-600/80 mt-0.5">{extractErrorMessage(downloadMutation.error)}</p>
+                    <p className="text-xs text-red-600/80 mt-0.5">{(downloadMutation.error as Error | null)?.message}</p>
                   </div>
                 </div>
               )}
