@@ -50,6 +50,24 @@ describe("MonthGrid", () => {
     expect(onOpen.mock.calls[0][0]).toMatchObject({ kind: "block", block: { id: "b1" } });
   });
 
+  it("marks a direct booking with money still due in terracotta; paid and OTA bookings keep their colour", () => {
+    const money: RowLite = { ...row, blocks: [], stays: [
+      { ...row.stays[0], id: "due", guest_name: "Due Guest", total_amount: 50000, paid_amount: 20000 },
+      { ...row.stays[0], id: "paid", guest_name: "Paid Guest", check_in: "2026-10-19", check_out: "2026-10-21", total_amount: 50000, paid_amount: 50000 },
+      { ...row.stays[0], id: "ota", guest_name: "Ota Guest", check_in: "2026-10-26", check_out: "2026-10-28", channel_source: "airbnb", total_amount: 50000, paid_amount: 0 },
+    ] };
+    render(<MonthGrid row={money} monthStart={monthStart} gridStart={gridStart} onOpen={() => {}} chColor={tone} channelLabel={() => "Direct"} />);
+    const due = screen.getByRole("button", { name: /Due Guest.*money still due/ });
+    expect(due.getAttribute("data-due")).toBe("true");
+    expect(due.className).toContain("bg-[var(--haip-cal-due-bg)]");
+    expect(due.className).toContain("var(--haip-cal-due-edge)");
+    for (const name of [/Paid Guest/, /Ota Guest/]) {
+      const bar = screen.getByRole("button", { name });
+      expect(bar.getAttribute("data-due")).toBeNull();
+      expect(bar.className).toContain("bg-emerald-500");
+    }
+  });
+
   it("splits a stay that crosses a week boundary into one bar per week", () => {
     const cross: RowLite = { ...row, blocks: [], stays: [{ ...row.stays[0], id: "s3", check_in: "2026-10-09", check_out: "2026-10-13" }] };
     render(<MonthGrid row={cross} monthStart={monthStart} gridStart={gridStart} onOpen={() => {}} chColor={tone} channelLabel={() => "Direct"} />);

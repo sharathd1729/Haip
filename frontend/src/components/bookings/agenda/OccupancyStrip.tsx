@@ -1,6 +1,6 @@
 "use client";
 // The next 14 days of each caravan (Ratha 1, Ratha 2): one block per booking, pickup day up to the drop day (noon to noon).
-// Tap a block to open the booking; tap an empty day to start a new booking for that vehicle and day. A coral underline means money is still due on it. Grey = the vehicle is blocked.
+// Tap a block to open the booking; tap an empty day to start a new booking for that vehicle and day. Terracotta light with a terracotta left edge means money is still due on it. Grey = the vehicle is blocked.
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -73,8 +73,9 @@ export function OccupancyStrip({ onOpen, selectedId }: { onOpen: (bookingId: str
               })}
               {stripBlocks(v, data.from, DAYS).map(blk => {
                 const cls = cn("row-start-1", COL_START[blk.start], COL_SPAN[blk.span - 1], "mx-px h-9 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-lg px-1 text-[12px] font-bold",
-                  blk.hold ? "bg-[var(--haip-cal-block)] text-[var(--haip-cal-block-fg)]" : SLOT_BG[v.placeholder ? 0 : v.slot] ?? SLOT_BG[1],
-                  blk.due && "shadow-[inset_0_-3px_0_var(--haip-accent)]",
+                  blk.hold ? "bg-[var(--haip-cal-block)] text-[var(--haip-cal-block-fg)]"
+                    : blk.due ? "bg-[var(--haip-cal-due-bg)] text-[var(--haip-cal-due-fg)] shadow-[inset_3px_0_0_var(--haip-cal-due-edge)]"
+                    : SLOT_BG[v.placeholder ? 0 : v.slot] ?? SLOT_BG[1],
                   blk.bookingId && blk.bookingId === selectedId && "ring-2 ring-primary");
                 return blk.bookingId ? (
                   <button key={blk.key} type="button" className={cls} title={blk.title} aria-label={blk.title}
@@ -88,7 +89,7 @@ export function OccupancyStrip({ onOpen, selectedId }: { onOpen: (bookingId: str
             </div>
           ))}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--haip-fg-subtle)]">
-            <span className="inline-flex items-center gap-1.5"><i className="inline-block h-1 w-3.5 rounded-sm bg-[var(--haip-accent)]" aria-hidden />money still due</span>
+            <span className="inline-flex items-center gap-1.5"><i className="inline-block h-3 w-3.5 rounded-sm bg-[var(--haip-cal-due-bg)] shadow-[inset_3px_0_0_var(--haip-cal-due-edge)]" aria-hidden />money still due</span>
             <span>Tap a block to open it, an empty day to book it</span>
           </div>
         </>

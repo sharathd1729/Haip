@@ -2,11 +2,12 @@
 // A month calendar for ONE property, the way a booking site shows availability: a 7-column date grid, bookings and holds as bars
 // that span their dates (a stay runs from the afternoon of check-in to the morning of check-out), tap a bar for its details.
 // Colours come from the caller (green direct, gray blocked, red maintenance, one colour per other channel). Hospitality Hybrid:
-// bars are pills with the guest's initial at the start, today is a coral dot.
+// bars are pills with the guest's initial at the start, today is a terracotta dot, money still due is terracotta light with a
+// terracotta left edge.
 import { useMemo } from "react";
 import { addDays, differenceInCalendarDays, format, isSameMonth, isToday, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
-import { BLOCK_TONE, type Entry, type RowLite } from "./CalendarParts";
+import { BLOCK_TONE, DUE_TONE, moneyDue, type Entry, type RowLite } from "./CalendarParts";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** A short tag for the bar when several vehicles share the grid: "Ratha 1" -> "R1", "Caravan White" -> "CW". */
@@ -18,7 +19,7 @@ const tag = (name?: string) => {
 const LANE_H = 26;           // px per bar
 const DAY_NUM_H = 26;        // px reserved for the date number above the bars
 
-interface Seg { key: string; entry: Entry; col: number; end: number; lane: number; startsHere: boolean; endsHere: boolean; label: string; tone: { bg: string; text: string }; faded: boolean; dashed: boolean; mark: string }
+interface Seg { key: string; entry: Entry; col: number; end: number; lane: number; startsHere: boolean; endsHere: boolean; label: string; tone: { bg: string; text: string }; faded: boolean; dashed: boolean; mark: string; due?: boolean }
 
 /** Lay one week's bars into lanes so overlapping ones stack instead of covering each other. */
 function layout(segs: Omit<Seg, "lane">[]): { segs: Seg[]; lanes: number } {
@@ -55,7 +56,8 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
         const [f, t] = a === b ? [a + 0.1, a + 0.9] : [a + 0.5, b + 0.5];            // a same-day stay still gets a bar
         place(`s${s.id}`, { kind: "stay", stay: s, propertyName: s.vehicle ?? row?.property_name ?? "" }, f, t,
           `${s.vehicle ? `${tag(s.vehicle)} · ` : ""}${(s.guest_name || "Guest").split(" ")[0] || "Guest"}`,
-          chColor(s.channel_source), { faded: s.status === "quoted", dashed: s.status === "quoted", mark: s.status === "checked_in" ? "✓ " : "" });
+          moneyDue(s) ? DUE_TONE : chColor(s.channel_source),
+          { faded: s.status === "quoted", dashed: s.status === "quoted", mark: s.status === "checked_in" ? "✓ " : "", due: moneyDue(s) });
       }
       for (const b of row?.blocks ?? []) {
         const a = differenceInCalendarDays(parseISO(b.blocked_from), start);
@@ -96,8 +98,10 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
               const name = e.kind === "stay" ? `${e.stay.guest_name || "Guest"} (${channelLabel(e.stay.channel_source)}), ${e.stay.check_in} to ${e.stay.check_out}`
                 : `${BLOCK_TONE(e.block.reason).label}, ${e.block.blocked_from} to ${e.block.blocked_to}`;
               return (
-                <button key={s.key} type="button" onClick={() => onOpen(s.entry)} aria-label={`${name}. Open details`}
-                  className={cn("absolute flex items-center gap-1 overflow-hidden border pl-0.5 pr-2 text-left text-[12px] font-semibold leading-none shadow-[var(--haip-shadow-sm)] active:brightness-95",
+                <button key={s.key} type="button" onClick={() => onOpen(s.entry)} aria-label={`${name}${s.due ? ", money still due" : ""}. Open details`}
+                  data-due={s.due ? "true" : undefined}
+                  className={cn("absolute flex items-center gap-1 overflow-hidden border pl-0.5 pr-2 text-left text-[12px] font-semibold leading-none active:brightness-95",
+                    s.due && s.startsHere ? DUE_TONE.edge : "shadow-[var(--haip-shadow-sm)]",
                     s.tone.bg, s.tone.text, s.faded && "opacity-60", s.dashed ? "border-dashed border-[var(--haip-fg-muted)]" : "border-transparent",
                     s.startsHere ? "rounded-l-full" : "rounded-l-none", s.endsHere ? "rounded-r-full" : "rounded-r-none")}
                   style={{ left: `calc(${(s.col / 7) * 100}% + 1px)`, width: `calc(${((s.end - s.col) / 7) * 100}% - 2px)`, top: DAY_NUM_H + s.lane * LANE_H, height: LANE_H - 2 }}>
@@ -114,7 +118,7 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
         );
       })}
       <p className="px-3 py-2.5 text-[12px] text-[var(--haip-fg-subtle)]">
-        A stay runs from the afternoon of check-in to the morning of check-out. Dashed = a quote, ✓ = checked in.
+        A stay runs from the afternoon of check-in to the morning of check-out. Dashed = a quote, ✓ = checked in, terracotta = money still due.
         {row ? "" : " No property selected."}
       </p>
     </div>
