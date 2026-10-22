@@ -52,6 +52,8 @@ _DISCOUNT_RE = re.compile(
     r"\b(discount|discounts|discounted|cheaper|concession|offers?|deal|negotiable|negotiate|reduce|reduction|lower (?:the )?price|"
     r"best (?:price|rate)|last price|final price|kam karo|kam kar|kuch kam|thoda kam|less price|price (?:drop|cut))\b",
     re.IGNORECASE)
+# The same ask in Hindi / Kannada script (no word boundaries: combining marks break \b in these scripts).
+_DISCOUNT_NATIVE_RE = re.compile(r"(छूट|डिस्काउंट|कम कर|कम कीजिए|ರಿಯಾಯಿತಿ|ಡಿಸ್ಕೌಂಟ್|ಕಡಿಮೆ ಮಾಡಿ)")
 _B2B_RE = re.compile(
     r"\b(travel agent|travel agency|tour operator|agent rate|b2b|partner rate|partner price|reseller|resell|commission|"
     r"corporate rate|net rate|trade rate|wholesale|dmc|agency rate)\b", re.IGNORECASE)
@@ -102,6 +104,7 @@ class TurnSignals:
     has_phone: bool = False
     sales_owns_price: bool = False
     sales_handoff: Optional[str] = None
+    availability_claim: Optional[str] = None     # a sentence saying dates are open (the caller found it)
     # Recent messages, oldest first: {"direction", "body", "ai", "sent", "intent", "human"} -- see agent_consult_flow.history
     history: list = field(default_factory=list)
 
@@ -182,8 +185,15 @@ def _capacity(signals: TurnSignals, v: Verdict) -> None:
     except (TypeError, ValueError):
         return
     caps = [f.get("max_capacity_note") for f in _facts(signals, "check_availability") if f.get("max_capacity_note")]
-    if party and caps and party > max(int(c) for c in caps):
-        v.add("over_capacity", {"party": party, "max": max(int(c) for c in caps)})
+    for f in _facts(signals, "check_availability") + _facts(signals, "property_facts"):
+        rows = f.get("result") if isinstance(f.get("result"), list) else []
+        caps += [r.get("max_adults") for r in rows if isinstance(r, dict) and r.get("max_adults")]
+    try:
+        biggest = max(int(c) for c in caps) if caps else None
+    except (TypeError, ValueError):
+        biggest = None
+    if party and biggest and party > biggest:
+        v.add("over_capacity", {"party": party, "max": biggest})
 
 
 def _custom_route(signals: TurnSignals, v: Verdict) -> None:
@@ -241,13 +251,16 @@ def evaluate(signals: TurnSignals) -> Verdict:
         v.add("prompt_injection")
     if _B2B_RE.search(text):
         v.add("b2b_partner")
-    if _DISCOUNT_RE.search(text):
+    if _DISCOUNT_RE.search(text) or _DISCOUNT_NATIVE_RE.search(text):
         v.add("discount_request")
     _gateway(signals, v)
     _custom_route(signals, v)
     _capacity(signals, v)
     if signals.ungrounded:
         v.add("ungrounded_claim", signals.ungrounded[:200])
+    dated_check = any((f.get("args") or {}).get("checkin") for f in _facts(signals, "check_availability"))
+    if signals.availability_claim and not dated_check:
+        v.add("ungrounded_claim", f"says dates are open without a calendar check: {signals.availability_claim[:160]}")
     if signals.price_leak:
         v.add("price_unverified", str(signals.price_leak)[:200])
     if (signals.price_mode != "grounded" and signals.intent == "price_quote" and signals.has_phone

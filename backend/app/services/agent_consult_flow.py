@@ -95,6 +95,7 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
             escalation=escalation, price_mode=price_mode, price_leak=price_leak, ungrounded=ungrounded, model_failed=model_failed,
             has_phone=getattr(guest, "lead_identified_at", None) is not None, sales_owns_price=sales_owns,
             sales_handoff=getattr(sales_turn, "handoff", None) if sales_turn is not None else None,
+            availability_claim=_availability_claim(reply_text),
             history=history(db, tenant.id, conversation.id),
         )
         verdict = rules.evaluate(signals)
@@ -111,6 +112,11 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
     except Exception as exc:  # noqa: BLE001 -- the guards above still decide; the consult is an addition
         log.warning("consult_check_failed", conversation_id=conversation.id, error=str(exc)[:300])
     return turn
+
+
+def _availability_claim(reply_text: str) -> Optional[str]:
+    from app.workers.tasks.concierge_draft import _positive_availability_claim     # the same sentence test as the sales guard
+    return _positive_availability_claim(reply_text or "")
 
 
 def _last_outbound(db: Session, tenant_id: str, conversation_id: str) -> Optional[Message]:

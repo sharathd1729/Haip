@@ -53,3 +53,6 @@ Thumbs.db
 
 # Local server output -- can contain secrets from error messages
 uvicorn_*.txt
+
+# Agent bench reports (scripts/agent_bench.py --out)
+agent_bench_reports/
