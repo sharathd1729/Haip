@@ -99,7 +99,8 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
         guest = db.query(Guest).filter_by(id=gid, tenant_id=tid).first()
         if body.new_guest.name and not guest.name:
             guest.name = body.new_guest.name.strip()[:120]
-    first = send.first_name(guest.name)
+    from app.services.guest_names import best_first_name
+    first = best_first_name(db, tid, guest)
 
     # 2 the lead
     lead = plan.lead if plan.lead is not None and plan.lead.guest_id == guest.id else people.open_lead(db, tid, guest.id, stages)

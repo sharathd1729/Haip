@@ -264,6 +264,8 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         guest_fields={"name": contact_name or "Unknown", "phone": from_number},
     )
     guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant.id).first()
+    from app.services.guest_names import fill_from_profile
+    fill_from_profile(guest, contact_name)          # a booking/call guest with no name gets the WhatsApp profile name
 
     # Find or create open conversation
     conversation = (
