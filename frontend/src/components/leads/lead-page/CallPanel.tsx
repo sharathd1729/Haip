@@ -60,10 +60,15 @@ export function useClickToCall(inquiryId: string, calls: FeedItem[], refetch: ()
 
 const STEPS = ["Ringing you", "Connecting", "Logged"];
 
-export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onMessage }: {
+// Callbacks stay calls (sales team, 22 Oct 2026): after an unanswered call the panel offers another try or logging a call
+// made from the agent's own phone, never "WhatsApp instead".
+export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onLogCall }: {
   phase: CallPhase; error: string | null; newCall: FeedItem | null; name: string;
-  onClose: () => void; onRetry: () => void; onMessage: () => void;
+  onClose: () => void; onRetry: () => void; onLogCall?: () => void;
 }) {
+  const logBtn = onLogCall && (
+    <button type="button" onClick={onLogCall} className="inline-flex min-h-11 items-center rounded-xl border border-[var(--haip-border-strong)] px-4 text-[14px] font-semibold text-[var(--haip-fg-2)]">Log a call</button>
+  );
   if (phase === "idle") return null;
   const step = phase === "logged" ? 2 : phase === "starting" ? 0 : 1;
   return (
@@ -95,7 +100,10 @@ export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onMes
         </>
       )}
       {phase === "waiting" && (
-        <p className="text-[14px] text-[var(--haip-fg-2)]">The call has not been logged yet. It appears in the conversation as soon as the phone company reports it, usually right after you hang up.</p>
+        <>
+          <p className="text-[14px] text-[var(--haip-fg-2)]">The call has not been logged yet. It appears in the conversation as soon as the phone company reports it, usually right after you hang up.</p>
+          {logBtn && <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--haip-fg-subtle)]">Called from your own phone instead? {logBtn}</p>}
+        </>
       )}
       {phase === "logged" && newCall && (
         <>
@@ -104,12 +112,12 @@ export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onMes
           </h2>
           <p className="text-[14px] text-[var(--haip-fg-2)]">
             {newCall.answered ? "The recording, transcript and AI summary appear in the conversation in a few minutes."
-              : "Logged as a call attempt. A WhatsApp gets an answer when a call does not."}
+              : "Logged as a call attempt. Try again in a while; if they ring you back on your own phone, log that call here."}
           </p>
           {!newCall.answered && (
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={onMessage} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-[14px] font-semibold text-primary-foreground">WhatsApp instead</button>
-              <button type="button" onClick={onRetry} className="inline-flex min-h-11 items-center rounded-xl border border-[var(--haip-border-strong)] px-4 text-[14px] font-semibold text-[var(--haip-fg-2)]">Try again</button>
+              <button type="button" onClick={onRetry} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-[14px] font-semibold text-primary-foreground">Try again</button>
+              {logBtn}
             </div>
           )}
         </>
@@ -118,7 +126,10 @@ export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onMes
         <>
           <h2 className="font-[family-name:var(--font-display)] text-[19px] font-semibold text-[var(--haip-fg)]">The call did not start</h2>
           <p className="text-[14px] text-[var(--haip-status-danger-fg)]">{error}</p>
-          <button type="button" onClick={onRetry} className="inline-flex min-h-11 items-center justify-self-start rounded-xl border border-[var(--haip-border-strong)] px-4 text-[14px] font-semibold text-[var(--haip-fg-2)]">Try again</button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={onRetry} className="inline-flex min-h-11 items-center rounded-xl border border-[var(--haip-border-strong)] px-4 text-[14px] font-semibold text-[var(--haip-fg-2)]">Try again</button>
+            {logBtn}
+          </div>
         </>
       )}
     </section>

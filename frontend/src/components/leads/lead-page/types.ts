@@ -40,6 +40,8 @@ export interface FeedItem {
   is_template?: boolean; delivery?: string | null;
   call_id?: string | null; duration_seconds?: number | null; answered?: boolean | null; summary?: string | null;
   summary_pending?: boolean; has_recording?: boolean; has_transcript?: boolean;
+  /** A call logged by hand from a personal phone (POST /leads/{id}/log-call); its note is in `text`. */
+  manual?: boolean;
   quote_id?: string | null; amount?: number | null; label?: string | null; shared_via?: string | null; status?: string | null;
   valid_until?: string | null; valid_until_text?: string | null;
   booking_id?: string | null; check_in?: string | null; check_out?: string | null; guests?: number | null; amount_restricted?: boolean;
