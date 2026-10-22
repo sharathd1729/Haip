@@ -19,9 +19,10 @@ import { ChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges"
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { Card, EmptyState, FilterBar, FilterChip, PageHeader, StatusPill, Tabs, type Tone } from "@/components/ui/kit";
 import { CalendarClashes } from "@/components/dashboard/today/CalendarClashes";
+import { ConsultsPanel } from "@/components/consults/ConsultsPanel";
 import { Flame, MessageCircle, Clock } from "@/lib/icons";
 
-type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
+type Kind = "consult" | "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
 type Flag = "not_called" | "open_lead" | "at_risk";
 type Severity = "fresh" | "late" | "urgent" | "critical" | "stale";
 type Lane = "now" | "today" | "chase";
@@ -60,6 +61,7 @@ const KINDS: { id: Kind; label: string }[] = [
   { id: "clash",    label: "Calendar clashes" },
 ];
 const KIND_LABEL: Record<Kind, string> = {
+  consult: "The AI is asking you",
   new_lead: "New lead", callback: "Missed call", reply: "Waiting for a reply", no_reply: "Not replying to us", followup: "Follow-up",
   clash: "Calendar clash",
 };
@@ -281,7 +283,7 @@ export default function MyDayPage() {
     (kind === "all" || i.kind === kind || (kind === "followup" && (i.tasks?.length ?? 0) > 0)) && (!flag || (i.flags ?? []).includes(flag)));
   // Calendar clashes are about the calendar, not a person: their own section, outside the people lists and the J/K cursor.
   const clashes = filtered.filter(i => i.kind === "clash");
-  const people = filtered.filter(i => i.kind !== "clash");
+  const people = filtered.filter(i => i.kind !== "clash" && i.kind !== "consult");   // consults: ConsultsPanel above
   // The server already sorts by lane, then score: each lane keeps that order.
   const byLane: Record<Lane, Item[]> = { now: [], today: [], chase: [] };
   for (const i of people) byLane[laneOf(i)].push(i);
@@ -343,6 +345,7 @@ export default function MyDayPage() {
               items={[{ value: "team", label: "Whole team" }, { value: "mine", label: "Mine" }]} />
           )}
         />
+        <ConsultsPanel />
 
         {/* Counts double as filters, so the summary and the list can't disagree. */}
         <FilterBar className="flex-nowrap overflow-x-auto pb-1 sm:flex-wrap">

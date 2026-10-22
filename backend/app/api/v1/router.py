@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, lead_touches, marketing_partners, marketing_channels, marketing_public, website, website_public,
+    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, lead_touches, lead_calls, lead_review, marketing_partners, marketing_channels, marketing_public, website, website_public,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
+    qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, reports_crm, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
     whatsapp_personal,
@@ -28,6 +28,7 @@ from app.api.v1.endpoints import (
     quotes,
     quote_calculator,
     sales_agent,
+    agent_consults,
     targets,
     work_queue,
     lead_activity,
@@ -63,6 +64,7 @@ api_router.include_router(business_data.router)
 api_router.include_router(quotes.router)
 api_router.include_router(quote_calculator.router)
 api_router.include_router(sales_agent.router)
+api_router.include_router(agent_consults.router)
 api_router.include_router(marketing_studio.router)
 api_router.include_router(website.router)
 api_router.include_router(website_public.router)
@@ -74,6 +76,8 @@ api_router.include_router(marketing_reels.router)
 api_router.include_router(marketing_ads.router)
 api_router.include_router(marketing_results.router)
 api_router.include_router(lead_touches.router)
+api_router.include_router(lead_calls.router)   # POST /leads/{id}/log-call (a call from a personal phone)
+api_router.include_router(lead_review.router)  # PUT /leads/{id}/lead-type, /leads/{id}/validation
 api_router.include_router(marketing_partners.router)
 api_router.include_router(marketing_channels.router)
 api_router.include_router(marketing_public.router)
@@ -102,6 +106,7 @@ api_router.include_router(workflows.router)   # lead workflows: /workflows/* + /
 api_router.include_router(qa.router)
 api_router.include_router(analytics.router)
 api_router.include_router(reports.router)
+api_router.include_router(reports_crm.router)   # /reports/daily-validation, /reports/checkin-coverage
 api_router.include_router(analytics_executive.router)
 api_router.include_router(instagram_insights.router)
 

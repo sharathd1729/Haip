@@ -52,6 +52,7 @@ celery_app = Celery(
         "app.workers.tasks.lead_autopilot",
         # Lead workflows: missed-call / no-answer WhatsApp playbooks + the lead journey sweep
         "app.workers.tasks.lead_playbooks",
+        "app.workers.tasks.agent_consults",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
         # Knowledge from Instagram posts, running ads and the tenant's website (re-crawl)
@@ -318,6 +319,8 @@ celery_app.conf.update(
         "lead_journey.sweep_all_tenants":             {"queue": "default"},
         "lead_alerts.tick_tenant":                    {"queue": "whatsapp"},
         "lead_alerts.tick_all_tenants":               {"queue": "whatsapp"},
+        "agent_consults.escalate_tenant":             {"queue": "whatsapp"},
+        "agent_consults.escalate_all_tenants":        {"queue": "whatsapp"},
         "lead_followups.sweep_tenant":                {"queue": "whatsapp"},
         "lead_followups.sweep_all_tenants":           {"queue": "whatsapp"},
         "lead_playbooks.draft_followup":              {"queue": "ai_scoring"},     # one LLM call (lead_followup_draft)
@@ -350,6 +353,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="*"),
     },
     # Team alerts (P3/P4, lead_alert_service): every 2 minutes, odd minutes, so they never pile onto the even-minute jobs.
+    # Ask a manager (agent_consult_notify): unanswered consults climb agent -> manager -> owner, then expire. Even minutes.
+    "agent-consults-escalate-2min": {
+        "task": "agent_consults.escalate_all_tenants",
+        "schedule": crontab(minute="*/2"),
+    },
     "lead-alerts-tick-2min": {
         "task": "lead_alerts.tick_all_tenants",
         "schedule": crontab(minute="1-59/2"),

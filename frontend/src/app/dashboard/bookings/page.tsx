@@ -10,6 +10,7 @@ import { useSession } from "next-auth/react";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Download, Plus, SlidersHorizontal, X } from "@/lib/icons";
 import api from "@/lib/api";
+import { downloadErrorMessage, saveBlob } from "@/lib/download";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, FilterSearch, PageHeader, Tabs } from "@/components/ui/kit";
@@ -54,6 +55,7 @@ function BookingsList() {
   const [needsProperty, setNeedsProperty] = useState(quick === "needs_property");
   const [showFilters, setShowFilters] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [waFor, setWaFor] = useState<string | null>(null);
   const [collectFor, setCollectFor] = useState<string | null>(null);
   const [picked, setPicked] = useState(params.get("b") ?? "");
@@ -112,6 +114,7 @@ function BookingsList() {
 
   async function exportCsv() {
     setExporting(true);
+    setExportError(null);
     try {
       const all: AgendaRow[] = [];
       for (let pg = 1; pg <= 20; pg++) {   // 2,000 bookings is plenty for one export
@@ -125,11 +128,9 @@ function BookingsList() {
         STATUS_STYLE[b.raw_status]?.label ?? b.raw_status, b.channel ?? "direct", b.total, b.total_paid, b.total_outstanding, PAYMENT_STYLE[b.payment_status].label,
       ].map(csvCell).join(","));
       const blob = new Blob(["﻿" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `bookings-${segment}-${today}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      await saveBlob(blob, `bookings-${segment}-${today}.csv`);
+    } catch (e) {
+      setExportError(await downloadErrorMessage(e, "The export failed. Please try again."));
     } finally {
       setExporting(false);
     }
@@ -153,6 +154,7 @@ function BookingsList() {
               </Link>
             </>} />
 
+          {exportError && <p role="alert" className="rounded-xl bg-[var(--haip-status-danger-bg)] px-3 py-2 text-[13.5px] text-[var(--haip-status-danger-fg)]">{exportError}</p>}
           <MonthSummary />
 
           <Tabs label="Bookings by status" value={segment} onChange={v => setSegment(v as Segment)} className="w-full md:w-fit"

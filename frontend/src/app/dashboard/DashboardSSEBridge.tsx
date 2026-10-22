@@ -30,6 +30,11 @@ export function DashboardSSEBridge() {
     if (["message_received", "message_sent", "ai_draft_ready", "call_processed", "wrap_up_ready", "call_scored"].includes(payload.event)) {
       queryClient.invalidateQueries({ queryKey: ["lead-feed"] });
     }
+    // Ask a manager: a new or escalated question from the AI (ConsultsPanel / ConsultBanner).
+    if (payload.event === "consult_opened" || payload.event === "consult_escalated") {
+      queryClient.invalidateQueries({ queryKey: ["consults"] });
+      queryClient.invalidateQueries({ queryKey: ["work-queue"] });
+    }
 
     switch (payload.event) {
       case "call_processed":

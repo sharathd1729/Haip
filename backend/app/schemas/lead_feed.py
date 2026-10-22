@@ -38,6 +38,7 @@ class FeedItemSchema(BaseModel):
     summary_pending: bool = False            # answered, transcript / summary still being written
     has_recording: bool = False
     has_transcript: bool = False
+    manual: bool = False                     # logged by hand (a call from the agent's own phone); its note is in `text`
     # quote
     quote_id: Optional[str] = None
     amount: Optional[float] = None

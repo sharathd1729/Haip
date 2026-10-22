@@ -94,6 +94,8 @@ def list_leads(
     booked_date_from: Optional[str] = Query(None, description="ISO date string"),
     booked_date_to: Optional[str] = Query(None, description="ISO date string"),
     autopilot: Optional[str] = Query(None, description="'moved' = leads whose current stage the autopilot set"),
+    lead_type: Optional[str] = Query(None, description="guest,b2b,partner (comma-separated)"),
+    came_from: Optional[str] = Query(None, description="paid | organic | unknown (derived, lead_paid)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=200),
     current_user: User = Depends(get_current_user),
@@ -110,6 +112,12 @@ def list_leads(
     """
     if autopilot is not None and autopilot != "moved":
         raise HTTPException(status_code=422, detail="Invalid autopilot filter: use 'moved'")
+    from app.services import lead_list_extras
+    try:
+        lead_list_extras.parse_types(lead_type)
+        lead_list_extras.check_came_from(came_from)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     for preset, name in ((enquiry_date_preset, "enquiry_date_preset"), (checkin_date_preset, "checkin_date_preset")):
         if preset and preset not in VALID_PRESETS:
             raise HTTPException(status_code=422, detail=f"Invalid {name}: {preset}")
@@ -122,7 +130,8 @@ def list_leads(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
 
-    return leads_service.get_leads_pipeline(
+    scope = _visibility_scope(current_user)
+    res = leads_service.get_leads_pipeline(
         db=db,
         tenant_id=current_user.tenant_id,
         stage=stage,
@@ -138,9 +147,13 @@ def list_leads(
         booked_date_to=booked_date_to,
         page=page,
         page_size=page_size,
-        scope_user_id=_visibility_scope(current_user),
+        scope_user_id=scope,
         autopilot=autopilot,
+        lead_type=lead_type,
+        came_from=came_from,
     )
+    res.scope = "mine_and_unassigned" if scope else "team"   # the one visibility rule, said on the page and in reports
+    return res
 
 
 # ── GET /leads/needs-action — default Leads view ─────────────────────────────

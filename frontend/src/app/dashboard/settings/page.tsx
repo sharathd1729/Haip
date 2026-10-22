@@ -8,6 +8,10 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { getPushStatus, subscribeToPush, isIOSStandaloneRequired, type PushStatus } from "@/components/PWARegister";
 import { SalesAgentSettingsCard } from "@/components/settings/SalesAgentSettingsCard";
+import { AgentConsultSettingsCard } from "@/components/settings/AgentConsultSettingsCard";
+import { AgentPolicyCard } from "@/components/settings/AgentPolicyCard";
+import { SalesPlaybookCard } from "@/components/settings/SalesPlaybookCard";
+import { AiScorecardCard } from "@/components/settings/AiScorecardCard";
 
 type Tab = "workspace" | "ai" | "notifications" | "security";
 
@@ -581,7 +585,15 @@ function AISettings() {
 
       <KillSwitchCard />
 
+      <AiScorecardCard />
+
       <SalesAgentSettingsCard />
+
+      <AgentConsultSettingsCard />
+
+      <AgentPolicyCard />
+
+      <SalesPlaybookCard />
 
       {/* WhatsApp */}
       <Card title="WhatsApp — AI mode">

@@ -161,6 +161,12 @@ class LeadCardSchema(BaseModel):
     # Rate calculator: the lead's newest quote -- {quote_id, amount, status, shared_via, how, valid_until, valid_until_text, label}.
     latest_quote: Optional[dict] = None
 
+    # CRM reporting (migration 169; lead_list_extras): guest | b2b | partner; paid | organic | unknown (lead_paid, derived);
+    # a PERSON's "Valid enquiry?" review {status, dates_confirmed, budget_fits, clear_intent, note, by_id, by_name, at}.
+    lead_type: str = "guest"
+    came_from: Optional[str] = None
+    validation: Optional[dict] = None
+
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────
 
@@ -189,6 +195,8 @@ class LeadsListResponse(BaseModel):
     page_size: int
     stages: dict[str, PipelineStageMetaSchema] = {}  # stage_value → meta
     leads: List[LeadCardSchema] = []
+    # Whose leads these are: "team" (owner/manager) or "mine_and_unassigned" (every other role). The page says so.
+    scope: str = "team"
 
 
 # ─── Needs action (Leads default view) ────────────────────────────────────────

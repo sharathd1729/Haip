@@ -145,6 +145,19 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     heard_about = Column(String(30), nullable=True)
     heard_about_note = Column(String(200), nullable=True)
 
+    # CRM reporting (migration 169). lead_type: guest | b2b | partner (schemas/lead_review.LEAD_TYPES); only "guest" counts
+    # in the guest lead KPIs. Set to b2b at auto-create by the collaboration keywords (lead_auto_create), or by staff.
+    lead_type = Column(String(20), nullable=False, default="guest", server_default="guest")
+    # A PERSON's review "Valid enquiry?" (lead_review_service): valid | invalid, NULL = not reviewed. Kept apart from the
+    # automatic stage/qualification so reports can show human-reviewed numbers separately.
+    validation_status = Column(String(10), nullable=True)
+    validation_dates_confirmed = Column(Boolean, nullable=True)
+    validation_budget_fits = Column(Boolean, nullable=True)
+    validation_clear_intent = Column(Boolean, nullable=True)
+    validation_note = Column(String(300), nullable=True)
+    validated_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    validated_at = Column(DateTime(timezone=True), nullable=True)
+
     # Metadata
     tags = Column(JSON, default=list)
     custom_fields = Column(JSON, default=dict)

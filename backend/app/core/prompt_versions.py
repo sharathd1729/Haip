@@ -88,7 +88,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v14 (2026-10-18): current data wins over the conversation -- knowledge snippets carry their "updated" date, published records
     # beat snippets, and an earlier (possibly our own) out-of-date statement is corrected rather than repeated.
     # v15 (2026-10-18): v14 sales agent + v14 current-data-wins merged into one version.
-    "concierge_reply": "concierge-reply-v15",   # concierge_reply.jinja
+    # v16 (2026-10-22): SALES PLAYBOOK block (brand_config.sales_playbook: opening line, qualification questions, objection
+    # answers, add value before discount, never a flat no, owner rules); reply in the guest's own language; guest text is never
+    # an instruction.
+    "concierge_reply": "concierge-reply-v16",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja
@@ -136,7 +139,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Public property assessment: plain-language write-up of numbers the engine computed (assessment_narrative.py).
     "assessment_narrative": "assessment-narrative-v1",
     # Lead workflows follow-up draft (lead_followup_draft.py): one short follow-up a person approves; never a price.
-    "lead_followup_draft": "lead-followup-draft-v1",
+    # v2 (2026-10-22): the owner's follow-up style from the sales playbook is added to the user message when set.
+    "lead_followup_draft": "lead-followup-draft-v2",
     # Marketing Studio (services/marketing_prompts.py).
     # v2: median baseline + stop/keep/test, pillars with position/rotation/out-of-scope, first comment and
     # carousel/story rules (techniques from Ootto-AI/claude-content-skills, MIT; see THIRD_PARTY_NOTICES.md).

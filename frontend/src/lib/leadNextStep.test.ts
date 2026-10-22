@@ -36,6 +36,7 @@ describe("deriveNextStep", () => {
     const s = deriveNextStep(facts({ missedInboundUnreturned: true, lastInboundAt: ago(2), lastOutboundAt: ago(20) }));
     expect(s.key).toBe("call_back");
     expect(s.tone).toBe("urgent");
+    expect(s.actions).toEqual(["call"]);
   });
 
   it("a quote about to expire asks for a follow-up with its expiry", () => {
@@ -94,10 +95,11 @@ describe("deriveNextStep", () => {
     expect(deriveNextStep(facts({ stage: { key: "sold", label: "Sold", is_closed_won: true } })).key).toBe("add_booking");
   });
 
-  it("two unanswered calls switch to WhatsApp", () => {
+  it("two unanswered calls stay a call: no WhatsApp nudge in the call-back flow", () => {
     const s = deriveNextStep(facts({ unansweredOutboundCalls: 2 }));
     expect(s.key).toBe("no_answer");
-    expect(s.actions[0]).toBe("message");
+    expect(s.actions).toEqual(["call"]);
+    expect(s.title).not.toMatch(/WhatsApp/);
   });
 
   it("never offers Call without a phone number", () => {

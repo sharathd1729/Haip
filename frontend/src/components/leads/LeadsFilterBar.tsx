@@ -27,6 +27,9 @@ export interface LeadsFilters {
   booked_date_to?: string;
   // "moved" = leads whose current stage the lead autopilot set (GET /leads?autopilot=moved)
   autopilot?: string;
+  // CRM reporting (22 Oct 2026): guest | b2b | partner; paid | organic | unknown (GET /leads?lead_type=&came_from=)
+  lead_type?: string;
+  came_from?: string;
 }
 
 const ENQUIRY_PRESETS = [
@@ -156,6 +159,22 @@ function FilterControls({
         onChange={v => set({ source: v || undefined })}
         options={SOURCE_OPTIONS.map(s => ({ value: s, label: s.replace(/_/g, " ") }))}
         placeholder="Source"
+        className={fieldCls}
+      />
+
+      <Select
+        value={filters.lead_type}
+        onChange={v => set({ lead_type: v || undefined })}
+        options={[{ value: "guest", label: "Guests" }, { value: "b2b", label: "B2B / trade" }, { value: "partner", label: "Partners" }]}
+        placeholder="Type"
+        className={fieldCls}
+      />
+
+      <Select
+        value={filters.came_from}
+        onChange={v => set({ came_from: v || undefined })}
+        options={[{ value: "paid", label: "Came from: Paid ad" }, { value: "organic", label: "Came from: Organic" }, { value: "unknown", label: "Came from: Unknown" }]}
+        placeholder="Came from"
         className={fieldCls}
       />
 

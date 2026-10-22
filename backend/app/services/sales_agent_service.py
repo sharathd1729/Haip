@@ -114,6 +114,9 @@ def _holds(db: Session, tenant_id: str, rows: list, guest, overnight: bool, stay
         holds.append("The guest asked to speak to a person.")
     if details.get("sentiment") == "frustrated":
         holds.append("The guest sounds frustrated.")
+    from app.services import agent_policy
+    if not agent_policy.allows(db, tenant_id, "send_payment_link"):
+        holds.append("Your AI policy says a person approves payment links before they go out.")
     return holds
 
 

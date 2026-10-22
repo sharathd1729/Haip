@@ -329,5 +329,5 @@ def test_followup_draft_route_and_templates():
     from app.adapters.llm import _TASK_ROUTES
     from app.core.prompt_versions import PROMPT_VERSIONS
     assert _TASK_ROUTES["lead_followup_draft"] == ("nvidia", "openai/gpt-oss-20b")
-    assert PROMPT_VERSIONS["lead_followup_draft"] == "lead-followup-draft-v1"
+    assert PROMPT_VERSIONS["lead_followup_draft"] == "lead-followup-draft-v2"
     assert pack.BY_NAME[pack.REENGAGE]["category"] == "MARKETING"

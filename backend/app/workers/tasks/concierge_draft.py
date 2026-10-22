@@ -35,7 +35,7 @@ def _run_async(coro):
     finally:
         loop.close()
 from app.services.concierge_service import build_concierge_context, is_latest_pending_draft, unanswered_guest_text
-from app.services import concierge_facts, sales_gateway
+from app.services import agent_consult_flow, concierge_facts, sales_gateway, sales_playbook
 from app.core.database import set_tenant_context
 import structlog
 
@@ -1114,6 +1114,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             guest_missing_phone=guest_missing_phone,
             missing_details=missing_details,
             qualified=qualified,
+            playbook=sales_playbook.prompt_view(tenant),
         )
 
         # No explicit model= here: whatever get_llm("concierge_draft") routes
@@ -1378,6 +1379,11 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             should_auto_send = False
             needs_human_reasons.append("superseded by a newer guest message before send")
 
+        # Ask a manager (services/agent_consult_flow.py): a deterministic trigger holds the guessed answer; the consult opens below.
+        consult_turn = agent_consult_flow.check_turn(db, tenant, conversation, guest, inquiry, message_id=message_id, ai_mode=ai_mode, force=force, burst_text=burst_text, intent=_intent, details=details, grounded_facts=grounded_facts, reply_text=reply_text, model_confidence=draft["confidence"], threshold=confidence_threshold, escalation=escalation, price_mode=price_mode, price_leak=price_leak, ungrounded=(violation if not is_grounded else media_violation), model_failed=bool(_malformed) or any("AI reply generation" in r for r in needs_human_reasons), sales_turn=sales_turn, rate_limited=bool(rate_limited_reason))
+        if consult_turn.hold:
+            should_auto_send, needs_human = False, True; needs_human_reasons.append(consult_turn.note)
+
         draft_message_id = str(uuid.uuid4())
 
         # HAIP Inbox UI-fidelity pass, ticket 3: offer the drafted reply
@@ -1421,6 +1427,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         )
         db.add(draft_message)
         db.commit()
+        agent_consult_flow.after_draft(db, consult_turn, draft_message, tenant, conversation, guest, inquiry)
 
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
                  auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))
@@ -1471,7 +1478,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # ── Escalation alert ───────────────────────────────────────────────
         # These are time-sensitive by definition -- a refund demand sitting
         # unread in the inbox is the failure mode this guard exists to stop.
-        if escalation:
+        if escalation and not consult_turn.consult_id:    # a consult already told the team, naming the question
             try:
                 from app.services.push_service import send_to_tenant
                 _label = (getattr(guest, "name", None) or "A guest").strip()
@@ -1491,7 +1498,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # nothing in the system is tracking.
         try:
             # The sales agent's own work item (a prepared quote, or a handoff task) replaces the generic pricing callback.
-            if not (sales_turn.action_id or sales_turn.handoff or sales_turn.status in sales_agent_service.OWN_WORK_STATUSES):
+            if not (sales_turn.action_id or sales_turn.handoff or sales_turn.status in sales_agent_service.OWN_WORK_STATUSES or consult_turn.owns_price):
                 _maybe_create_price_handoff(
                     db, tenant_id=tenant_id, conversation=conversation, guest=guest,
                     inquiry=inquiry, intent=_intent, qualified=qualified,
@@ -1533,7 +1540,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             # Push notification (browser closed / mobile PWA)
             try:
                 from app.services.push_service import send_to_tenant
-                send_to_tenant(
+                if not consult_turn.consult_id: send_to_tenant(  # noqa: E701 -- a consult already pushed, naming the question
                     db=db,
                     tenant_id=tenant_id,
                     title="AI draft ready for review",

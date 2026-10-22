@@ -61,6 +61,15 @@ def _facts(db: Session, inquiry, guest) -> str:
     return "\n".join(bits) or "No trip details on file."
 
 
+def _style(db: Session, tenant_id: str) -> str:
+    """The owner's follow-up style (sales playbook), e.g. name the itinerary held, never "any update?"."""
+    from app.models.tenant import Tenant
+    from app.services import sales_playbook
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    style = sales_playbook.follow_up_style(tenant) if tenant is not None else ""
+    return f"\n\nHow this business follows up (owner's playbook): {style}" if style else ""
+
+
 def _thread(db: Session, conversation_id: str, limit: int = 12) -> str:
     from app.services.price_policy import strip_prices
     rows = (db.query(Message).filter(Message.conversation_id == conversation_id, Message.is_internal.isnot(True),
@@ -102,6 +111,7 @@ def write_draft(db: Session, tenant_id: str, conversation_id: str, inquiry, gues
     version = PROMPT_VERSIONS.get(PROMPT_KEY, "unregistered")
     user_message = (f"What this follow-up is for: {PURPOSE.get(purpose, PURPOSE['day1'])}\n\n"
                     f"Facts:\n{_facts(db, inquiry, guest)}\n\nRecent conversation (oldest first):\n{_thread(db, conversation_id)}")
+    user_message += _style(db, tenant_id)
     source = "ai"
     try:
         reply = asyncio.run(_complete(user_message))

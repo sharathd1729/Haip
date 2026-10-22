@@ -1,5 +1,7 @@
 // The link-in-bio page (/links, agency M6): the business's latest Instagram posts, each linking to this website with
 // that post's utm_campaign, so an enquiry or booking from it traces back to the post. Same look as the site (pack).
+// "Packages": published retail packages with their day-by-day plan and an "Enquire on WhatsApp" link whose prefilled text names
+// the package (the AI ties the enquiry to it). A price shows only when the business publishes prices in chat (grounded).
 import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -8,7 +10,11 @@ import { apiRoot, getLive } from "@/lib/haip";
 import { pack, packVars } from "@/site-blocks/packs";
 
 type Params = { host: string };
-interface Links { name: string; book_url: string; items: { title: string; kind: string; permalink: string | null; url: string }[] }
+interface Pkg { key: string; name: string; summary: string; length: string; days: string[]; price: string | null; whatsapp_url: string | null }
+interface Links {
+  name: string; book_url: string; items: { title: string; kind: string; permalink: string | null; url: string }[];
+  packages?: Pkg[];
+}
 
 async function getLinks(host: string): Promise<Links | null> {
   const r = await fetch(`${apiRoot()}/public/sites/${encodeURIComponent(host)}/links`, { next: { revalidate: 300, tags: [`site:${host}`] } });
@@ -43,6 +49,22 @@ export default async function LinksPage({ params }: { params: Promise<Params> })
           </div>
         ))}
         {!links.items.length && <p className="k-p">New posts will appear here.</p>}
+        {(links.packages ?? []).length > 0 && <h2 className="k-h" style={{ fontSize: "1.25rem", marginTop: 12 }}>Packages</h2>}
+        {(links.packages ?? []).map(p => (
+          <div key={p.key} className="k-card" style={{ display: "grid", gap: 8, padding: 16 }}>
+            <strong>{p.name}</strong>
+            <span className="k-p" style={{ margin: 0 }}>{p.length}{p.price ? ` · ${p.price}` : ""}</span>
+            {p.summary && <p className="k-p" style={{ margin: 0 }}>{p.summary}</p>}
+            {p.days.length > 0 && (
+              <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 2 }}>
+                {p.days.map((d, i) => <li key={i} className="k-p" style={{ margin: 0 }}>Day {i + 1}: {d}</li>)}
+              </ol>
+            )}
+            {p.whatsapp_url && (
+              <a className="k-btn" href={p.whatsapp_url} rel="noopener noreferrer" style={{ justifySelf: "start" }}>Enquire on WhatsApp</a>
+            )}
+          </div>
+        ))}
       </main>
       <PageView path="/links" />
     </div>

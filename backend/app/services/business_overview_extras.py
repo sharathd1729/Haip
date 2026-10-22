@@ -255,6 +255,10 @@ def high_intent_at_risk(db: Session, p: Params, queue: dict) -> dict:
         iid = item.get("inquiry_id")
         if iid and item["kind"] in labels and iid not in reasons:
             reasons[iid] = (item.get("title") or "Lead", labels[item["kind"]], item.get("href") or f"/dashboard/leads/{iid}")
+    # Only enquiries still being sold: a follow-up on a Sold / Lost / Unsuitable / unqualified one is not "at risk".
+    from app.services import lead_task_closer
+    for iid in lead_task_closer.closed_states(db, p.tid, reasons):
+        reasons.pop(iid, None)
     if not reasons:
         return {"count": 0, "items": []}
     hot = [iid for iid, analysis in db.query(Inquiry.id, Inquiry.ai_analysis).filter(

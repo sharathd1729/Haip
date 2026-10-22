@@ -273,8 +273,10 @@ def _meta_ads(db: Session, p: Params) -> dict:
     spend, chats = db.query(func.coalesce(func.sum(AdMetric.spend), 0), func.coalesce(func.sum(AdMetric.conversations_started), 0)).filter(
         AdMetric.tenant_id == p.tid, AdMetric.date >= f, AdMetric.date <= t).one()
     start_dt, end_dt = ist_range_to_utc(p.d_from, p.d_to)[2:]
+    # Only AD referrals: an organic post/story referral is recorded in the same table but is not an ad lead (lead_paid).
+    from app.services.lead_paid import ad_attribution_sql
     atts = db.query(LeadAttribution).filter(LeadAttribution.tenant_id == p.tid, LeadAttribution.created_at >= start_dt,
-                                            LeadAttribution.created_at <= end_dt).all()
+                                            LeadAttribution.created_at <= end_dt, ad_attribution_sql()).all()
     missing = [a.conversation_id for a in atts if not a.inquiry_id]
     via_conv = dict(db.query(Conversation.id, Conversation.inquiry_id).filter(
         Conversation.tenant_id == p.tid, Conversation.id.in_(missing))) if missing else {}
