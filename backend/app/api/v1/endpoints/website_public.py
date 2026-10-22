@@ -211,13 +211,15 @@ def preview_media(token: str, asset_id: str, db: Session = Depends(get_db)):
 @router.get("/sites/{host}/links")
 def links(host: str, db: Session = Depends(get_db)):
     """The link-in-bio page (agency M6): recent Instagram posts, each linking to the site tagged with that post's
-    utm_campaign, so an enquiry or booking from it traces back to the post. Public data only."""
-    from app.services import marketing_links
+    utm_campaign, so an enquiry or booking from it traces back to the post; and the published retail packages with an
+    "Enquire on WhatsApp" link naming the package (bio_packages; prices only in grounded price mode). Public data only."""
+    from app.services import bio_packages, marketing_links
     tenant, site, v = _live(db, host)
     home = f"https://{host}/"
     return {"name": (v.doc or {}).get("site", {}).get("name") or tenant.name,
             "book_url": marketing_links.tag_url(home, marketing_links.utm(source="instagram", medium="bio", campaign="bio")),
-            "items": marketing_links.bio_items(db, tenant.id, home)}
+            "items": marketing_links.bio_items(db, tenant.id, home),
+            "packages": bio_packages.items(db, tenant, v.doc)}
 
 
 @router.post("/sites/{host}/views", status_code=204)
