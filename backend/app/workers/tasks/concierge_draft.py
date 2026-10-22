@@ -35,7 +35,7 @@ def _run_async(coro):
     finally:
         loop.close()
 from app.services.concierge_service import build_concierge_context, is_latest_pending_draft, unanswered_guest_text
-from app.services import agent_consult_flow, concierge_facts, sales_gateway
+from app.services import agent_consult_flow, concierge_facts, sales_gateway, sales_playbook
 from app.core.database import set_tenant_context
 import structlog
 
@@ -1114,6 +1114,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             guest_missing_phone=guest_missing_phone,
             missing_details=missing_details,
             qualified=qualified,
+            playbook=sales_playbook.prompt_view(tenant),
         )
 
         # No explicit model= here: whatever get_llm("concierge_draft") routes

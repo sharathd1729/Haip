@@ -8,6 +8,9 @@ POST /consults/{id}/answer                 {mode: approve_proposed|edited|option
 POST /consults/{id}/take-over              a person replies themselves (guarded, audited)             conversations.send
 GET  /ai/consult-settings                  business hours, SLA, holding texts + preview              owner, manager
 PUT  /ai/consult-settings                  change them (audited `ai.consult_settings_changed`)       owner only
+GET  /ai/sales-playbook                    the owner's sales playbook (empty = prompts unchanged)  owner, manager
+PUT  /ai/sales-playbook                    replace it (schemas/sales_playbook.py; audited
+                                           `ai.sales_playbook_changed`)                             owner only
 GET  /ai/agent-policy                      who may decide what: mode per action class + defaults    owner, manager
 PUT  /ai/agent-policy                      {modes: {class: autonomous|draft_for_approval|consult}}  owner only (audited
                                            `ai.agent_policy_changed`)
@@ -25,7 +28,8 @@ from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.schemas.agent_consult import AgentPolicyIn, ConsultAnswerIn, ConsultSettingsIn
 from app.services import agent_consult_service as svc
-from app.services import agent_consult_settings, agent_policy
+from app.schemas.sales_playbook import SalesPlaybook
+from app.services import agent_consult_settings, agent_policy, sales_playbook
 from app.services.authz_service import require_capability
 
 router = APIRouter(tags=["agent-consults"])
@@ -109,3 +113,17 @@ def put_policy(body: AgentPolicyIn, current_user: User = Depends(require_roles(U
     db.commit()
     db.refresh(tenant)
     return {**agent_policy.view(tenant), "changed": changes}
+
+
+@router.get("/ai/sales-playbook")
+def get_playbook(current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)), db: Session = Depends(get_db)):
+    return sales_playbook.view(_tenant(db, current_user))
+
+
+@router.put("/ai/sales-playbook")
+def put_playbook(body: SalesPlaybook, current_user: User = Depends(require_roles(UserRole.OWNER)), db: Session = Depends(get_db)):
+    tenant = _tenant(db, current_user)
+    changes = sales_playbook.update(db, tenant, current_user.id, body)
+    db.commit()
+    db.refresh(tenant)
+    return {**sales_playbook.view(tenant), "changed": sorted(changes)}

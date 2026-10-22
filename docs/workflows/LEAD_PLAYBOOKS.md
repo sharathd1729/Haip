@@ -26,7 +26,7 @@ The thresholds of P3/P4 are the work queue's own (`work_queue_service.SLA_MINUTE
 
 * **Tasks only**: a task for the lead's owner and a push. Nothing goes to the guest.
 * **AI drafts** (default): inside the 24 h window an AI-drafted follow-up waits in the inbox for a person to approve
-  (router task `lead_followup_draft`, prompt `lead-followup-draft-v1`; a reply with a price, an empty reply or a provider
+  (router task `lead_followup_draft`, prompt `lead-followup-draft-v2` (+ the owner's follow-up style from the sales playbook); a reply with a price, an empty reply or a provider
   error is replaced by the fixed wording), plus a task. Window closed: a task naming the template to send from the inbox.
 * **Automatic**: the fixed wording goes by itself (text in the window, else the approved template). Never AI text. At least
   20 h between automatic messages to the same guest. No approved template = a task instead.
