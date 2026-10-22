@@ -37,6 +37,7 @@ from app.models.property import Stay
 from app.models.stay_finance import StayPayment
 from app.services.kpi_metrics import OCCUPYING_STATUSES, UNQUALIFIED, Bound, as_datetime
 from app.services.lead_state import CHANNEL_BY_SOURCE
+from app.services.lead_types import is_guest_sql
 
 CHANNEL_LABELS = {"whatsapp": "WhatsApp", "instagram": "Instagram", "facebook": "Facebook", "call": "Phone calls",
                   "organic_call": "Organic calls", "website": "Website", "other": "Other", "unknown": "Unknown"}
@@ -81,7 +82,7 @@ def people(tenant_id: str, *, property_id: Optional[str] = None, channel: Option
            scope_user_id: Optional[str] = None) -> list:
     """Conditions selecting the people a metric may count. Merged, erased and sample guests are never counted. The channel filter
     reads ``first_touch_expr``; "call" keeps its organic calls (they are calls too), "organic_call" is only those."""
-    conds = [Guest.tenant_id == tenant_id, Guest.is_deleted.is_(False), Guest.is_sample.is_(False)]
+    conds = [Guest.tenant_id == tenant_id, Guest.is_deleted.is_(False), Guest.is_sample.is_(False), _guest_type(tenant_id)]
     if channel:
         touch = first_touch_expr(tenant_id)
         conds.append(touch.in_(["call", "organic_call"]) if channel == "call" else touch == channel)
@@ -95,6 +96,14 @@ def people(tenant_id: str, *, property_id: Optional[str] = None, channel: Option
             exists().where(c.guest_id == Guest.id, c.tenant_id == tenant_id, c.property_id == property_id),
             exists().where(st.guest_id == Guest.id, st.tenant_id == tenant_id, st.property_id == property_id)))
     return conds
+
+
+def _guest_type(tenant_id: str):
+    """Guest lead KPIs count guests (lead_types): a person is left out only when they have enquiries and EVERY one of them is
+    b2b / partner. A person with no enquiry yet is still counted."""
+    other, guest = aliased(Inquiry), aliased(Inquiry)
+    return or_(~exists().where(other.guest_id == Guest.id, other.tenant_id == tenant_id, ~is_guest_sql(other.lead_type)),
+               exists().where(guest.guest_id == Guest.id, guest.tenant_id == tenant_id, is_guest_sql(guest.lead_type)))
 
 
 def _between(column, start: Bound, end: Bound) -> list:
@@ -191,7 +200,8 @@ def enquiry_counts(db: Session, tenant_id: str, start: Bound, end: Bound, *, pro
                    scope_user_id: Optional[str] = None, channel_condition=None) -> dict:
     """enquiries.created: enquiry records created in the period, and how many were repeat enquiries (the same person had an
     earlier one). One person with three enquiries is three enquiries and ONE lead."""
-    conds = [Inquiry.tenant_id == tenant_id, *_between(Inquiry.created_at, start, end), Inquiry.qualification_status != UNQUALIFIED]
+    conds = [Inquiry.tenant_id == tenant_id, *_between(Inquiry.created_at, start, end), Inquiry.qualification_status != UNQUALIFIED,
+             is_guest_sql(Inquiry.lead_type)]
     if scope_user_id:
         conds.append(Inquiry.assigned_to == scope_user_id)
     if property_id:

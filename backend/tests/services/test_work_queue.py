@@ -219,6 +219,22 @@ def test_a_person_is_listed_once_under_the_most_specific_reason(db):
     assert res["total"] == 1 and res["people"] == 1
 
 
+def test_the_badge_counts_people_waiting_not_rows_and_not_the_cold_tail(db):
+    t, other = _tenant(db), _tenant(db)
+    g, inq, _ = _lead(db, t.id, minutes=90, name="Missed and tasked")
+    _missed(db, t.id, minutes=60, guest=g)
+    db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="Send the brochure", guest_id=g.id, inquiry_id=inq.id,
+                is_done=False, due_date=NOW - timedelta(hours=1)))
+    _lead(db, t.id, minutes=60 * 24 * 5, name="Cold")             # stale: not in the badge
+    _lead(db, other.id, name="Theirs")
+    db.commit()
+    res = wq.build(db, t, scope_user_id=None)
+    assert res["total"] == 3                                      # callback + task + cold lead: rows
+    assert res["people"] == 2 and res["people_waiting"] == 1
+    assert wq.counts(db, t, scope_user_id=None)["people_waiting"] == 1
+    assert wq.counts(db, other, scope_user_id=None)["people_waiting"] == 1
+
+
 def test_three_missed_calls_from_one_person_is_one_callback(db):
     t = _tenant(db)
     g = _missed(db, t.id, minutes=300)

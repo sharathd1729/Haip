@@ -317,6 +317,8 @@ def _new_leads(db: Session, tenant_id: str, scope_user_id: Optional[str], now: d
         inq = open_by.get(g.id)
         if scope_user_id and inq is not None and inq.assigned_to not in (None, scope_user_id):
             continue
+        if inq is not None and (inq.lead_type or "guest") != "guest":   # a b2b / partner enquiry is not a new guest lead
+            continue
         rows.append((g, inq))
     owners = _names(db, tenant_id, {inq.assigned_to for _, inq in rows if inq is not None and inq.assigned_to})
 
@@ -488,7 +490,13 @@ def _followups(db: Session, tenant_id: str, scope_user_id: Optional[str]) -> lis
     )
     if scope_user_id:
         q = q.filter(or_(Task.assigned_to == scope_user_id, Task.assigned_to.is_(None)))
-    rows = _lead_task_filter(db, tenant_id, q.order_by(Task.due_date.asc()).limit(MAX_PER_KIND * 3).all())[:MAX_PER_KIND]
+    rows = _lead_task_filter(db, tenant_id, q.order_by(Task.due_date.asc()).limit(MAX_PER_KIND * 3).all())
+    # Not lead work any more: a task on a Lost/Unsuitable/unqualified enquiry, or a call-back/follow-up on a Sold one (its
+    # booking's own reminders stay). lead_task_closer closes these on the stage move; this hides older ones.
+    from app.services import lead_task_closer
+    shut = lead_task_closer.closed_states(db, tenant_id, {t.inquiry_id for t in rows if t.inquiry_id})
+    rows = [t for t in rows if t.inquiry_id not in shut
+            or (shut[t.inquiry_id] == "won" and not lead_task_closer.is_lead_work_task(t))][:MAX_PER_KIND]
     owners = _names(db, tenant_id, {t.assigned_to for t in rows if t.assigned_to})
     items = []
     for t in rows:
@@ -571,11 +579,15 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
     people = {i.guest_id for i in all_items if i.guest_id}
     no_guest = sum(1 for i in all_items if not i.guest_id and i.kind != "clash")   # a calendar clash is not a person
     severity = {s: sum(1 for i in all_items if i.severity == s and i.kind != "clash") for s in SEVERITIES}   # people's SLAs
+    # The nav "Now" badge and Home's "Waiting on the team": PEOPLE (as ``people``) with at least one item that is not yet
+    # cold. ``total - severity.stale`` counted rows, so a person with a missed call and a task counted twice.
+    waiting = {i.guest_id or id(i) for i in all_items if i.kind != "clash" and i.severity != "stale"}
     return {
         "counts": counts,
         "oldest": oldest,
         "total": sum(counts.values()),
         "people": len(people) + no_guest,
+        "people_waiting": len(waiting),
         "severity": severity,
         "unowned": sum(1 for i in by_kind["new_lead"] if not i.owner_id),
         "flags": flags,
@@ -587,4 +599,4 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
 def counts(db: Session, tenant: Tenant, scope_user_id: Optional[str]) -> dict:
     """Counts only -- for the dashboard cards and nav badges."""
     res = build(db, tenant, scope_user_id)
-    return {k: res[k] for k in ("counts", "oldest", "total", "people", "severity", "unowned", "flags")}
+    return {k: res[k] for k in ("counts", "oldest", "total", "people", "people_waiting", "severity", "unowned", "flags")}

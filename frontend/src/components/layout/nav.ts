@@ -127,7 +127,7 @@ export function useNav(role: string) {
   const { conversations } = useInboxStore();
   const canSeeMyDay = canSeeNav(role, "inbox");
   // Same source and query key as My day, so the badge and the list always agree.
-  const { data: queue } = useQuery<{ total: number; severity?: { stale?: number } }>({
+  const { data: queue } = useQuery<{ total: number; people_waiting?: number; severity?: { stale?: number } }>({
     queryKey: ["work-queue", ""],
     queryFn: () => api.get("/work-queue").then(r => r.data),
     staleTime: 30_000,
@@ -139,7 +139,9 @@ export function useNav(role: string) {
     .filter(s => s.links.length > 0);
   const byHref = new Map(sections.flatMap(s => s.links).map(l => [l.href, l]));
   const unread = conversations.filter(c => (c as { unread_count?: number }).unread_count! > 0).length;
-  const waiting = Math.max(0, (queue?.total ?? 0) - (queue?.severity?.stale ?? 0));   // not the cold tail
+  // People, not rows (one person with a missed call and a task is one), and not the cold tail: work_queue_service
+  // `people_waiting`. Home's "Waiting on the team" tile and the phone's Now button read this same number.
+  const waiting = queue?.people_waiting ?? Math.max(0, (queue?.total ?? 0) - (queue?.severity?.stale ?? 0));
   const badge = (href: string): number => (href === "/dashboard/inbox" ? unread : href === NOW_HREF ? waiting : 0);
   return { sections, byHref, badge, waiting, isActive: (href: string) => linkActive(pathname, href), pathname };
 }

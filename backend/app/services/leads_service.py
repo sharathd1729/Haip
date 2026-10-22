@@ -28,6 +28,7 @@ from app.core.cache import cache_key, get_cached, set_cached
 from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.pipeline_stage import PipelineStage
+from app.services import lead_list_extras
 from app.schemas.leads import (
     LeadCardSchema, LeadDetailSchema, LeadsListResponse, NeedsActionBucket,
     NeedsActionKpis, NeedsActionResponse, PendingDraftSchema,
@@ -722,6 +723,7 @@ def get_leads_pipeline(
     page_size: int = 25,
     scope_user_id: Optional[str] = None,
     autopilot: Optional[str] = None,
+    lead_type: Optional[str] = None, came_from: Optional[str] = None,   # lead_list_extras (CRM reporting, 22 Oct 2026)
 ) -> LeadsListResponse:
     """
     Paginated pipeline query. One row per inquiry.
@@ -814,6 +816,7 @@ def get_leads_pipeline(
     if autopilot == "moved":
         from app.services.lead_autopilot_view import moved_filter
         q = q.filter(moved_filter(db, tenant_id))
+    q = lead_list_extras.apply_filters(db, q, tenant_id, lead_type, came_from)
 
     total = q.count()
 
@@ -865,13 +868,14 @@ def get_leads_pipeline(
             card.latest_quote = latest.get(card.inquiry_id)
     except Exception as exc:   # the quote line must never break the list
         log.warning("lead_latest_quote_failed", tenant_id=tenant_id, error=str(exc)[:200])
+    _decorate_extras(db, tenant_id, leads, inquiries)
 
     # Stage summary (count + potential revenue across ALL filtered leads, not just this page)
     stage_meta = _build_stage_summary(
         db, tenant_id, stage, property_id, assigned_to, source, scope_user_id,
         occasion=occasion, date_from=date_from, date_to=date_to,
         checkin_date_from=checkin_date_from, checkin_date_to=checkin_date_to,
-        booked_date_from=booked_date_from, booked_date_to=booked_date_to,
+        booked_date_from=booked_date_from, booked_date_to=booked_date_to, lead_type=lead_type, came_from=came_from,
     )
 
     return LeadsListResponse(
@@ -881,6 +885,13 @@ def get_leads_pipeline(
         stages=stage_meta,
         leads=leads,
     )
+
+
+def _decorate_extras(db: Session, tenant_id: str, cards: list, inquiries: list) -> None:
+    try:   # lead type, paid / organic, the human review -- never break the list over a label
+        lead_list_extras.decorate(db, tenant_id, cards, inquiries)
+    except Exception as exc:
+        log.warning("lead_list_extras_failed", tenant_id=tenant_id, error=str(exc)[:200])
 
 
 # `assigned_to=unassigned` on the leads list means "nobody owns it yet".
@@ -933,6 +944,7 @@ def _build_stage_summary(
     checkin_date_to: Optional[str] = None,
     booked_date_from: Optional[str] = None,
     booked_date_to: Optional[str] = None,
+    lead_type: Optional[str] = None, came_from: Optional[str] = None,
 ) -> dict[str, PipelineStageMetaSchema]:
     """Compute count + potential_revenue per stage across all matching inquiries.
 
@@ -984,6 +996,7 @@ def _build_stage_summary(
         q = q.filter(Inq.check_in <= checkin_date_to)
     if booked_date_from or booked_date_to:
         q = q.filter(Inq.id.in_(_booked_inquiry_ids(db, tenant_id, booked_date_from, booked_date_to)))
+    q = lead_list_extras.apply_filters(db, q, tenant_id, lead_type, came_from)
 
     rows = q.group_by(PS.key).all()
 
@@ -1083,6 +1096,7 @@ def get_lead_detail(
     from app.services.lead_quote_view import card_out
     newest = next((q for q in quotes_raw if q.status in ("issued", "pending_approval", "accepted") and (q.option_rank or 1) == 1), None)
     card.latest_quote = card_out(newest) if newest else None
+    _decorate_extras(db, tenant_id, [card], [inquiry])
 
     from app.services.lead_field_service import get_field_values_for_inquiry
     try:

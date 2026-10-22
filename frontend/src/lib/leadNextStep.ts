@@ -137,7 +137,8 @@ export function deriveNextStep(f: NextStepFacts): NextStep {
   }
 
   if (f.missedInboundUnreturned) {
-    return { key: "call_back", title: `Call ${name} back`, tone: "urgent", actions: withPhone(f, ["call", "message"]),
+    // Callbacks stay calls (sales team, 22 Oct 2026): no WhatsApp nudge in the call-back flow.
+    return { key: "call_back", title: `Call ${name} back`, tone: "urgent", actions: withPhone(f, ["call"]),
       why: `${name} called and nobody answered. Nobody has called back since.` };
   }
   if ((f.pendingDrafts ?? 0) > 0) {
@@ -175,16 +176,16 @@ export function deriveNextStep(f: NextStepFacts): NextStep {
         why: `The ${inr(q.amount)} quote is valid until ${relDay(q.validUntil!, now)}.` };
     }
     if ((f.unansweredOutboundCalls ?? 0) >= 2) {
-      return { key: "no_answer", title: `No answer after ${f.unansweredOutboundCalls} calls — send a WhatsApp`, tone: "normal",
-        actions: withPhone(f, ["message", "call"]), why: `The ${inr(q.amount)} quote is with ${name}.` };
+      return { key: "no_answer", title: `No answer after ${f.unansweredOutboundCalls} calls — try again later`, tone: "normal",
+        actions: withPhone(f, ["call"]), why: `The ${inr(q.amount)} quote is with ${name}. Try a different time of day.` };
     }
     return { key: "follow_up_quote", title: `Follow up on the ${inr(q.amount)} quote`, tone: "normal", actions: withPhone(f, ["call", "message"]),
       why: q.validUntil ? `Sent; valid until ${relDay(q.validUntil, now)}.` : "Sent; ask if it works for them." };
   }
 
   if ((f.unansweredOutboundCalls ?? 0) >= 2) {
-    return { key: "no_answer", title: `No answer after ${f.unansweredOutboundCalls} calls — send a WhatsApp`, tone: "normal",
-      actions: withPhone(f, ["message", "call"]), why: "Leave a message they can answer when it suits them." };
+    return { key: "no_answer", title: `No answer after ${f.unansweredOutboundCalls} calls — try again later`, tone: "normal",
+      actions: withPhone(f, ["call"]), why: "Try a different time of day. A call they returned shows here once it is logged." };
   }
   if (s.category === "invalid" || key === "general_enquiry" || key === "rnr") {
     return { key: "qualify", title: key === "rnr" ? `Try ${name} once more` : `Call ${name} to qualify`, tone: "normal",

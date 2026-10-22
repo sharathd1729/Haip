@@ -406,6 +406,21 @@ def test_meta_ads_separates_what_meta_reports_from_what_haip_verified(client, db
     assert m["cost_per_verified_lead"] == 4000.0 and m["return_on_spend"] == 12.5     # 50,000 booked from 4,000 spent
 
 
+def test_meta_ads_never_counts_an_organic_post_referral_as_an_ad_lead(client, db, world):
+    tid, l2 = world["tid"], world["leads"][1]
+    db.add(Integration(id=str(uuid.uuid4()), tenant_id=tid, kind="meta_ads", status="active", config={"ad_account_id": "act_1"}))
+    db.add(AdMetric(tenant_id=tid, ad_account_id="act_1", date=date(2026, 9, 12), campaign_id="c1", ad_id="ad1",
+                    spend=4000, conversations_started=10))
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=l2.guest_id, inquiry_id=l2.id, channel=ChannelType.INSTAGRAM)
+    db.add(conv); db.flush()
+    db.add(LeadAttribution(tenant_id=tid, inquiry_id=l2.id, conversation_id=conv.id, guest_id=l2.guest_id,
+                           destination_channel="instagram", source_type="post", source_url="https://instagram.com/p/x",
+                           first_message_at=_ist("2026-09-13"), created_at=_ist("2026-09-13")))
+    db.commit()
+    m = _get(client, world["h_owner"]).json()["meta_ads"]
+    assert m["verified_conversations"] == 0 and m["verified_leads"] == 0 and m["cost_per_verified_lead"] is None
+
+
 def test_a_stale_polled_integration_is_surfaced_for_the_owner(client, db, world):
     old = (datetime.now(timezone.utc) - timedelta(hours=30)).isoformat()
     db.add(Integration(id=str(uuid.uuid4()), tenant_id=world["tid"], kind="hostaway", status="active", last_health_at=old, config={}))

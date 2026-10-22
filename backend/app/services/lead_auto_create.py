@@ -45,6 +45,24 @@ def is_collab_message(text: str) -> bool:
     return bool(_COLLAB_RE.search(text))
 
 
+# A business asking on behalf of its clients (lead_types.B2B). Whole words / phrases only, so "agency" never matches inside
+# another word and "event" alone (a guest's own birthday event) never counts. Plural forms listed explicitly.
+_B2B_KEYWORDS = [
+    "wedding planner", "wedding planners", "event planner", "event planners", "event management", "event company",
+    "travel agent", "travel agents", "travel agency", "tour operator", "tour operators", "dmc", "reseller", "resellers",
+    "agency", "agencies", "b2b",
+]
+_B2B_RE = re.compile(r"\b(" + "|".join(re.escape(k) for k in _B2B_KEYWORDS) + r")\b", re.IGNORECASE)
+
+
+def lead_type_for_message(text: str) -> str:
+    """The lead type a fresh chat enquiry starts with: b2b when the collaboration routing fires or a trade word appears in the
+    guest's OWN message, else guest. Read from the message text only, never from a name."""
+    if text and (is_collab_message(text) or _B2B_RE.search(text)):
+        return "b2b"
+    return "guest"
+
+
 # A number without a country code is read as Indian unless the caller passes the workspace's own region (every chat path
 # did this before phone_identity.find_phones existed; kept so nothing that worked stops working).
 DEFAULT_REGION = "IN"

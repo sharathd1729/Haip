@@ -177,7 +177,7 @@ def get_or_create_from_chat(
     See app/services/lead_auto_create.py for the routing rules.
     """
     from app.services.lead_auto_create import (
-        is_collab_message, text_contains_phone, resolve_entry_stage_id,
+        is_collab_message, lead_type_for_message, text_contains_phone, resolve_entry_stage_id,
     )
 
     closed_stages = [InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED]
@@ -215,6 +215,7 @@ def get_or_create_from_chat(
         stage=InquiryStage.NEW,
         stage_id=stage_id or _stage_id_for(db, tenant_id, InquiryStage.NEW),
         source=src,
+        lead_type=lead_type_for_message(message_text),   # b2b from the guest's own words (lead_types)
     )
     db.add(inquiry)
     db.flush()
@@ -487,6 +488,12 @@ def _notify_stage_hooks(db: Session, inquiry: Inquiry, actor_user_id: Optional[s
                 lead_playbook_engine.stop_runs(db, inquiry.tenant_id, inquiry.id, "the lead was closed")
     except Exception as exc:
         log.warning("lead_journey_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
+    try:   # a won / lost / unsuitable lead loses its open call-back and follow-up tasks (lead_task_closer)
+        from app.services import lead_task_closer
+        with db.begin_nested():
+            lead_task_closer.close_for_closed_lead(db, inquiry, actor_user_id)
+    except Exception as exc:
+        log.warning("lead_tasks_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
 
 
 def revert_automatic_move(

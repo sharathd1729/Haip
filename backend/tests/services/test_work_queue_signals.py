@@ -164,7 +164,7 @@ def test_only_follow_ups_on_open_valid_stage_leads_are_flagged(db):
     flagged = {i["title"] for i in res["items"] if i["kind"] == "followup" and "open_lead" in i["flags"]} |         {t["title"] for i in res["items"] if "open_lead" in i["flags"] for t in i["tasks"] if t["title"].startswith("Call ")}
     assert flagged == {"Call On active"}
     assert res["flags"]["followup_open_lead"] == 1
-    assert res["counts"]["followup"] == 4                       # My day still lists every task
+    assert res["counts"]["followup"] == 3                       # every task but the one on a LOST lead (lead_task_closer)
 
 
 def test_a_warm_lead_travelling_soon_and_quiet_for_two_days_is_at_risk(db):

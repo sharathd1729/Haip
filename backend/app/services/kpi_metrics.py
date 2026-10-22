@@ -25,13 +25,15 @@ from sqlalchemy.orm import Session
 from app.models.inquiry import Inquiry
 from app.models.property import Stay
 from app.models.stay_finance import StayAddOn, StayPayment
+from app.services.lead_types import is_guest_sql
 
 Bound = Union[datetime, str]
 
 CANONICAL_METRICS: dict[str, dict[str, str]] = {
     "leads.new": {
         "name": "New enquiries (legacy name)",
-        "definition": "Enquiry RECORDS created in the period that were not marked unqualified (spam). This counts records, not "
+        "definition": "Enquiry RECORDS created in the period that were not marked unqualified (spam) and are of lead type guest "
+                      "(b2b / partner enquiries are not guest leads). This counts records, not "
                       "people: one person with three enquiries is three. For people see leads.identified_new.",
         "date_basis": "Inquiry.created_at, period bounds in UTC converted from IST calendar days",
         "function": "lead_filters / count_leads",
@@ -199,6 +201,7 @@ def lead_filters(
         Inquiry.created_at >= as_datetime(start),
         Inquiry.created_at <= as_datetime(end),
         Inquiry.qualification_status != UNQUALIFIED,
+        is_guest_sql(Inquiry.lead_type),          # guest enquiries only: b2b / partner are not guest leads (lead_types)
     ]
     if scope_user_id:
         conditions.append(Inquiry.assigned_to == scope_user_id)

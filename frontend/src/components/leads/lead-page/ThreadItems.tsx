@@ -115,9 +115,11 @@ export function CallCard({ item }: { item: FeedItem }) {
           <span className="block text-[12.5px] text-[var(--haip-fg-subtle)]">
             {istTime(item.at)}{item.by_name ? ` · ${inbound ? "answered by" : "by"} ${item.by_name}` : ""}
             {!item.answered && !inbound ? " · logged as an attempt" : ""}
+            {item.manual ? " · from a personal phone, logged by hand" : ""}
           </span>
         </span>
       </div>
+      {item.manual && item.text && <p className="text-[13.5px] text-[var(--haip-fg-2)]">{item.text}</p>}
       {item.answered && (item.summary || item.summary_pending) && (
         <div className="grid gap-0.5 rounded-xl bg-[var(--haip-primary-tint)] px-3 py-2 text-[13.5px]">
           <span className="flex items-center gap-1 text-[11.5px] font-bold text-primary"><Sparkles size={11} aria-hidden /> AI call summary</span>

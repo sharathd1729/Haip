@@ -22,6 +22,7 @@ import { deriveNextStep, leadTemperature, pickLiveBooking } from "@/lib/leadNext
 import { LeadThread } from "@/components/leads/lead-page/LeadThread";
 import { LeadComposer, type ComposerHandle } from "@/components/leads/lead-page/LeadComposer";
 import { CallPanel, useClickToCall } from "@/components/leads/lead-page/CallPanel";
+import { LogCallSheet } from "@/components/leads/lead-page/LogCallSheet";
 import { LeadDetailsPanel, StepButton, stepButtons, type LeadPerms } from "@/components/leads/lead-page/LeadDetailsPanel";
 import { LostSheet, MoreSheet, OwnerSheet, StageSheet, TaskSheet, type SheetKey } from "@/components/leads/lead-page/LeadSheets";
 import { useReveal } from "@/components/leads/lead-page/PanelSections";
@@ -63,6 +64,7 @@ export default function LeadDetailPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [signalOpen, setSignalOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const composer = useRef<ComposerHandle>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -277,7 +279,9 @@ export default function LeadDetailPage() {
 
       {mounted && createPortal(
         <CallPanel phase={call.phase} error={call.error} newCall={call.newCall} name={name} onClose={call.close}
-          onRetry={() => { call.close(); setTimeout(call.start, 0); }} onMessage={() => { call.close(); run("message"); }} />, document.body)}
+          onRetry={() => { call.close(); setTimeout(call.start, 0); }}
+          onLogCall={perms.canEdit ? () => { call.close(); setLogOpen(true); } : undefined} />, document.body)}
+      <LogCallSheet open={logOpen} onClose={() => setLogOpen(false)} inquiryId={inquiryId} name={name} />
 
       {signalOpen && (
         <SignalDrawer inquiryId={inquiryId} onClose={() => setSignalOpen(false)}
@@ -292,6 +296,7 @@ export default function LeadDetailPage() {
         ...(perms.canBook ? [{ key: "book" as const, label: "Add booking", icon: <Calendar size={15} aria-hidden />, onClick: () => run("book") }] : []),
         ...(perms.canEdit ? [{ key: "stage" as const, label: "Move stage", hint: `Now: ${stageLabel}`, icon: <Flag size={15} aria-hidden />, onClick: () => setSheet("stage") }] : []),
         ...(perms.canEdit && !stage?.is_closed_lost && !stage?.is_closed_won ? [{ key: "lost" as const, label: "Mark lost", onClick: () => setSheet("lost") }] : []),
+        ...(perms.canEdit ? [{ key: "log_call" as const, label: "Log a call", hint: "A call from your own phone", icon: <Phone size={15} aria-hidden />, onClick: () => { setSheet(null); setLogOpen(true); } }] : []),
         { key: "task" as const, label: "Add a task", icon: <CheckSquare size={15} aria-hidden />, onClick: () => setSheet("task") },
         ...(perms.canEdit ? [{ key: "owner" as const, label: "Change owner", hint: `Now: ${lead.assigned_agent_name || "nobody"}`, icon: <User size={15} aria-hidden />, onClick: () => setSheet("owner") }] : []),
         ...(perms.canReveal && hasPhone ? [{ key: "reveal" as const, label: "Show full phone number", hint: "Shown for 30 seconds · logged", icon: <Eye size={15} aria-hidden />, onClick: () => { setSheet(null); reveal.reveal(); } }] : []),

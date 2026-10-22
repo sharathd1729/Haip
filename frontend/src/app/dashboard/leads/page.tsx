@@ -7,7 +7,7 @@ import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react
 import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
-import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
+import { CAME_FROM_LABEL, LEAD_TYPE_LABEL, LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { groupLeads, LEAD_GROUP_LABEL } from "@/components/leads/leadGroups";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn, formatINR } from "@/lib/utils";
@@ -41,7 +41,11 @@ interface LeadsApiPage {
   page_size: number;
   stages: Record<string, StageMetaEntry>;
   leads: LeadCardType[];
+  /** Whose leads: "team" (owner/manager) or "mine_and_unassigned" (every other role) -- the one visibility rule. */
+  scope?: "team" | "mine_and_unassigned";
 }
+
+const SCOPE_LABEL = { team: "Showing: whole team", mine_and_unassigned: "Showing: your leads + unassigned" } as const;
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 // One bounded query PER stage column, not one big fetch for the whole board.
@@ -65,7 +69,7 @@ async function fetchStageLeads(stageKey: string, filters: LeadsFilters, page: nu
   return res.data as LeadsApiPage;
 }
 
-function useStageLeads(stageKey: string, filters: LeadsFilters, onStagesMeta: (meta: Record<string, StageMetaEntry>) => void) {
+function useStageLeads(stageKey: string, filters: LeadsFilters, onStagesMeta: (meta: Record<string, StageMetaEntry>, scope?: LeadsApiPage["scope"]) => void) {
   const query = useInfiniteQuery({
     queryKey: ["leads", "stage", stageKey, filters],
     queryFn: ({ pageParam }) => fetchStageLeads(stageKey, filters, pageParam),
@@ -89,7 +93,7 @@ function useStageLeads(stageKey: string, filters: LeadsFilters, onStagesMeta: (m
   // setState directly from a child's render body trips React's "Cannot
   // update a component while rendering a different component" warning.
   useEffect(() => {
-    if (lastPage) onStagesMeta(lastPage.stages);
+    if (lastPage) onStagesMeta(lastPage.stages, lastPage.scope);
   }, [lastPage, onStagesMeta]);
 
   const leads = query.data?.pages.flatMap(p => p.leads) ?? [];
@@ -339,6 +343,15 @@ const LEAD_COLUMNS: Column<LeadCardType>[] = [
   },
   { key: "owner", header: "Owner", hideBelow: "lg", cell: l => l.assigned_agent_name ?? <span className="text-[var(--haip-fg-subtle)]">Unassigned</span> },
   {
+    key: "type", header: "Type", hideBelow: "md",
+    cell: l => (
+      <span className="grid text-xs">
+        <span className="text-[var(--haip-fg)]">{LEAD_TYPE_LABEL[l.lead_type || "guest"] ?? l.lead_type}</span>
+        <span className="text-[var(--haip-fg-subtle)]">{CAME_FROM_LABEL[l.came_from || "unknown"]}</span>
+      </span>
+    ),
+  },
+  {
     key: "wait", header: "Reply", hideBelow: "sm",
     cell: l => l.sla_breached
       ? <StatusPill tone="danger">SLA breached</StatusPill>
@@ -413,6 +426,7 @@ export default function Leads360Page() {
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [filters, setFilters] = useState<LeadsFilters>({});
   const [stageMeta, setStageMeta] = useState<Record<string, StageMetaEntry>>({});
+  const [scope, setScope] = useState<LeadsApiPage["scope"]>(undefined);
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const currentUserId = session?.user?.id;
@@ -442,7 +456,8 @@ export default function Leads360Page() {
   // (leads_service._build_stage_summary isn't scoped to the `stage` filter),
   // so any one of them keeps this accurate -- merged rather than replaced
   // since columns resolve at different times.
-  const handleStagesMeta = useCallback((meta: Record<string, StageMetaEntry>) => {
+  const handleStagesMeta = useCallback((meta: Record<string, StageMetaEntry>, s?: LeadsApiPage["scope"]) => {
+    if (s) setScope(s);
     setStageMeta(prev => {
       // Skip the update if nothing actually changed, to avoid a render loop
       // (this runs on every render of every column while its query is warm).
@@ -483,7 +498,7 @@ export default function Leads360Page() {
               Leads360
             </h1>
             <p className="hidden text-xs sm:block" style={{ color: "var(--haip-fg-muted)" }}>
-              {view === "action" ? "What to do next, most urgent first" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}`}
+              {view === "action" ? "What to do next, most urgent first" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}${scope ? ` · ${SCOPE_LABEL[scope]}` : ""}`}
             </p>
           </div>
         </div>

@@ -29,6 +29,13 @@ export interface LeadDetail {
   custom_field_values?: FieldValue[]; recommended_actions?: RecommendedAction[]; autopilot?: AutopilotBlock | null;
   pending_draft?: { message_id: string; conversation_id: string; preview: string } | null;
   response_time_seconds?: number | null; response_time_status?: string | null;
+  /** CRM reporting (migration 169): guest | b2b | partner; paid | organic | unknown (derived); a person's review. */
+  lead_type?: string | null; came_from?: "paid" | "organic" | "unknown" | null; validation?: LeadValidation | null;
+}
+
+export interface LeadValidation {
+  status: "valid" | "invalid" | null; dates_confirmed?: boolean | null; budget_fits?: boolean | null; clear_intent?: boolean | null;
+  note?: string | null; by_id?: string | null; by_name?: string | null; at?: string | null;
 }
 
 export type FeedKind = "message" | "call" | "quote" | "booking" | "stage" | "task" | "merge";
@@ -40,6 +47,8 @@ export interface FeedItem {
   is_template?: boolean; delivery?: string | null;
   call_id?: string | null; duration_seconds?: number | null; answered?: boolean | null; summary?: string | null;
   summary_pending?: boolean; has_recording?: boolean; has_transcript?: boolean;
+  /** A call logged by hand from a personal phone (POST /leads/{id}/log-call); its note is in `text`. */
+  manual?: boolean;
   quote_id?: string | null; amount?: number | null; label?: string | null; shared_via?: string | null; status?: string | null;
   valid_until?: string | null; valid_until_text?: string | null;
   booking_id?: string | null; check_in?: string | null; check_out?: string | null; guests?: number | null; amount_restricted?: boolean;

@@ -249,11 +249,17 @@ def apply_flags(db: Session, tenant_id: str, items: list, now: datetime, today: 
                 and inq.stage not in (InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED)):
             i.flags.append("open_lead")
 
+    # At risk = a promising lead still being sold: never one already Sold, Lost, Unsuitable or unqualified (the follow-up
+    # item of a closed enquiry kept its inquiry_id, so "Promising leads at risk" listed Unsuitable leads; 22 Oct 2026).
+    from app.services import lead_task_closer
+    won, shut = lead_task_closer.stage_sets(db, tenant_id)
     horizon = today + timedelta(days=AT_RISK_DAYS)
     candidates = {}
     for i in items:
         inq = inquiries.get(i.inquiry_id) if i.inquiry_id else None
         if inq is None or not i.guest_id or i.guest_id in booked or not _warm(inq.ai_analysis):
+            continue
+        if lead_task_closer.state_of(inq, won, shut) is not None:
             continue
         ci = _check_in(inq.check_in)
         if ci is not None and today <= ci <= horizon:

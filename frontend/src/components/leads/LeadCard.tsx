@@ -63,7 +63,14 @@ export interface LeadCard {
   needs_agent_followup_reason?: string | null;
   // Lead autopilot: the current stage was set automatically (backend lead_autopilot_view.batch_moves).
   autopilot_move?: AutopilotMoveBadge | null;
+  // CRM reporting (22 Oct 2026): guest | b2b | partner, and where the lead came from (derived: paid ad / organic / unknown).
+  lead_type?: string | null;
+  came_from?: "paid" | "organic" | "unknown" | null;
+  validation?: { status: "valid" | "invalid" | null } | null;
 }
+
+export const LEAD_TYPE_LABEL: Record<string, string> = { guest: "Guest", b2b: "B2B / trade", partner: "Partner" };
+export const CAME_FROM_LABEL: Record<string, string> = { paid: "Paid ad", organic: "Organic", unknown: "Unknown" };
 
 function formatCardDate(iso?: string): string | null {
   if (!iso) return null;
@@ -384,6 +391,9 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
           </span>
           <AutopilotBadge move={lead.autopilot_move} />
+          {lead.lead_type && lead.lead_type !== "guest" && (
+            <span className="whitespace-nowrap rounded-full bg-[var(--haip-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--haip-fg-2)]">{LEAD_TYPE_LABEL[lead.lead_type] ?? lead.lead_type}</span>
+          )}
           <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
           <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
         </div>

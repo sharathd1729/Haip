@@ -214,6 +214,7 @@ def _call_item(c, names: dict[str, str]) -> FeedItemSchema:
         duration_seconds=c.duration_seconds or 0, answered=answered, summary=c.ai_summary, summary_pending=bool(pending),
         has_recording=bool(c.recording_s3_key or c.recording_url_ivr), has_transcript=bool(c.transcript_json),
         by_name=names.get(c.agent_id) if c.agent_id else None,
+        manual=c.ivr_provider == "manual", text=c.disposition_note if c.ivr_provider == "manual" else None,
     )
 
 
@@ -240,8 +241,10 @@ def _facts(calls: list, msg_last: dict, conv_ids: list[str], pending_drafts: int
             streak += 1
         elif _call_answered(c):
             break
-    # Their newest call went unanswered and nobody has called since (a newer outbound call would come first).
-    missed_unreturned = bool(calls) and _val(calls[0].direction) == "inbound" and not _call_answered(calls[0])
+    # Their newest call went unanswered and nobody has called since (a newer outbound call would come first, and a call
+    # logged by hand from a personal phone is one). A missed call marked dealt with (callback_dismissed_at) is returned.
+    missed_unreturned = (bool(calls) and _val(calls[0].direction) == "inbound" and not _call_answered(calls[0])
+                         and calls[0].callback_dismissed_at is None)
     return FeedFactsSchema(
         last_inbound_at=max((d for d in inbound if d), default=None), last_outbound_at=max((d for d in outbound if d), default=None),
         unanswered_outbound_calls=streak, missed_inbound_unreturned=missed_unreturned,

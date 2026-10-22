@@ -2,7 +2,12 @@
 
 import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { Tabs } from "@/components/ui/kit";
+import { DailyLeadReport } from "@/components/reports/DailyLeadReport";
+import { CheckinCoverage } from "@/components/reports/CheckinCoverage";
 import api from "@/lib/api";
+import { DOWNLOAD_TIMEOUT_MS, downloadErrorMessage, saveBlob, toBlob } from "@/lib/download";
 import { cn } from "@/lib/utils";
 import { FilterControl, activeFilters, type FilterDef, type FilterValue } from "@/components/reports/ReportFilters";
 import { Phone, Users, MessageSquare, BarChart2, Star, Zap, Download, CheckSquare, Square, Loader2, AlertCircle, ChevronRight, FileText, RefreshCw, Check, FileSpreadsheet } from "@/lib/icons";
@@ -191,6 +196,12 @@ export default function ReportsPage() {
   const [preview, setPreview]           = useState<Record<string, unknown>[] | null>(null);
   const [previewCols, setPreviewCols]   = useState<string[]>([]);
   const [previewMeta, setPreviewMeta]   = useState<PreviewMeta>({ total: null, scope: "workspace" });
+  // Owner / manager: two CRM reports beside the builder (GET /reports/daily-validation, /reports/checkin-coverage).
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role ?? "";
+  const canCrmReports = role === "owner" || role === "manager";
+  const [tab, setTab] = useState<"builder" | "daily" | "coverage">("builder");
+  const view = canCrmReports ? tab : "builder";
 
   const {
     data: catalogData, isLoading: catalogLoading, isError: catalogIsError, error: catalogError, refetch: refetchCatalog,
@@ -263,17 +274,17 @@ export default function ReportsPage() {
 
   // `format` goes on the query string: the backend reads it via Query(), not
   // from the JSON body.
+  // lib/download.ts: keeps the content type, a link in the document, the share sheet in an installed iOS app, a longer
+  // timeout than the global 20 s, and the server's own error text (a blob request's error body is a Blob).
   const downloadMutation = useMutation({
-    mutationFn: (fmt: "csv" | "json" | "xlsx") =>
-      api.post(`/reports/download?format=${fmt}`, currentPayload(), { responseType: "blob" }),
-    onSuccess: (res, fmt) => {
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement("a");
-      const slug = selectedReport!.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-      a.href = url;
-      a.download = `haip_${slug}_${dateFrom}_${dateTo}.${fmt}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+    mutationFn: async (fmt: "csv" | "json" | "xlsx") => {
+      try {
+        const res = await api.post(`/reports/download?format=${fmt}`, currentPayload(), { responseType: "blob", timeout: DOWNLOAD_TIMEOUT_MS });
+        const slug = selectedReport!.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "")), `haip_${slug}_${dateFrom}_${dateTo}.${fmt}`);
+      } catch (e) {
+        throw new Error(await downloadErrorMessage(e));
+      }
     },
   });
 
@@ -314,7 +325,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Step tracker */}
-        <div className="flex items-center gap-2 sm:mt-4">
+        <div className={cn("flex items-center gap-2 sm:mt-4", view !== "builder" && "hidden")}>
           {[
             { n: 1, label: "Choose type" },
             { n: 2, label: "Date range" },
@@ -339,6 +350,13 @@ export default function ReportsPage() {
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className="max-w-4xl space-y-4 sm:space-y-5">
+          {canCrmReports && (
+            <Tabs label="Reports" value={view} onChange={v => setTab(v as typeof tab)} className="w-full sm:w-fit"
+              items={[{ value: "builder", label: "Build a report" }, { value: "daily", label: "Daily lead report" }, { value: "coverage", label: "Check-in coverage" }]} />
+          )}
+          {view === "daily" && <DailyLeadReport />}
+          {view === "coverage" && <CheckinCoverage />}
+          {view === "builder" && (<>
 
           {/* Quick reports */}
           {presets.length > 0 && (
@@ -574,7 +592,12 @@ export default function ReportsPage() {
                     {total != null
                       ? `${total.toLocaleString("en-IN")} ${total === 1 ? noun.replace(/s$/, "") : noun} match`
                       : "4. Preview & download"}
-                    {previewMeta.scope === "own" && (
+                    {selectedReport?.id === "inquiries" ? (
+                      // The Leads list's one visibility rule (lead_report_service): mine + unassigned, or the whole team.
+                      <span className="ml-2 text-[11px] font-medium text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full">
+                        {previewMeta.scope === "own" ? "Showing: your leads + unassigned" : "Showing: whole team"}
+                      </span>
+                    ) : previewMeta.scope === "own" && (
                       <span className="ml-2 text-[11px] font-medium text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full">Yours only</span>
                     )}
                   </p>
@@ -624,7 +647,7 @@ export default function ReportsPage() {
                   <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-medium">Download failed.</p>
-                    <p className="text-xs text-red-600/80 mt-0.5">{extractErrorMessage(downloadMutation.error)}</p>
+                    <p className="text-xs text-red-600/80 mt-0.5">{(downloadMutation.error as Error | null)?.message}</p>
                   </div>
                 </div>
               )}
@@ -692,6 +715,7 @@ export default function ReportsPage() {
               </div>
             </div>
           )}
+          </>)}
         </div>
       </div>
     </div>
