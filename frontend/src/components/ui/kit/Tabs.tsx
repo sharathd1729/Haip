@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 
 export interface TabItem { value: string; label: ReactNode; count?: number }
 
-/** Controlled tab strip. Arrow keys move between tabs, Home/End jump, and it scrolls sideways on a phone
- *  instead of wrapping onto several lines. */
+/** Controlled tab strip on a green track: the active tab is a sea-green pill with white text and its count turns into a
+ *  lime pill. Arrow keys move between tabs, Home/End jump, and it scrolls sideways on a phone instead of wrapping. */
 export function Tabs({ items, value, onChange, label, className }: {
   items: TabItem[]; value: string; onChange: (value: string) => void; label: string; className?: string;
 }) {
@@ -19,17 +19,22 @@ export function Tabs({ items, value, onChange, label, className }: {
   };
   return (
     <div role="tablist" aria-label={label} onKeyDown={onKey}
-      className={cn("flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-[var(--haip-status-neutral-bg)] p-1 haip-scrollbar-x", className)}>
+      className={cn("flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-[var(--haip-tabs-track)] p-1 haip-scrollbar-x", className)}>
       {items.map(t => {
         const on = t.value === value;
         return (
           <button key={t.value} role="tab" aria-selected={on} tabIndex={on ? 0 : -1} onClick={() => onChange(t.value)}
             className={cn(
               "flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold transition-colors max-md:min-h-11",
-              on ? "bg-[var(--haip-card)] text-[var(--haip-fg)] shadow-[var(--haip-shadow-sm)]" : "text-[var(--haip-fg-muted)] hover:text-[var(--haip-fg)]",
+              on ? "bg-[var(--haip-tab-active-bg)] text-[var(--haip-tab-active-fg)] shadow-[var(--haip-shadow-sm)]" : "text-[var(--haip-tab-fg)] hover:bg-[var(--hover-bg)]",
             )}>
             {t.label}
-            {t.count != null && <span className={cn("num rounded-full px-1.5 text-[11px] font-bold leading-[18px]", on ? "bg-[var(--haip-primary-tint)] text-primary" : "bg-[var(--haip-card)] text-[var(--haip-fg-muted)]")}>{t.count}</span>}
+            {t.count != null && (
+              <span className={cn("num rounded-full px-1.5 text-[11px] font-bold leading-[18px]",
+                on ? "bg-[var(--haip-tab-count-active-bg)] text-[var(--haip-tab-count-active-fg)]" : "bg-[var(--haip-tab-count-bg)] text-[var(--haip-tab-fg)]")}>
+                {t.count}
+              </span>
+            )}
           </button>
         );
       })}

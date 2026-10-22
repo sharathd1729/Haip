@@ -595,7 +595,7 @@ function FilterRow({ value, onChange }: { value: string; onChange: (v: string) =
           onClick={() => onChange(f.value)}
           className={cn(
             "flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-            value === f.value ? "bg-primary text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
+            value === f.value ? "bg-[var(--haip-tab-active-bg)] text-[var(--haip-tab-active-fg)]" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
           )}
         >
           {f.value === "airbnb"      && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#FF5A5F" }} />}

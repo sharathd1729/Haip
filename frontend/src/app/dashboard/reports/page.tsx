@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Tabs } from "@/components/ui/kit";
+import { PageHeader, Tabs } from "@/components/ui/kit";
 import { DailyLeadReport } from "@/components/reports/DailyLeadReport";
 import { CheckinCoverage } from "@/components/reports/CheckinCoverage";
 import api from "@/lib/api";
@@ -316,12 +316,8 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="px-3 py-2 sm:px-6 sm:py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="hidden items-center justify-between sm:flex">
-          <div>
-            <h1 className="haip-page-title">Reports</h1>
-            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
-              Pick what you need, filter it down to exactly the rows you want, and download it as Excel or CSV.
-            </p>
-          </div>
+          <PageHeader title="Reports"
+            subtitle="Pick what you need, filter it down to exactly the rows you want, and download it as Excel or CSV." />
         </div>
 
         {/* Step tracker */}

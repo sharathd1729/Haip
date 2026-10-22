@@ -41,8 +41,7 @@ export function ConnectionBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium"
-      style={{ background: "#B45309", color: "#fff" }}
+      className="fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--haip-banner-warn-bg)] text-[var(--haip-banner-warn-fg)]"
     >
       <WifiOff size={14} className="flex-shrink-0 animate-pulse" />
       Trouble reaching HAIP — retrying automatically…

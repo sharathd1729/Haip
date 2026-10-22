@@ -9,7 +9,7 @@ const get = vi.fn();
 const post = vi.fn();
 vi.mock("@/lib/api", () => ({ default: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) } }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { name: "Jishanth", role: "reservations" } }, status: "authenticated" }) }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ replace: vi.fn(), push: vi.fn() }), usePathname: () => "/dashboard/bookings" }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 import BookingsPage from "./page";

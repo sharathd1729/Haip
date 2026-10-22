@@ -10,7 +10,7 @@ import { Drawer, StatusPill } from "@/components/ui/kit";
 
 export interface StayLite {
   id: string; check_in: string; check_out: string; status: string; guest_id?: string | null; guest_name: string; guest_phone?: string;
-  adults: number; total_amount?: number | null; channel_source: string; inquiry_id?: string | null;
+  adults: number; total_amount?: number | null; paid_amount?: number | null; channel_source: string; inquiry_id?: string | null;
   notes?: string;      // staff notes: the agent writes which caravan it is (Black / White)
   vehicle?: string;    // set when several vehicles are drawn on one grid
 }
@@ -28,6 +28,18 @@ export type Entry =
 export const BLOCK_TONE = (reason: string) => (reason === "maintenance"
   ? { bg: "bg-[var(--haip-cal-maint)]", text: "text-white", border: "border-[var(--haip-cal-maint)]", label: "Maintenance" }
   : { bg: "bg-[var(--haip-cal-block)]", text: "text-[var(--haip-cal-block-fg)]", border: "border-[var(--haip-border-strong)]", label: reason === "owner_use" || reason === "personal" ? "Owner use (blocked)" : "Blocked" });
+
+/** Money still due on a DIRECT booking: both amounts known (they are null for roles without bookings.read) and less paid
+ *  than the total. OTA bookings are collected by the OTA, so they never show as due here. Quotes and cancellations neither. */
+export function moneyDue(s: Pick<StayLite, "status" | "total_amount" | "paid_amount" | "channel_source">): boolean {
+  if (s.status === "cancelled" || s.status === "quoted") return false;
+  if (s.channel_source && s.channel_source.toLowerCase() !== "direct") return false;
+  return s.total_amount != null && s.paid_amount != null && s.total_amount - s.paid_amount > 0;
+}
+
+/** Money due: terracotta light with a terracotta left edge (--haip-cal-due-*); paid / direct stays sea green. */
+export const DUE_TONE = { bg: "bg-[var(--haip-cal-due-bg)]", text: "text-[var(--haip-cal-due-fg)]", border: "border-[var(--haip-accent-line)]",
+  edge: "shadow-[inset_3px_0_0_var(--haip-cal-due-edge)]" };
 
 const day = (iso: string) => format(parseISO(iso), "EEE d MMM");
 const money = (n?: number | null) => (n != null ? `₹${Math.round(n).toLocaleString("en-IN")}` : null);
@@ -76,6 +88,13 @@ export function EntrySheet({ entry, onClose, channelLabel }: { entry: Entry | nu
           <Row label="Guests">{stay.adults}</Row>
           {stay.notes && <Row label="Notes">{stay.notes}</Row>}
           {money(stay.total_amount) && <Row label="Total">{money(stay.total_amount)}</Row>}
+          {moneyDue(stay) && (
+            <Row label="Still due">
+              <span className={cn("rounded-md px-2 py-0.5 font-semibold", DUE_TONE.bg, DUE_TONE.text, DUE_TONE.edge)}>
+                {money((stay.total_amount ?? 0) - (stay.paid_amount ?? 0))}
+              </span>
+            </Row>
+          )}
           {!stay.inquiry_id && (
             <p className="rounded-lg bg-[var(--haip-surface)] p-3 text-xs text-[var(--haip-fg-subtle)]">This booking is not tied to a lead, so there is no lead to open.</p>
           )}

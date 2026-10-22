@@ -111,30 +111,34 @@ Retire it incrementally: as each module is redesigned in V2 Phase 4, convert tha
 
 ---
 
-## 7. Direction: Hospitality Hybrid *(chosen 17 Oct 2026 from the six-concept lab at `/design-lab`; palette changed to Sea Green & Coral on 18 Oct after a four-way palette comparison; precedence: CLAUDE.md > this file > any skill. Replaces "Calm operations room": teal, the navy sidebar and Outfit are retired)*
+## 7. Direction: Hospitality Hybrid *(chosen 17 Oct 2026 from the six-concept lab at `/design-lab`; palette changed to Sea Green & Coral on 18 Oct, then to **Greens + terracotta** on 22 Oct (owner-approved mockup "Option 1"); precedence: CLAUDE.md > this file > any skill. Replaces "Calm operations room": teal, the navy sidebar and Outfit are retired)*
 
 Warm, friendly and calm: a hospitality product, not a back-office console. People and stays are shown as faces and pills, not rows of codes.
 
 ### Palette (tokens in `globals.css`; never hex in components)
-- Surfaces: white cards (`--card`) on a warm sand-white canvas (`--haip-app-bg` #F7F5F2); warm ink `--foreground` #1C1917. Dark mode is a deep green-charcoal (#111412 / cards #1A201C), designed, not inverted.
-- **Sea green** `--primary` #1E7A5A (dark: #5CC9A0) for brand and every primary action; `--haip-primary-tint` for selected/active fills. White-label overrides arrive only as `--brand-*` feeds.
-- **Coral** `--haip-accent` #E0694A (dark: #F08A6E; soft `#FCE6DF`, ink `#9E3A22`) for highlights only (today, a "new" mark, VIP), never an action. Ink on it: `--haip-on-accent`. Warning status stays amber (`--haip-status-warning-*`), so a highlight never reads as a warning.
-- Status triplets `--haip-status-{success,warning,danger,info,neutral}-{bg,fg,border}`; calendar bars keep the taught meanings (green direct `--haip-cal-direct`, gray blocked `--haip-cal-block`, red maintenance `--haip-cal-maint`).
-- Person avatars: five warm tints `--haip-avatar-N-bg/fg`, picked by `lib/avatarTint.ts`, two-letter initials.
+Green carries almost all colour; ONE warm accent, terracotta, used sparingly. No pink, coral, bright yellow or orange as theme colours.
+- Greens: forest #0B2B26, #163832, sea green #235347, sage #8EB69B, mint #DAF1DE, lime #D4FF3F (only as a tile/chip fill or a glyph on dark green, never text on white); olive #9CAF88 / #A9B887 / #2E3D28.
+- Surfaces: white cards (`--card`) with #D5E7DA borders (`--border`, full strength on `.haip-card`) on a mint canvas (`--haip-app-bg` #EEF7F0); ink `--foreground` #14201C, secondary #4E6A5F, muted #5B6B64. Dark mode is the same system: page #0B1F1B, cards #13302A, nav #071A16, light text, designed, not inverted.
+- **Sea green** `--primary` #235347 (dark: sage #8EB69B) is the BRAND: links, active states, focus rings (green), selected fills (`--haip-primary-tint`), switches, progress. White-label overrides arrive only as `--brand-*` feeds.
+- **Terracotta** `--haip-accent` #B05033 (dark #D9785A; light `--haip-accent-light` #FCE4D8, ink `--haip-accent-ink` #8A3A20, line `--haip-accent-line` #F3C9B3; ink on the solid colour `--haip-on-accent` = white, forest in dark): today, counts/badges, "new", money due. **Primary actions** use `--haip-action` (= terracotta for the house theme, the tenant's colour for a custom brand via `--brand-action`) with `--haip-on-action`: an unlayered rule in `globals.css` paints every `button`/`a` that has `bg-primary` + `text-white`/`text-primary-foreground` (never a selection control: tab/radio/switch/checkbox roles, aria-pressed/-selected/-checked/-current, Radix active/on/checked, or chips marked with `border-primary`; hand-rolled segments use `--haip-tab-active-*`) with it, so existing pages follow. New code: `.haip-btn-primary` / `.haip-btn-secondary` (white, sea-green text, #BFDCC8 border, `--haip-btn-secondary-*`).
+- Status triplets `--haip-status-{success,warning,danger,info,neutral}-{bg,fg,border}`: success/paid = mint + sea green, warning/part paid = #FBF0D0 / #6B5208, danger/overdue = a small red, info = sage. Calendar: `--haip-cal-direct` sea green (direct/paid), `--haip-cal-block` gray-green, `--haip-cal-maint` red, money due `--haip-cal-due-{bg,edge,fg}` (terracotta light + terracotta left edge on direct bookings with an unpaid balance: timeline, phone month grid, the booking sheet's "Still due" row and the Bookings 14-day strip; `CalendarParts.moneyDue`), today terracotta.
+- Person avatars: five green / olive / sage tints `--haip-avatar-N-bg/fg`, picked by `lib/avatarTint.ts`, two-letter initials.
+- Shell tokens: `--haip-nav-{bg,fg,fg-dim,hover,active-bg,active-fg,field,field-fg,field-placeholder,border}`, `--haip-logo-{bg,fg}` (lime tile, forest letter), `--haip-tabbar-{icon,active-bg,active-fg}`. Kit tokens: `--haip-tile-{bg,fg}` (sea green + lime icon tiles), `--haip-band-{bg,fg,border}` and `--haip-olive-{bg,fg,border}` (card header bands), `--haip-chip-{bg,fg}` and `--haip-stat-*` (Stat chips and variants), `--haip-tabs-track`, `--haip-tab-*` (Tabs).
+- Contrast: body text >= 4.5:1 everywhere, no exceptions. Terracotta is #B05033 in light mode (white on it 5.2:1, the colour itself 4.75:1 on the mint page; hover ~#9C452B via `--haip-action-hover`); the mockup's #C2603E was darkened because white on it was only 4.2:1. Dark mode uses forest ink on #D9785A (about 4.9:1).
 
 ### Shape and type
 Radius 12px controls, 16px cards, full pills for chips, tabs and status. Figtree body, Bricolage Grotesque for display (section 5). Sentence-case labels; no uppercase eyebrows.
 
 ### Shell (`components/layout/nav.ts` is the ONE navigation model)
-- Desktop: a light 64px top bar (`shell/HybridTopNav.tsx`): logo, primary tabs (My day and Inbox carry live counts; Home and Calls only from 1024px), "More" with every other page grouped by section, then search, theme, notifications, account. No sidebar.
-- Phone: 52px header with a menu button (opens `MobileMenuSheet`, every page + account + sign-out), the page name (`ROUTE_LABELS`), theme, bell, avatar; a 60px light bottom bar: Home, Inbox, a raised sea-green **Now** button (My day, showing how many people are waiting), Leads, Calendar.
+- Desktop: a forest 64px top bar (`shell/HybridTopNav.tsx`): lime logo tile (a tenant's own logo still shows), primary tabs each with an icon (labels from 1024px, icons + tooltip below; active = mint pill with forest text; My day and Inbox carry terracotta counts; Home and Calls only from 1024px), "More" (grid icon) with every other page grouped by section, then a #163832 search field, theme, notifications, account. No sidebar. Every nav item has an icon in `nav.ts`; the main destinations take theirs from `components/layout/PageIcon.tsx` (`ROUTE_ICONS`), shared with the PageHeader tile.
+- Phone: 52px forest header with a menu button (opens `MobileMenuSheet`, every page + account + sign-out), the page name (`ROUTE_LABELS`), theme, bell (terracotta dot), avatar; a 60px white bottom bar: Home, Inbox, a raised sea-green **Now** button with a lime glyph (My day, showing how many people are waiting), Leads, Calendar; forest icons, the active one in a mint pill. The dashboard's `theme-color` matches the forest bar.
 - A page reachable on desktop is reachable on the phone and the other way round; visibility rules live in `nav.ts` only.
 
 ### Signature pieces
 1. **Today strip** (Home, both views): waiting on the team, trips starting / coming back today, where each vehicle is right now.
 2. **Waiting for you**: the first waiting people as cards (avatar, channel, reason, wait, next step), from the same work-queue query as My day and the nav badge.
 3. **Stay card** at the top of the Inbox guest panel (staying now / arrives today / booked).
-4. **Calendar pills**: rounded bars with the guest's initial, coral today, one month grid per vehicle on phones.
+4. **Calendar pills**: rounded bars with the guest's initial, terracotta today, money due in terracotta light with a terracotta edge, one month grid per vehicle on phones.
 5. **Leads on phones** grouped Act now / Today / Later inside each stage.
 
 ### Non-negotiables (unchanged)
@@ -148,3 +152,7 @@ WCAG AA contrast; 44px touch targets on phones; 16px inputs on touch; loading, e
 
 ### Shared kit (`frontend/src/components/ui/`)
 `page.tsx` (`PageHeader`, `EmptyState`, `StatusPill` incl. `highlight` tone) and `kit/` (`Card`, `Stat`, `Tabs`, `FilterBar`, `DataTable`, `Drawer`, `SectionNav`, `Timeline`). Dev gallery: `/dashboard/dev-kit`. The concept lab stays at `/design-lab` (dev only, synthetic data).
+- `PageHeader`: a 46px sea-green icon tile with a lime glyph left of the title on the main pages (route map in `PageIcon.tsx`; `icon` prop to set one, `icon={false}` to drop it); hidden on phones. `keepOnPhone` keeps a greeting/data title visible there. Used by Home (both views), My day, Leads, Calls, Bookings, Reports, Settings, Marketing Studio; Inbox and Calendar are full-height workspaces with no page title.
+- `CardHeader`: a tinted header band by default (`tone="band"` mint, `tone="olive"`, `tone="plain"` = the old borderless title), optional `icon`. Put it first inside the `Card`.
+- `Stat`: optional `icon` (30px chip, mint + sea green) and `variant` `default` | `dark` (#163832, lime chip) | `olive` | `accent` (terracotta light; money due / needs attention only).
+- `Tabs`: green track, sea-green active pill with white text, lime count pill on the active tab.

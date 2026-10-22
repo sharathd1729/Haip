@@ -10,6 +10,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { AlertTriangle, RefreshCw } from "@/lib/icons";
+import { PageHeader } from "@/components/ui/page";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
@@ -125,19 +126,16 @@ export function CommandCenter() {
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="mx-auto max-w-[1360px] space-y-3 px-3 py-2.5 sm:space-y-5 sm:px-6 sm:py-5">
-        <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 sm:gap-y-2">
-          <div className="min-w-0">
-            <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-[var(--haip-fg)] sm:text-[26px]">
-              {greeting()}{firstName ? `, ${firstName}` : ""}
-            </h1>
-            <p className="mt-0.5 text-[13px] text-[var(--haip-fg-subtle)]">{periodText}. What needs you first, then the numbers.</p>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
-            {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
-            {asOf && !isFetching && <span>As of {asOf} IST</span>}
-            <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline lg:min-h-0">Team, calls and response times</Link>
-          </div>
-        </header>
+        <PageHeader keepOnPhone className="justify-between gap-x-6 gap-y-1 sm:gap-y-2"
+          title={<>{greeting()}{firstName ? `, ${firstName}` : ""}</>}
+          subtitle={<>{periodText}. What needs you first, then the numbers.</>}
+          actions={
+            <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
+              {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
+              {asOf && !isFetching && <span>As of {asOf} IST</span>}
+              <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline lg:min-h-0">Team, calls and response times</Link>
+            </div>
+          } />
 
         <PeriodBar custom value={preset} onChange={pickPeriod}
           caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{range}</span><span> · India time (IST), full days</span></> : undefined} />

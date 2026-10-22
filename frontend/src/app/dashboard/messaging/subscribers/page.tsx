@@ -268,7 +268,7 @@ export default function SubscribersPage() {
             {(["all", "opted_in", "opted_out"] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={cn("px-3 py-2 rounded-xl text-xs font-medium transition-colors",
-                  filter === f ? "bg-primary text-white" : "border border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]")}>
+                  filter === f ? "bg-[var(--haip-tab-active-bg)] text-[var(--haip-tab-active-fg)]" : "border border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]")}>
                 {f === "all" ? "All" : f === "opted_in" ? "Opted in" : "Opted out"}
               </button>
             ))}

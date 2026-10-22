@@ -11,6 +11,7 @@ import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { PeriodBar, PERIOD_PRESETS, useDashboardPeriod } from "@/components/dashboard/PeriodBar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page";
 import { useToast } from "@/components/ui/toast";
 import { TodayStrip, istDay } from "@/components/dashboard/today/TodayStrip";
 import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
@@ -98,15 +99,10 @@ export function OperationsHome() {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[1360px] space-y-4 px-3 py-3 sm:space-y-5 sm:px-6 sm:py-5">
         {/* Header */}
-        <header className="flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
-          <div>
-            <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-[var(--haip-fg)] sm:text-[26px]">
-              {greeting()}{firstName ? `, ${firstName}` : ""}
-            </h1>
-            <p className="mt-0.5 text-[13.5px] text-[var(--haip-fg-subtle)]">
-              {today} · {scope} · {rangeLabel.toLowerCase()}
-            </p>
-          </div>
+        <PageHeader keepOnPhone className="gap-3 lg:justify-between"
+          title={<>{greeting()}{firstName ? `, ${firstName}` : ""}</>}
+          subtitle={<>{today} · {scope} · {rangeLabel.toLowerCase()}</>}
+          actions={
           <div className="flex flex-wrap items-center gap-2">
             <select aria-label="Channel" value={channel} onChange={e => setChannel(e.target.value)} className={selectCls}>
               {CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -118,7 +114,7 @@ export function OperationsHome() {
               </select>
             )}
           </div>
-        </header>
+          } />
 
         <TodayStrip role={role ?? ""} />
         <WaitingForYou role={role ?? ""} />

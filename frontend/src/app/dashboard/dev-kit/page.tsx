@@ -4,6 +4,7 @@
 // at phone width before putting it on a real page.
 import { useState } from "react";
 import { notFound } from "next/navigation";
+import { AlertTriangle, CalendarCheck, Clock, IndianRupee, MessageSquare, Sparkles, Users } from "@/lib/icons";
 import {
   Card, CardBody, CardHeader, DataTable, Drawer, EmptyState, FilterBar, FilterChip, FilterSearch,
   PageHeader, SectionNav, Stat, StatusPill, Tabs, Timeline, type Column, type Density,
@@ -43,17 +44,25 @@ export default function DevKitPage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
-      <PageHeader title="UI kit" subtitle="Shared building blocks, with worst-case data. Development only." />
+      <PageHeader title="UI kit" icon={Sparkles} subtitle="Shared building blocks, with worst-case data. Development only."
+        actions={<>
+          <button type="button" className="haip-btn-secondary">Export</button>
+          <button type="button" className="haip-btn-primary">New booking</button>
+        </>} />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Bookings" value="128" hint="next 30 days" change={{ text: "+12%", tone: "success" }} />
-        <Stat label="Revenue collected" value="₹12,34,56,78,901" hint="all time" />
-        <Stat label="Conversion" value="0%" hint="last 7 days" change={null} />
+        <Stat label="Bookings" value="128" hint="next 30 days" icon={CalendarCheck} change={{ text: "+12%", tone: "success" }} />
+        <Stat label="Revenue collected" value="₹12,34,56,78,901" hint="all time" icon={IndianRupee} variant="dark" />
+        <Stat label="Conversion" value="0%" hint="last 7 days" icon={Users} variant="olive" change={null} />
+        <Stat label="Money due" value="₹1,25,000" hint="3 bookings, part paid" icon={AlertTriangle} variant="accent" />
+        <Stat label="Replies waiting" value="7" hint="right now" icon={MessageSquare} />
+        <Stat label="Avg first reply" value="4 min" hint="last 7 days" icon={Clock} />
+        <Stat label="No icon" value="42" hint="this month" />
         <Stat label="Loading" value="—" loading />
       </section>
 
       <Card>
-        <CardHeader title="Tabs, filters and chips" description="Search keeps the widest slot; chips wrap."
+        <CardHeader title="Tabs, filters and chips" icon={Sparkles} description="Search keeps the widest slot; chips wrap."
           actions={<StatusPill tone="brand">Live</StatusPill>} />
         <CardBody className="flex flex-col gap-3">
           <Tabs label="Bookings view" value={tab} onChange={setTab}
@@ -64,7 +73,14 @@ export default function DevKitPage() {
             <FilterChip onClick={() => undefined}>This month</FilterChip>
           </FilterBar>
           <div className="flex flex-wrap gap-2">
-            {(["neutral", "info", "success", "warning", "danger", "brand"] as const).map(t => <StatusPill key={t} tone={t}>{t}</StatusPill>)}
+            {(["neutral", "info", "success", "warning", "danger", "brand", "highlight"] as const).map(t => <StatusPill key={t} tone={t}>{t}</StatusPill>)}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="haip-btn-primary">Collect payment</button>
+            <button type="button" className="haip-btn-secondary">Send reminder</button>
+            <button type="button" className="haip-btn-primary" disabled>Disabled</button>
+            <button type="button" className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">Page-style bg-primary</button>
+            <a href="#kit" className="inline-flex items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">A link stays green</a>
           </div>
         </CardBody>
       </Card>
@@ -83,7 +99,7 @@ export default function DevKitPage() {
         <SectionNav label="Settings sections" value={section} onChange={setSection}
           items={[{ value: "profile", label: "Profile", hint: "Name, timezone" }, { value: "team", label: "Team", hint: "Roles and invites" }, { value: "billing", label: "Billing" }]} />
         <Card>
-          <CardHeader title="History" />
+          <CardHeader title="History" tone="olive" icon={Clock} description="Olive header band" />
           <CardBody>
             <Timeline entries={[
               { id: "a", title: "Call answered", detail: "Anita · 4 min 12 s · outcome: site visit booked", time: "10:42", badge: <StatusPill tone="success">Answered</StatusPill> },
@@ -94,7 +110,10 @@ export default function DevKitPage() {
         </Card>
       </div>
 
-      <Card><EmptyState title="Nothing waiting on you" hint="New enquiries and replies will show up here." /></Card>
+      <Card>
+        <CardHeader title="Plain header (opt-out)" tone="plain" description="Opt-out: the old borderless title" />
+        <EmptyState title="Nothing waiting on you" hint="New enquiries and replies will show up here." />
+      </Card>
 
       <Drawer open={open} onOpenChange={setOpen} title="Booking detail" description="Priya S. · 3 nights"
         footer={<button type="button" onClick={() => setOpen(false)} className="h-10 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground">Done</button>}>

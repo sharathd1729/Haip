@@ -22,10 +22,18 @@ interface TopBarProps {
   workspaceName?: string;
 }
 
+// Icon buttons sit either on a light surface or on the forest top bar (HybridTopNav passes onDark). Hover colours swap with
+// the surface; the dropdown panels stay light cards either way.
+const TONE = {
+  light: { fg: "var(--haip-fg-subtle)", hoverBg: "color-mix(in srgb, var(--primary) 8%, transparent)", hoverFg: "var(--primary)" },
+  dark:  { fg: "var(--haip-nav-fg-dim)", hoverBg: "var(--haip-nav-hover)", hoverFg: "var(--haip-nav-fg)" },
+} as const;
+
 // ─── Theme toggle ─────────────────────────────────────────────────────────────
 
-export function ThemeToggle() {
+export function ThemeToggle({ onDark = false }: { onDark?: boolean } = {}) {
   const { theme, setTheme } = useTheme();
+  const t = onDark ? TONE.dark : TONE.light;
 
   // Cycle: light → dark → system → light
   function cycle() {
@@ -41,15 +49,16 @@ export function ThemeToggle() {
     <button
       onClick={cycle}
       title={`Theme: ${label} — click to cycle`}
+      aria-label={`Theme: ${label}`}
       className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors duration-150"
-      style={{ color: "var(--haip-fg-subtle)" }}
+      style={{ color: t.fg }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.background = "color-mix(in srgb, var(--primary) 8%, transparent)";
-        (e.currentTarget as HTMLElement).style.color = "var(--primary)";
+        (e.currentTarget as HTMLElement).style.background = t.hoverBg;
+        (e.currentTarget as HTMLElement).style.color = t.hoverFg;
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.background = "transparent";
-        (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-subtle)";
+        (e.currentTarget as HTMLElement).style.color = t.fg;
       }}
     >
       <Icon size={15} />
@@ -59,7 +68,7 @@ export function ThemeToggle() {
 
 // ─── Search bar ───────────────────────────────────────────────────────────────
 
-export function GlobalSearch() {
+export function GlobalSearch({ onDark = false }: { onDark?: boolean } = {}) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const router = useRouter();
@@ -77,16 +86,20 @@ export function GlobalSearch() {
 
   return (
     <div
-      className="flex items-center gap-2 flex-1 max-w-md px-3 py-[7px] rounded-md transition-all duration-150"
+      className={onDark
+        ? "flex items-center gap-2 flex-1 max-w-md px-3.5 py-[9px] rounded-full transition-all duration-150"
+        : "flex items-center gap-2 flex-1 max-w-md px-3 py-[7px] rounded-md transition-all duration-150"}
       style={{
-        background: "var(--input-bg, var(--muted))",
+        background: onDark ? "var(--haip-nav-field)" : "var(--input-bg, var(--muted))",
         border: focused
-          ? "1px solid var(--primary)"
-          : "1px solid var(--haip-border)",
-        boxShadow: focused ? "0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent)" : "none",
+          ? (onDark ? "1px solid var(--haip-nav-active-bg)" : "1px solid var(--primary)")
+          : (onDark ? "1px solid var(--haip-nav-border)" : "1px solid var(--haip-border)"),
+        boxShadow: focused
+          ? (onDark ? "0 0 0 3px color-mix(in srgb, var(--haip-nav-active-bg) 22%, transparent)" : "0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent)")
+          : "none",
       }}
     >
-      <Search size={13} style={{ color: focused ? "var(--primary)" : "var(--haip-fg-subtle)", flexShrink: 0 }} />
+      <Search size={13} style={{ color: onDark ? "var(--haip-nav-field-placeholder)" : focused ? "var(--primary)" : "var(--haip-fg-subtle)", flexShrink: 0 }} />
       <input
         value={query}
         onChange={e => setQuery(e.target.value)}
@@ -94,16 +107,20 @@ export function GlobalSearch() {
         onBlur={() => setFocused(false)}
         onKeyDown={handleKeyDown}
         placeholder="Search guests, calls, properties…"
-        className="flex-1 bg-transparent text-[13px] outline-none min-w-0"
+        aria-label="Search"
+        className={onDark
+          ? "flex-1 bg-transparent text-[13px] outline-none min-w-0 placeholder:text-[var(--haip-nav-field-placeholder)]"
+          : "flex-1 bg-transparent text-[13px] outline-none min-w-0"}
         style={{
-          color: "var(--haip-fg)",
-          caretColor: "var(--primary)",
+          color: onDark ? "var(--haip-nav-field-fg)" : "var(--haip-fg)",
+          caretColor: onDark ? "var(--haip-nav-field-fg)" : "var(--primary)",
         }}
       />
       {query && (
         <button
           onClick={() => setQuery("")}
-          style={{ color: "var(--haip-fg-subtle)", flexShrink: 0 }}
+          aria-label="Clear search"
+          style={{ color: onDark ? "var(--haip-nav-field-placeholder)" : "var(--haip-fg-subtle)", flexShrink: 0 }}
         >
           <X size={12} />
         </button>
@@ -122,7 +139,8 @@ function timeAgo(ts: number): string {
   return `${Math.floor(secs / 86400)}d ago`;
 }
 
-export function NotificationBell() {
+export function NotificationBell({ onDark = false }: { onDark?: boolean } = {}) {
+  const t = onDark ? TONE.dark : TONE.light;
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const items = useNotificationsStore(s => s.items);
@@ -134,22 +152,24 @@ export function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
+        aria-label={unread ? `Notifications, ${unread} new` : "Notifications"}
+        aria-expanded={open}
         className="relative w-9 h-9 flex items-center justify-center rounded-lg transition-colors duration-150"
-        style={{ color: "var(--haip-fg-subtle)" }}
+        style={{ color: t.fg }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = "color-mix(in srgb, var(--primary) 8%, transparent)";
-          (e.currentTarget as HTMLElement).style.color = "var(--primary)";
+          (e.currentTarget as HTMLElement).style.background = t.hoverBg;
+          (e.currentTarget as HTMLElement).style.color = t.hoverFg;
         }}
         onMouseLeave={e => {
           (e.currentTarget as HTMLElement).style.background = "transparent";
-          (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-subtle)";
+          (e.currentTarget as HTMLElement).style.color = t.fg;
         }}
       >
         <Bell size={15} />
         {unread > 0 && (
           <span
             className="absolute top-1.5 right-1.5 w-[7px] h-[7px] rounded-full"
-            style={{ background: "var(--haip-red)" }}
+            style={{ background: onDark ? "var(--haip-accent)" : "var(--haip-red)" }}
           />
         )}
       </button>
@@ -244,7 +264,7 @@ export function NotificationBell() {
 
 // ─── User avatar / menu ───────────────────────────────────────────────────────
 
-export function UserMenu({ user }: { user?: TopBarProps["user"] }) {
+export function UserMenu({ user, onDark = false }: { user?: TopBarProps["user"]; onDark?: boolean }) {
   const [open, setOpen] = useState(false);
   const { data: me } = useQuery({
     queryKey: ["users", "me"],
@@ -256,12 +276,14 @@ export function UserMenu({ user }: { user?: TopBarProps["user"] }) {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
+        aria-label="Account menu"
+        aria-expanded={open}
         className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors duration-150"
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)"; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = onDark ? "var(--haip-nav-hover)" : "var(--hover-bg)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
         <UserAvatar name={user?.name} photoUrl={me?.avatar_url} size="sm" />
-        <ChevronDown size={11} style={{ color: "var(--haip-fg-subtle)" }} />
+        <ChevronDown size={11} style={{ color: onDark ? "var(--haip-nav-fg-dim)" : "var(--haip-fg-subtle)" }} />
       </button>
 
       {open && (

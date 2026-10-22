@@ -20,7 +20,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, format, parseISO, isToday, startOfMonth, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Calendar, Users, TrendingUp, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
 import { Bed } from "lucide-react";
-import { EntrySheet, type Entry } from "@/components/calendar/CalendarParts";
+import { DUE_TONE, EntrySheet, moneyDue, type Entry } from "@/components/calendar/CalendarParts";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -351,13 +351,13 @@ const HoverCard = memo(function HoverCard({
           {stay.paid_amount != null && (
             <div className="flex justify-between">
               <span className="text-[var(--haip-fg-subtle)]">Paid</span>
-              <span className="font-semibold text-emerald-600">{fmt(stay.paid_amount)}</span>
+              <span className="font-semibold text-[var(--haip-status-success-fg)]">{fmt(stay.paid_amount)}</span>
             </div>
           )}
           {stay.paid_amount != null && stay.total_amount != null && (
             <div className="flex justify-between">
               <span className="text-[var(--haip-fg-subtle)]">Outstanding</span>
-              <span className={cn("font-semibold", outstanding > 0 ? "text-red-500" : "text-[var(--haip-fg-subtle)]")}>
+              <span className={cn("font-semibold", outstanding > 0 ? "text-[var(--haip-cal-due-fg)]" : "text-[var(--haip-fg-subtle)]")}>
                 {fmt(outstanding)}
               </span>
             </div>
@@ -460,7 +460,8 @@ const BookingBar = memo(function BookingBar({
   const spanDays = rawEnd >= 0 ? rawEnd - startIdx : days.length - startIdx;
   if (spanDays <= 0) return null;
 
-  const cc = chConfig(stay.channel_source);
+  const due = moneyDue(stay);
+  const cc = due ? { ...chConfig(stay.channel_source), ...DUE_TONE } : chConfig(stay.channel_source);
   const faded = stay.status === "cancelled" ? "opacity-25"
               : stay.status === "quoted"    ? "opacity-55"
               : "";
@@ -471,7 +472,7 @@ const BookingBar = memo(function BookingBar({
         "absolute flex items-center cursor-pointer select-none",
         "rounded-xl border overflow-hidden",
         "transition-all duration-100 hover:brightness-105 hover:shadow-md",
-        cc.bg, cc.text, cc.border, faded,
+        cc.bg, cc.text, cc.border, due && DUE_TONE.edge, faded,
       )}
       style={{
         left:   startIdx * DAY_W + (clipped ? 0 : 3),
@@ -484,7 +485,8 @@ const BookingBar = memo(function BookingBar({
       onMouseEnter={e => onHover(stay, e)}
       onMouseLeave={onLeave}
       role="button" tabIndex={0}
-      aria-label={`${stay.guest_name || "Guest"}, ${stay.check_in} to ${stay.check_out}. Open details`}
+      aria-label={`${stay.guest_name || "Guest"}, ${stay.check_in} to ${stay.check_out}${due ? ", money still due" : ""}. Open details`}
+      data-due={due ? "true" : undefined}
       onClick={() => { onLeave(); onOpen(stay); }}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(stay); } }}
     >
@@ -838,6 +840,7 @@ const OTA_LEGEND_ITEMS = [
 function buildLegend(isCaravan: boolean) {
   return [
     { dot: "bg-[var(--haip-cal-direct)]", label: "Direct" },
+    { dot: "bg-[var(--haip-cal-due-edge)]", label: "Money due" },
     ...(isCaravan ? [] : OTA_LEGEND_ITEMS),
     { dot: "bg-[var(--haip-cal-block)]",    label: "Blocked" },
     { dot: "bg-[var(--haip-cal-maint)]",     label: "Maintenance" },

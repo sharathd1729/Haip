@@ -2,6 +2,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeader } from "@/components/layout/MobileHeader";
 import { HybridTopNav } from "@/components/shell/HybridTopNav";
 import { redirect } from "next/navigation";
+import type { Viewport } from "next";
 import { auth } from "@/lib/auth";
 import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
 import { DashboardSSEBridge } from "./DashboardSSEBridge";
@@ -10,6 +11,15 @@ import { SampleDataBanner } from "@/components/dashboard/SampleDataBanner";
 import { BrandThemeProvider } from "@/components/providers/BrandThemeProvider";
 import { WorkspaceProvider } from "@/components/providers/WorkspaceProvider";
 import { QuoteSheetProvider } from "@/components/quotes/QuoteSheetProvider";
+
+// The app's phone header is the forest nav bar, so the browser / PWA status bar matches it (the marketing site keeps the
+// root layout's white). Hex here because metadata cannot read CSS tokens: keep in step with --haip-nav-bg (light, dark).
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0B2B26" },
+    { media: "(prefers-color-scheme: dark)", color: "#071A16" },
+  ],
+};
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -53,7 +63,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           minHeight: "100dvh",
           maxHeight: "100dvh",
           overflow: "hidden",
-          // Grey app canvas so white cards read as raised surfaces. Scoped
+          // Mint app canvas so white cards read as raised surfaces. Scoped
           // here rather than on --background, which stays white for the
           // marketing site and auth pages.
           background: "var(--haip-app-bg)",

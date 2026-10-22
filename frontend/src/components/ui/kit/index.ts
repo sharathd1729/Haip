@@ -1,5 +1,5 @@
-export { Card, CardHeader, CardBody } from "./Card";
-export { Stat } from "./Stat";
+export { Card, CardHeader, CardBody, type CardHeaderTone } from "./Card";
+export { Stat, type StatVariant } from "./Stat";
 export { Tabs, type TabItem } from "./Tabs";
 export { FilterBar, FilterSearch, FilterChip } from "./FilterBar";
 export { DataTable, type Column, type Density } from "./DataTable";
