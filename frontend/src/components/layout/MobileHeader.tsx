@@ -1,6 +1,6 @@
 "use client";
-// Phone top bar, Hospitality Hybrid: a menu button (opens every page the person can reach), the page's name, then theme,
-// notifications and the account. 52px plus the device's top inset; globals.css hides the in-page title under 640px
+// Phone top bar (greens + terracotta): a forest bar with a menu button (opens every page the person can reach), the page's
+// name, then theme, notifications (terracotta dot) and the account. 52px plus the device's top inset; globals.css hides the in-page title under 640px
 // because this bar already names the page, so every route needs a ROUTE_LABELS entry.
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -93,13 +93,13 @@ function PageTitle() {
     label = last.charAt(0).toUpperCase() + last.slice(1);
   }
   return (
-    <span className="min-w-0 truncate font-[family-name:var(--font-display)] text-[17px] font-semibold tracking-[-0.01em] text-[var(--haip-fg)]">
+    <span className="min-w-0 truncate font-[family-name:var(--font-display)] text-[17px] font-semibold tracking-[-0.01em] text-[var(--haip-nav-fg)]">
       {label}
     </span>
   );
 }
 
-const ICON_BTN = "relative flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--haip-icon-neutral)] transition-colors active:bg-[var(--hover-bg)]";
+const ICON_BTN = "relative flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--haip-nav-fg-dim)] transition-colors active:bg-[var(--haip-nav-hover)]";
 
 function MobileThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -149,7 +149,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
   return (
     <>
       <header
-        className="flex flex-shrink-0 items-center gap-0.5 border-b border-[var(--haip-border)] bg-[var(--haip-card)]"
+        className="flex flex-shrink-0 items-center gap-0.5 border-b border-[var(--haip-nav-border)] bg-[var(--haip-nav-bg)]"
         style={{
           // Fixed (does not scroll). The top inset (notch, cut-out) is added to the 52px bar instead of eating into it.
           minHeight: "calc(3.25rem + env(safe-area-inset-top))",
@@ -169,13 +169,13 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           <button type="button" onClick={() => setBellOpen(!bellOpen)} aria-expanded={bellOpen}
             aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} className={ICON_BTN}>
             <Bell size={18} />
-            {unread > 0 && <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-[var(--haip-accent)] ring-2 ring-[var(--haip-card)]" />}
+            {unread > 0 && <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-[var(--haip-accent)] ring-2 ring-[var(--haip-nav-bg)]" />}
           </button>
 
           {bellOpen && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setBellOpen(false)} />
-              <div className="absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-[var(--haip-border)] bg-[var(--haip-card)] shadow-[var(--haip-shadow-lg)]">
+              <div className="absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg)] shadow-[var(--haip-shadow-lg)]">
                 <div className="flex items-center justify-between border-b border-[var(--haip-border)] px-4 py-3">
                   <span className="font-[family-name:var(--font-display)] text-[15px] font-semibold text-[var(--haip-fg)]">Notifications</span>
                   {unread > 0 && <span className="rounded-full bg-[var(--haip-primary-tint)] px-2 py-0.5 text-[11px] font-semibold text-primary">{unread} new</span>}
