@@ -103,7 +103,7 @@
   --input: #6E8F7D;
   --ring: var(--primary);
   --chart-1: var(--primary);
-  --chart-2: #C2603E;
+  --chart-2: #B05033;
   --chart-3: #6E8B4E;
   --chart-4: #3B5BA9;
   --chart-5: #B4322F;
@@ -430,18 +430,18 @@
   --haip-primary-tint:  color-mix(in srgb, var(--primary) 9%, var(--card));
   /* Terracotta: the ONE warm accent. Highlights (today, counts, "new", VIP) and, via --haip-action, primary buttons.
      Ink on the solid colour: --haip-on-accent (white; forest in dark mode). */
-  --haip-accent:        #C2603E;
+  --haip-accent:        #B05033;
   --haip-accent-light:  #FCE4D8;
   --haip-accent-ink:    #8A3A20;
   --haip-accent-line:   #F3C9B3;
   --haip-on-accent:     #FFFFFF;
-  --haip-gold:          #C2603E;
+  --haip-gold:          #B05033;
   --haip-gold-light:    #FCE4D8;
   /* Primary actions (solid buttons). A tenant with its own brand colour gets that colour back through --brand-action
      (brandTheme.ts); the house theme leaves it unset, so actions are terracotta. */
-  --haip-action:        var(--brand-action, #C2603E);
+  --haip-action:        var(--brand-action, #B05033);
   --haip-on-action:     var(--brand-on-action, #FFFFFF);
-  --haip-action-hover:  color-mix(in srgb, var(--haip-action) 86%, black);
+  --haip-action-hover:  color-mix(in srgb, var(--haip-action) 88%, black); /* house: ~#9C452B */
   /* Secondary actions: white with sea-green text and a soft green border. */
   --haip-btn-secondary-bg:     var(--card);
   --haip-btn-secondary-fg:     var(--primary);
@@ -555,7 +555,7 @@
   --haip-cal-direct: #235347;
   --haip-cal-maint:  #B4322F;
   --haip-cal-block:  #D3DED7; --haip-cal-block-fg: #1F2B27;
-  --haip-cal-due-bg: #FCE4D8; --haip-cal-due-edge: #C2603E; --haip-cal-due-fg: #8A3A20;
+  --haip-cal-due-bg: #FCE4D8; --haip-cal-due-edge: #B05033; --haip-cal-due-fg: #8A3A20;
   /* Bookings vehicle strip and vehicle tags: one soft tint per caravan (Ratha 1, Ratha 2), dark ink on top. */
   --haip-cal-vehicle-1: #CFE7D6; --haip-cal-vehicle-2: #E3E8D2; --haip-cal-vehicle-fg: #14201C;
 
@@ -565,7 +565,7 @@
 
   /* Two-series charts (impact revenue: booked vs collected): sea green and terracotta. */
   --haip-series-1: #235347;
-  --haip-series-2: #C2603E;
+  --haip-series-2: #B05033;
 }
 .dark {
   --haip-series-1: #8EB69B;
