@@ -2,6 +2,10 @@
 
 import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { Tabs } from "@/components/ui/kit";
+import { DailyLeadReport } from "@/components/reports/DailyLeadReport";
+import { CheckinCoverage } from "@/components/reports/CheckinCoverage";
 import api from "@/lib/api";
 import { DOWNLOAD_TIMEOUT_MS, downloadErrorMessage, saveBlob, toBlob } from "@/lib/download";
 import { cn } from "@/lib/utils";
@@ -192,6 +196,12 @@ export default function ReportsPage() {
   const [preview, setPreview]           = useState<Record<string, unknown>[] | null>(null);
   const [previewCols, setPreviewCols]   = useState<string[]>([]);
   const [previewMeta, setPreviewMeta]   = useState<PreviewMeta>({ total: null, scope: "workspace" });
+  // Owner / manager: two CRM reports beside the builder (GET /reports/daily-validation, /reports/checkin-coverage).
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role ?? "";
+  const canCrmReports = role === "owner" || role === "manager";
+  const [tab, setTab] = useState<"builder" | "daily" | "coverage">("builder");
+  const view = canCrmReports ? tab : "builder";
 
   const {
     data: catalogData, isLoading: catalogLoading, isError: catalogIsError, error: catalogError, refetch: refetchCatalog,
@@ -315,7 +325,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Step tracker */}
-        <div className="flex items-center gap-2 sm:mt-4">
+        <div className={cn("flex items-center gap-2 sm:mt-4", view !== "builder" && "hidden")}>
           {[
             { n: 1, label: "Choose type" },
             { n: 2, label: "Date range" },
@@ -340,6 +350,13 @@ export default function ReportsPage() {
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className="max-w-4xl space-y-4 sm:space-y-5">
+          {canCrmReports && (
+            <Tabs label="Reports" value={view} onChange={v => setTab(v as typeof tab)} className="w-full sm:w-fit"
+              items={[{ value: "builder", label: "Build a report" }, { value: "daily", label: "Daily lead report" }, { value: "coverage", label: "Check-in coverage" }]} />
+          )}
+          {view === "daily" && <DailyLeadReport />}
+          {view === "coverage" && <CheckinCoverage />}
+          {view === "builder" && (<>
 
           {/* Quick reports */}
           {presets.length > 0 && (
@@ -575,7 +592,12 @@ export default function ReportsPage() {
                     {total != null
                       ? `${total.toLocaleString("en-IN")} ${total === 1 ? noun.replace(/s$/, "") : noun} match`
                       : "4. Preview & download"}
-                    {previewMeta.scope === "own" && (
+                    {selectedReport?.id === "inquiries" ? (
+                      // The Leads list's one visibility rule (lead_report_service): mine + unassigned, or the whole team.
+                      <span className="ml-2 text-[11px] font-medium text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full">
+                        {previewMeta.scope === "own" ? "Showing: your leads + unassigned" : "Showing: whole team"}
+                      </span>
+                    ) : previewMeta.scope === "own" && (
                       <span className="ml-2 text-[11px] font-medium text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full">Yours only</span>
                     )}
                   </p>
@@ -693,6 +715,7 @@ export default function ReportsPage() {
               </div>
             </div>
           )}
+          </>)}
         </div>
       </div>
     </div>
