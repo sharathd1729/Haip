@@ -487,6 +487,12 @@ def _notify_stage_hooks(db: Session, inquiry: Inquiry, actor_user_id: Optional[s
                 lead_playbook_engine.stop_runs(db, inquiry.tenant_id, inquiry.id, "the lead was closed")
     except Exception as exc:
         log.warning("lead_journey_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
+    try:   # a won / lost / unsuitable lead loses its open call-back and follow-up tasks (lead_task_closer)
+        from app.services import lead_task_closer
+        with db.begin_nested():
+            lead_task_closer.close_for_closed_lead(db, inquiry, actor_user_id)
+    except Exception as exc:
+        log.warning("lead_tasks_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
 
 
 def revert_automatic_move(

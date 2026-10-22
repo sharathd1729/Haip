@@ -280,6 +280,16 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                     _link_recovered_call(db, tenant_id, guest.id, call)
                 _maybe_create_callback_task(db, tenant_id, call, guest, inquiry)
 
+            # A call that connected (either way) settles the guest's call-back tasks and missed calls. Best-effort: a
+            # failure here must not retry the ingest (the retry would stop at the idempotency check, recording unfetched).
+            try:
+                from app.services.lead_task_closer import resolve_callbacks
+                resolve_callbacks(db, tenant_id, call)
+                db.commit()
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                log.warning("callbacks_resolve_failed", call_id=call.id, error=str(exc)[:200])
+
             # Lead workflows: missed call / no answer -> WhatsApp the guest (lead_playbooks.py; off unless switched on).
             from app.services.lead_playbook_engine import playbook_for_call
             if playbook_for_call(call):

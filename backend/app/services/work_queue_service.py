@@ -487,7 +487,13 @@ def _followups(db: Session, tenant_id: str, scope_user_id: Optional[str]) -> lis
     )
     if scope_user_id:
         q = q.filter(or_(Task.assigned_to == scope_user_id, Task.assigned_to.is_(None)))
-    rows = _lead_task_filter(db, tenant_id, q.order_by(Task.due_date.asc()).limit(MAX_PER_KIND * 3).all())[:MAX_PER_KIND]
+    rows = _lead_task_filter(db, tenant_id, q.order_by(Task.due_date.asc()).limit(MAX_PER_KIND * 3).all())
+    # Not lead work any more: a task on a Lost/Unsuitable/unqualified enquiry, or a call-back/follow-up on a Sold one (its
+    # booking's own reminders stay). lead_task_closer closes these on the stage move; this hides older ones.
+    from app.services import lead_task_closer
+    shut = lead_task_closer.closed_states(db, tenant_id, {t.inquiry_id for t in rows if t.inquiry_id})
+    rows = [t for t in rows if t.inquiry_id not in shut
+            or (shut[t.inquiry_id] == "won" and not lead_task_closer.is_lead_work_task(t))][:MAX_PER_KIND]
     owners = _names(db, tenant_id, {t.assigned_to for t in rows if t.assigned_to})
     items = []
     for t in rows:
