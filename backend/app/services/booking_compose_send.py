@@ -39,7 +39,9 @@ CONFIRM_EVENT = "confirmed"
 
 
 def first_name(name: Optional[str]) -> str:
-    return (name or "").strip().split(" ")[0] if (name or "").strip() else "there"
+    """A placeholder ("Unknown", a phone number) is no name: "there" instead."""
+    from app.services.guest_names import first_name as _first_name
+    return _first_name(name)
 
 
 def confirmation_text(*, greeting: str, brand: str, guest_name: Optional[str], ref: Optional[str], title: str, vehicle: str,
@@ -91,7 +93,8 @@ def after_commit(db: Session, tenant: Tenant, user, stay: Stay, *, plan, body, m
     from app.services import quote_send_service as qss
     items: list[dict] = []
     guest = db.query(Guest).filter_by(id=stay.guest_id, tenant_id=tenant.id).first()
-    first = first_name(guest.name if guest else None)
+    from app.services.guest_names import best_first_name
+    first = best_first_name(db, tenant.id, guest)
     advance, due = plan.advance, plan.advance_due
     link = None
     if body.payment.kind == "link":

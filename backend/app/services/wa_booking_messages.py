@@ -182,9 +182,10 @@ def send_guest_template(db: Session, tenant_id: str, guest, template_name: str, 
 
 # ── The booking events ───────────────────────────────────────────────────────
 
-def _first(stay: Stay) -> str:
-    name = (stay.guest.name if stay.guest else "") or ""
-    return name.strip().split(" ")[0] if name.strip() else "there"
+def _first(db: Session, tenant: Tenant, stay: Stay) -> str:
+    """The guest's first name; a booking guest with no name borrows the same number's WhatsApp name (guest_names)."""
+    from app.services.guest_names import best_first_name
+    return best_first_name(db, tenant.id, stay.guest)
 
 
 def _trip(db: Session, tenant: Tenant, stay: Stay) -> str:
@@ -205,7 +206,7 @@ def _doc(inv) -> Optional[dict]:
 
 def send_confirmation(db: Session, tenant: Tenant, stay: Stay, invoice, fin: dict) -> dict:
     from app.services.invoice_service import booking_ref
-    variables = [_first(stay), booking_ref(stay), _trip(db, tenant, stay), day(stay.check_in), day(stay.check_out),
+    variables = [_first(db, tenant, stay), booking_ref(stay), _trip(db, tenant, stay), day(stay.check_in), day(stay.check_out),
                  stay.property.name if stay.property else "your caravan", inr(fin["paid"]), inr(fin["outstanding"])]
     return send_booking_template(db, tenant.id, stay, pack.BOOKING_CONFIRMED, variables, event="confirmed", document=_doc(invoice))
 
@@ -218,7 +219,7 @@ def send_payment_received(db: Session, tenant: Tenant, stay: Stay, receipt, paym
         status = f"Balance {inr(fin['outstanding'])}, next {inr(next_due['amount'])} due by {day(date.fromisoformat(next_due['due_date']))}."
     else:
         status = f"Balance {inr(fin['outstanding'])} is due before travel."
-    variables = [_first(stay), inr(payment.amount), booking_ref(stay), status]
+    variables = [_first(db, tenant, stay), inr(payment.amount), booking_ref(stay), status]
     return send_booking_template(db, tenant.id, stay, pack.PAYMENT_RECEIVED, variables, event=f"paid:{payment.id[:12]}",
                                  document=_doc(receipt))
 
@@ -229,7 +230,7 @@ def send_balance_due(db: Session, tenant: Tenant, stay: Stay, link, amount, due:
     if not suffix:
         target = Target("booking", stay.id, IDEM_PREFIX, {}, "booking")
         return _skip(db, tenant.id, target, pack.BALANCE_DUE, event, "the payment link is not a rzp.io link", actor_user_id)
-    variables = [_first(stay), day(stay.check_in), inr(amount), day(due)]
+    variables = [_first(db, tenant, stay), day(stay.check_in), inr(amount), day(due)]
     return send_booking_template(db, tenant.id, stay, pack.BALANCE_DUE, variables, event=event, url_suffix=suffix,
                                  actor_user_id=actor_user_id, sender_name=sender_name)
 
@@ -253,7 +254,7 @@ def send_link_text(db: Session, tenant: Tenant, stay: Stay, link, amount, *, eve
     conv = db.query(Conversation).filter_by(id=state["conversation_id"], tenant_id=tenant.id).first() if state["conversation_id"] else None
     if not state["window_open"] or conv is None:
         return _skip(db, tenant.id, target, "text", event, "the guest's 24-hour WhatsApp window is closed", actor_user_id)
-    body = (f"Hi {_first(stay)}, here is the secure link to pay {inr(amount)} for your trip on {day(stay.check_in)}: "
+    body = (f"Hi {_first(db, tenant, stay)}, here is the secure link to pay {inr(amount)} for your trip on {day(stay.check_in)}: "
             f"{link.short_url}")
     msg = Message(id=str(uuid.uuid4()), tenant_id=tenant.id, conversation_id=conv.id, direction=MessageDirection.OUTBOUND,
                   channel=ChannelType.WHATSAPP, body=body, sender_id=actor_user_id, sender_name=sender_name[:255],
