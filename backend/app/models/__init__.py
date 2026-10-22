@@ -50,6 +50,7 @@ from app.models.lead_autopilot import LeadAutopilotEvent
 from app.models.lead_workflow import LeadJourney, LeadView, PlaybookAction, PlaybookRun
 from app.models.platform_lead import PlatformLead
 from app.models.roi_benchmark import RoiBenchmarkVersion
+from app.models.agent_consult import AgentConsult
 
 __all__ = [
     "BusinessRecord",
@@ -74,4 +75,5 @@ __all__ = [
     "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
     "LeadAutopilotEvent",
     "PlatformLead", "RoiBenchmarkVersion",
+    "AgentConsult",
 ]

@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 LANES = ("now", "today", "chase")
 _LANE_RANK = {lane: i for i, lane in enumerate(LANES)}
 
-BASE = {"callback": 35, "new_lead": 30, "reply": 30, "no_reply": 20, "followup": 15}
+BASE = {"consult": 45, "callback": 35, "new_lead": 30, "reply": 30, "no_reply": 20, "followup": 15}
 ASKED_CALLBACK_BASE = 40
 NOW_SCORE, CHASE_SCORE = 60, 30
 _FAR = datetime.max.replace(tzinfo=timezone.utc)
@@ -127,9 +127,9 @@ def score_item(item, inq, *, now: datetime, today: date, quote_out: bool = False
         reasons.append("Travel date is over")
 
     fresh_person = item.kind in ("new_lead", "reply") and age is not None and age < timedelta(days=1)
-    if passed or item.severity == "stale" or score < CHASE_SCORE and not (asked or item.kind == "callback" or fresh_person):
+    if passed or item.severity == "stale" or score < CHASE_SCORE and not (asked or item.kind in ("callback", "consult") or fresh_person):
         lane = "chase"
-    elif asked or item.kind == "callback" or fresh_person or score >= NOW_SCORE:
+    elif asked or item.kind in ("callback", "consult") or fresh_person or score >= NOW_SCORE:
         lane = "now"
     else:
         lane = "today"

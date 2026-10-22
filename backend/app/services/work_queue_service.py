@@ -45,14 +45,14 @@ from app.models.inquiry import Inquiry
 from app.models.task import Task
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.services import call_status_service, lead_priority, work_queue_signals
+from app.services import agent_consult_queue, call_status_service, lead_priority, work_queue_signals
 from app.services.date_presets import IST
 
 log = structlog.get_logger()
 
 # Display / priority order. A person shows once, under the earliest kind that applies.
-KINDS = ("callback", "new_lead", "reply", "no_reply", "followup", "clash")
-PERSON_KINDS = ("callback", "new_lead", "reply", "no_reply")
+KINDS = ("consult", "callback", "new_lead", "reply", "no_reply", "followup", "clash")      # consult: agent_consult_queue
+PERSON_KINDS = ("consult", "callback", "new_lead", "reply", "no_reply")
 
 # Calls older than this are a lost cause for a call-back queue; the same window the Calls screen uses.
 CALLBACK_WINDOW = timedelta(days=7)
@@ -66,6 +66,7 @@ MAX_PER_KIND = 200
 
 # Minutes past which an item is "late", "urgent", "critical", and finally "stale" (cold). Same numbers drive the alerts.
 SLA_MINUTES = {
+    "consult": (15, 30, 60, 24 * 60),          # the AI is waiting for a person (Ask a manager)
     "new_lead": (15, 60, 240, 72 * 60),
     "callback": (30, 120, 480, 72 * 60),
     "reply": (30, 120, 480, 72 * 60),
@@ -534,6 +535,7 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
     today = datetime.now(IST).date()
 
     by_kind: dict[str, list[QueueItem]] = {
+        "consult": agent_consult_queue.items(db, tenant.id, scope_user_id, now),
         "callback": _callbacks(db, tenant),
         "new_lead": _new_leads(db, tenant.id, scope_user_id, now),
         "reply": _replies(db, tenant.id, scope_user_id, now),

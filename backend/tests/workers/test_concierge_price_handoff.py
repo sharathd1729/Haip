@@ -1,12 +1,12 @@
-"""Price-handoff plan: a guest asking about cost gets a dedicated Task +
-push alert so a human calls to discuss pricing -- without blocking the
-AI's own (price-free) reply. Mirrors test_concierge_phone_decline_alert.py's
-harness exactly.
+"""Price handoff. Since Ask a manager (22 Oct 2026) a LEAD's price question in handoff mode opens a consult instead of the old
+"Call lead about pricing" task: the AI's draft is held (it becomes the proposed answer), the guest gets ONE holding reply and
+a manager answers with the price. A qualified lead with no price question, or a guest without a phone, keeps the old path.
 """
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+from app.models.agent_consult import AgentConsult
 from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
 from app.models.task import Task
@@ -76,15 +76,15 @@ class TestPriceHandoff:
         adapter = _FakeConciergeLLM("Our team will personally work out the best option and pricing for you.")
         draft = _run(db, tenant_id, conv_id, message_id, adapter, intent="price_quote")
 
-        assert draft.sent_autonomously is True  # AI's own (price-free) reply still goes out
-
-        task = db.query(Task).filter_by(tenant_id=tenant_id, conversation_id=conv_id).first()
-        assert task is not None
-        assert task.title == "Call lead about pricing — Priya Sharma"
-        assert task.is_done is False
-        # Real bug (Ratha, Sep 2026): with no due_date this Task never
-        # appeared in My Day's "Due now" bucket, which hard-requires one.
-        assert task.due_date is not None
+        assert draft.sent_autonomously is False and draft.was_approved is None       # held: a manager answers with the price
+        (consult,) = db.query(AgentConsult).filter_by(tenant_id=tenant_id, conversation_id=conv_id).all()
+        assert consult.status == "open" and "price_handoff" in consult.reason_codes
+        assert consult.proposed_answer == draft.body and consult.draft_message_id == draft.id
+        assert consult.sla_due_at is not None
+        hold = db.query(Message).filter_by(conversation_id=conv_id, sender_kind="ai_holding").one()
+        assert "our team" in hold.body.lower() or "team" in hold.body.lower()
+        # The consult replaces the old pricing task (no second work item for the same question).
+        assert db.query(Task).filter(Task.tenant_id == tenant_id, Task.title.like("Call lead about pricing%")).count() == 0
 
     def test_no_task_for_an_ordinary_message(self, db):
         tenant, guest, conv, inbound = _setup(db, inbound_body="Is the caravan available this weekend?")
@@ -107,8 +107,9 @@ class TestPriceHandoff:
         db.add(inbound2); db.commit()
         _run(db, tenant_id, conv_id, inbound2.id, adapter, intent="price_quote")
 
-        tasks = db.query(Task).filter_by(tenant_id=tenant_id, conversation_id=conv_id).all()
-        assert len(tasks) == 1
+        # One open consult per conversation; the second price question appends to it, and the holding reply is not repeated.
+        assert db.query(AgentConsult).filter_by(tenant_id=tenant_id, conversation_id=conv_id).count() == 1
+        assert db.query(Message).filter_by(conversation_id=conv_id, sender_kind="ai_holding").count() == 1
 
     def test_no_task_for_a_guest_with_no_phone_number(self, db):
         """An Instagram DM asking the price is not a lead yet: no "Call lead about pricing" task (there is no number to call);
@@ -122,6 +123,9 @@ class TestPriceHandoff:
             _run(db, tenant_id, conv_id, message_id, adapter, intent="price_quote")
         assert db.query(Task).filter(Task.tenant_id == tenant_id, Task.title.like("Call lead about pricing%")).count() == 0
 
+        assert db.query(AgentConsult).filter_by(tenant_id=tenant_id).count() == 0          # no number: the reply asks for it
+
         _run(db, other_id, other_conv_id, other_msg_id, adapter, intent="price_quote")
-        assert db.query(Task).filter(Task.tenant_id == other_id, Task.title.like("Call lead about pricing%")).count() == 1
+        assert db.query(AgentConsult).filter_by(tenant_id=other_id).count() == 1
+        assert db.query(AgentConsult).filter_by(tenant_id=tenant_id).count() == 0
         assert db.query(Task).filter(Task.tenant_id == tenant_id, Task.title.like("Call lead about pricing%")).count() == 0

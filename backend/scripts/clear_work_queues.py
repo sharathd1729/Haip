@@ -35,7 +35,7 @@ from app.models.tenant import Tenant  # noqa: E402
 from app.services import call_status_service, inbox_service, work_queue_service  # noqa: E402
 
 CHUNK = 500
-LABEL = {"reply": "Leads waiting for a reply", "callback": "Missed calls not called back",
+LABEL = {"consult": "Questions the AI asked the team (not cleared here)", "reply": "Leads waiting for a reply", "callback": "Missed calls not called back",
          "followup": "Follow-ups overdue / due soon", "new_lead": "New leads to contact",
          "no_reply": "Leads not replying to us (not cleared here)",
          "clash": "Calendar clashes (due ones are marked done with the follow-ups)"}

@@ -84,8 +84,9 @@ def _run(db, tenant, conv, inbound, reply_adapter, rate_limit_allowed=True):
 
 class TestSoftEscalationAutoSends:
     def test_soft_needs_human_still_auto_sends_and_flags_reason(self, db):
+        """The model's own soft needs_human is still not a trigger by itself (Ask a manager rules are code, never the model)."""
         tenant, guest, conv, inbound = _setup(
-            db, inbound_body="We're a group of 20 wanting a custom route through Coorg."
+            db, inbound_body="We're a group of 20 wanting a weekend trip through Coorg."
         )
         reply = "That sounds like a great trip! I've noted your group size for our team to help plan the perfect route."
         adapter = _reply_llm(
