@@ -2,6 +2,15 @@
 
 Newest first. One entry per decision that changes how the UI is built. Rule from `HAIP_UI_Redesign_Plan.md`: when two sources disagree, follow `docs/DESIGN.md`; if it is silent, follow the plan; log the choice here.
 
+## 2026-10-22
+
+**Palette: Greens + terracotta replaces Sea Green & Coral (owner-approved mockup "Option 1").** Green carries almost all colour: forest top bar and phone header (lime logo tile, mint active pill, icons on every nav item), mint page canvas (#EEF7F0) with white, green-bordered cards, mint/olive card header bands, sea-green icon tiles beside page titles. ONE warm accent, terracotta #C2603E, for primary buttons, counts, today and money due. Choices made while building it:
+- `--primary` stays the sea-green BRAND (459 `text-primary`, 187 ring uses: links, focus, selected states). Turning it terracotta would have made the accent the dominant colour. Instead a single unlayered rule in `globals.css` repaints `button`/`a` elements that carry `bg-primary` + white/primary-foreground text with `--haip-action`, so every page's main button follows without page edits; switches, progress bars and dots (bg-primary without text) stay green. Side effect: a few hand-rolled segmented tabs that mark the active segment `bg-primary text-white` without `role="tab"` (Billing, Compliance, Channel manager, Campaigns) now show it in terracotta until they move to kit `Tabs`.
+- The same rule fixed an old bug: the light-mode "invisible white text" remap was turning `bg-primary text-white` buttons' labels dark; `bg-primary` is now excluded from it.
+- White-label: the house theme leaves `--brand-action` unset (terracotta); a tenant with its own brand colour gets it back on buttons (`brandTheme.ts`). Workspaces still on the sea-green default (#1E7A5A + white) follow the new default (`LEGACY_DEFAULTS`).
+- Contrast: white on #C2603E is about 4.2:1, below AA 4.5:1 for normal-size text, accepted by the owner for semibold button labels and counts; dark mode puts forest ink on #D9785A.
+- The house wordmark (teal PNG) is unreadable on forest, so the bar shows the lime letter tile; a tenant's uploaded logo still shows (its dark variant, else on a white plate).
+
 ## 2026-10-20
 
 **CRM Bookings shows one card per booking (layout A · Cards by date); the agenda is reserved for the Ops module.** Separate check-in and check-out rows confused agents and the owner. The CRM page now groups one card per booking under its check-in day (Staying now: one "On a trip now" group; Past and Cancelled newest first), keeping the 14-day strip, month summary, tabs, Filters, detail pane and sheets. The agenda (check-in/check-out rows: `components/bookings/agenda/AgendaDays`, `lib/bookingAgenda.buildEvents`) stays in the codebase, unused, for the Ops module.

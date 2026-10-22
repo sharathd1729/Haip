@@ -8,7 +8,7 @@ const post = vi.fn();
 vi.mock("@/lib/api", () => ({ default: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) } }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { name: "Asha Rao", role: "concierge" } }, status: "authenticated" }) }));
 const nav = vi.hoisted(() => ({ search: new URLSearchParams() }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => nav.search }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => nav.search, usePathname: () => "/dashboard/my-day" }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 const openQuote = vi.fn();
 vi.mock("@/components/quotes/QuoteSheetProvider", () => ({ useQuoteSheet: () => ({ open: openQuote, close: vi.fn() }) }));

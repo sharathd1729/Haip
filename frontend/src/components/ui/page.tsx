@@ -1,17 +1,22 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { PageIconTile, type RouteIcon } from "@/components/layout/PageIcon";
 
-/** Title row for a dashboard page: a display-face heading and one line of context on the left, actions on the right.
- *  No icon tile: the top bar already says where you are, and a coloured square above every title is what makes pages
- *  look templated. On phones the header bar names the page, so globals.css hides the title there. */
+/** Title row for a dashboard page: an icon tile (main pages only), a display-face heading and one line of context on the
+ *  left, actions on the right. The tile's icon comes from the route (components/layout/PageIcon.tsx, the same glyph the
+ *  nav uses); pass `icon` to set one or `icon={false}` to drop it. On phones the header bar names the page, so globals.css
+ *  hides the title there and the tile hides with it. */
 export function PageHeader({
-  title, subtitle, actions, className,
-}: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; className?: string }) {
+  title, subtitle, actions, icon, className,
+}: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: RouteIcon | false; className?: string }) {
   return (
     <header className={cn("flex flex-wrap items-end gap-x-4 gap-y-3", className)}>
-      <div className="min-w-0 flex-1">
-        <h1 className="haip-page-title">{title}</h1>
-        {subtitle && <p className="mt-1 text-[14px] leading-snug text-[var(--haip-fg-muted)]">{subtitle}</p>}
+      <div className="flex min-w-0 flex-1 items-center gap-3.5">
+        <PageIconTile icon={icon} />
+        <div className="min-w-0 flex-1">
+          <h1 className="haip-page-title">{title}</h1>
+          {subtitle && <p className="mt-1 text-[14px] leading-snug text-[var(--haip-fg-muted)]">{subtitle}</p>}
+        </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
