@@ -575,11 +575,15 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
     people = {i.guest_id for i in all_items if i.guest_id}
     no_guest = sum(1 for i in all_items if not i.guest_id and i.kind != "clash")   # a calendar clash is not a person
     severity = {s: sum(1 for i in all_items if i.severity == s and i.kind != "clash") for s in SEVERITIES}   # people's SLAs
+    # The nav "Now" badge and Home's "Waiting on the team": PEOPLE (as ``people``) with at least one item that is not yet
+    # cold. ``total - severity.stale`` counted rows, so a person with a missed call and a task counted twice.
+    waiting = {i.guest_id or id(i) for i in all_items if i.kind != "clash" and i.severity != "stale"}
     return {
         "counts": counts,
         "oldest": oldest,
         "total": sum(counts.values()),
         "people": len(people) + no_guest,
+        "people_waiting": len(waiting),
         "severity": severity,
         "unowned": sum(1 for i in by_kind["new_lead"] if not i.owner_id),
         "flags": flags,
@@ -591,4 +595,4 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
 def counts(db: Session, tenant: Tenant, scope_user_id: Optional[str]) -> dict:
     """Counts only -- for the dashboard cards and nav badges."""
     res = build(db, tenant, scope_user_id)
-    return {k: res[k] for k in ("counts", "oldest", "total", "people", "severity", "unowned", "flags")}
+    return {k: res[k] for k in ("counts", "oldest", "total", "people", "people_waiting", "severity", "unowned", "flags")}
