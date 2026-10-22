@@ -3,6 +3,7 @@
   POST   /payments/razorpay/connect        verify keys, store them encrypted, return the webhook URL + secret
   GET    /payments/razorpay                connection status (never returns the secret)
   DELETE /payments/razorpay                disconnect
+  POST   /payments/razorpay/reconcile  ask Razorpay about open links now (a missed webhook)        (owner, manager)
   POST   /webhooks/razorpay/{tenant_slug}  payment_link.paid / expired / cancelled
 
 Security: per-tenant webhook secret (generated here, pasted by the client into
@@ -41,8 +42,16 @@ _MANAGE = (UserRole.OWNER, UserRole.MANAGER)
 EVENTS = ["payment_link.paid", "payment_link.expired", "payment_link.cancelled"]
 
 
-def _webhook_url(slug: str) -> str:
-    return f"{settings.API_BASE_URL.rstrip('/')}/api/v1/webhooks/razorpay/{slug}"
+def _webhook_url(slug: str) -> Optional[str]:
+    """None when API_BASE_URL is not set on the server: a relative URL pasted into Razorpay never reaches HAIP."""
+    base = (settings.API_BASE_URL or "").strip().rstrip("/")
+    if not base.startswith("https://"):
+        return None
+    return f"{base}/api/v1/webhooks/razorpay/{slug}"
+
+
+_NO_URL = ("This HAIP server has no public address set (API_BASE_URL), so Razorpay cannot send payments to it yet. "
+           "Payments are still picked up by the 10-minute check, but ask your administrator to set it.")
 
 
 def _integration(db: Session, tenant_id: str) -> Optional[Integration]:
@@ -87,8 +96,9 @@ def connect(body: ConnectRequest, current_user: User = Depends(require_roles(*_M
                  action="payments.razorpay_connected", target_type="integration", target_id=None, payload={"mode": mode})
     db.commit()
     # The webhook secret is shown once, here; it is never returned again.
-    return {"connected": True, "mode": mode, "webhook_url": _webhook_url(tenant.slug),
-            "webhook_secret": webhook_secret, "events": EVENTS}
+    url = _webhook_url(tenant.slug)
+    return {"connected": True, "mode": mode, "webhook_url": url, "webhook_secret": webhook_secret, "events": EVENTS,
+            **({"warning": _NO_URL} if url is None else {})}
 
 
 @router.get("")
@@ -97,8 +107,18 @@ def status(current_user: User = Depends(require_roles(*_MANAGE)), db: Session = 
     if not intg or intg.status != "active":
         return {"connected": False}
     cfg = intg.config or {}
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    url = _webhook_url(tenant.slug) if tenant else None
     return {"connected": True, "mode": cfg.get("mode"), "key_id_hint": cfg.get("key_id_hint"),
-            "webhook_url": cfg.get("webhook_url"), "events": EVENTS}
+            "webhook_url": url, "events": EVENTS, **({"warning": _NO_URL} if url is None else {})}
+
+
+@router.post("/reconcile")
+def reconcile_now(current_user: User = Depends(require_roles(*_MANAGE)), db: Session = Depends(get_db)):
+    """Ask Razorpay about this workspace's open payment links now and record any that were paid."""
+    from app.services import payment_reconcile_service
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    return payment_reconcile_service.reconcile_tenant(db, tenant)
 
 
 @router.delete("", status_code=204)
