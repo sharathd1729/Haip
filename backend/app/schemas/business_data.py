@@ -309,6 +309,8 @@ class ResellerTermsData(_Strict):
 class DiscountPolicyData(_Strict):
     max_discount_percent: Percent
     max_discount_amount: Optional[Money] = None
+    # No discount at all below this package price (before tax): small bookings are never discounted.
+    min_booking_amount: Optional[Money] = None
     floor_rule: Literal["never_below_base", "none"] = "never_below_base"
     requires_approval_above_percent: Percent = Decimal("0")
     approver_roles: list[Literal["owner", "manager", "reservations"]] = Field(default_factory=lambda: ["owner"])

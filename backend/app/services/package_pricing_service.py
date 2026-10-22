@@ -179,6 +179,10 @@ def evaluate_discount(pol, percent: Decimal, base_total: Decimal, floor_total: O
     """What the published discount policy says about a requested percentage: applied / needs_approval / refused. The one place.
     `floor_total` is the lowest the package price may go (the rates' floor_amount); below it is refused whatever the policy says."""
     amount = _money(base_total * percent / 100)
+    minimum = getattr(pol, "min_booking_amount", None)
+    if minimum is not None and base_total < minimum:
+        return {"requested_percent": str(percent), "status": "refused", "amount": None,
+                "reason": f"discounts apply only to bookings of {minimum} and above"}
     if floor_total is not None and base_total - amount < floor_total:
         return {"requested_percent": str(percent), "status": "refused", "amount": None,
                 "reason": f"below the lowest price of {floor_total} for these dates"}

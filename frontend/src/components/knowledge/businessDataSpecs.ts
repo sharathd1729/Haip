@@ -208,6 +208,7 @@ export const KIND_SPECS: KindSpec[] = [
     fields: [
       { k: "decimal", name: "max_discount_percent", label: "Largest discount allowed", required: true, unit: "%" },
       { k: "decimal", name: "max_discount_amount", label: "Largest discount in rupees", unit: "₹" },
+      { k: "decimal", name: "min_booking_amount", label: "No discount below this booking value", unit: "₹", hint: "Package price before tax. Smaller bookings are never discounted." },
       { k: "decimal", name: "requires_approval_above_percent", label: "Needs approval above", unit: "%" },
       { k: "choices", name: "approver_roles", label: "Who can approve", options: [
         { value: "owner", label: "Owner" }, { value: "manager", label: "Manager" }, { value: "reservations", label: "Reservations" }] },

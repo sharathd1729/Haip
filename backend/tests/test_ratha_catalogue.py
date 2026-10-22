@@ -107,6 +107,27 @@ def test_a_discount_never_goes_below_the_floor(db, w, percent, status):  # noqa:
         assert "lowest price" in q.discount["reason"] and q.taxable == Decimal("35000.00")
 
 
+@pytest.mark.parametrize("amount,status", [("35000", "refused"), ("135000", "needs_approval")])
+def test_small_bookings_are_never_discounted(db, w, amount, status):  # noqa: F811
+    vehicle(db, w, adults=6)
+    pkg = _band_package()
+    pkg["rates"][0].update(amount=amount, floor_amount=None)
+    publish(db, w, "mysuru-escape", pkg)
+    policy = next(data for kind, _, data in imp.build(CATALOGUE) if kind == "discount_policy")   # the catalogue's own policy
+    publish(db, w, "default", policy, kind="discount_policy")
+    d = TODAY + timedelta(days=5)
+    q = pps.quote(db, w.t.id, "mysuru-escape", d, d, 2, discount_percent=Decimal("5"))
+    assert q.ok and q.discount["status"] == status
+    if status == "refused":
+        assert "120000" in q.discount["reason"]
+
+
+def test_catalogue_discount_policy_matches_the_sales_meeting():
+    policy = next(data for kind, _, data in imp.build(CATALOGUE) if kind == "discount_policy")
+    assert (policy["max_discount_percent"], policy["max_discount_amount"], policy["min_booking_amount"]) == ("15", "10000", "120000")
+    assert any("Tempo Traveller" in k["question"] for k in CATALOGUE["knowledge"])
+
+
 # ── partner-only (B2B) packages ─────────────────────────────────────────────────────────────────────────────
 
 def test_b2b_package_is_never_shown_or_quoted_to_a_guest_but_staff_can_price_it(db, w):  # noqa: F811
