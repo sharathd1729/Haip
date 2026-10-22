@@ -80,3 +80,9 @@ def create_payment_link(
 
 def cancel_payment_link(key_id: str, key_secret: str, link_id: str) -> None:
     _request("POST", f"/payment_links/{link_id}/cancel", key_id, key_secret)
+
+
+def fetch_payment_link(key_id: str, key_secret: str, link_id: str) -> dict:
+    """The link as Razorpay sees it now: status (created | partially_paid | paid | expired | cancelled), amount_paid and
+    `payments` (payment_id, amount in paise, method, status, created_at). Used when a webhook never arrived."""
+    return _request("GET", f"/payment_links/{link_id}", key_id, key_secret)

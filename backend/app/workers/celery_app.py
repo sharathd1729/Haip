@@ -331,6 +331,7 @@ celery_app.conf.update(
         "invoices.send_booking_confirmation":         {"queue": "whatsapp"},
         "payments.notify_staff":                      {"queue": "whatsapp"},
         "payments.balance_reminders":                 {"queue": "whatsapp"},
+        "payments.reconcile_razorpay":                {"queue": "whatsapp"},
         # Sent quotes (quote_tasks.py): the quote PDF + WhatsApp send, and cancelling the other option's link.
         "quotes.send_with_links":                     {"queue": "whatsapp"},
         "quotes.cancel_payment_links":                {"queue": "whatsapp"},
@@ -422,6 +423,11 @@ celery_app.conf.beat_schedule = {
     "payments-balance-reminders-daily": {
         "task": "payments.balance_reminders",
         "schedule": crontab(hour=9, minute=35),
+    },
+    # Razorpay payments whose webhook never arrived (payment_reconcile_service). Minutes 7/17/27/...: clear of the other jobs.
+    "payments-reconcile-razorpay-10min": {
+        "task": "payments.reconcile_razorpay",
+        "schedule": crontab(minute="7,17,27,37,47,57"),
     },
     "webhooks-purge-old-daily": {
         "task": "webhooks.purge_old",

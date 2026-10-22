@@ -189,7 +189,8 @@ def _connect_razorpay(db, tid, webhook_secret="whsec_test_123"):
     db.commit()
 
 
-def test_connect_validates_keys_and_returns_webhook(client, db, tenant_and_user):
+def test_connect_validates_keys_and_returns_webhook(client, db, tenant_and_user, monkeypatch):
+    monkeypatch.setattr("app.api.v1.endpoints.payments_razorpay.settings.API_BASE_URL", "https://genhaip.example")
     h = _h(tenant_and_user)
     assert client.post("/api/v1/payments/razorpay/connect", json={"key_id": "nope12345", "key_secret": "x" * 10}, headers=h).status_code == 422
     with patch("app.api.v1.endpoints.payments_razorpay.rzp.check_credentials"):
