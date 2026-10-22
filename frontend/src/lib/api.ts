@@ -126,6 +126,13 @@ api.interceptors.request.use(async (config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // A file upload must not go out as JSON. With this instance's JSON default, axios serialises a FormData body to JSON,
+  // so the file never reaches the API and FastAPI answers "Field required" (the invoice logo, Marketing Studio media and
+  // website images all hit this). Dropping the JSON type lets the browser send multipart/form-data with its boundary.
+  if (typeof FormData !== "undefined" && config.data instanceof FormData
+      && String(config.headers.get?.("Content-Type") ?? "").includes("application/json")) {
+    config.headers.delete?.("Content-Type");
+  }
   return config;
 });
 

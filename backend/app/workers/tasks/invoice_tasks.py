@@ -5,6 +5,7 @@
   invoices.send_booking_confirmation  the new-booking flow's confirmation: render the invoice PDF, then send it
   payments.notify_staff      push a payment alert (used by the quote-link path, which has no booking yet)
   payments.balance_reminders beat, daily 09:35 IST: balance due in 3 days -> link + ratha_balance_due_v1 (opt-in)
+  payments.reconcile_razorpay beat, every 10 min: open Razorpay links whose webhook never arrived (payment_reconcile_service)
 """
 from datetime import datetime
 
@@ -108,6 +109,32 @@ def balance_reminders():
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
                 log.error("balance_reminders_tenant_failed", tenant_id=tenant_id, error=str(exc))
+        return results
+    finally:
+        db.close()
+
+
+@celery_app.task(name="payments.reconcile_razorpay")
+def reconcile_razorpay():
+    """Every tenant with an active Razorpay connection. A tenant's failure is logged and does not stop the others."""
+    from app.core.database import set_tenant_context
+    from app.models.integration import Integration
+    from app.models.tenant import Tenant
+    from app.services import payment_reconcile_service
+
+    db = SessionLocal()
+    results = {}
+    try:
+        tenant_ids = [tid for (tid,) in db.query(Integration.tenant_id).filter_by(kind="razorpay", status="active").all()]
+        for tenant_id in tenant_ids:
+            try:
+                set_tenant_context(db, tenant_id)
+                tenant = db.query(Tenant).filter_by(id=tenant_id, is_active=True).first()
+                if tenant is not None:
+                    results[tenant_id] = payment_reconcile_service.reconcile_tenant(db, tenant)
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                log.error("razorpay_reconcile_tenant_failed", tenant_id=tenant_id, error=str(exc))
         return results
     finally:
         db.close()
