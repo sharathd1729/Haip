@@ -539,6 +539,8 @@
   --haip-status-danger-bg:  #FBE9E6; --haip-status-danger-fg:  #A92D29; --haip-status-danger-border:  #F1C6BF;
   --haip-status-info-bg:    #E2EDE5; --haip-status-info-fg:    #2C5546; --haip-status-info-border:    #B9D2C1;
   --haip-status-neutral-bg: #EEF2EF; --haip-status-neutral-fg: #4E5A55; --haip-status-neutral-border: #DCE3DE;
+  /* Full-width warning banner (connection lost): solid, so it reads over any page. White on #6B5208 is 7.4:1. */
+  --haip-banner-warn-bg: #6B5208; --haip-banner-warn-fg: #FFFFFF;
 
   /* Structural icons (chevrons, close, menus) are neutral; sea green is for what is actionable or branded. */
   --haip-icon-neutral: #5B6B64;
@@ -584,6 +586,7 @@
   --haip-status-danger-bg:  rgba(240,140,128,0.13); --haip-status-danger-fg:  #F5A99F; --haip-status-danger-border:  rgba(240,140,128,0.30);
   --haip-status-info-bg:    rgba(169,184,135,0.13); --haip-status-info-fg:    #C3CFAA; --haip-status-info-border:    rgba(169,184,135,0.30);
   --haip-status-neutral-bg: rgba(218,241,222,0.07); --haip-status-neutral-fg: #BFD0C7; --haip-status-neutral-border: rgba(218,241,222,0.12);
+  --haip-banner-warn-bg: #EBCB72; --haip-banner-warn-fg: #2A2105;
   --haip-icon-neutral: #9DB8AA;
   /* Only the literals need a dark variant; aliases follow automatically */
   --haip-surface:       #0F2722;
