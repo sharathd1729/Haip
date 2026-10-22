@@ -8,6 +8,9 @@ POST /consults/{id}/answer                 {mode: approve_proposed|edited|option
 POST /consults/{id}/take-over              a person replies themselves (guarded, audited)             conversations.send
 GET  /ai/consult-settings                  business hours, SLA, holding texts + preview              owner, manager
 PUT  /ai/consult-settings                  change them (audited `ai.consult_settings_changed`)       owner only
+GET  /ai/agent-policy                      who may decide what: mode per action class + defaults    owner, manager
+PUT  /ai/agent-policy                      {modes: {class: autonomous|draft_for_approval|consult}}  owner only (audited
+                                           `ai.agent_policy_changed`)
 
 Another tenant's consult answers 404. Nothing here calls a language model.
 """
@@ -20,9 +23,9 @@ from app.api.v1.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.schemas.agent_consult import ConsultAnswerIn, ConsultSettingsIn
+from app.schemas.agent_consult import AgentPolicyIn, ConsultAnswerIn, ConsultSettingsIn
 from app.services import agent_consult_service as svc
-from app.services import agent_consult_settings
+from app.services import agent_consult_settings, agent_policy
 from app.services.authz_service import require_capability
 
 router = APIRouter(tags=["agent-consults"])
@@ -89,3 +92,20 @@ def put_settings(body: ConsultSettingsIn, current_user: User = Depends(require_r
     db.commit()
     db.refresh(tenant)
     return {**agent_consult_settings.view(tenant), "changed": changes}
+
+
+@router.get("/ai/agent-policy")
+def get_policy(current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)), db: Session = Depends(get_db)):
+    return agent_policy.view(_tenant(db, current_user))
+
+
+@router.put("/ai/agent-policy")
+def put_policy(body: AgentPolicyIn, current_user: User = Depends(require_roles(UserRole.OWNER)), db: Session = Depends(get_db)):
+    tenant = _tenant(db, current_user)
+    try:
+        changes = agent_policy.update(db, tenant, current_user.id, body.modes)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    db.commit()
+    db.refresh(tenant)
+    return {**agent_policy.view(tenant), "changed": changes}

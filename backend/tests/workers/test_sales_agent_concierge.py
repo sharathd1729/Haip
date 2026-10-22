@@ -32,10 +32,12 @@ from tests.workers.test_concierge_operational_data import Scripted, _conversatio
 END = START + timedelta(days=2)
 
 
-def _setup(db, *, price_mode="grounded", mode="suggest", auto_bookable=False, ready=False):
+def _setup(db, *, price_mode="grounded", mode="suggest", auto_bookable=False, ready=False, link_policy="autonomous"):
     w = ratha(db)
     w.t.wa_ai_mode_default, w.t.wa_ai_confidence_threshold = "autonomous", 0.5
-    w.t.brand_config = {"price_disclosure": price_mode, "sales_agent": {"mode": mode}}
+    # agent_policy.send_payment_link defaults to draft_for_approval; these tests are about the agent's own holds.
+    w.t.brand_config = {"price_disclosure": price_mode, "sales_agent": {"mode": mode},
+                        "agent_policy": {"modes": {"send_payment_link": link_policy}}}
     db.commit()
     if auto_bookable:
         pub(db, w, "package", "coorg-48", coorg_48(auto_bookable=True))
@@ -200,7 +202,7 @@ def test_autopilot_waits_for_a_person_when_the_reply_itself_is_held(db, rzp):
     _, conv, msg = _lead_conv(db, w, "Coorg for 2 nights, 5 of us. How much?")
     _, draft, send, agent_send = _ask(db, w, conv, msg, reply="Great news, your Coorg trip is booked!")
     assert float(draft.ai_confidence) == 0.0 and "booked or confirmed before any payment" in draft.ai_needs_human_reason
-    send.assert_not_called()
+    assert all(c.kwargs.get("message_id") != draft.id for c in send.call_args_list)   # only the consult's holding reply may go
     agent_send.assert_not_called()
     (action,) = db.query(SalesAction).filter_by(tenant_id=w.t.id).all()
     assert action.status == "pending" and any("held for review" in r for r in action.hold_reasons)

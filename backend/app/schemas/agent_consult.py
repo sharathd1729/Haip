@@ -19,6 +19,13 @@ class ConsultAnswerIn(BaseModel):
     save_to_kb: bool = False
 
 
+class AgentPolicyIn(BaseModel):
+    """Owner only (PUT /ai/agent-policy): {action class: autonomous | draft_for_approval | consult}. Audited."""
+    model_config = ConfigDict(extra="forbid")
+
+    modes: dict[str, Literal["autonomous", "draft_for_approval", "consult"]] = Field(default_factory=dict, max_length=20)
+
+
 class ConsultSettingsIn(BaseModel):
     """Owner only (PUT /ai/consult-settings); every change is audited. Texts may use {minutes}, {time} and {day}."""
     model_config = ConfigDict(extra="forbid")

@@ -39,6 +39,7 @@ REASONS: dict[str, str] = {
     "over_capacity": "More guests than the vehicle takes",
     "prompt_injection": "The message tries to give the AI instructions",
     "escalation_keyword": "A keyword the owner listed",
+    "policy_consult": "Your AI policy says a person decides this",
 }
 
 _ESCALATION_CATEGORY = {

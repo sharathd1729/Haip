@@ -91,6 +91,10 @@ def test_autopilot_holds_for_a_guest_who_said_stop(db, monkeypatch):
     w = ratha(db)
     inq = lead(db, w.t.id)
     guest = db.query(Guest).filter_by(id=inq.guest_id).first()
+    holds = sas._holds(db, w.t.id, [object()], guest, False, "confirmed", {})
+    assert holds == ["Your AI policy says a person approves payment links before they go out."]   # the default policy
+    w.t.brand_config = {"agent_policy": {"modes": {"send_payment_link": "autonomous"}}}
+    db.commit()
     assert sas._holds(db, w.t.id, [object()], guest, False, "confirmed", {}) == []          # no STOP: nothing holds it back
     db.add(Consent(id=str(uuid.uuid4()), tenant_id=w.t.id, guest_id=guest.id, channel="whatsapp", scope="marketing",
                    granted=False, source="user_keyword", recorded_at="2026-10-18T10:00:00+00:00"))

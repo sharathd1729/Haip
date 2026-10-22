@@ -98,9 +98,16 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
             history=history(db, tenant.id, conversation.id),
         )
         verdict = rules.evaluate(signals)
-        if verdict.reasons:
-            turn.reasons, turn.evidence, turn.hold = verdict.reasons, verdict.evidence, True
-            turn.note = "asked a manager: " + ", ".join(verdict.reasons)
+        # Who may decide what (agent_policy): the owner's mode per action class keeps, drops or adds a reason.
+        from app.services import agent_policy
+        reasons, policy_hold, notes = agent_policy.apply(tenant, intent, reply_text, verdict.reasons)
+        if notes:
+            verdict.evidence["policy"] = notes
+        if reasons:
+            turn.reasons, turn.evidence, turn.hold = reasons, verdict.evidence, True
+            turn.note = "asked a manager: " + ", ".join(reasons)
+        elif policy_hold:
+            turn.hold, turn.note = True, "; ".join(notes)
     except Exception as exc:  # noqa: BLE001 -- the guards above still decide; the consult is an addition
         log.warning("consult_check_failed", conversation_id=conversation.id, error=str(exc)[:300])
     return turn
