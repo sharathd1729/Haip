@@ -14,6 +14,7 @@ export type RouteIcon = ComponentType<{ size?: number; className?: string; strok
 export const ROUTE_ICONS = {
   "/dashboard/my-day": Sun,
   "/dashboard": Home,
+  "/dashboard/operations": Home,
   "/dashboard/inbox": MessageSquare,
   "/dashboard/leads": Users,
   "/dashboard/portfolio/calendar": Calendar,

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
 import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, BellOff, BellRing, Bot, ChevronRight, KeyRound, Lock, BookOpen, MessageCircle } from "@/lib/icons";
+import { PageHeader } from "@/components/ui/page";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -1084,13 +1085,9 @@ function MFACard() {
 }
 
 /* ── Shared ─────────────────────────────────────────────────────────────────── */
+// The section name is what changes between tabs, so it stays visible on phones (keepOnPhone).
 function SectionHeader({ title, sub }: { title: string; sub: string }) {
-  return (
-    <div>
-      <h1 className="haip-page-title haip-page-title--keep">{title}</h1>
-      <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">{sub}</p>
-    </div>
-  );
+  return <PageHeader keepOnPhone title={title} subtitle={sub} />;
 }
 
 function Card({ children, title }: { children: React.ReactNode; title?: string }) {

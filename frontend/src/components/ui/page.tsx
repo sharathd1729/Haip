@@ -7,14 +7,18 @@ import { PageIconTile, type RouteIcon } from "@/components/layout/PageIcon";
  *  nav uses); pass `icon` to set one or `icon={false}` to drop it. On phones the header bar names the page, so globals.css
  *  hides the title there and the tile hides with it. */
 export function PageHeader({
-  title, subtitle, actions, icon, className,
-}: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: RouteIcon | false; className?: string }) {
+  title, subtitle, actions, icon, keepOnPhone, className,
+}: {
+  title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: RouteIcon | false;
+  /** The title is data or a greeting, not the page's name: keep it (and the subtitle) on phones. */
+  keepOnPhone?: boolean; className?: string;
+}) {
   return (
     <header className={cn("flex flex-wrap items-end gap-x-4 gap-y-3", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-3.5">
         <PageIconTile icon={icon} />
         <div className="min-w-0 flex-1">
-          <h1 className="haip-page-title">{title}</h1>
+          <h1 className={cn("haip-page-title", keepOnPhone && "haip-page-title--keep")}>{title}</h1>
           {subtitle && <p className="mt-1 text-[14px] leading-snug text-[var(--haip-fg-muted)]">{subtitle}</p>}
         </div>
       </div>

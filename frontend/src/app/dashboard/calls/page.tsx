@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Phone, Upload, X, Search, Loader2, PhoneMissed, Delete, PhoneCall, AlertCircle, CheckCircle2 } from "@/lib/icons";
+import { PageHeader } from "@/components/ui/page";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
@@ -218,7 +219,7 @@ export default function CallsPage() {
   {/* Header */}
   <div className="px-3 sm:px-5 pt-2 sm:pt-4 pb-2 sm:pb-3 space-y-2 sm:space-y-3 flex-shrink-0">
   <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-  <h1 className="haip-page-title hidden sm:block">Calls</h1>
+  <PageHeader className="hidden sm:flex" title="Calls" />
   <div className="flex items-center gap-2">
   <div className="relative flex-1 sm:w-64 sm:flex-none">
   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--haip-fg-subtle)" }} />

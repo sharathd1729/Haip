@@ -4,14 +4,14 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
+import { RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
 import { CAME_FROM_LABEL, LEAD_TYPE_LABEL, LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { groupLeads, LEAD_GROUP_LABEL } from "@/components/leads/leadGroups";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn, formatINR } from "@/lib/utils";
-import { DataTable, StatusPill, type Column } from "@/components/ui/kit";
+import { DataTable, PageHeader, StatusPill, type Column } from "@/components/ui/kit";
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
 import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { NeedsActionView } from "@/components/leads/NeedsActionView";
@@ -491,17 +491,8 @@ export default function Leads360Page() {
       >
         {/* Title */}
         {/* On a phone the top bar already names the page, so the title (and its description) only show from sm up */}
-        <div className="hidden items-center gap-2.5 sm:flex">
-          <Target size={16} style={{ color: "var(--primary)" }} />
-          <div>
-            <h1 className="haip-page-title">
-              Leads360
-            </h1>
-            <p className="hidden text-xs sm:block" style={{ color: "var(--haip-fg-muted)" }}>
-              {view === "action" ? "What to do next, most urgent first" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}${scope ? ` · ${SCOPE_LABEL[scope]}` : ""}`}
-            </p>
-          </div>
-        </div>
+        <PageHeader className="hidden sm:flex" title="Leads360"
+          subtitle={view === "action" ? "What to do next, most urgent first" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}${scope ? ` · ${SCOPE_LABEL[scope]}` : ""}`} />
 
         {/* Controls: wrap on narrow screens instead of running off the edge */}
         <div className="flex flex-wrap items-center gap-2">
