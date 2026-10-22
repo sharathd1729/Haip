@@ -11,6 +11,7 @@ import { SalesAgentSettingsCard } from "@/components/settings/SalesAgentSettings
 import { AgentConsultSettingsCard } from "@/components/settings/AgentConsultSettingsCard";
 import { AgentPolicyCard } from "@/components/settings/AgentPolicyCard";
 import { SalesPlaybookCard } from "@/components/settings/SalesPlaybookCard";
+import { AiScorecardCard } from "@/components/settings/AiScorecardCard";
 
 type Tab = "workspace" | "ai" | "notifications" | "security";
 
@@ -583,6 +584,8 @@ function AISettings() {
       <SectionHeader title="AI Concierge" sub="Control automation behaviour per channel" />
 
       <KillSwitchCard />
+
+      <AiScorecardCard />
 
       <SalesAgentSettingsCard />
 

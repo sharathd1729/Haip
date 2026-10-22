@@ -11,6 +11,7 @@ PUT  /ai/consult-settings                  change them (audited `ai.consult_sett
 GET  /ai/sales-playbook                    the owner's sales playbook (empty = prompts unchanged)  owner, manager
 PUT  /ai/sales-playbook                    replace it (schemas/sales_playbook.py; audited
                                            `ai.sales_playbook_changed`)                             owner only
+GET  /ai/scorecard?period=7d|30d           the honest AI scorecard (ai_scorecard.py)               owner, manager
 GET  /ai/agent-policy                      who may decide what: mode per action class + defaults    owner, manager
 PUT  /ai/agent-policy                      {modes: {class: autonomous|draft_for_approval|consult}}  owner only (audited
                                            `ai.agent_policy_changed`)
@@ -29,7 +30,7 @@ from app.models.user import User, UserRole
 from app.schemas.agent_consult import AgentPolicyIn, ConsultAnswerIn, ConsultSettingsIn
 from app.services import agent_consult_service as svc
 from app.schemas.sales_playbook import SalesPlaybook
-from app.services import agent_consult_settings, agent_policy, sales_playbook
+from app.services import agent_consult_settings, agent_policy, ai_scorecard, sales_playbook
 from app.services.authz_service import require_capability
 
 router = APIRouter(tags=["agent-consults"])
@@ -127,3 +128,9 @@ def put_playbook(body: SalesPlaybook, current_user: User = Depends(require_roles
     db.commit()
     db.refresh(tenant)
     return {**sales_playbook.view(tenant), "changed": sorted(changes)}
+
+
+@router.get("/ai/scorecard")
+def get_scorecard(period: str = Query("7d", pattern="^(7d|30d)$"),
+                  current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)), db: Session = Depends(get_db)):
+    return ai_scorecard.build(db, _tenant(db, current_user), period)
