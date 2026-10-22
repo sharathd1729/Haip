@@ -29,9 +29,10 @@ export interface BrandTheme {
   tagline?: string;
 }
 
-// Hospitality Hybrid (Oct 2026): sea green with coral highlights on warm sand-white, Figtree. The shell is light, so "sidebarColor" is white.
+// Greens + terracotta (22 Oct 2026): sea green brand, forest shell, terracotta actions on a mint canvas, Figtree. The shell
+// colours come from globals.css (--haip-nav-*), so "sidebarColor" stays white for older readers.
 export const DEFAULT_THEME: BrandTheme = {
-  primaryColor: "#1E7A5A",
+  primaryColor: "#235347",
   sidebarColor: "#FFFFFF",
   logoUrl: "/logo-wordmark.png",
   logoDarkUrl: "/logo-wordmark.png",
@@ -42,7 +43,7 @@ export const DEFAULT_THEME: BrandTheme = {
 };
 
 export const PRESET_THEMES: { name: string; primaryColor: string; sidebarColor: string }[] = [
-  { name: "Sea Green (HAIP)", primaryColor: "#1E7A5A", sidebarColor: "#FFFFFF" },
+  { name: "Greens & Terracotta (HAIP)", primaryColor: "#235347", sidebarColor: "#FFFFFF" },
   { name: "Teal",           primaryColor: "#0F766E", sidebarColor: "#0B1F3A" },
   { name: "Ocean Blue",     primaryColor: "#3b82f6", sidebarColor: "#1e3a5f" },
   { name: "Indigo",         primaryColor: "#6366f1", sidebarColor: "#1e1b4b" },
@@ -122,22 +123,31 @@ const RADIUS_BTN_MAP = { sharp: "4px", rounded: "10px", pill: "9999px" };
 // The app's own type and colour defaults. A theme that still carries the PREVIOUS defaults (teal + navy, Inter) was never
 // customised by the tenant, so it follows the current house style instead of freezing the old one.
 // Earlier house defaults, as [primary, sidebar] pairs. A workspace still on one never customised its colours, so it follows
-// the current default: teal + navy (until Oct 2026) and plum + white (Hybrid launch, 17-18 Oct 2026).
-const LEGACY_DEFAULTS: [string, string][] = [["#14b8a6", "#0b1f3a"], ["#0f766e", "#0b1f3a"], ["#5a2d6b", "#ffffff"]];
+// the current default: teal + navy (until Oct 2026), plum + white (Hybrid launch, 17-18 Oct 2026) and sea green + white
+// (18-22 Oct 2026).
+const LEGACY_DEFAULTS: [string, string][] = [["#14b8a6", "#0b1f3a"], ["#0f766e", "#0b1f3a"], ["#5a2d6b", "#ffffff"], ["#1e7a5a", "#ffffff"]];
 const APP_FONTS = ["Figtree", "Inter"];
 
-/** Primary as seen in dark mode: the house sea green has a designed lift; any other brand colour is lifted towards white
+/** Primary as seen in dark mode: the house sea green lifts to sage; any other brand colour is lifted towards white
  *  until it reads on the dark canvas. */
 function primaryOnDark(p: string): string {
-  if (p.toLowerCase() === DEFAULT_THEME.primaryColor.toLowerCase()) return "#5CC9A0";
+  if (isHousePrimary(p)) return "#8EB69B";
   const b = brightness(p);
   return b < 90 ? mixWithWhite(p, 0.55) : b < 140 ? mixWithWhite(p, 0.35) : p;
 }
 
-/** Build the full CSS variable map from a BrandTheme */
+function isHousePrimary(p: string): boolean {
+  return (p || "").toLowerCase() === DEFAULT_THEME.primaryColor.toLowerCase();
+}
+
+/** Build the full CSS variable map from a BrandTheme. An empty string means "remove this property" (applyTheme). */
 export function buildCSSVars(theme: BrandTheme): Record<string, string> {
   const p = theme.primaryColor;
   const s = theme.sidebarColor;
+  const house = isHousePrimary(p);
+  const onPrimary = brightness(p) > 160 ? "#1C1917" : "#FFFFFF";
+  const onDark = primaryOnDark(p);
+  const onPrimaryDark = brightness(onDark) > 150 ? "#1C1917" : "#FFFFFF";
 
   return {
     "--brand-primary":        p,
@@ -168,9 +178,15 @@ export function buildCSSVars(theme: BrandTheme): Record<string, string> {
     // globals.css maps --primary, --ring, --radius and friends onto these per theme (light and dark), so a tenant's colour
     // reaches every Tailwind utility and the --haip-* layer, and dark mode can still lift it. They used to be written here
     // straight onto <html>, which beat the .dark rules and left a dark brand colour on a dark page.
-    "--brand-on-primary":        brightness(p) > 160 ? "#1C1917" : "#FFFFFF",
-    "--brand-primary-on-dark":   primaryOnDark(p),
-    "--brand-on-primary-dark":   brightness(primaryOnDark(p)) > 150 ? "#1C1917" : "#FFFFFF",
+    "--brand-on-primary":        onPrimary,
+    "--brand-primary-on-dark":   onDark,
+    "--brand-on-primary-dark":   onPrimaryDark,
+    // Primary BUTTONS: the house theme paints them terracotta (--haip-action in globals.css), so these stay unset; a
+    // tenant with its own brand colour gets its colour back on buttons.
+    "--brand-action":            house ? "" : p,
+    "--brand-on-action":         house ? "" : onPrimary,
+    "--brand-action-on-dark":    house ? "" : onDark,
+    "--brand-on-action-dark":    house ? "" : onPrimaryDark,
     "--brand-radius":            RADIUS_MAP[theme.radiusScale],
     // NOTE: --font-sans is deliberately NOT set here. It is owned by next/font (app/layout.tsx, Figtree); applyTheme()
     // only overrides it when a tenant picks a different font, see below.
@@ -182,7 +198,7 @@ export function applyTheme(theme: BrandTheme): void {
   if (typeof document === "undefined") return;
   const vars = buildCSSVars(theme);
   const root = document.documentElement;
-  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  Object.entries(vars).forEach(([k, v]) => (v === "" ? root.style.removeProperty(k) : root.style.setProperty(k, v)));
 
   // Font injection (Google Fonts). Only a non-default font overrides --font-sans; the app font stays on next/font's
   // self-hosted copy. Choosing the app font again removes an earlier override.
