@@ -31,7 +31,7 @@ function toPuck(f: FieldSpec, media: MediaItem[], pickPhoto: (cb: (ref: string) 
     case "tags": return { type: "custom", label: f.label, render: ({ value, onChange }) => {
       const set: string[] = Array.isArray(value) ? value : [];
       return <div className="flex flex-wrap gap-1">{opts(f).map(o => { const on = set.includes(o.value); return (
-        <button key={o.value} type="button" onClick={() => onChange(on ? set.filter(x => x !== o.value) : [...set, o.value])}
+        <button key={o.value} type="button" aria-pressed={on} onClick={() => onChange(on ? set.filter(x => x !== o.value) : [...set, o.value])}
           className={`rounded-full border px-2 py-1 text-xs ${on ? "bg-primary text-primary-foreground" : ""}`}>{o.value}</button>); })}</div>;
     } };
     case "image": return { type: "custom", label: f.label, render: ({ value, onChange }) => (

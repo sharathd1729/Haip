@@ -1204,7 +1204,7 @@ export default function IntegrationsPage() {
               onClick={() => setActiveCategory(cat)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                activeCategory === cat ? "bg-primary text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)] hover:text-[var(--haip-fg-2)]"
+                activeCategory === cat ? "bg-[var(--haip-tab-active-bg)] text-[var(--haip-tab-active-fg)]" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)] hover:text-[var(--haip-fg-2)]"
               )}
             >
               {cat === "all" ? "All integrations" : cat}

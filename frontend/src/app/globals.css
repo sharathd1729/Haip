@@ -642,14 +642,29 @@
 /* Primary actions = terracotta (owner decision, 22 Oct 2026). Pages paint their main button `bg-primary` + white /
    primary-foreground text; that pairing now resolves to --haip-action. Everything else that reads --primary (links,
    focus rings, selected fills, switches, progress, dots) stays sea green. Unlayered on purpose so it beats the Tailwind
-   utility layer, including a page's hover:bg-primary-ish override. Tabs and pressed toggles keep their own colours. */
-:is(button, a, [role="button"], input[type="submit"]).bg-primary:is(.text-white, .text-primary-foreground):not([role="tab"], [aria-selected="true"], [aria-pressed="true"]) {
+   utility layer, including a page's hover:bg-primary-ish override.
+   NOT for selection controls: tabs, segments, radios, switches, pressed/selected/current items, Radix active/on/checked
+   states, and chips that mark their selected state with a primary border (`border-primary`) keep their own colours.
+   A hand-rolled segment control should use the kit Tabs or the --haip-tab-active-* tokens, never bg-primary. */
+:where(button, a, [role="button"], input[type="submit"]).bg-primary:is(.text-white, .text-primary-foreground):not(
+  [role="tab"], [role="radio"], [role="switch"], [role="checkbox"], [role="option"], [role="menuitemradio"],
+  [aria-pressed], [aria-selected], [aria-checked], [aria-current],
+  [data-state="active"], [data-state="on"], [data-state="checked"],
+  .border-primary, [class*="border-[var(--primary)]"]
+) {
   background-color: var(--haip-action);
   color: var(--haip-on-action);
 }
-:is(button, a, [role="button"], input[type="submit"]).bg-primary:is(.text-white, .text-primary-foreground):not([role="tab"], [aria-selected="true"], [aria-pressed="true"], :disabled, [aria-disabled="true"]):hover {
+:where(button, a, [role="button"], input[type="submit"]).bg-primary:is(.text-white, .text-primary-foreground):not(
+  [role="tab"], [role="radio"], [role="switch"], [role="checkbox"], [role="option"], [role="menuitemradio"],
+  [aria-pressed], [aria-selected], [aria-checked], [aria-current],
+  [data-state="active"], [data-state="on"], [data-state="checked"],
+  .border-primary, [class*="border-[var(--primary)]"],
+  :disabled, [aria-disabled="true"]
+):hover {
   background-color: var(--haip-action-hover);
 }
+
 /* Shared button looks for new code (kit pages, dev gallery). Focus stays the green ring. */
 .haip-btn-primary,
 .haip-btn-secondary {

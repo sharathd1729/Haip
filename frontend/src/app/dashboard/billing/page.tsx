@@ -162,7 +162,7 @@ export default function BillingPage() {
               onClick={() => setTab(t)}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors",
-                tab === t ? "bg-primary text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
+                tab === t ? "bg-[var(--haip-tab-active-bg)] text-[var(--haip-tab-active-fg)]" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
               )}
             >
               {t}
