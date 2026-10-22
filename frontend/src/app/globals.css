@@ -579,7 +579,7 @@
   --haip-avatar-5-bg: rgba(110,170,150,0.16); --haip-avatar-5-fg: #A4D6C6;
   --haip-cal-direct: #2E6A58;
   --haip-cal-block:  #3A4F48; --haip-cal-block-fg: #E6F2EA;
-  --haip-cal-due-bg: rgba(217,120,90,0.16); --haip-cal-due-edge: #D9785A; --haip-cal-due-fg: #F3B9A2;
+  --haip-cal-due-bg: rgba(217,120,90,0.26); --haip-cal-due-edge: #D9785A; --haip-cal-due-fg: #F3B9A2;
   --haip-cal-vehicle-1: #24453A; --haip-cal-vehicle-2: #3A4430; --haip-cal-vehicle-fg: #E6F2EA;
   --haip-status-success-bg: rgba(142,182,155,0.16); --haip-status-success-fg: #A9D9B8; --haip-status-success-border: rgba(142,182,155,0.34);
   --haip-status-warning-bg: rgba(232,196,96,0.13);  --haip-status-warning-fg: #EBCB72; --haip-status-warning-border: rgba(232,196,96,0.30);
