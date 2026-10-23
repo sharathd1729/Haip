@@ -9,6 +9,7 @@ import {
   Card, CardBody, CardHeader, DataTable, Drawer, EmptyState, FilterBar, FilterChip, FilterSearch,
   PageHeader, SectionNav, Stat, StatusPill, Tabs, Timeline, type Column, type Density,
 } from "@/components/ui/kit";
+import { PhoneKit } from "./PhoneKit";
 
 interface Row { id: string; guest: string; property: string; nights: number; amount: string; status: "Confirmed" | "Pending" | "Cancelled" }
 
@@ -114,6 +115,8 @@ export default function DevKitPage() {
         <CardHeader title="Plain header (opt-out)" tone="plain" description="Opt-out: the old borderless title" />
         <EmptyState title="Nothing waiting on you" hint="New enquiries and replies will show up here." />
       </Card>
+
+      <PhoneKit />
 
       <Drawer open={open} onOpenChange={setOpen} title="Booking detail" description="Priya S. · 3 nights"
         footer={<button type="button" onClick={() => setOpen(false)} className="h-10 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground">Done</button>}>
