@@ -58,12 +58,18 @@ def build(catalogue: dict) -> list[tuple[str, str, dict]]:
     for p in catalogue["packages"]:
         data = deepcopy(p["data"])
         nights = int(data.get("min_nights") or 0)
-        data.update(gst_percent=c["gst_percent"], extra_km_charge=deepcopy(c["extra_km_charge"]),
-                    extra_hour_charge=deepcopy(c["extra_hour_charge"]), charges=deepcopy(c["kits"]),
-                    inclusions=list(c["inclusions"]) + list(data.get("inclusions") or []),
+        bare = bool(p.get("bare"))              # partner rate: the vehicle only; driver, fuel and the rest are extra
+        data.update(gst_percent=c["gst_percent"], extra_hour_charge=deepcopy(c["extra_hour_charge"]), charges=deepcopy(c["kits"]),
+                    inclusions=(list(data.get("inclusions") or []) if bare
+                                else list(c["inclusions"]) + list(data.get("inclusions") or [])),
                     exclusions=list(c["exclusions"]) + list(data.get("exclusions") or []),
-                    at_actuals=([ "JLR safari, meals and activities (paid to JLR)"] if p.get("jlr") else []) + [c["third_party"]],
+                    at_actuals=(list(p.get("at_actuals") or []) if bare else
+                                (["JLR safari, meals and activities (paid to JLR)"] if p.get("jlr") else []) + [c["third_party"]]),
                     rates=_rates(p, valid, nights))
+        if not bare:
+            data["extra_km_charge"] = deepcopy(c["extra_km_charge"])
+        if c.get("extra_guest_charge") and not bare:
+            data.setdefault("extra_guest_charge", deepcopy(c["extra_guest_charge"]))
         if p.get("b2b"):
             data["audience"] = "b2b"
         out.append(("package", p["key"], data))

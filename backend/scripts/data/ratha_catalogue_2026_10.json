@@ -1,5 +1,5 @@
 {
-  "_about": "Rathaa commercial master, 21 Oct 2026, as DRAFT business records + knowledge entries. Loaded by scripts/import_ratha_catalogue.py (dry run unless --apply). Owner decisions 21 Oct: a price band = top is the price, bottom is the floor (any discount needs a manager, never below the floor; sales meeting 22 Oct: discounts only on bookings of Rs 1,20,000 and above, at most 15% and Rs 10,000, never on peak dates); GST 18% on top; extra km ladder Rs 100 -> 60; circuits Rs 45,000/day, floor Rs 35,000; the Rs 15,000/day base is B2B only. 29 Dec - 1 Jan has no rate on purpose (special rate card): a quote for those dates is refused and goes to a person. Distances and nights marked in `review` are estimates to confirm before publishing.",
+  "_about": "Rathaa commercial master, 21 Oct 2026, as DRAFT business records + knowledge entries. Loaded by scripts/import_ratha_catalogue.py (dry run unless --apply). Owner decisions 21 Oct: a price band = top is the price, bottom is the floor (any discount needs a manager, never below the floor; sales meeting 22 Oct: discounts only on bookings of Rs 1,20,000 and above, at most 15% and Rs 10,000, never on peak dates); GST 18% on top; extra km ladder Rs 100 -> 60; circuits Rs 45,000/day, floor Rs 35,000; the Rs 15,000/day base is B2B only. 29 Dec - 1 Jan has no rate on purpose (special rate card): a quote for those dates is refused and goes to a person. Distances and nights marked in `review` are estimates to confirm before publishing. Owner changes 23 Oct: circuits Rs 33,000/day (floor Rs 28,000), so 2-5 nights land at Rs 0.99-1.98 lakh before GST for 4 guests; extra guests Rs 1,500 per person per day (up to 6 travelling, 4 sleep onboard); extra hours Rs 1,500/hour with the first 30 minutes free; partner base Rs 15,000/day is the vehicle only, with driver, fuel, tolls, parking, permits and the driver's night halt extra.",
   "review": [
     "Distances and drive times on every route are road estimates from Bengaluru; correct them before publishing (they set the included km and extra km on quotes).",
     "Fuel: the master includes fuel only in the Rs 25,000/day standard. Confirm whether fuel is included in the Mysuru packages, the circuits and the B2B base rate; add it to Included or Not included.",
@@ -8,7 +8,9 @@
     "Peak 29 Dec - 1 Jan: add a peak rate to each package when the special rate card is ready (until then those dates go to a person).",
     "Not loaded, needs repricing first (master s.39): Rathaa for a Day (sunrise / day / sunset / night camping) and the North / South Bengaluru day circuits are routes only, with no package.",
     "Reseller tiers: no minimum days or billing were set; add them if partners have minimums.",
-    "Payment, cancellation and stay rules are not in the master and are not touched."
+    "Payment, cancellation and stay rules are not in the master and are not touched.",
+    "Guests 5-6 on overnight trips: check each Rathaa's seat count in Settings > Properties allows 6, or quotes for 5-6 guests show as unavailable.",
+    "Partner base: driver and fuel are billed at actuals; add fixed amounts (e.g. driver per day) if you want them priced on the quote."
   ],
   "valid": {
     "from": "2026-10-22",
@@ -40,7 +42,7 @@
       ]
     },
     "extra_hour_charge": {
-      "per_hour": "2500"
+      "per_hour": "1500"
     },
     "kits": [
       {
@@ -68,12 +70,18 @@
     "inclusions": [
       "Rathaa with a commercial driver",
       "Onboard lounge, bedroom, washroom and kitchenette",
-      "Air conditioning, refrigerator and entertainment onboard"
+      "Air conditioning, refrigerator and entertainment onboard",
+      "First 30 minutes past the package time are free"
     ],
     "exclusions": [
       "Self-drive (not offered)"
     ],
-    "third_party": "Third-party experiences (safari, rafting, guides, tickets, resorts, meals at partner properties)"
+    "third_party": "Third-party experiences (safari, rafting, guides, tickets, resorts, meals at partner properties)",
+    "extra_guest_charge": {
+      "free_guests": 4,
+      "per_guest": "1500",
+      "unit": "day"
+    }
   },
   "destinations": [
     {
@@ -536,10 +544,13 @@
         "product": "overnight",
         "min_nights": 1,
         "max_nights": 1,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km": "350",
         "destination_keys": [
           "mysuru-krs"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
@@ -556,18 +567,21 @@
         "product": "multiday",
         "min_nights": 2,
         "max_nights": 2,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km": "600",
         "destination_keys": [
           "mysuru-coorg"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
     {
       "key": "wild-karnataka",
       "band": [
-        "45000",
-        "35000"
+        "33000",
+        "28000"
       ],
       "unit": "day",
       "jlr": true,
@@ -577,18 +591,21 @@
         "product": "multiday",
         "min_nights": 2,
         "max_nights": 4,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km_per_day": "250",
         "destination_keys": [
           "wild-karnataka"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
     {
       "key": "western-ghats-sea",
       "band": [
-        "45000",
-        "35000"
+        "33000",
+        "28000"
       ],
       "unit": "day",
       "jlr": true,
@@ -598,18 +615,21 @@
         "product": "multiday",
         "min_nights": 3,
         "max_nights": 6,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km_per_day": "250",
         "destination_keys": [
           "western-ghats-sea"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
     {
       "key": "hampi",
       "band": [
-        "45000",
-        "35000"
+        "33000",
+        "28000"
       ],
       "unit": "day",
       "data": {
@@ -618,18 +638,21 @@
         "product": "multiday",
         "min_nights": 1,
         "max_nights": 4,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km_per_day": "250",
         "destination_keys": [
           "hampi"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
     {
       "key": "sacred-rathaa",
       "band": [
-        "45000",
-        "35000"
+        "33000",
+        "28000"
       ],
       "unit": "day",
       "data": {
@@ -638,19 +661,22 @@
         "product": "multiday",
         "min_nights": 1,
         "max_nights": 4,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km_per_day": "250",
         "destination_keys": [
           "tirupati",
           "kukke-dharmasthala"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
     {
       "key": "grand-karnataka",
       "band": [
-        "45000",
-        "35000"
+        "33000",
+        "28000"
       ],
       "unit": "day",
       "jlr": true,
@@ -660,10 +686,13 @@
         "product": "multiday",
         "min_nights": 6,
         "max_nights": 9,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km_per_day": "250",
         "destination_keys": [
           "grand-karnataka"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
@@ -679,10 +708,13 @@
         "summary": "Tell us what you would like to experience and we shape the route around it: duration, destination, overnights, activities and kits.",
         "product": "multiday",
         "min_nights": 0,
-        "max_guests": 4,
+        "max_guests": 6,
         "included_km_per_day": "250",
         "inclusions": [
           "Fuel for the included kilometres"
+        ],
+        "exclusions": [
+          "Sleeping onboard for more than 4 guests (the team arranges extra sleeping for 5-6)"
         ]
       }
     },
@@ -696,13 +728,24 @@
       "b2b": true,
       "data": {
         "name": "Rathaa Base (partners)",
-        "summary": "Caravan, commercial driver and core onboard facilities for partners and long multi-day bookings. Experiences, food and activities are quoted separately.",
+        "summary": "The Rathaa vehicle and its onboard facilities for partners and long multi-day bookings. Driver, fuel, tolls, parking, permits, food and experiences are charged separately.",
         "product": "multiday",
         "min_nights": 0,
         "min_days": 3,
         "max_guests": 4,
-        "included_km_per_day": "250"
-      }
+        "inclusions": [
+          "Rathaa caravan",
+          "Onboard lounge, bedroom, washroom and kitchenette",
+          "Air conditioning, refrigerator and entertainment onboard"
+        ]
+      },
+      "bare": true,
+      "at_actuals": [
+        "Commercial driver (mandatory)",
+        "Fuel",
+        "Tolls, parking and permits",
+        "Driver's night halt and food"
+      ]
     }
   ],
   "itineraries": [
