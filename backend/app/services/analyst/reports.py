@@ -119,6 +119,8 @@ def list_reports(db: Session, tenant_id: str, kind: Optional[str] = None, limit:
     q = db.query(AnalystReport).filter(AnalystReport.tenant_id == tenant_id)
     if kind:
         q = q.filter(AnalystReport.kind == kind)
+    else:                       # the Marketing Studio's weekly Insights rows live in the same table; they have their own page
+        q = q.filter(AnalystReport.kind != "marketing_insights")
     return [summary_out(r) for r in q.order_by(AnalystReport.period_start.desc(), AnalystReport.created_at.desc()).limit(limit).all()]
 
 

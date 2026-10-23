@@ -159,6 +159,8 @@ def content_tool(kind: str) -> dict:
     """The kind's schema plus `hook_options` (two alternative first lines). marketing_ai_service.run_content pops
     hook_options before the payload is validated, so they land in the version note, never in the post."""
     schema = _schema(CONTENT_MODELS[kind])
+    for field in ("trial", "audio_id"):                 # people / the producer set these, never the copywriter
+        schema.get("properties", {}).pop(field, None)
     schema.setdefault("properties", {})["hook_options"] = {
         "type": "array", "maxItems": 2, "items": {"type": "string", "maxLength": 160},
         "description": "Two other first lines you considered."}

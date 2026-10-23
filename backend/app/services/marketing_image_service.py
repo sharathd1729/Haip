@@ -102,7 +102,7 @@ def models_catalogue() -> list[dict]:
 
 
 def request_image(db: Session, tenant: Tenant, *, prompt: str, model: str, shape: str, actor_id: str,
-                  seed: Optional[int] = None) -> MarketingImageJob:
+                  seed: Optional[int] = None, content_id: Optional[str] = None) -> MarketingImageJob:
     if not ai_images_enabled(tenant):
         raise MarketingError(403, "ai_images_off", "AI images are switched off for this workspace. The owner can switch them on.")
     try:
@@ -122,7 +122,7 @@ def request_image(db: Session, tenant: Tenant, *, prompt: str, model: str, shape
         raise MarketingError(429, "monthly_cap_reached",
                              f"This workspace has used {used} of its {cap} AI images this month. The owner can raise the cap.")
     job = MarketingImageJob(tenant_id=tenant.id, prompt=prompt, model=m.key, shape=shape, seed=seed, status="pending",
-                            created_by=actor_id)
+                            created_by=actor_id, content_id=content_id)
     db.add(job)
     db.flush()
     append_audit(db, tenant_id=tenant.id, action="marketing.ai_image.requested", actor_user_id=actor_id,
@@ -189,4 +189,31 @@ def review_image(db: Session, tenant_id: str, asset_id: str, actor: User, *, app
     append_audit(db, tenant_id=tenant_id, action="marketing.ai_image.approved" if approve else "marketing.ai_image.rejected",
                  actor_user_id=actor.id, target_type="media_asset", target_id=asset.id, payload={"note": note, "sha256": asset.sha256})
     db.refresh(asset)
+    if approve:
+        attach_to_draft(db, tenant_id, asset)
     return asset
+
+
+def attach_to_draft(db: Session, tenant_id: str, asset: MediaAsset) -> Optional[str]:
+    """An approved AI image goes into the empty slot of the draft it was requested for (a new version). An agency draft
+    that was held only for photos is then sent for approval. Returns the content id it was attached to, or None."""
+    job = db.query(MarketingImageJob).filter_by(tenant_id=tenant_id, asset_id=asset.id).first()
+    if job is None or not job.content_id:
+        return None
+    from app.services import marketing_photos as photos
+    from app.services import marketing_review_service as review
+    tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+    try:
+        filled = photos.attach_photos(db, tenant, job.content_id, actor_id="agency", photos=[asset])
+    except MarketingError:
+        return None                       # the draft is gone or archived: the image simply stays in the library
+    if not filled:
+        return None
+    item = content_svc.get_item(db, tenant_id, job.content_id)
+    version = content_svc.get_version(db, tenant_id, item.current_version_id)
+    rev = review.current(db, tenant, item)
+    if (item.created_by == "agency" and item.status == "draft" and not content_svc.missing_photos(item.kind, version.payload)
+            and not (rev is not None and rev.blocking)):
+        from types import SimpleNamespace
+        content_svc.submit(db, tenant_id, item.id, item.current_version_id, SimpleNamespace(id="agency", role="agency"))
+    return item.id

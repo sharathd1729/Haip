@@ -16,7 +16,7 @@ from app.services import marketing_content_service as svc
 from app.services import marketing_lint as lint
 from app.services import marketing_review_service as review
 from tests.test_marketing_agency import AUDIT, _plan, _seed_insights
-from tests.test_marketing_studio_content import BASE, make_user, ws  # noqa: F401  (fixture)
+from tests.test_marketing_studio_content import BASE, make_user, seed_photos, ws  # noqa: F401  (fixture)
 
 BAD = "It's not just a trip, it's a feeling.\nAgree?"
 GOOD = "Monsoon in Coorg, from the caravan door. Coffee estates on both sides and nowhere to be by noon. DM us your dates."
@@ -136,6 +136,7 @@ def _run_with(db, ws, captions, scores=None):  # noqa: F811
     turn (agency M3), the last one repeating."""
     tid = ws["tenant"].id
     _seed_insights(db, tid)
+    seed_photos(db, tid)
     start = datetime.now(ZoneInfo("Asia/Kolkata")).date() + timedelta(days=1)
     plan = _plan(start)
     plan["calendar"] = plan["calendar"][:1]
@@ -213,8 +214,9 @@ def test_queue_down_marks_the_ai_review_failed_but_keeps_the_checks(client, db, 
 def test_a_person_sending_for_approval_queues_the_editor_and_approvals_show_counts(client, db, ws, monkeypatch):  # noqa: F811
     queued = []
     monkeypatch.setattr("app.workers.tasks.marketing_studio.review_content.delay", lambda *a: queued.append(a))
+    photo = seed_photos(db, ws["tenant"].id, 1)[0]
     item = svc.create_item(db, ws["tenant"].id, kind="post", title="x", actor_id=ws["mkt"].id,
-                           payload={"caption": "The best caravan in Coorg. " + GOOD})
+                           payload={"caption": "The best caravan in Coorg. " + GOOD, "media": {"asset_id": photo.id}})
     db.commit()
     r = client.post(f"{BASE}/content/{item.id}/submit", json={"version_id": item.current_version_id}, headers=ws["mkt_h"])
     assert r.status_code == 200 and queued == [(ws["tenant"].id, item.id)]

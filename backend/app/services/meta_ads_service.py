@@ -34,7 +34,8 @@ UNMATCHED = "__unmatched__"
 
 _METRIC_KEYS = ("campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "spend", "impressions", "reach",
                 "clicks", "frequency", "ctr", "cpm", "conversations_started", "leads", "currency", "link_clicks",
-                "unique_clicks", "post_engagement", "video_views", "first_replies", "cpc", "actions")
+                "unique_clicks", "post_engagement", "video_views", "first_replies", "cpc", "actions", "video_thruplays",
+                "video_p25", "video_p50", "video_p75", "video_p95", "video_p100", "video_avg_watch_s", "link_ctr")
 
 
 class NotConfigured(Exception):

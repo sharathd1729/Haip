@@ -49,6 +49,7 @@ def _tenant(db: Session, user: User) -> Tenant:
 def get_agency(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
     tenant = _tenant(db, user)
     return {"paused": agency.get_agency(tenant)["paused"], "roster": agency.roster(tenant),
+            "publish_kinds": agency.get_agency(tenant)["publish_kinds"],
             "runs": runs.history(db, tenant.id), "schedule": "Mondays 09:00 (workspace time)",
             "pending_approvals": agency.pending_count(db, tenant.id)}
 
@@ -56,6 +57,7 @@ def get_agency(user: User = Depends(get_current_user), db: Session = Depends(get
 class AgencyUpdate(BaseModel):
     roles: Optional[dict[str, str]] = None
     paused: Optional[bool] = None
+    publish_kinds: Optional[dict[str, str]] = None      # studio plan phase 5: autopilot per content type
 
 
 @router.put("/agency")
@@ -63,11 +65,12 @@ def put_agency(body: AgencyUpdate, user: User = Depends(get_current_user), db: S
                _m=_module, _c=_owner):
     tenant = _tenant(db, user)
     try:
-        agency.update_agency(db, tenant, user.id, roles=body.roles, paused=body.paused)
+        agency.update_agency(db, tenant, user.id, roles=body.roles, paused=body.paused, publish_kinds=body.publish_kinds)
     except svc.MarketingError as exc:
         raise _err(exc)
     db.commit()
-    return {"paused": agency.get_agency(tenant)["paused"], "roster": agency.roster(tenant)}
+    return {"paused": agency.get_agency(tenant)["paused"], "roster": agency.roster(tenant),
+            "publish_kinds": agency.get_agency(tenant)["publish_kinds"]}
 
 
 @router.post("/agency/run", status_code=202)

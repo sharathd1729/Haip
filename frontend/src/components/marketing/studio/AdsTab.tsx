@@ -16,7 +16,7 @@ import { AdsInsights, BoostRules } from "./AdsRules";
 const ADS = `${STUDIO}/ads`;
 
 export interface Audience { label: string; latitude: number; longitude: number; radius_km: number; age_min: number; age_max: number }
-interface Settings { monthly_cap_inr: number; destination: "whatsapp" | "instagram"; audience: Audience | null; capi_enabled: boolean; dataset_id: string | null; capi_test_code: string | null }
+interface Settings { monthly_cap_inr: number; destination: "whatsapp" | "instagram"; audience: Audience | null; capi_enabled: boolean; dataset_id: string | null; capi_test_code: string | null; capi_lead_events?: boolean }
 export interface AdDraft {
   id: string; content_id: string; content_title: string | null; origin: "manual" | "rule"; window_key: string | null;
   destination: string; daily_budget_inr: number; days: number; spend_cap_inr: number; status: string;
@@ -168,6 +168,10 @@ function AdsSettings({ settings, isOwner }: { settings: Settings; isOwner: boole
                 <label className="space-y-1"><span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">Test events code (optional)</span>
                   <input className={inputCls} value={s.capi_test_code ?? ""} onChange={e => setS({ ...s, capi_test_code: e.target.value.trim() || null })} />
                   <span className="block text-xs text-[var(--haip-fg-subtle)]">While set, Meta shows the events under Test events and does not use them.</span></label>
+                <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--haip-fg-2)] md:col-span-2">
+                  <input type="checkbox" className="size-4" checked={!!s.capi_lead_events} onChange={e => setS({ ...s, capi_lead_events: e.target.checked })} />
+                  Also tell Meta when a WhatsApp ad chat becomes a lead and a qualified lead (same consent rule)
+                </label>
               </>
             )}
           </fieldset>

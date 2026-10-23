@@ -12,7 +12,7 @@ from app.services import marketing_agency_run as runs
 from app.services import marketing_agency_service as agency
 from app.services import marketing_ai_service as ai
 from app.workers.tasks.instagram_insights_poll import InstagramInsightsSnapshot, InstagramPostSnapshot, _record_daily
-from tests.test_marketing_studio_content import BASE, ws  # noqa: F401  (fixture)
+from tests.test_marketing_studio_content import BASE, seed_photos, ws  # noqa: F401  (fixture)
 
 AUDIT = {"summary": "Reels beat the median.", "findings": [], "stop": [], "keep": ["Reels"], "test": []}
 
@@ -92,6 +92,7 @@ def test_agency_actor_is_recorded_without_breaking_the_user_foreign_key(db, ws):
 def test_weekly_run_audits_plans_drafts_and_submits_for_approval(db, ws):  # noqa: F811
     tid = ws["tenant"].id
     _seed_insights(db, tid)
+    seed_photos(db, tid)
     start = datetime.now(ZoneInfo("Asia/Kolkata")).date() + timedelta(days=1)
     with patch.object(ai, "_call", side_effect=_fake_call(start)), \
          patch.object(agency, "notify_needs_approval") as notify:
@@ -109,7 +110,7 @@ def test_weekly_run_audits_plans_drafts_and_submits_for_approval(db, ws):  # noq
     assert {p["type"] for p in pending} == {"content"} and len(pending) == 3
     hist = runs.history(db, tid)
     assert hist[0]["summary"]["drafts"] == 3 and len(hist[0]["steps"]) == 7 and "state" not in hist[0]["summary"]
-    assert ("photos", "skipped") in steps                             # empty photo library
+    assert ("photos", "done") in steps                                # library photos in every slot
     assert ("competitors", "skipped") in steps                        # no competitors on the list yet
 
 
@@ -187,6 +188,7 @@ def test_run_endpoint_queues_and_refuses_while_running(client, db, ws, monkeypat
 def test_approvals_api_lists_and_approves_agency_drafts(client, db, ws):  # noqa: F811
     tid = ws["tenant"].id
     _seed_insights(db, tid)
+    seed_photos(db, tid)
     start = datetime.now(ZoneInfo("Asia/Kolkata")).date() + timedelta(days=1)
     with patch.object(ai, "_call", side_effect=_fake_call(start)), patch.object(agency, "notify_needs_approval"):
         runs.run_week(db, tid, trigger="manual")

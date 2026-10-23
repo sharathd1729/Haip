@@ -12,7 +12,19 @@ from app.services import marketing_content_service as svc
 from tests.conftest import seed_capabilities
 
 BASE = "/api/v1/marketing/studio"
-POST = {"caption": "Sunrise over the Western Ghats from your own terrace.", "hashtags": ["#luxurystay", "karnataka"]}
+POST = {"caption": "Sunrise over the Western Ghats from your own terrace.", "hashtags": ["#luxurystay", "karnataka"],
+        "media": {"asset_id": "photo-1"}}     # a draft without a photo cannot be sent for approval (needs_photos)
+
+
+def seed_photos(db, tenant_id, n=2):
+    """Approved library photos, so the agency's photo step can fill every slot."""
+    from app.models.media_asset import MediaAsset
+    out = [MediaAsset(id=str(uuid.uuid4()), tenant_id=tenant_id, storage_key=f"{tenant_id}/marketing/{i}.jpg",
+                      mime_type="image/jpeg", bytes=10, sha256=uuid.uuid4().hex * 2, status="active", alt_text="the deck")
+           for i in range(n)]
+    db.add_all(out)
+    db.commit()
+    return out
 
 
 def enable_module(db, tenant_id, code="marketing_studio"):
@@ -45,6 +57,17 @@ def ws(db, tenant_and_user):
     mkt, mkt_h = make_user(db, tenant.id, UserRole.MARKETING)
     return {"tenant": tenant, "owner": tenant_and_user["user"], "owner_h": owner_h, "manager": manager, "manager_h": manager_h,
             "manager2_h": manager2_h, "mkt": mkt, "mkt_h": mkt_h}
+
+
+@pytest.fixture(autouse=True)
+def _library_photo(request):
+    """POST names library photo "photo-1": seed it for this module's workspace (other modules import ws, not this)."""
+    if "ws" in request.fixturenames:
+        db, tenant = request.getfixturevalue("db"), request.getfixturevalue("ws")["tenant"]
+        from app.models.media_asset import MediaAsset
+        db.add(MediaAsset(id="photo-1", tenant_id=tenant.id, storage_key="k/photo-1.jpg", mime_type="image/jpeg", bytes=10,
+                          sha256="a" * 64, status="active"))
+        db.commit()
 
 
 def _create(client, headers, payload=POST, kind="post"):

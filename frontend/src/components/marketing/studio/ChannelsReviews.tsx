@@ -8,7 +8,9 @@ import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill, type Tone } from "@/components/ui/kit";
-import { STUDIO, btn, btnPrimary, inputCls, studioError, when } from "./types";
+import { STUDIO, btn, btnPrimary, inputCls, openOAuth, studioError, when } from "./types";
+
+const SERVER_KEYS = { facebook: "META_APP_ID and META_APP_SECRET", google: "GOOGLE_BUSINESS_CLIENT_ID and GOOGLE_BUSINESS_CLIENT_SECRET" };
 import { WhatsAppDefaults } from "./OutreachPanels";
 import { ReviewToPost } from "./PartnersTab";
 
@@ -17,19 +19,11 @@ interface Channels {
   google: { available: boolean; connected: boolean; location_title: string | null; locations: { location: string; title: string | null }[] };
 }
 
-function oauthUrl(provider: "facebook" | "google", token: string | null): string | null {
-  if (!token) return null;
-  const raw = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
-  const base = raw.endsWith("/api/v1") ? raw : `${raw}/api/v1`;
-  return `${base}/marketing/studio/channels/${provider}/oauth-start?token=${encodeURIComponent(token)}`;
-}
-
 export function ChannelsPanel() {
   const { data: session } = useSession();
   const role = session?.user?.role;
   const isOwner = role === "owner";
   const canConnect = role === "owner" || role === "manager";
-  const token = (session as unknown as { accessToken?: string })?.accessToken ?? null;
   const qc = useQueryClient();
   const { toast } = useToast();
   const q = useQuery<Channels>({ queryKey: ["studio-channels"], queryFn: () => api.get(`${STUDIO}/channels`).then(r => r.data) });
@@ -44,9 +38,9 @@ export function ChannelsPanel() {
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
         <p className="text-sm font-semibold">{name} {connected && <StatusPill tone="success" className="ml-1">Connected</StatusPill>}</p>
-        <div className="text-xs text-[var(--haip-fg-subtle)]">{!available ? "Not set up on this HAIP server yet." : connected ? detail : needs}</div>
+        <div className="text-xs text-[var(--haip-fg-subtle)]">{!available ? `Not set up on this HAIP server yet: ask your HAIP admin to set ${SERVER_KEYS[provider]}.` : connected ? detail : needs}</div>
       </div>
-      {available && !connected && canConnect && oauthUrl(provider, token) && <a className={btnPrimary} href={oauthUrl(provider, token) as string}>Connect</a>}
+      {available && !connected && canConnect && <button type="button" className={btnPrimary} onClick={() => openOAuth(`${STUDIO}/channels/${provider}/oauth-start`)}>Connect</button>}
     </div>
   );
   return (

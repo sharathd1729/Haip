@@ -7,8 +7,10 @@ Steps, each logged as a marketing_tasks row under one run_id, each gated by its 
   draft       (copy)     one draft per calendar entry (max MAX_DRAFTS), each with the plan and history as context,
                          then the brand review (M1): a blocking finding gets ONE rewrite; the AI editor adds advice
   photos      (design)   a library photo in every slot + the brand colour, saved as a new version
-  image       (design)   an AI image request per post/promo, only if AI images are on and under the monthly cap
-  submit      (copy)     drafts go to "waiting for approval"; a draft the review still blocks stays a draft (held)
+  image       (design)   an AI image request per post/promo still without a photo, only if AI images are on and under
+                         the monthly cap; once a person approves the image it fills that draft and sends it on
+  submit      (copy)     drafts go to "waiting for approval"; a draft the review still blocks stays a draft (held), and
+                         one without a photo in every slot stays a draft marked "needs photos" (content_svc.submit)
 A step that fails stops the steps that depend on it; the failure and reason stay visible in the run log.
 
 Execution: `start_run` creates the run row; `run_step` does the NEXT unit of work (one step, or one draft) and saves
@@ -266,12 +268,14 @@ def _image(db, tenant, run, st):
         queued = 0
         for item_id in st.get("drafts", []):
             item = content_svc.get_item(db, tenant.id, item_id)
-            if item.kind not in ("post", "promo"):
+            version = content_svc.get_version(db, tenant.id, item.current_version_id)
+            # Only a post/promo still WITHOUT a photo gets one: the image fills that slot once a person approves it.
+            if item.kind not in ("post", "promo") or version is None or not content_svc.missing_photos(item.kind, version.payload):
                 continue
             try:
                 job = images.request_image(db, tenant, prompt=item.title.split(":", 1)[-1].strip()[:300] or item.title,
                                            model=images.image_adapter.DEFAULT_MODEL, shape="portrait",
-                                           actor_id=AGENCY_ACTOR.id)
+                                           actor_id=AGENCY_ACTOR.id, content_id=item.id)
             except content_svc.MarketingError as exc:
                 if exc.code == "monthly_cap_reached":
                     break
@@ -288,13 +292,17 @@ def _image(db, tenant, run, st):
 def _submit(db, tenant, run, st):
     def fn(t):
         from app.services import marketing_review_service as review
-        sent, held = 0, 0
+        sent, held, no_photos = 0, 0, 0
         for item_id in st.get("drafts", []):
             item = content_svc.get_item(db, tenant.id, item_id)
             if item.status == "draft" and item.current_version_id:
                 rev = review.current(db, tenant, item)
                 if rev is not None and rev.blocking:
                     held += 1                          # stays a draft; its findings show in the Content tab
+                    continue
+                version = content_svc.get_version(db, tenant.id, item.current_version_id)
+                if content_svc.missing_photos(item.kind, version.payload):
+                    no_photos += 1                     # "Needs photos" in Content; an approved AI image sends it on
                     continue
                 content_svc.submit(db, tenant.id, item.id, item.current_version_id, AGENCY_ACTOR)
                 sent += 1
@@ -309,9 +317,13 @@ def _submit(db, tenant, run, st):
         if sent:
             agency.notify_needs_approval(db, tenant.id, "Marketing: posts ready for approval",
                                          f"The agency drafted {sent} posts for next week.")
-        _finish(t, "done" if sent else "skipped", detail={"submitted": sent, "held": held,
-                                                          **({"reason": f"{held} held back by the brand review"}
-                                                             if held and not sent else {})})
+        if no_photos:
+            agency.notify_needs_approval(db, tenant.id, "Marketing: drafts need photos",
+                                         f"{no_photos} drafts are waiting for photos. Add photos to the library.")
+        reasons = [*([f"{held} held back by the brand review"] if held else []),
+                   *([f"{no_photos} need photos"] if no_photos else [])]
+        _finish(t, "done" if sent else "skipped", detail={"submitted": sent, "held": held, "needs_photos": no_photos,
+                                                          **({"reason": "; ".join(reasons)} if reasons else {})})
         return sent > 0
     _step(db, tenant, run, "copy", "submit", fn)
     return None

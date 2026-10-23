@@ -19,7 +19,9 @@ import pytest
 # (docker-compose.prod.yml's `--queues=` flag). "celery" (Colery's
 # built-in default) is deliberately NOT in this set -- that's the queue
 # this test exists to make sure nothing silently falls into.
-_CONSUMED_QUEUES = {"transcription", "ai_scoring", "whatsapp", "call_ingest", "default"}
+_CONSUMED_QUEUES = {"transcription", "ai_scoring", "whatsapp", "call_ingest", "default",
+                    # consumed only by the opt-in research_collector service (docker-compose.prod.yml profile "research")
+                    "research_collect"}
 
 # Celery's own housekeeping/internal task names, not app tasks -- excluded
 # since they're never expected to be routed by this app's task_routes.

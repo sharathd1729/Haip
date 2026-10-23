@@ -42,6 +42,15 @@ class AdMetric(Base, TimestampMixin, TenantMixin):
     first_replies = Column(Integer, nullable=False, default=0)          # chats where the business replied
     cpc = Column(Numeric(12, 4), nullable=False, default=0)
     actions = Column(JSON, nullable=True)                                 # Meta's full action list, so no number is lost
+    # Watch curve (migration 174). video_views above = 3-second views (actions[video_view]).
+    video_thruplays = Column(Integer, nullable=False, default=0)        # 15 s or the whole video if shorter
+    video_p25 = Column(Integer, nullable=False, default=0)
+    video_p50 = Column(Integer, nullable=False, default=0)
+    video_p75 = Column(Integer, nullable=False, default=0)
+    video_p95 = Column(Integer, nullable=False, default=0)
+    video_p100 = Column(Integer, nullable=False, default=0)
+    video_avg_watch_s = Column(Numeric(10, 2), nullable=False, default=0)
+    link_ctr = Column(Numeric(8, 4), nullable=False, default=0)        # inline_link_click_ctr, percent
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "date", "ad_id", name="uq_ad_metrics_tenant_date_ad"),

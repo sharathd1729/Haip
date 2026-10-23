@@ -26,6 +26,7 @@ from app.services.marketing_content_service import MarketingError
 log = structlog.get_logger()
 
 LEVELS = ("off", "suggest", "autopilot")
+PUBLISH_KINDS = ("post", "carousel", "story", "promo", "reel")
 SETTINGS_KEY = "marketing_studio"
 
 # role -> (label, what it does, public?, default level)
@@ -51,9 +52,13 @@ def _section(tenant: Tenant) -> dict:
 def get_agency(tenant: Tenant) -> dict:
     stored = _section(tenant)
     roles = stored.get("roles") if isinstance(stored.get("roles"), dict) else {}
+    kinds = stored.get("publish_kinds") if isinstance(stored.get("publish_kinds"), dict) else {}
     return {
         "paused": bool(stored.get("paused")),
         "roles": {r: (roles.get(r) if roles.get(r) in LEVELS else default) for r, (_, _, _, default) in ROLES.items()},
+        # Studio plan phase 5: autopilot per content type, e.g. stories post alone while Reels wait for a person.
+        # A kind not listed follows the publish role's level.
+        "publish_kinds": {k: v for k, v in kinds.items() if k in PUBLISH_KINDS and v in LEVELS},
     }
 
 
@@ -66,10 +71,28 @@ def level(tenant: Tenant, role: str) -> str:
     return lvl
 
 
+def publish_level(tenant: Tenant, kind: str) -> str:
+    """The publish level for one content type: the owner's per-type level if set, else the publish role's. Publishing
+    switched off and the kill switch still win over any per-type setting."""
+    agency = get_agency(tenant)
+    if agency["paused"]:
+        return "off" if level(tenant, "publish") == "off" else "suggest"
+    role = agency["roles"].get("publish", "off")
+    if role == "off":
+        return "off"
+    return agency["publish_kinds"].get(kind, role)
+
+
 def update_agency(db: Session, tenant: Tenant, actor_id: str, *, roles: Optional[dict] = None,
-                  paused: Optional[bool] = None) -> dict:
+                  paused: Optional[bool] = None, publish_kinds: Optional[dict] = None) -> dict:
     before = get_agency(tenant)
-    after = {"paused": before["paused"], "roles": dict(before["roles"])}
+    after = {"paused": before["paused"], "roles": dict(before["roles"]), "publish_kinds": dict(before["publish_kinds"])}
+    for kind, lvl in (publish_kinds or {}).items():
+        if kind not in PUBLISH_KINDS:
+            raise MarketingError(422, "unknown_kind", f"Unknown content type: {kind}")
+        if lvl not in LEVELS:
+            raise MarketingError(422, "bad_level", f"Level must be one of {', '.join(LEVELS)}.")
+        after["publish_kinds"][kind] = lvl
     for role, lvl in (roles or {}).items():
         if role not in ROLES:
             raise MarketingError(422, "unknown_role", f"Unknown role: {role}")

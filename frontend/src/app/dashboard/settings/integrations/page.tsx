@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { openOAuth } from "@/components/marketing/studio/types";
 import { MessageSquare, Phone, AtSign, CheckCircle2, AlertCircle, Loader2, RefreshCw, ExternalLink, Key, X, Check, Clock, Wifi, WifiOff, Zap, Shield, Copy, Info, ChevronDown, ChevronUp, Pencil } from "@/lib/icons";
 import { Plug, Unplug } from "lucide-react";
 
@@ -808,11 +809,8 @@ function IntegrationCard({
 }) {
   const { data: session } = useSession();
   const accessToken = (session as unknown as { accessToken?: string })?.accessToken ?? null;
-  const _rawApiBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
-  const apiBase = _rawApiBase.endsWith("/api/v1") ? _rawApiBase : `${_rawApiBase}/api/v1`;
-  const igOAuthUrl = accessToken
-    ? `${apiBase}/integrations/instagram/oauth-start?token=${encodeURIComponent(accessToken)}`
-    : null;
+  // A fresh token at click time (openOAuth): the session token in memory may have expired while the page sat open.
+  const igOAuthUrl = accessToken ? "/integrations/instagram/oauth-start" : null;
 
   const status = integration?.status ?? "disconnected";
   const isConnected = status === "active";
@@ -939,15 +937,13 @@ function IntegrationCard({
               reconnect attempts, every one a pasted token, inbound and
               outbound both dead for days. Offer the real flow here. */}
           {item.provider === "instagram" && igOAuthUrl && (
-            <a
-              href={igOAuthUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button type="button"
+              onClick={() => openOAuth(igOAuthUrl, true)}
               className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
             >
               <Plug size={13} />
               Reconnect via Instagram Login
-            </a>
+            </button>
           )}
           <div className="flex items-center gap-2">
             <button
@@ -979,15 +975,13 @@ function IntegrationCard({
           </>
         ) : item.provider === "instagram" && igOAuthUrl ? (
           <>
-            <a
-              href={igOAuthUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button type="button"
+              onClick={() => openOAuth(igOAuthUrl, true)}
               className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
             >
               <Plug size={13} />
               Connect via Instagram Login
-            </a>
+            </button>
             <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center">
               First time connecting? An App Secret must be saved first —{" "}
               <button onClick={() => onConnect(item.provider)} className="underline hover:text-[var(--haip-fg-muted)]">

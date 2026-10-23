@@ -45,7 +45,7 @@ def _rate(n, d) -> Optional[float]:
 
 def per_ad(db: Session, tenant_id: str, since: date, until: date) -> dict[str, dict]:
     out: dict[str, dict] = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0, "link_clicks": 0,
-                                                 "video_views": 0, "conversations": 0, "days": 0})
+                                                 "video_views": 0, "conversations": 0, "days": 0, "thruplays": 0})
     for m in db.query(AdMetric).filter(AdMetric.tenant_id == tenant_id, AdMetric.date >= since, AdMetric.date <= until):
         r = out[m.ad_id]
         r.update(name=m.ad_name or m.ad_id, campaign_id=m.campaign_id, campaign_name=m.campaign_name)
@@ -54,6 +54,7 @@ def per_ad(db: Session, tenant_id: str, since: date, until: date) -> dict[str, d
         r["clicks"] += m.clicks or 0
         r["link_clicks"] += m.link_clicks or 0
         r["video_views"] += m.video_views or 0
+        r["thruplays"] += m.video_thruplays or 0
         r["conversations"] += m.conversations_started or 0
         r["days"] += 1
     return dict(out)
@@ -76,6 +77,7 @@ def bookings_by_ad(db: Session, tenant_id: str, since: date, until: date) -> dic
             inq_ad.setdefault(inq, a.ad_id)
             leads[a.ad_id].add(inq)
     out = {ad: {"leads": len(v), "bookings": 0, "revenue": 0.0} for ad, v in leads.items()}
+    people_and_qualified(db, tenant_id, leads, out)
     if inq_ad:
         for s in db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.inquiry_id.in_(list(inq_ad)),
                                        Stay.status != "cancelled"):
@@ -83,6 +85,25 @@ def bookings_by_ad(db: Session, tenant_id: str, since: date, until: date) -> dic
             row["bookings"] += 1
             row["revenue"] += _f(s.total_amount)
     return out
+
+
+def people_and_qualified(db: Session, tenant_id: str, inquiries_by_key: dict, out: dict) -> None:
+    """Adds `people` (distinct people with a usable phone: guests.lead_identified_at, the lead definition) and
+    `qualified` (enquiries passing lead_metrics' qualified rule) to each row of `out`, keyed like inquiries_by_key."""
+    from app.models.guest import Guest
+    from app.models.inquiry import Inquiry
+    from app.services.lead_metrics import qualified_inquiry_ids
+    all_ids = {i for v in inquiries_by_key.values() for i in v}
+    if not all_ids:
+        return
+    guest_of = dict(db.query(Inquiry.id, Inquiry.guest_id).filter(Inquiry.tenant_id == tenant_id, Inquiry.id.in_(all_ids)))
+    identified = {g for (g,) in db.query(Guest.id).filter(Guest.tenant_id == tenant_id, Guest.id.in_(set(guest_of.values())),
+                                                          Guest.lead_identified_at.isnot(None))}
+    qualified = qualified_inquiry_ids(db, tenant_id, all_ids)
+    for key, ids in inquiries_by_key.items():
+        row = out.setdefault(key, {"leads": len(ids), "bookings": 0, "revenue": 0.0})
+        row["people"] = len({guest_of[i] for i in ids if guest_of.get(i) in identified})
+        row["qualified"] = sum(1 for i in ids if i in qualified)
 
 
 def _stages(r: dict) -> dict:

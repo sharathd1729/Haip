@@ -161,10 +161,22 @@ def conversation_times(db: Session, tenant_id: str, start: Bound, end: Bound, *,
     return [row[0] for row in q.all()]
 
 
+def _qualified_conditions(tenant_id: str) -> list:
+    """The ONE "qualified enquiry" rule: not marked spam and in a valid pipeline stage (as of now)."""
+    return [Inquiry.tenant_id == tenant_id, Inquiry.qualification_status != UNQUALIFIED,
+            Inquiry.stage_id == PipelineStage.id, PipelineStage.category == "valid"]
+
+
 def _qualified_exists(tenant_id: str):
-    return exists().where(Inquiry.guest_id == Guest.id, Inquiry.tenant_id == tenant_id,
-                          Inquiry.qualification_status != UNQUALIFIED,
-                          Inquiry.stage_id == PipelineStage.id, PipelineStage.category == "valid")
+    return exists().where(Inquiry.guest_id == Guest.id, *_qualified_conditions(tenant_id))
+
+
+def qualified_inquiry_ids(db: Session, tenant_id: str, inquiry_ids) -> set[str]:
+    """Of these enquiries, the qualified ones (same rule as leads.qualified_new); used by the marketing money funnel."""
+    ids = list({i for i in inquiry_ids if i})
+    if not ids:
+        return set()
+    return {i for (i,) in db.query(Inquiry.id).filter(Inquiry.id.in_(ids), *_qualified_conditions(tenant_id))}
 
 
 def count_qualified_new(db: Session, tenant_id: str, start: Bound, end: Bound, **filters) -> int:

@@ -271,6 +271,11 @@ class ReelContent(_Captioned):
     cover_clip: int = Field(default=0, ge=0)
     design: Optional[Design] = None
     comment_dm: Optional[CommentDM] = None
+    # Studio plan phase 4, set by people / the producer, never by the AI (marketing_prompts.content_tool drops them):
+    # a trial Reel is shown to non-followers first and graduates if it performs (Instagram trial_params);
+    # audio_id = a licensed track from Instagram's trending audio, attached at publishing (unverified API, off by default).
+    trial: bool = False
+    audio_id: Optional[str] = Field(default=None, max_length=64, pattern=r"^[0-9A-Za-z_-]+$")
 
     @model_validator(mode="after")
     def _length(self):

@@ -189,9 +189,9 @@ def test_typographic_punctuation_is_drawn_as_plain_text():
 
 def test_copywriter_sees_plan_siblings_history_notes_and_photo_descriptions(db, ws):  # noqa: F811
     tid = ws["tenant"].id
-    _photo(db, tid, "Caravan parked by the Kabini river")
+    river = _photo(db, tid, "Caravan parked by the Kabini river")
     old = svc.create_item(db, tid, kind="post", title="Old", actor_id=ws["mkt"].id,
-                          payload={"caption": "Wake up to the river.\nMore lines."})
+                          payload={"caption": "Wake up to the river.\nMore lines.", "media": {"asset_id": river.id}})
     db.commit()
     svc.submit(db, tid, old.id, old.current_version_id, ws["mkt"])
     svc.reject(db, tid, old.id, old.current_version_id, ws["owner"], "Less about the bed, more about the view")
@@ -225,7 +225,9 @@ def test_copywriter_sees_plan_siblings_history_notes_and_photo_descriptions(db, 
 
 def test_context_notes_on_this_post_come_first_and_other_tenants_never_leak(db, ws):  # noqa: F811
     tid = ws["tenant"].id
-    item = svc.create_item(db, tid, kind="post", title="Mine", actor_id=ws["mkt"].id, payload={"caption": "Mine."})
+    mine = _photo(db, tid, "Our deck")
+    item = svc.create_item(db, tid, kind="post", title="Mine", actor_id=ws["mkt"].id,
+                           payload={"caption": "Mine.", "media": {"asset_id": mine.id}})
     db.commit()
     svc.submit(db, tid, item.id, item.current_version_id, ws["mkt"])
     svc.reject(db, tid, item.id, item.current_version_id, ws["owner"], "Shorter first line")
