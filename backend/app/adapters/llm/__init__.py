@@ -156,6 +156,9 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # from the fixed catalogue with verbatim quotes (checked in code). Internal analysis, structured JSON output -- the
     # gpt-oss-20b tier with the Gemini fallback below. A PERSON confirms it; it never sets the reason by itself.
     "outcome_reason": ("nvidia", "openai/gpt-oss-20b"),
+    # AI business analyst (services/analyst/brief.py): a structured brief from computed facts (JSON). Internal, not
+    # guest-facing; every number is re-checked against the facts and a deterministic brief stands in on any failure.
+    "analyst_brief": ("nvidia", "openai/gpt-oss-20b"),
     # Marketing Studio: audit reading, plan + calendar, one content piece. Structured output via one tool, so the
     # reliable tool-calling tier; every result is re-validated and reviewed by a person before anything leaves HAIP.
     "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
@@ -193,6 +196,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "assessment_narrative":        60,
     "lead_followup_draft":         40,
     "outcome_reason":              45,
+    "analyst_brief":               90,
     "marketing_audit":             60,
     "marketing_plan":              90,
     "marketing_content":           60,

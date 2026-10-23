@@ -52,6 +52,7 @@ from app.models.platform_lead import PlatformLead
 from app.models.roi_benchmark import RoiBenchmarkVersion
 from app.models.agent_consult import AgentConsult
 from app.models.lead_evidence import LeadEvidenceImport
+from app.models.analyst import AgentExperiment, AgentExperimentAssignment, AgentLesson, AnalystReport
 
 __all__ = [
     "BusinessRecord",
@@ -78,4 +79,5 @@ __all__ = [
     "PlatformLead", "RoiBenchmarkVersion",
     "AgentConsult",
     "LeadEvidenceImport",
+    "AnalystReport", "AgentExperiment", "AgentExperimentAssignment", "AgentLesson",
 ]

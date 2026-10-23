@@ -62,7 +62,7 @@ def update_my_tenant(
         incoming = data.pop("brand_config")
         # Owner-only, audited switches with their own endpoints: PUT /ai/sales-agent (price disclosure, sales agent) and
         # PUT /lead-autopilot/settings. A manager must not switch them on through here.
-        guarded = [k for k in ("price_disclosure", "sales_agent", "agent_consult", "agent_policy", "sales_playbook") if k in incoming]
+        guarded = [k for k in ("price_disclosure", "sales_agent", "agent_consult", "agent_policy", "sales_playbook", "analyst", "learning") if k in incoming]
         if guarded:
             raise HTTPException(status_code=422, detail=f"{', '.join(guarded)}: change this in Settings > AI (PUT /ai/sales-agent, owner only)")
         if "lead_autopilot" in incoming:
@@ -78,7 +78,7 @@ def update_my_tenant(
     if "config" in data:
         merged = dict(tenant.brand_config or {})
         incoming = data.pop("config")
-        if any(k in incoming for k in ("price_disclosure", "sales_agent", "agent_consult", "agent_policy", "sales_playbook")):
+        if any(k in incoming for k in ("price_disclosure", "sales_agent", "agent_consult", "agent_policy", "sales_playbook", "analyst", "learning")):
             raise HTTPException(status_code=422, detail="price_disclosure / sales_agent: change this in Settings > AI (owner only)")
         if "lead_autopilot" in incoming:
             raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")

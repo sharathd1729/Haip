@@ -69,6 +69,8 @@ const ROUTE_LABELS: Record<string, string> = {
   "saved-replies": "Saved replies",
   targets:      "Targets",
   impact:       "Impact",
+  analyst:      "Analyst",
+  learning:     "AI learning",
   quotes:       "Quotes",
   "whatsapp-personal": "Personal WhatsApp",
 };

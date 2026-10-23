@@ -52,10 +52,11 @@ _KIT_RE = re.compile(r"\b(culinary|wellness|adventure)\s+kit\b|\bkits?\b", re.IG
 _MONEY_RE = re.compile(r"(₹|\brs\.?\s?)\s?\d", re.IGNORECASE)
 
 
-def defaults(tenant) -> dict:
-    from app.services.price_policy import price_mode
+def defaults(tenant, price_mode: Optional[str] = None) -> dict:
+    """``price_mode`` = this turn's mode when the learning loop made it grounded for one published package (resolver)."""
+    from app.services.price_policy import price_mode as tenant_price_mode
     out = dict(_FIXED_DEFAULTS)
-    out["quote_published_price"] = "autonomous" if price_mode(tenant) == "grounded" else "consult"
+    out["quote_published_price"] = "autonomous" if (price_mode or tenant_price_mode(tenant)) == "grounded" else "consult"
     return {k: out[k] for k in ACTION_CLASSES}
 
 
@@ -65,14 +66,21 @@ def _raw(tenant) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def get(tenant) -> dict:
-    """Effective modes: the owner's stored value when valid, else the default. Never raises on odd stored data."""
+def get(tenant, price_mode: Optional[str] = None) -> dict:
+    """Effective modes: the owner's stored value when valid, else the default, then CAPPED by the learning loop's autonomy
+    level of the class's area (learning_limits.cap: act = as set, suggest = at most draft_for_approval, watch = consult). The
+    cap only ever makes a mode stricter. Never raises on odd stored data."""
     stored = _raw(tenant).get("modes")
     stored = stored if isinstance(stored, dict) else {}
-    out = defaults(tenant)
+    out = defaults(tenant, price_mode)
     for k in ACTION_CLASSES:
         if stored.get(k) in MODES:
             out[k] = stored[k]
+    try:
+        from app.services.learning import limits
+        out = limits.cap(tenant, out)
+    except Exception:  # noqa: BLE001 -- the owner's modes stand
+        pass
     return out
 
 
@@ -101,10 +109,11 @@ def classes_for_turn(intent: Optional[str], reply_text: str, reasons: list[str])
     return list(dict.fromkeys(out))
 
 
-def apply(tenant, intent: Optional[str], reply_text: str, reasons: list[str]) -> tuple[list[str], bool, list[str]]:
+def apply(tenant, intent: Optional[str], reply_text: str, reasons: list[str], *,
+          price_mode: Optional[str] = None) -> tuple[list[str], bool, list[str]]:
     """(reasons to consult on, hold as a draft?, policy notes). A mapped trigger whose class the owner made autonomous or
     draft_for_approval stops asking; a class set to consult that no trigger caught adds ``policy_consult``."""
-    modes = get(tenant)
+    modes = get(tenant, price_mode)
     kept, hold, notes = [], False, []
     for r in reasons:
         cls = REASON_CLASS.get(r)

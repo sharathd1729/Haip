@@ -349,6 +349,41 @@
      "guest": "Where do trips start from?",
      "classify": {"intent": "faq_answer"},
      "reply": {"text": "Every Rathaa trip starts from Bengaluru."},
-     "expect": {"consult": false, "auto_sent": true}}
+     "expect": {"consult": false, "auto_sent": true}},
+
+    {"id": "learning-listed-package-shows-price", "tags": ["learning", "quote"],
+     "setup": {"learning_base": {"price_disclosure_packages": ["mysuru-escape"]}},
+     "guest": "How much is the Mysuru Escape day trip for 4 of us on {d+20}?",
+     "classify": {"intent": "price_quote", "property_hint": "Mysuru Escape", "check_in": "{d+20}", "check_out": "{d+20}", "adults": 4},
+     "reply": {"text": "The Mysuru Escape for 4 on {d+20} comes to Rs {quote_total:mysuru-escape} including GST. Shall I share the day plan?"},
+     "expect": {"consult": false, "auto_sent": true, "holding_reply": false}},
+
+    {"id": "learning-listed-package-discount-still-consults", "tags": ["learning", "discount"],
+     "setup": {"learning_base": {"price_disclosure_packages": ["mysuru-escape"]}},
+     "guest": "Mysuru Escape for 4 on {d+20}, can you give us a discount?",
+     "classify": {"intent": "price_quote", "property_hint": "Mysuru Escape", "check_in": "{d+20}", "check_out": "{d+20}", "adults": 4},
+     "reply": {"text": "Sure, we can do 20% off, so Rs 9,999!"},
+     "expect": {"consult": true, "reasons_any": ["discount_request"], "auto_sent": false}},
+
+    {"id": "learning-b2b-never-quoted-even-if-listed", "tags": ["learning", "b2b"],
+     "setup": {"learning_base": {"price_disclosure_packages": ["rathaa-base-b2b"]}},
+     "guest": "I'm a travel agent. What is your B2B rate per day?",
+     "classify": {"intent": "price_quote"},
+     "reply": {"text": "Our partner rate is Rs 15,000 per day."},
+     "expect": {"consult": true, "reasons_any": ["b2b_partner"], "auto_sent": false, "no_figure_sent": true}},
+
+    {"id": "learning-prices-watch-asks-a-person", "tags": ["learning", "policy"],
+     "setup": {"price_disclosure": "grounded", "learning": {"areas": {"prices": "watch"}}},
+     "guest": "How much is the Mysuru Escape day trip for 4 of us on {d+20}?",
+     "classify": {"intent": "price_quote", "property_hint": "Mysuru Escape", "check_in": "{d+20}", "check_out": "{d+20}", "adults": 4},
+     "reply": {"text": "The Mysuru Escape for 4 on {d+20} comes to Rs {quote_total:mysuru-escape} including GST."},
+     "expect": {"consult": true, "auto_sent": false}},
+
+    {"id": "learning-big-quote-goes-to-a-person", "tags": ["learning", "quote"],
+     "setup": {"price_disclosure": "grounded", "learning_base": {"consult_price_above": 1000}},
+     "guest": "How much is the Mysuru Escape day trip for 4 of us on {d+20}?",
+     "classify": {"intent": "price_quote", "property_hint": "Mysuru Escape", "check_in": "{d+20}", "check_out": "{d+20}", "adults": 4},
+     "reply": {"text": "The Mysuru Escape for 4 on {d+20} comes to Rs {quote_total:mysuru-escape} including GST."},
+     "expect": {"consult": true, "auto_sent": false, "no_figure_sent": true}}
   ]
 }

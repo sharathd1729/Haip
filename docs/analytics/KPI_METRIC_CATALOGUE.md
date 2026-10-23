@@ -415,6 +415,27 @@ write-once milestones (the first time each thing happened), refreshed every 5 mi
 The funnel shows how many leads reached each step, not the share of the previous step: a lead can get a proposal without
 a call. "Biggest drop" = the largest fall between two neighbouring steps.
 
+## 17. AI business analyst and experiments  *(23 Oct 2026)*
+
+Facts for `analyst_reports` (`services/analyst/`, docs `docs/ai/AI_ANALYST_AND_LEARNING.md`). Every KPI that already has a
+definition is READ from its owner (leads, contacts, conversations, cohort: `lead_metrics`; booked value and cash: `kpi_metrics`;
+received -> contacted -> proposal -> sold and per-owner speeds: section 16). New, analyst-only figures:
+
+| Metric | Definition |
+|---|---|
+| Ads spend / chats started / cost per chat | `ad_metrics` rows dated inside the period (IST days); cost per chat = spend / chats, None with no chats. Traced leads = `lead_attribution` rows created in the period with a lead. |
+| contacts.to_lead (DM -> lead) | people first heard from in the period (`guests.created_at`, the people filter of `lead_metrics`) and, of them, those with `lead_identified_at` by now. |
+| Validity reviewed | guest enquiries created in the period with `validation_status` valid / invalid (a person said so); stage-valid = in a valid stage. |
+| Lost reasons | won / lost by the stage flags; reason = `outcome_reason` when that column exists (feat/lead-evidence-outcomes), else `lost_reason`, else the lead AI's `blocking_objection` (prefixed `ai:`), else "not recorded". |
+| Quotes | `inquiry_quotes` created in the period, one per option group (the primary); shared = `shared_at`; accepted = status accepted; by package key. |
+| Team (per user) | calls with that `agent_id` in the period: received, answered (not missed), missed not returned (no `recovered_by_call_id`, no `callback_dismissed_at`); outbound made / connected (`lead_task_closer.connected`); lead tasks due in the period and done within 30 minutes of due; leads -> booked = `lead_metrics.by_owner`. |
+| Demand | `inquiries.route_mentioned` in the period; "unavailable ask" = no word in common with any published destination / package name or key. Check-in coverage = `checkin_coverage` for the next 8 weeks. |
+| Pricing signals | calls / leads whose AI reading (`ai_insights` / `ai_analysis.blocking_objection`, decline reason) names price, budget, cost, discount; discount asks = consults with `discount_request`. |
+| Experiment metrics (per arm) | over the experiment's assignments: dm_to_lead (guest had no phone at assignment -> a lead now), guest_reply (2+ guest messages after assignment), lead_to_quote (a lead now -> a quote after assignment), quote_to_won (quoted -> a live booking after assignment). |
+
+Change detection: rates by two-proportion z-test, counts by a Poisson difference, p < 0.05; fewer than 30 cases (10 events)
+on either side = "too few to judge", never called a change. Rupee impact is an estimate (see findings.py), always labelled.
+
 ## 13. Decisions needed (none is assumed)
 
 | Id | Decision |
