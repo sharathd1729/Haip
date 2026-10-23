@@ -207,13 +207,13 @@ export function CallRow({
   ) : (
   <>
   {call.duration_seconds > 0 && (
-  <button type="button" onClick={e => { e.stopPropagation(); onPlay(); }} title="Play recording"
-  className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums px-2 py-1 rounded-lg hover:bg-[color:var(--muted)]"
+  <button type="button" onClick={e => { e.stopPropagation(); onPlay(); }} title="Play recording" aria-label="Play recording"
+  className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 text-xs font-semibold tabular-nums px-2 py-1 rounded-lg hover:bg-[color:var(--muted)] sm:min-h-0 sm:min-w-0 sm:justify-start"
   style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>
   <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "var(--muted)" }}>
   <Play size={11} className="text-primary" />
   </span>
-  {fmt(call.duration_seconds)}
+  <span className="hidden sm:inline">{fmt(call.duration_seconds)}</span>
   </button>
   )}
   {outcome && <span className={cn("hidden sm:inline text-[11px] font-semibold px-2 py-0.5 rounded-full border", outcome.tone)}>{outcome.label}</span>}
