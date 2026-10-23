@@ -793,6 +793,27 @@ def _already_drafted_for_latest_inbound(db, conversation_id: str) -> bool:
     ).first() is not None
 
 
+def _closing_acknowledgement(db, tenant_id: str, conversation_id: str) -> bool:
+    """The guest's unanswered burst only acknowledges or closes ("Okay", "thanks", "👍", "okay waiting to hear from you") and the
+    last message the guest got from us asked nothing. Live (Rathaa, Oct 2026): a bare "Okay" after our holding line opened an
+    "Ask a manager" consult. After a question of ours ("Shall I check the long weekend?") the same "Okay" is an answer and is
+    drafted as usual; with nothing from us yet, too."""
+    from app.models.conversation import MessageDirection
+    from app.services.agent_escalation_rules import is_acknowledgement
+    if not is_acknowledgement(unanswered_guest_text(db, tenant_id, conversation_id)):
+        return False
+    last = (
+        db.query(Message.body)
+        .filter(Message.tenant_id == tenant_id, Message.conversation_id == conversation_id,
+                Message.direction == MessageDirection.OUTBOUND, Message.is_internal.isnot(True),
+                # a held (unsent) AI draft is not something the guest saw
+                ~((Message.is_ai_generated.is_(True)) & (Message.was_approved.isnot(True))))
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    return last is not None and "?" not in (last[0] or "")
+
+
 def _known_enquiry(inquiry) -> dict:
     """What the CRM enquiry already records, for the classifier (never persisted back by this task)."""
     if not inquiry:
@@ -959,6 +980,12 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     trigger_summary_refresh(db=db, inquiry_id=str(inquiry.id), tenant_id=tenant_id, source="message")
                 except Exception as summary_exc:
                     log.warning("concierge_summary_refresh_skipped", conversation_id=conversation_id, error=str(summary_exc))
+            return
+
+        # "Okay" / "thanks" / "👍" after a message of ours that asked nothing: nothing to answer, so no "typing…", no model call,
+        # no draft, no consult. A forced "write a draft" click still drafts.
+        if not force and _closing_acknowledgement(db, tenant_id, conversation_id):
+            log.info("concierge_draft_skipped_acknowledgement", conversation_id=conversation_id, message_id=message_id)
             return
 
         # Let the guest see "typing…" while the draft is being generated --

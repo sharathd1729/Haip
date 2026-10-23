@@ -80,6 +80,28 @@ _STOP = frozenset("a an the to for of in on at is are am be we i you it this tha
                   "please hi hello hey me my our your what when how much any there".split())
 
 
+# A message that only acknowledges or closes ("Okay", "thanks", "👍", "okay waiting to hear from you"): no question, nothing new
+# to answer. Never a repeated question and never a reason to ask a person (live: a bare "Okay" opened a consult labelled "asked
+# the same thing again"). "yes" is left out on purpose: after our question it is an answer.
+_ACK_WORDS = frozenset("ok okay okk okkk okie okey k kk sure thanks thank thanku thankyou thx ty tq noted alright fine cool great "
+                       "good nice perfect done got".split())
+_ACK_FILLER = frozenset("you u so much very lot a will wait waiting we i am be for your reply response hear from to then it "
+                        "ji sir maam madam".split())
+
+
+def is_acknowledgement(text: str) -> bool:
+    """True for a burst made only of acknowledgement words (and filler like "waiting to hear from you"), or only emoji."""
+    t = (text or "").strip()
+    if not t or "?" in t:
+        return False
+    words = _WORD.findall(t.lower())
+    if not words:
+        return True                                   # emoji / punctuation only: "👍", "🙏🙏"
+    if len(words) > 8:
+        return False
+    return any(w in _ACK_WORDS for w in words) and all(w in _ACK_WORDS or w in _ACK_FILLER for w in words)
+
+
 # Words in a "destination" that are not a place ("a wildlife trip near Bangalore"): never a custom route by themselves.
 _GENERIC_PLACE = frozenset("trip tour travel nature wildlife beach beaches hill hills mountain mountains forest forests jungle weekend "
                            "getaway somewhere place places near nearby around bangalore bengaluru city drive road outing day days "
@@ -210,6 +232,8 @@ def _custom_route(signals: TurnSignals, v: Verdict) -> None:
 
 def _history(signals: TurnSignals, v: Verdict) -> None:
     """Loops: the same question asked again after an AI answer, or a third question the AI could only defer."""
+    if is_acknowledgement(signals.burst_text):
+        return                                        # "Okay" after three same-intent turns is not the same question again
     since_human = []
     for m in signals.history:
         if m.get("human"):

@@ -86,6 +86,8 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
         if svc.recently_taken_over(db, tenant.id, conversation.id):
             turn.hold, turn.note = True, "a person took this conversation over: the AI only drafts"
             return turn
+        if rules.is_acknowledgement(burst_text):
+            return turn                                              # "Okay" / "thanks" / "👍": nothing to ask a person about
         from app.services.sales_agent_service import OWN_WORK_STATUSES
         sales_owns = bool(sales_turn is not None and (getattr(sales_turn, "action_id", None)
                                                       or getattr(sales_turn, "status", None) in OWN_WORK_STATUSES))
