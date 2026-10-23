@@ -1,3 +1,4 @@
+import type { LeadValidity } from "@/components/leads/ValidityBadge";
 // Lead page (layout "C · Chat"): the two payloads it reads. GET /leads/{id} (LeadDetailSchema, backend/app/schemas/leads.py)
 // and GET /leads/{id}/feed (LeadFeedSchema, backend/app/schemas/lead_feed.py). Hand-written; keep in step with those files.
 import type { Actionable, AutopilotBlock } from "@/lib/actionable";
@@ -31,6 +32,8 @@ export interface LeadDetail {
   response_time_seconds?: number | null; response_time_status?: string | null;
   /** CRM reporting (migration 169): guest | b2b | partner; paid | organic | unknown (derived); a person's review. */
   lead_type?: string | null; came_from?: "paid" | "organic" | "unknown" | null; validation?: LeadValidation | null;
+  /** Migration 171 (lead_validity): the automatic rule's answer + the effective validity; the guest's starting city. */
+  validity?: LeadValidity | null; guest_location?: string | null;
 }
 
 export interface LeadValidation {
@@ -49,6 +52,7 @@ export interface FeedItem {
   summary_pending?: boolean; has_recording?: boolean; has_transcript?: boolean;
   /** A call logged by hand from a personal phone (POST /leads/{id}/log-call); its note is in `text`. */
   manual?: boolean;
+  imported?: boolean;          // uploaded evidence: a message from a WhatsApp chat export, or a call recording
   quote_id?: string | null; amount?: number | null; label?: string | null; shared_via?: string | null; status?: string | null;
   valid_until?: string | null; valid_until_text?: string | null;
   booking_id?: string | null; check_in?: string | null; check_out?: string | null; guests?: number | null; amount_restricted?: boolean;

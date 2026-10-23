@@ -203,18 +203,20 @@ def _message_item(m, guest_name: str, allowed: bool) -> FeedItemSchema:
         conversation_id=m.conversation_id, text=(m.body or "") if allowed else None, media_type=m.media_type,
         sender_name=sender, is_ai=bool(m.is_ai_generated), is_draft=draft, is_internal=bool(m.is_internal),
         is_template=bool(isinstance(meta, dict) and meta.get("template_id")), delivery=_val(m.delivery_state),
+        imported=getattr(m, "sender_kind", None) == "chat_export",
     )
 
 
 def _call_item(c, names: dict[str, str]) -> FeedItemSchema:
     answered = _call_answered(c)
-    pending = answered and not c.ai_summary and (c.transcription_status or "pending") in ("pending", "processing")
+    pending = answered and not c.ai_summary and (c.transcription_status or "pending") in ("pending", "queued", "processing")
     return FeedItemSchema(
         id=f"call-{c.id}", kind="call", at=_aware(c.created_at), channel="call", direction=_val(c.direction), call_id=c.id,
         duration_seconds=c.duration_seconds or 0, answered=answered, summary=c.ai_summary, summary_pending=bool(pending),
         has_recording=bool(c.recording_s3_key or c.recording_url_ivr), has_transcript=bool(c.transcript_json),
         by_name=names.get(c.agent_id) if c.agent_id else None,
-        manual=c.ivr_provider == "manual", text=c.disposition_note if c.ivr_provider == "manual" else None,
+        manual=c.ivr_provider == "manual", text=c.disposition_note if c.ivr_provider in ("manual", "upload") else None,
+        imported=c.ivr_provider == "upload",
     )
 
 

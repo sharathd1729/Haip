@@ -45,6 +45,17 @@ identity match.** The moment that first became true is stored once on the guest 
 | Payment | money on a stay (`stay_payments`) | amounts | `payments.collected` |
 | Lead to booking | of the people who became leads in the period, the share with a live booking so far | people / people (cohort) | `leads.conversion_cohort` |
 
+**Valid lead (23 Oct 2026, D-28) -- THE valid-lead definition when a workspace switches the rule on.** A *valid* enquiry is
+decided by `lead_validity.effective`: a PERSON's review (`inquiries.validation_status`, the lead page's "Valid enquiry?") wins;
+otherwise the workspace's automatic rule (`brand_config.lead_validity`, owner/manager, audited) decides from the record: a real
+name, a usable phone number and, when `allowed_locations` is set, a guest location in that list (Rathaa: Bengaluru / Bangalore,
+case- and space-insensitive; field `inquiries.guest_location`). A known other city is invalid ("Location: Hyderabad (not
+Bengaluru)"). A **missing check-in date never makes a lead invalid** (many genuine leads, e.g. organic calls, give no date yet):
+it is a note, "No check-in date yet", a follow-up hint; an unknown location is likewise a note unless `require_location`. B2B /
+partner enquiries are never valid guest leads. Rule off = valid only by a person's review (and the older stage-based counts stay
+as they were). Used by: Leads list (badge + filter Valid / Invalid / Not reviewed), daily lead report (`valid_now`), check-in
+coverage (valid leads with no date in their own total, `no_date_valid`), check-in month report ("Date not given yet" row).
+
 These are never added together and the dashboard never divides one by another unless the row says so. `leads.new` below is the
 older **enquiry** count and is kept for the pages that still read it; it is *not* a count of leads.
 
@@ -374,6 +385,9 @@ the older blocks stay in the payload for other readers.
 | D-23 | **Not replying** = a lead (phone) whose last message is OURS (a staff send, or an AI reply that was approved or sent on its own) and the guest has been silent 24 h or more; the lead is still open (not Sold, Lost, Unsuitable, Unqualified/spam); our message is inside the 14-day look-back. A call with them after our message clears it. Work-queue kind `no_reply`, also in My day; severity thresholds 48 h / 72 h / 5 d / 7 d (stale). |
 | D-24 | The monthly target is measured on **booked value** = rental (stay charge) + add-ons of bookings made in the month (IST days), against the tenant monthly target (`sales_targets`, scope tenant). Pace = days elapsed / days in month; "where you should be today" = target x pace. |
 | D-27 | (22 Oct 2026, sales meeting) **Guest lead KPIs count guests.** `inquiries.lead_type` guest / b2b / partner (migration 169). Every lead metric (`lead_metrics.people`: a person is left out only when EVERY enquiry they have is b2b / partner; `enquiry_counts`; `leads.new` = `kpi_metrics.lead_filters`), the work queue's `new_lead`, the dashboard funnel and the lead report (default) leave b2b / partner out. Human-reviewed validity (`validation_status`) is reported apart from the automatic stage numbers (daily lead report), and check-in coverage counts reviewed-valid else stage-valid open enquiries. Paid / organic is derived per lead (`lead_paid`), never stored. |
+| D-28 | (23 Oct 2026, sales meetings) **Valid lead = a person's review, else the automatic rule** (`lead_validity`, see "Valid lead" under the Lead definition). Criteria: name, phone, location in the allowed list (each configurable). A missing check-in date is a note, never a reason to call a lead invalid; undated valid leads are counted in their own row/total, never dropped and never placed on a date. B2B / partner never valid. Default OFF for every workspace; Rathaa ON (`scripts/seed_ratha_lead_settings.py`). |
+| D-29 | (23 Oct 2026, sales meetings) **Why a lead was won / lost is read from the evidence and confirmed by a person.** Reason catalogue in `lead_outcome.CATALOGUE`; a person closing a lead must pick one (staff typing is optional); the AI proposes one from the lead's own call transcripts and chats with verbatim quotes; rule moves record their own (dates passed = dates_unavailable). "Why we win / lose" counts CONFIRMED reasons (person, person confirming the AI, rule) apart from AI-only PROPOSED ones and from not recorded; they are never added into one figure. Period = date the lead entered its closed stage (IST) or its check-in date. |
+| D-30 | (23 Oct 2026) **By check-in month**: guest enquiries grouped by the month of `inquiries.check_in` (string; unreadable = skipped and counted, never guessed); valid = D-28; won / lost = the closed stage they are in NOW (a lead lost in October for a December trip counts in December); lost reasons = confirmed `outcome_reason`, else the older `lost_reason` mapped, never an unconfirmed AI proposal; booked revenue = booked value (D-24: rental + add-ons) of live bookings by CHECK-IN month, `revenue.read` only. Enquiries with no check-in date are one row, "Date not given yet" (created in the last 90 days or since the window's first month). |
 
 (The open questions numbered D-22 / D-23 in `OWNER_DASHBOARD_AUDIT.md` were renumbered D-25 / D-26 so the ids stay unique.)
 

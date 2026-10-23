@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
-  AtSign, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
+  AtSign, BadgeCheck, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
   FlaskConical, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
@@ -79,6 +79,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Team", href: "/dashboard/settings/team", icon: UsersRound, resource: "users" },
     { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
     { label: "Lead autopilot", href: "/dashboard/settings/lead-autopilot", icon: Bot, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "Lead rules", href: "/dashboard/settings/lead-rules", icon: BadgeCheck, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Lead workflows", href: "/dashboard/workflows", icon: Workflow, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "AI learning", href: "/dashboard/settings/learning", icon: FlaskConical, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },

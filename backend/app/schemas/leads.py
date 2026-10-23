@@ -168,6 +168,10 @@ class LeadCardSchema(BaseModel):
     lead_type: str = "guest"
     came_from: Optional[str] = None
     validation: Optional[dict] = None
+    # Migration 171 (lead_validity): {enabled, auto_valid, reasons, notes, location, location_field, status, source} -- the
+    # automatic rule's answer and the EFFECTIVE validity (a person's review first, B2B/partner never valid).
+    validity: Optional[dict] = None
+    guest_location: Optional[str] = None
 
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────

@@ -127,7 +127,8 @@ def test_catalog_settings_and_roles(client, db, tenant_and_user, capabilities_se
     r = client.post(f"{API}/workflows/templates/lead-pack", headers=owner_h)
     assert r.status_code == 200 and set(r.json()["created"]) == {
         "haip_missed_call_v1", "haip_tried_calling_v1", "haip_staff_lead_alert_v1", "haip_staff_escalation_v1", "haip_staff_digest_v1",
-        "haip_quote_followup_v1", "haip_quote_final_v1", "haip_checkin_v1", "haip_reengage_v1"}
+        "haip_quote_followup_v1", "haip_quote_final_v1", "haip_checkin_v1", "haip_reengage_v1",
+        "haip_package_share_v1"}
 
     _, agent_token = _user(db, tid, UserRole.CONCIERGE)
     assert client.get(f"{API}/workflows/catalog", headers=_h(agent_token)).status_code == 403

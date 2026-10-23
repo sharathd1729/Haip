@@ -6,6 +6,8 @@ Automatic numbers (computed from records; nobody typed them):
   handled       enquiries a person contacted that day: a message they sent (not an unsent AI draft, not a note) in the
                 enquiry's conversation, or a call they placed or answered on it; by that person
   in_valid_stage  of the day's received enquiries, those now in a "valid" pipeline stage and not marked spam
+  valid_now     of the day's received enquiries, those VALID by the one valid-lead definition (lead_validity.effective: a
+                person's review, else the workspace's automatic rule when it is on)
   conversions   bookings made that day (not cancelled) from an enquiry, by the enquiry's owner
 Human review (lead_review_service; never written by anything automatic):
   reviewed / valid / not_valid   reviews recorded that day, by the reviewer
@@ -31,13 +33,14 @@ from app.services import kpi_metrics
 from app.services.date_presets import ist_range_to_utc
 from app.services.lead_types import is_guest_sql
 
-AUTO_KEYS = ("received", "handled", "in_valid_stage", "conversions")
+AUTO_KEYS = ("received", "handled", "in_valid_stage", "valid_now", "conversions")
 HUMAN_KEYS = ("reviewed", "valid", "not_valid", "not_yet_reviewed")
 
 DEFINITIONS = {
     "received": "Enquiries created that day, by their owner.",
     "handled": "Enquiries a person contacted that day (a message they sent or a call on the enquiry), by that person.",
     "in_valid_stage": "Of the day's enquiries, those now in a valid pipeline stage (automatic, from the stage).",
+    "valid_now": "Of the day's enquiries, those valid now: a person's review, else the workspace's valid-lead rule (D-28).",
     "conversions": "Bookings made that day from an enquiry, by the enquiry's owner.",
     "reviewed": "Enquiries a person marked Valid or Not valid that day, by the reviewer.",
     "valid": "Of those, marked Valid.",
@@ -58,8 +61,15 @@ def build(db: Session, tenant_id: str, day: date) -> dict:
 
     guest = is_guest_sql(Inquiry.lead_type)
     valid_stages = {s.id for s in db.query(PipelineStage.id).filter(PipelineStage.tenant_id == tenant_id, PipelineStage.category == "valid")}
-    for inq in db.query(Inquiry).filter(Inquiry.tenant_id == tenant_id, guest, Inquiry.created_at >= start, Inquiry.created_at <= end):
+    from app.models.tenant import Tenant
+    from app.services import lead_validity
+    rule = lead_validity.settings_of(db.query(Tenant).filter_by(id=tenant_id).first())
+    received = db.query(Inquiry).filter(Inquiry.tenant_id == tenant_id, guest, Inquiry.created_at >= start, Inquiry.created_at <= end).all()
+    validity = lead_validity.classify_many(db, tenant_id, received, rule)
+    for inq in received:
         add(inq.assigned_to, "automatic", "received", inq.id)
+        if validity[inq.id]["status"] == "valid":
+            add(inq.assigned_to, "automatic", "valid_now", inq.id)
         if inq.stage_id in valid_stages and inq.qualification_status != kpi_metrics.UNQUALIFIED:
             add(inq.assigned_to, "automatic", "in_valid_stage", inq.id)
         if not inq.validation_status:
@@ -107,7 +117,7 @@ def build(db: Session, tenant_id: str, day: date) -> dict:
     agents = [{"agent_id": a, "name": names.get(a, "Former teammate") if a else "Unassigned", **counts(per[a])} for a in per]
     agents.sort(key=lambda r: (r["agent_id"] is None, -r["automatic"]["received"], -r["automatic"]["handled"], r["name"]))
     return {"date": iso, "timezone": "Asia/Kolkata", "agents": agents, "total": counts(total), "definitions": DEFINITIONS,
-            "lead_types": ["guest"]}
+            "lead_types": ["guest"], "validity_rule": {"enabled": rule["enabled"]}}
 
 
 def parse_day(value: Optional[str], today: date) -> date:

@@ -737,6 +737,7 @@ def get_leads_pipeline(
     scope_user_id: Optional[str] = None,
     autopilot: Optional[str] = None,
     lead_type: Optional[str] = None, came_from: Optional[str] = None,   # lead_list_extras (CRM reporting, 22 Oct 2026)
+    validity: Optional[str] = None,                                       # lead_validity (23 Oct 2026)
 ) -> LeadsListResponse:
     """
     Paginated pipeline query. One row per inquiry.
@@ -829,7 +830,7 @@ def get_leads_pipeline(
     if autopilot == "moved":
         from app.services.lead_autopilot_view import moved_filter
         q = q.filter(moved_filter(db, tenant_id))
-    q = lead_list_extras.apply_filters(db, q, tenant_id, lead_type, came_from)
+    q = lead_list_extras.apply_filters(db, q, tenant_id, lead_type, came_from, validity=validity)
 
     total = q.count()
 
@@ -889,6 +890,7 @@ def get_leads_pipeline(
         occasion=occasion, date_from=date_from, date_to=date_to,
         checkin_date_from=checkin_date_from, checkin_date_to=checkin_date_to,
         booked_date_from=booked_date_from, booked_date_to=booked_date_to, lead_type=lead_type, came_from=came_from,
+        validity=validity,
     )
 
     return LeadsListResponse(
@@ -957,7 +959,7 @@ def _build_stage_summary(
     checkin_date_to: Optional[str] = None,
     booked_date_from: Optional[str] = None,
     booked_date_to: Optional[str] = None,
-    lead_type: Optional[str] = None, came_from: Optional[str] = None,
+    lead_type: Optional[str] = None, came_from: Optional[str] = None, validity: Optional[str] = None,
 ) -> dict[str, PipelineStageMetaSchema]:
     """Compute count + potential_revenue per stage across all matching inquiries.
 
@@ -1009,7 +1011,7 @@ def _build_stage_summary(
         q = q.filter(Inq.check_in <= checkin_date_to)
     if booked_date_from or booked_date_to:
         q = q.filter(Inq.id.in_(_booked_inquiry_ids(db, tenant_id, booked_date_from, booked_date_to)))
-    q = lead_list_extras.apply_filters(db, q, tenant_id, lead_type, came_from)
+    q = lead_list_extras.apply_filters(db, q, tenant_id, lead_type, came_from, validity=validity)
 
     rows = q.group_by(PS.key).all()
 

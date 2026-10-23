@@ -90,6 +90,21 @@ def test_lead_stage_classify_routes_to_the_structured_output_tier(monkeypatch):
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 
+def test_outcome_reason_routes_to_the_structured_output_tier_with_gemini_fallback(monkeypatch):
+    """Why a lead was won / lost (lead_outcome.py): JSON with verbatim quotes, gpt-oss-20b on NVIDIA + Gemini fallback."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+    from app.core.prompt_versions import get_version
+
+    assert _TASK_ROUTES["outcome_reason"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["outcome_reason"] == 45
+    assert get_version("lead_outcome_reason") == "lead-outcome-reason-v1"
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("outcome_reason")
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
+
+
 def test_analyst_brief_routes_to_the_structured_output_tier_with_gemini_fallback(monkeypatch):
     """The AI business analyst's brief (services/analyst/brief.py): JSON output from computed facts, gpt-oss-20b on NVIDIA,
     retried once on Gemini (90 s budget) when a Gemini key is set."""

@@ -1,8 +1,10 @@
 """The Leads list's lead type, "came from" and human-review bits (CRM reporting, 22 Oct 2026), kept out of leads_service.py.
 
   apply_filters   ?lead_type=guest,b2b,... and ?came_from=paid|organic|unknown (lead_paid.filter_sql)
-  decorate        per card: lead_type, came_from (lead_paid.classify, batched for the page) and the validation review with
-                  the reviewer's name. A failure here never breaks the list (the caller logs it).
+  decorate        per card: lead_type, came_from (lead_paid.classify, batched for the page), the validation review with
+                  the reviewer's name, and ``validity`` (lead_validity.view: the rule's answer + reasons/notes and the
+                  EFFECTIVE validity, a person's review first). A failure here never breaks the list (the caller logs it).
+  ?validity=      valid | invalid (effective) | not_reviewed (no person's review)
 """
 from __future__ import annotations
 
@@ -12,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models.inquiry import Inquiry
 from app.models.user import User
-from app.services import lead_paid, lead_review_service, lead_types
+from app.services import lead_paid, lead_review_service, lead_types, lead_validity
 
 
 def parse_types(value: Optional[str]) -> list[str]:
@@ -31,13 +33,15 @@ def check_came_from(value: Optional[str]) -> Optional[str]:
 
 
 def apply_filters(db: Session, q, tenant_id: str, lead_type: Optional[str] = None, came_from: Optional[str] = None,
-                  model=Inquiry):
+                  model=Inquiry, validity: Optional[str] = None):
     types = parse_types(lead_type)
     if types:
         q = q.filter(model.lead_type.in_(types)) if lead_types.GUEST not in types else \
             q.filter((model.lead_type.in_(types)) | (model.lead_type.is_(None)))
     if check_came_from(came_from):
         q = q.filter(lead_paid.filter_sql(db, tenant_id, came_from))
+    if lead_validity.check_value(validity):
+        q = q.filter(model.id.in_(list(lead_validity.ids_matching(db, tenant_id, validity)) or ["-"]))
     return q
 
 
@@ -46,6 +50,7 @@ def decorate(db: Session, tenant_id: str, cards: list, inquiries: list) -> None:
     came = lead_paid.classify(db, tenant_id, inquiries)
     reviewers = {i.validated_by for i in inquiries if i.validated_by}
     names = dict(db.query(User.id, User.name).filter(User.tenant_id == tenant_id, User.id.in_(list(reviewers))).all()) if reviewers else {}
+    validity = lead_validity.classify_many(db, tenant_id, inquiries)
     for card in cards:
         inq = by_id.get(card.inquiry_id)
         if inq is None:
@@ -54,3 +59,5 @@ def decorate(db: Session, tenant_id: str, cards: list, inquiries: list) -> None:
         card.lead_type = view["lead_type"]
         card.validation = view["validation"] if inq.validation_status else None
         card.came_from = came.get(inq.id, lead_paid.UNKNOWN)
+        card.validity = validity.get(inq.id)
+        card.guest_location = inq.guest_location

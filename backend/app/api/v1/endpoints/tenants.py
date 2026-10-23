@@ -69,6 +69,8 @@ def update_my_tenant(
             raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")
         if "lead_playbooks" in incoming:
             raise HTTPException(status_code=422, detail="Change lead playbooks in Workflows (PUT /workflows/settings)")
+        if "lead_validity" in incoming or "reports" in incoming:
+            raise HTTPException(status_code=422, detail="Change lead rules in Settings > Lead rules (PUT /lead-validity/settings)")
         merged.update(incoming)
         tenant.brand_config = merged
 
@@ -82,6 +84,8 @@ def update_my_tenant(
             raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")
         if "lead_playbooks" in incoming:
             raise HTTPException(status_code=422, detail="Change lead playbooks in Workflows (PUT /workflows/settings)")
+        if "lead_validity" in incoming or "reports" in incoming:
+            raise HTTPException(status_code=422, detail="Change lead rules in Settings > Lead rules (PUT /lead-validity/settings)")
         merged.update(incoming)
         tenant.brand_config = merged
 

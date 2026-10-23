@@ -158,6 +158,18 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     validated_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     validated_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Migration 171. The guest's starting city/location (lead_validity: "location must be Bengaluru"). Filled from the
+    # origin of a chat-extracted "A to B" route when empty, editable on the lead page.
+    guest_location = Column(String(100), nullable=True)
+    # Why the lead was won / lost (lead_outcome.CATALOGUE). source: person | ai_confirmed | rule. ``outcome_proposal`` is
+    # the AI's proposal {reason, confidence, quotes, status, at, prompt_version} -- a suggestion, never the decision itself.
+    outcome_reason = Column(String(30), nullable=True)
+    outcome_reason_note = Column(String(300), nullable=True)
+    outcome_reason_source = Column(String(20), nullable=True)
+    outcome_decided_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    outcome_decided_at = Column(DateTime(timezone=True), nullable=True)
+    outcome_proposal = Column(JSON, nullable=True)
+
     # Metadata
     tags = Column(JSON, default=list)
     custom_fields = Column(JSON, default=dict)

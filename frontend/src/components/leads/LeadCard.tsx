@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { ValidityBadge, type LeadValidity } from "@/components/leads/ValidityBadge";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -67,6 +68,7 @@ export interface LeadCard {
   lead_type?: string | null;
   came_from?: "paid" | "organic" | "unknown" | null;
   validation?: { status: "valid" | "invalid" | null } | null;
+  validity?: LeadValidity | null;
 }
 
 export const LEAD_TYPE_LABEL: Record<string, string> = { guest: "Guest", b2b: "B2B / trade", partner: "Partner" };
@@ -391,6 +393,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
           </span>
           <AutopilotBadge move={lead.autopilot_move} />
+          <ValidityBadge validity={lead.validity} />
           {lead.lead_type && lead.lead_type !== "guest" && (
             <span className="whitespace-nowrap rounded-full bg-[var(--haip-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--haip-fg-2)]">{LEAD_TYPE_LABEL[lead.lead_type] ?? lead.lead_type}</span>
           )}

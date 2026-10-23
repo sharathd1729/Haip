@@ -51,7 +51,7 @@ export default async function LinksPage({ params }: { params: Promise<Params> })
         {!links.items.length && <p className="k-p">New posts will appear here.</p>}
         {(links.packages ?? []).length > 0 && <h2 className="k-h" style={{ fontSize: "1.25rem", marginTop: 12 }}>Packages</h2>}
         {(links.packages ?? []).map(p => (
-          <div key={p.key} className="k-card" style={{ display: "grid", gap: 8, padding: 16 }}>
+          <div key={p.key} id={`pkg-${p.key}`} className="k-card" style={{ display: "grid", gap: 8, padding: 16 }}>
             <strong>{p.name}</strong>
             <span className="k-p" style={{ margin: 0 }}>{p.length}{p.price ? ` · ${p.price}` : ""}</span>
             {p.summary && <p className="k-p" style={{ margin: 0 }}>{p.summary}</p>}
