@@ -17,6 +17,7 @@ import { LookVariants, ReelPlayer } from "./ReelAndLook";
 import { PromoteButton } from "./AdsTab";
 import { CanvaButton } from "./CreativePanel";
 import { WhatsAppDraft } from "./OutreachPanels";
+import { TrackingLinks } from "./TrackingLinks";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, studioHref, when, type ContentItem } from "./types";
 
 const LOOKS = [
@@ -185,6 +186,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
           )}
 
           {["approved", "scheduled", "published"].includes(item.status) && <PublishPanel itemId={item.id} canSchedule={canApprove} />}
+          {item.kind !== "story" && <TrackingLinks itemId={item.id} />}
           {["approved", "scheduled", "published"].includes(item.status) && item.kind !== "story" && role !== "viewer" && <PromoteButton contentId={item.id} />}
           <WhatsAppDraft item={item} />
 
