@@ -71,7 +71,13 @@ Rules for using the lead context:
 - The lead's STAGE and BOOKING STATUS are facts. Make "next_action" consistent with them: for a Sold lead the next action is
   about the stay/after-sales, for a Lost lead there is no sales push, and if a quote was already sent do not recommend sending
   one -- recommend following it up. Never describe a booking differently from BOOKING STATUS.
-- Messages marked [outbound] are what the team actually sent. Only an [outbound] message can have answered a question.
+- Each message line names who wrote it: [guest] is the guest; [us: team member], [us: AI assistant] and
+  [us: automated message] are what we sent this guest; [us: campaign broadcast] is a marketing message we sent to many
+  guests at once. Only a [us: team member] or [us: AI assistant] message can have answered a question.
+- "extracted" trip facts (dates, adults, children, party_size, occasion, budget, special_requests, route_mentioned) and
+  "unanswered_questions" / "requirements" come ONLY from [guest] lines and call notes, never from anything we sent: a
+  campaign's dates, group sizes, places or offers are not the guest's request. quoted_amount and upsell_offered are the only
+  fields read from our messages, and never from a campaign broadcast.
 - The Adults / Children lines in the lead context are what HAIP currently shows, not something the guest said: never copy
   them into "extracted", and never put 1 in "adults" for the person writing when they gave a group total.
 
@@ -587,9 +593,13 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         # into next year even though the guest clearly meant the year they
         # were speaking in.
         reference_date = None
+        guest_texts: list[str] = [str(s) for s, _ in calls if s]          # a headcount said on a call is the guest's too
+        our_texts: list[str] = []
         if conv_ids:
+            from app.services.message_author import GUEST, author_of
             messages = (
-                db.query(Message.body, Message.direction, Message.created_at)
+                db.query(Message.body, Message.direction, Message.created_at, Message.sender_kind, Message.sender_name,
+                         Message.is_ai_generated, Message.channel_metadata)
                 .filter(
                     Message.tenant_id == tenant_id,
                     Message.conversation_id.in_(conv_ids),
@@ -601,18 +611,21 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
                 .limit(30)
                 .all()
             )
-            for body, direction, created_at in messages:
+            for body, direction, created_at, *_ in messages:
                 dir_label = direction.value if hasattr(direction, "value") else str(direction)
                 if reference_date is None and dir_label == "inbound":
                     reference_date = created_at
             budget_left = MESSAGE_CHAR_BUDGET
             kept: list[str] = []
-            for body, direction, created_at in messages:                       # newest first, so the budget keeps the newest
+            # newest first, so the budget keeps the newest
+            for body, direction, created_at, sender_kind, sender_name, is_ai, meta in messages:
                 if not body:
                     continue
-                dir_label = direction.value if hasattr(direction, "value") else str(direction)
+                who = author_of(direction, sender_kind=sender_kind, sender_name=sender_name, is_ai_generated=is_ai,
+                                channel_metadata=meta)
+                (guest_texts if who == GUEST else our_texts).append(body)
                 stamp_ = created_at.date().isoformat() if created_at else "?"
-                line = f"[{dir_label}] {stamp_}: {body[:300]}"
+                line = f"[{who.lower().replace('us: ai', 'us: AI')}] {stamp_}: {body[:300]}"
                 if budget_left - len(line) < 0 and kept:
                     break
                 budget_left -= len(line)
@@ -679,6 +692,12 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             inquiry.ai_analysis = analysis
         if lead_analysis is not None:
             inquiry.ai_lead_analysis = lead_analysis
+        if extracted:
+            # A headcount only WE wrote (a campaign's "8 guests each") is never stored as the guest's party size.
+            from app.services.message_author import keep_guest_headcount
+            extracted, dropped = keep_guest_headcount(extracted, guest_texts, our_texts)
+            if dropped:
+                log.info("generate_ai_summary_headcount_not_from_guest", inquiry_id=inquiry_id, dropped=dropped)
         fields_written = _apply_extracted_fields(inquiry, extracted) if extracted else []
         db.add(inquiry)
         db.commit()

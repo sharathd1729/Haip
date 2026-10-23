@@ -4,6 +4,9 @@ Each rule reads facts HAIP already holds -- bookings, the inquiry's dates, quote
 most one Decision. The first rule that fires wins, in this order:
 
   1. booking_exists     a live booking (Stay) is linked to the lead           -> the tenant's closed-won stage (Sold)
+  1b. collab_request    the guest asked for a collaboration / barter deal and
+                        no person has answered (collab_requests.pending)    -> the tenant's collab-entry stage; while it
+                        waits NO other rule runs, so it is never auto-Lost (lead_autopilot_service blocks an AI Lost too)
   2. dates_passed       check-in is in the past and nothing was booked        -> closed-lost, reason "dates"
   3. explicit_decline   a person set the call outcome to Lost, or the guest's
                         LATEST message is a clear decline ("not interested",
@@ -65,6 +68,7 @@ class StageMap:
     valid_entry: object = None
     rnr: object = None
     qualified: object = None
+    collab: object = None
 
     @classmethod
     def load(cls, db: Session, tenant_id: str) -> "StageMap":
@@ -76,6 +80,7 @@ class StageMap:
         m.default_entry = next((s for s in stages if s.is_default_entry), None)
         m.valid_entry = next((s for s in stages if s.is_valid_lead_entry), None)
         m.rnr = next((s for s in stages if s.key == "rnr"), None)
+        m.collab = next((s for s in stages if s.is_collab_entry), None)
         anchor = m.valid_entry.order if m.valid_entry else None
         # "unsuitable" is a dead end (the work queue treats it as done), never where a qualified lead goes. Ratha had
         # Unsuitable and Active at the same order, and the first one by order was Unsuitable: autopilot moved every
@@ -149,6 +154,7 @@ class Signals:
     last_outbound: object        # Message or None (latest message the team actually sent)
     quotes: list                 # newest first
     stage_entered_at: Optional[datetime]
+    collab_ask: object = None    # a collaboration request no person has answered (collab_requests.pending)
 
 
 def gather(db: Session, tenant_id: str, inquiry) -> Signals:
@@ -178,10 +184,13 @@ def gather(db: Session, tenant_id: str, inquiry) -> Signals:
                     .order_by(Message.created_at.desc()).first())
     quotes = (db.query(InquiryQuote).filter_by(tenant_id=tenant_id, inquiry_id=inquiry.id)
               .order_by(InquiryQuote.created_at.desc()).all())
+    from app.services import collab_requests
+    collab_ask = collab_requests.pending(db, tenant_id, conv_ids, inquiry.guest_id)
     return Signals(
         has_phone=bool(guest is not None and guest.lead_identified_at is not None),
         stays=stays, calls=calls, last_inbound=last_in, last_outbound=last_out, quotes=quotes,
         stage_entered_at=_aware(inquiry.current_stage_entered_at or inquiry.created_at),
+        collab_ask=collab_ask,
     )
 
 
@@ -235,6 +244,15 @@ def evaluate(db: Session, tenant_id: str, inquiry, stages: StageMap, settings: d
         stay = sig.stays[0]
         return Decision(stages.won, "booking_exists", f"A booking ({stay.check_in}) is linked to this lead",
                         evidence=[{"kind": "booking", "id": stay.id, "quote": f"Booking {stay.check_in} to {stay.check_out}"}])
+
+    # 1b. A collaboration / barter request waiting for a person: the collab stage, never a sales Lost. A request older than a
+    # person's own move of the lead is not moved again; either way nothing else is decided while it waits.
+    ask = sig.collab_ask
+    if ask is not None:
+        if stages.collab is not None and (sig.stage_entered_at is None or _aware(ask.created_at) >= sig.stage_entered_at):
+            return Decision(stages.collab, "collab_request", "The guest asked for a collaboration / barter deal; a person decides",
+                            evidence=[{"kind": "message", "id": ask.id, "quote": _snippet(ask.body)}])
+        return None
 
     if not sig.has_phone or stages.lost is None:
         return _qualify(inquiry, stages, current, sig)

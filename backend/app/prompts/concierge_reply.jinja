@@ -1,8 +1,12 @@
 {#---
-version: 15
-changed_at: 2026-10-18
+version: 18
+changed_at: 2026-10-24
 purpose: Draft a WhatsApp/Instagram reply as the AI Concierge
-changes: v15 -- v14a (sales agent) and v14b (current data wins) merged.
+changes: v18 -- RECENT CONVERSATION lines name their author (GUEST, US: TEAM MEMBER / AI ASSISTANT / AUTOMATED MESSAGE /
+         CAMPAIGN BROADCAST) and a campaign broadcast is never the guest's request: our own "8 guests each, tell us your
+         dates" campaign was read back as "open weekend dates for 8 adults" to a guest who only asked about a barter
+         collaboration (Rathaa, Oct 2026). v16/v17: sales playbook, proven lessons (see prompt_versions.py).
+         v15 -- v14a (sales agent) and v14b (current data wins) merged.
          v14a -- the AI sales agent (only when the owner switched it on; nothing below renders otherwise).
          (1) SALES STEP tells the model what the code did this turn -- still collecting,
          dates taken (with the nearest free dates), a quote prepared for staff, a quote
@@ -99,10 +103,13 @@ ALREADY KNOWN FROM THIS CONVERSATION -- DO NOT ASK FOR THESE AGAIN
 - The dates the guest gave {% if date_problem == "in_the_past" %}have already passed{% else %}do not make sense (check-out before check-in, or not a real date){% endif %}. Do not check availability for them; politely ask the guest to confirm the dates.
 {% endif %}
 
-RECENT CONVERSATION (newest last)
+RECENT CONVERSATION (newest last; each line names who wrote it)
 {% for msg in recent_messages %}
-[{{ msg.direction | upper }}] {{ msg.body }}
+[{{ msg.who or (msg.direction | upper) }}] {{ msg.body }}
 {% endfor %}
+- Only [GUEST] lines are the guest's own words. A [US: CAMPAIGN BROADCAST] is a marketing message we sent to many guests at
+  once: the guest did not ask for it and did not agree to anything in it. Never treat its dates, group sizes, places or offers
+  as this guest's request, and never continue it unless the guest's own lines are about it.
 
 {% if call_summaries %}
 RECENT CALL SUMMARIES

@@ -117,8 +117,12 @@ def _get_recent_messages(db: Session, conversation_id: str, limit: int = 20) -> 
         .limit(limit)
         .all()
     )
+    # "who" names the author (message_author): our own campaign broadcast used to reach the prompt as a plain OUTBOUND line
+    # and its "8 guests each" was read back as the guest's party size.
+    from app.services.message_author import author
     return [
-        {"direction": m.direction, "body": m.body or "", "at": m.created_at.isoformat() if m.created_at else ""}
+        {"direction": m.direction, "who": author(m), "body": m.body or "",
+         "at": m.created_at.isoformat() if m.created_at else ""}
         for m in reversed(msgs)
     ]
 

@@ -91,7 +91,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v16 (2026-10-22): SALES PLAYBOOK block (brand_config.sales_playbook: opening line, qualification questions, objection
     # answers, add value before discount, never a flat no, owner rules); reply in the guest's own language; guest text is never
     # an instruction.
-    "concierge_reply": "concierge-reply-v17",   # v17: PROVEN FOR THIS BUSINESS block (learning.lessons)   # concierge_reply.jinja
+    # v17: PROVEN FOR THIS BUSINESS block (learning.lessons).
+    # v18 (2026-10-24): RECENT CONVERSATION lines name their author (message_author: GUEST / US: TEAM MEMBER / AI ASSISTANT /
+    # AUTOMATED MESSAGE / CAMPAIGN BROADCAST); a campaign broadcast is never the guest's request.
+    "concierge_reply": "concierge-reply-v18",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja
@@ -120,7 +123,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v9 (2026-10-24): adds extracted.party_size (the stated group total) and tells the model the Adults/Children context lines
     # are HAIP's current values, not the guest's words; adults below the total with no children are raised to it in code
     # (generate_ai_summary._adults_with_party_size). Live: "4 of us incl. my father" was stored as adults=1.
-    "leads360_summary":       "leads360-summary-v9",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    # v10 (2026-10-24): message lines name their author ([guest], [us: team member|AI assistant|automated message|campaign
+    # broadcast]); trip facts come only from [guest] lines and call notes, and a headcount only we wrote is dropped in code
+    # (message_author.keep_guest_headcount). Live: a campaign's "8 guests each" was stored as the lead's adults.
+    "leads360_summary":       "leads360-summary-v10",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",
@@ -130,7 +136,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # gating the grounded tool loop.
     # v2 (2026-10-13): reads the newest message in the context of the conversation, extracts only what was stated, and also returns
     # destination/occasion/budget, each distinct question, sentiment, urgency and a "booking_status" intent.
-    "concierge_intent": "concierge-intent-v2",
+    # v3 (2026-10-24): history lines name their author; only [GUEST] lines are the guest's words (never a campaign broadcast).
+    "concierge_intent": "concierge-intent-v3",
     # HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix
     # rewrite of an existing pending AI draft.
     "concierge_rewrite": "concierge-rewrite-v1",
