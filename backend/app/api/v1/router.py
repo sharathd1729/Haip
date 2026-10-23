@@ -29,6 +29,8 @@ from app.api.v1.endpoints import (
     quote_calculator,
     sales_agent,
     agent_consults,
+    analyst,
+    analyst_public,
     targets,
     work_queue,
     lead_activity,
@@ -65,6 +67,8 @@ api_router.include_router(quotes.router)
 api_router.include_router(quote_calculator.router)
 api_router.include_router(sales_agent.router)
 api_router.include_router(agent_consults.router)
+api_router.include_router(analyst.router)
+api_router.include_router(analyst_public.router)
 api_router.include_router(marketing_studio.router)
 api_router.include_router(website.router)
 api_router.include_router(website_public.router)
