@@ -15,7 +15,7 @@ pass (**pass^k**); the report also gives pass@1.
 
 ## Scenarios
 
-`backend/tests/fixtures/agent_bench/rathaa.json` (56 scenarios): grounded quotes for the Mysuru 1/2/3-day packages, a below-floor
+`backend/tests/fixtures/agent_bench/rathaa.json` (61 scenarios; the 5 tagged `learning` prove the learning loop's limits: a listed published package shows its price, a discount ask on it still consults, a listed b2b package is never quoted, prices on "watch" ask a person, a consult threshold hands a big quote to a person; scenario `setup` may carry `learning_base` and `learning`, and `World.keep` carries the bench gate's treatment into every scenario): grounded quotes for the Mysuru 1/2/3-day packages, a below-floor
 price, New Year (no published rate -> consult, no price), 10 people overnight, the JLR safari (billed at actuals; an invented
 figure is held), self-drive (no), partner/B2B and commission asks, discounts (English, Hinglish, Hindi and Kannada script; policy
 autonomous / draft), angry and frustrated guests, "talk to a person", Hindi and Kannada questions (reply language), custom Kerala /

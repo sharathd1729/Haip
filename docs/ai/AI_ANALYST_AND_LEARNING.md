@@ -119,6 +119,12 @@ draft_for_approval, watch = consult; never looser than the owner's own agent pol
 - "No clear difference" after 14 days: the base setting stays; consider a bigger change or a different metric.
 - Every kept change has an Undo on the Analyst page (Changes & tests).
 
+Proof (tests/test_learning_limits.py + the 5 `learning` bench scenarios): a small booking, a discount above the maximum and a
+peak date are refused; Rathaa's policy (`requires_approval_above_percent` 0) means every discount still needs an OK even with
+prices on act; below the floor is refused by the price engine; a one-day Build Your Own to the furthest published stop is over
+the 8 h/day limit; an unpublished route and the b2b package are never offered; an arm can only show a listed published price
+or tighten the consult threshold.
+
 ## 7. Not built / not verified
 
 - No AI discount is ever offered in chat yet: `discount_decision` is the gate a future reply step must call; the discount trigger

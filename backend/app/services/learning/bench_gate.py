@@ -105,10 +105,12 @@ def _isolated_runner(treated: dict, scenarios: list[dict]) -> list[dict]:
 def run_with(db, world, scenarios: list[dict]) -> list[dict]:
     """Run scenarios on an already-built world whose brand_config carries the treatment."""
     from app.services import agent_bench
-    keep = {k: v for k, v in (world.tenant.brand_config or {}).items() if k in ("sales_playbook", "learning_base")}
+    cfg = world.tenant.brand_config or {}
+    world.keep = {k: cfg[k] for k in ("learning_base",) if k in cfg}      # every scenario starts from the treatment
+    playbook = cfg.get("sales_playbook")
     out = []
     for s in scenarios:
-        world.tenant.brand_config = {**keep}
+        world.tenant.brand_config = {"sales_playbook": playbook} if playbook else {}
         db.commit()
         try:
             res = agent_bench.run_scenario(db, world, s)
