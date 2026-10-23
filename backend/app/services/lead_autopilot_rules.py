@@ -17,6 +17,8 @@ most one Decision. The first rule that fires wins, in this order:
                         for quote_silence_days                              -> closed-lost, reason "no_response"
   6. no_reply           the team contacted the guest last and nothing came
                         back for silence_days                               -> closed-lost, reason "no_response"
+                        ("the team" = a person's message or our call; the AI's own replies, holding
+                        lines and automatic messages never count: a guest waiting on us is not Lost)
   7. qualified          an Unqualified lead has a phone -> the valid-lead entry stage; a General Enquiry / RNR lead
                         with a phone AND a stated requirement (dates, route or headcount) -> the first open "valid"
                         stage after the entry (Active)
@@ -151,7 +153,7 @@ class Signals:
     stays: list
     calls: list                  # newest first, this guest
     last_inbound: object         # Message or None (guest's latest real message)
-    last_outbound: object        # Message or None (latest message the team actually sent)
+    last_outbound: object        # Message or None (latest message a PERSON sent or approved: the contact rule)
     quotes: list                 # newest first
     stage_entered_at: Optional[datetime]
     collab_ask: object = None    # a collaboration request no person has answered (collab_requests.pending)
@@ -177,11 +179,12 @@ def gather(db: Session, tenant_id: str, inquiry) -> Signals:
         base = db.query(Message).filter(Message.tenant_id == tenant_id, Message.conversation_id.in_(conv_ids),
                                         Message.is_internal.is_(False))
         last_in = base.filter(Message.direction == MessageDirection.INBOUND).order_by(Message.created_at.desc()).first()
-        # An AI draft nobody sent is not contact with the guest.
-        last_out = (base.filter(Message.direction == MessageDirection.OUTBOUND,
-                                or_(Message.is_ai_generated.is_(False), Message.is_ai_generated.is_(None),
-                                    Message.was_approved.is_(True), Message.sent_autonomously.is_(True)))
-                    .order_by(Message.created_at.desc()).first())
+        # Our contact = the ONE contact rule (work_queue_signals): a message a PERSON sent or approved. The AI's own replies and
+        # holding lines, playbook/system messages and campaign broadcasts (old rows too) are not: a guest waiting on US must
+        # never read as "we spoke last, they went silent" (live: the AI's "we'll get back to you" made a waiting guest Lost).
+        from app.services.work_queue_signals import contact_message_filters, is_legacy_campaign
+        last_out = next((m for m in base.filter(*contact_message_filters()).order_by(Message.created_at.desc()).limit(20)
+                         if not is_legacy_campaign(m.sender_name, m.channel_metadata)), None)
     quotes = (db.query(InquiryQuote).filter_by(tenant_id=tenant_id, inquiry_id=inquiry.id)
               .order_by(InquiryQuote.created_at.desc()).all())
     from app.services import collab_requests
