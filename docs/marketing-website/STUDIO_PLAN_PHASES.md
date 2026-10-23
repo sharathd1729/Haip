@@ -60,7 +60,9 @@ needs the owner (keys, Meta/Google approvals). External services are OFF by defa
 
 - The collector runs only in the `research_collector` service (`docker compose --profile research up -d
   research_collector`), consumes only the `research_collect` queue, never logs in and never receives a tenant token or
-  HAIP's Meta app. Note: it shares `backend/.env` to write its rows, so the container holds the same server secrets.
+  HAIP's Meta app. It has its OWN env, `backend/.env.collector` (template `backend/.env.collector.example`): database,
+  Redis, proxy, Apify and a put-only storage key. No `ENCRYPTION_KEY`, so it cannot decrypt any tenant token, and no AI
+  or Meta keys: reading the videos is handed to the normal worker (`marketing_research.queue_reads`).
 - Not built: Pinterest Trends (needs a Pinterest app + business OAuth); yt-dlp (instaloader returns the video URL).
 
 ## Phase 3: the strategist

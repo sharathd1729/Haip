@@ -6,8 +6,9 @@
   marketing_research.collect_signals      Google / YouTube / Places / Keyword Planner / hashtags / audio (queue default)
   marketing_research.collect_all          beat Sunday 22:00: queue the collector for workspaces that switched it on
   marketing_research.collect_competitors  queue research_collect ONLY (the separate, opt-in, logged-out collector
-                                          worker, docker-compose profile "research"); then competitor ads; then queues
-                                          the video reader for kept Reels
+                                          worker, docker-compose profile "research", own env backend/.env.collector):
+                                          public posts + competitor ads, raw rows and media only; then queue_reads
+  marketing_research.queue_reads          normal worker: queue the video reader for kept Reels (AI never in the collector)
   marketing_research.read_video           one Reel into the swipe file (queue default)
   marketing_research.sweep_media          beat daily: delete kept competitor media past its retention
 Never retried automatically: the next scheduled run picks up anything left; a failure is logged per source.
@@ -58,26 +59,46 @@ def collect_all():
     return {"queued": len(ids)}
 
 
+def collector_run(db, tenant_id: str, *, download=None) -> dict:
+    """What the isolated collector does: public data in, raw rows and media out. No AI, no tenant token (it runs with
+    backend/.env.collector, which has no ENCRYPTION_KEY and no AI keys); reading the videos is queued for the normal
+    worker (`marketing_research.queue_reads`)."""
+    from app.models.tenant import Tenant
+    from app.services import marketing_research_sources as src
+    tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+    out = src.collect_competitors(db, tenant, download=download)
+    db.commit()
+    try:
+        out["ads"] = src.collect_ads(db, tenant)
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 -- ads are a separate source; posts are already saved
+        db.rollback()
+        out["ads"] = f"failed: {type(exc).__name__}"
+    queue_reads.delay(tenant_id)
+    return {k: v for k, v in out.items() if k != "errors"} | {"errors": len(out.get("errors", []))}
+
+
 @shared_task(name="marketing_research.collect_competitors")
 def collect_competitors(tenant_id: str):
+    from app.services import marketing_research_sources as src
+    with SessionLocal() as db:
+        out = collector_run(db, tenant_id, download=src.download_public)
+    log.info("research_competitors_collected", tenant_id=tenant_id, posts=out.get("posts"))
+    return out
+
+
+@shared_task(name="marketing_research.queue_reads")
+def queue_reads(tenant_id: str):
+    """On the normal worker (it has the AI keys): queue the video reader for newly kept Reels."""
     from app.models.tenant import Tenant
     from app.services import marketing_research_sources as src
     from app.services import marketing_video_read as reader
     with SessionLocal() as db:
         tenant = db.query(Tenant).filter_by(id=tenant_id).one()
-        out = src.collect_competitors(db, tenant, download=src.download_public)
-        db.commit()
-        try:
-            out["ads"] = src.collect_ads(db, tenant)
-            db.commit()
-        except Exception as exc:  # noqa: BLE001 -- ads are a separate source; posts are already saved
-            db.rollback()
-            out["ads"] = f"failed: {type(exc).__name__}"
-        to_read = reader.to_read(db, tenant_id) if src.ready(db, tenant, "video_reading") else []
-    for post_id in to_read:
+        ids = reader.to_read(db, tenant_id) if src.ready(db, tenant, "video_reading") else []
+    for post_id in ids:
         read_video.delay(tenant_id, post_id)
-    log.info("research_competitors_collected", tenant_id=tenant_id, posts=out.get("posts"), reads=len(to_read))
-    return {k: v for k, v in out.items() if k != "errors"} | {"errors": len(out.get("errors", []))}
+    return {"queued": len(ids)}
 
 
 @shared_task(name="marketing_research.read_video")

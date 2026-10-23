@@ -59,6 +59,7 @@ services:
   # Competitor collector (Marketing Studio plan phase 2): OFF unless started with
   # `docker compose --profile research up -d research_collector`. Logged out, public data only, egress through
   # RESEARCH_PROXY_URL; never uses a tenant's Instagram/Facebook token or HAIP's Meta app. Consumes research_collect only.
+  # Its OWN env (backend/.env.collector, see .env.collector.example): no ENCRYPTION_KEY, no AI or Meta keys.
   research_collector:
     profiles: ["research"]
     build:
@@ -66,7 +67,7 @@ services:
       dockerfile: Dockerfile.collector
     container_name: haip_research_collector
     restart: unless-stopped
-    env_file: ./backend/.env
+    env_file: ./backend/.env.collector
     environment:
       - ENVIRONMENT=production
       - DB_POOL_SIZE=1

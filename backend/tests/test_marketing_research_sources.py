@@ -204,3 +204,32 @@ def test_reel_is_read_into_the_swipe_file(db, ws):  # noqa: F811
     assert item.status == "ready" and item.pacing == "medium" and "extra" not in item.reading
     assert reader.swipe_file(db, tid)[0]["hook_text"] == "We woke up here" and reader.to_read(db, tid) == []
     assert db.query(MarketingSwipeItem).filter_by(tenant_id=tid).count() == 1
+
+
+# ── Collector isolation (it runs with backend/.env.collector: no ENCRYPTION_KEY, no AI keys) ────────────────────────
+
+def test_collector_run_never_decrypts_a_tenant_token_and_hands_ai_to_the_normal_worker(db, ws, monkeypatch):  # noqa: F811
+    from app.core.encryption import encrypt_credentials
+    from app.models.integration import Integration
+    from app.workers.tasks import marketing_research_tasks as tasks
+    tid = ws["tenant"].id
+    _competitor(db, tid)
+    db.add(Integration(tenant_id=tid, kind="instagram_fb", status="active", config={"ig_user_id": "IG1"},
+                       credentials_kms_blob=encrypt_credentials({"access_token": "secret"})))
+    db.commit()
+    monkeypatch.setattr(settings, "RESEARCH_PROXY_URL", "socks5://proxy:1080")
+    monkeypatch.setattr(settings, "APIFY_TOKEN", "apify")
+    _on(db, ws, collector=True, ad_library=True, video_reading=True, audio=True)
+    monkeypatch.delenv("ENCRYPTION_KEY", raising=False)              # as in the collector container
+
+    def no_decrypt(*a, **k):
+        raise AssertionError("the collector path must never decrypt a tenant token")
+    monkeypatch.setattr("app.core.encryption.decrypt_credentials", no_decrypt)
+    monkeypatch.setattr(src.social, "providers", lambda: [_Apify()])
+    monkeypatch.setattr(src.social, "ApifyProvider", lambda: type("Ads", (), {"ads": lambda self, q, n: []})())
+    monkeypatch.setattr("app.adapters.vision.gemini.describe", no_decrypt)   # no AI in the collector either
+    queued = []
+    monkeypatch.setattr(tasks.queue_reads, "delay", lambda *a: queued.append(a))
+    out = tasks.collector_run(db, tid)
+    assert out["posts"] == 1 and out["ads"] == 0 and queued == [(tid,)]
+    assert db.query(MarketingSwipeItem).filter_by(tenant_id=tid).count() == 0

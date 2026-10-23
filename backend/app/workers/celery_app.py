@@ -275,6 +275,7 @@ celery_app.conf.update(
         "marketing_research.collect_all":            {"queue": "default"},
         # ONLY the separate opt-in collector worker consumes this queue (docker-compose.prod.yml profile "research").
         "marketing_research.collect_competitors":    {"queue": "research_collect"},
+        "marketing_research.queue_reads":            {"queue": "default"},
         "marketing_research.read_video":             {"queue": "default"},
         "marketing_research.sweep_media":            {"queue": "default"},
         "marketing_strategy.write_doc":              {"queue": "default"},

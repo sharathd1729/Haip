@@ -93,21 +93,31 @@ def _fb(db: Session, tenant_id: str) -> Optional[tuple[str, str]]:
     return (creds.get("access_token"), ig) if creds.get("access_token") and ig else None
 
 
+def _state(key: str, on: bool, fb_ok: Callable[[], bool]) -> dict:
+    """One source's status. `fb_ok` (which decrypts the Facebook Login token) is called ONLY for a source that needs
+    that connection, so the collector path (collector, ad_library) never touches a tenant token."""
+    label, evidence, keys, needs_fb = SOURCES[key]
+    missing = [k for k in keys if not getattr(settings, k, "")]
+    if key == "collector" and not settings.RESEARCH_PROXY_URL:
+        missing.append("RESEARCH_PROXY_URL")
+    no_fb = needs_fb and not fb_ok()
+    return {"key": key, "label": label, "evidence": evidence, "on": on, "missing_keys": missing,
+            "needs_facebook_login": no_fb, "ready": on and not missing and not no_fb}
+
+
 def status(db: Session, tenant: Tenant) -> list[dict]:
     on = get_settings(tenant)
-    fb = _fb(db, tenant.id) is not None
-    out = []
-    for key, (label, evidence, keys, needs_fb) in SOURCES.items():
-        missing = [k for k in keys if not getattr(settings, k, "")]
-        if key == "collector" and not settings.RESEARCH_PROXY_URL:
-            missing.append("RESEARCH_PROXY_URL")
-        out.append({"key": key, "label": label, "evidence": evidence, "on": on[key], "missing_keys": missing,
-                    "needs_facebook_login": needs_fb and not fb, "ready": on[key] and not missing and not (needs_fb and not fb)})
-    return out
+    cache: dict = {}
+
+    def fb_ok() -> bool:
+        if "fb" not in cache:
+            cache["fb"] = _fb(db, tenant.id) is not None
+        return cache["fb"]
+    return [_state(key, on[key], fb_ok) for key in SOURCES]
 
 
 def ready(db: Session, tenant: Tenant, key: str) -> bool:
-    return next(s["ready"] for s in status(db, tenant) if s["key"] == key)
+    return _state(key, get_settings(tenant)[key], lambda: _fb(db, tenant.id) is not None)["ready"]
 
 
 def queries(db: Session, tenant: Tenant) -> list[str]:
