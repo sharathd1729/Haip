@@ -152,3 +152,36 @@ def test_ai_view_shows_extra_hours_at_actuals_and_gst_on_top_but_never_the_floor
     assert view["extra_hour_charge"] == {"amount": "2500.00"} and view["gst_added_on_top"] is True
     assert view["billed_at_actuals"] == ["JLR safari, meals and activities (paid to JLR)"]
     assert "30000" not in json.dumps(view) and "floor" not in json.dumps(view)
+
+
+# ── 23 Oct owner price changes ─────────────────────────────────────────────────────────────────────────────
+
+def _pkgs():
+    return {key: data for kind, key, data in imp.build(CATALOGUE) if kind == "package"}
+
+
+def test_circuits_for_two_to_five_nights_land_between_one_and_two_lakh_before_gst():
+    pkgs = _pkgs()
+    for key in ("wild-karnataka", "western-ghats-sea", "hampi", "sacred-rathaa", "grand-karnataka"):
+        rate = pkgs[key]["rates"][0]
+        assert (rate["amount"], rate["floor_amount"], rate["unit"]) == ("33000", "28000", "day")
+    day = 33000
+    assert [day * (n + 1) for n in (2, 3, 4, 5)] == [99000, 132000, 165000, 198000]
+    assert all(100000 * 0.99 <= day * (n + 1) <= 200000 for n in (2, 3, 4, 5))
+
+
+def test_extra_guests_and_hours_are_cheaper_and_overnights_take_six():
+    pkgs = _pkgs()
+    coorg = pkgs["mysuru-coorg"]
+    assert coorg["extra_hour_charge"] == {"per_hour": "1500"}
+    assert coorg["extra_guest_charge"] == {"free_guests": 4, "per_guest": "1500", "unit": "day"}
+    assert coorg["max_guests"] == 6
+    assert "First 30 minutes past the package time are free" in coorg["inclusions"]
+
+
+def test_partner_base_is_the_vehicle_only_with_driver_and_fuel_extra():
+    base = _pkgs()["rathaa-base-b2b"]
+    assert base["audience"] == "b2b" and base["rates"][0]["amount"] == "15000"
+    assert not any("driver" in i.lower() for i in base["inclusions"])
+    assert {"Commercial driver (mandatory)", "Fuel"} <= set(base["at_actuals"])
+    assert "included_km_per_day" not in base and "extra_km_charge" not in base and "extra_guest_charge" not in base
