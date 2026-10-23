@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody, CardHeader, StatusPill, type Tone } from "@/components/ui/kit";
-import { STUDIO, btn, btnPrimary, inputCls, studioError, when, type Asset } from "./types";
+import { STUDIO, btn, btnPrimary, inputCls, openOAuth, studioError, when, type Asset } from "./types";
 
 interface Job { id: string; provider: "canva" | "higgsfield"; kind: string; status: string; error: string | null; external_url: string | null; duration: number | null; created_at: string }
 export interface Creative {
@@ -24,19 +24,11 @@ export function useCreative() {
     refetchInterval: d => (d.state.data?.jobs.some(j => j.status === "pending" || j.status === "running") ? 8000 : false) });
 }
 
-function canvaConnectUrl(token: string | null): string | null {
-  if (!token) return null;
-  const raw = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
-  const base = raw.endsWith("/api/v1") ? raw : `${raw}/api/v1`;
-  return `${base}/marketing/studio/canva/oauth-start?token=${encodeURIComponent(token)}`;
-}
-
 export function CreativePanel({ photos }: { photos: Asset[] }) {
   const { data: session } = useSession();
   const role = session?.user?.role;
   const isOwner = role === "owner";
   const canConnect = role === "owner" || role === "manager";
-  const token = (session as unknown as { accessToken?: string })?.accessToken ?? null;
   const qc = useQueryClient();
   const { toast } = useToast();
   const q = useCreative();
@@ -59,7 +51,6 @@ export function CreativePanel({ photos }: { photos: Asset[] }) {
   if (!c) return null;
   const model = c.video.models.find(m => m.default) ?? c.video.models[0];
   const usable = photos.filter(p => p.status !== "pending_review" && p.mime_type.startsWith("image/") && !(p.tags?.people && !p.people_ok));
-  const connectUrl = canvaConnectUrl(token);
 
   return (
     <Card>
@@ -68,11 +59,11 @@ export function CreativePanel({ photos }: { photos: Asset[] }) {
         <section className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-semibold">Canva {c.canva.connected ? <StatusPill tone="success" className="ml-1">Connected</StatusPill> : null}</p>
-            <p className="text-xs text-[var(--haip-fg-subtle)]">{!c.canva.available ? "Not set up on this HAIP server yet."
+            <p className="text-xs text-[var(--haip-fg-subtle)]">{!c.canva.available ? "Not set up on this HAIP server yet: ask your HAIP admin to set CANVA_CLIENT_ID and CANVA_CLIENT_SECRET."
               : c.canva.connected ? "Open a draft and choose “Make in Canva” to fill one of your brand templates."
               : "Needs Canva Pro, Teams or Enterprise with brand templates."}</p>
           </div>
-          {c.canva.available && !c.canva.connected && canConnect && connectUrl && <a className={btnPrimary} href={connectUrl}>Connect Canva</a>}
+          {c.canva.available && !c.canva.connected && canConnect && <button type="button" className={btnPrimary} onClick={() => openOAuth(`${STUDIO}/canva/oauth-start`)}>Connect Canva</button>}
         </section>
 
         <section className="space-y-2 border-t border-[var(--haip-border)] pt-4">

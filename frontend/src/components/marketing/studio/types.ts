@@ -1,7 +1,24 @@
 // Marketing Studio API shapes (backend/app/api/v1/endpoints/marketing_studio.py) and small shared helpers.
 import type { Tone } from "@/components/ui/kit";
+import { getToken } from "@/lib/api";
 
 export const STUDIO = "/marketing/studio";
+
+/** A Studio section by its tab value; the page reads ?tab= (deep links from the setup checklist and banners). */
+export const studioHref = (tab: string) => `/dashboard/marketing/studio?tab=${encodeURIComponent(tab)}`;
+
+/** Open a backend OAuth start page (Facebook, Google, Canva, Instagram). Those pages take the HAIP token as ?token=
+ *  because they are plain browser links; fetch a FRESH one first (the session refreshes it), so an old tab never lands
+ *  on a raw 401 page. */
+export async function openOAuth(path: string, newTab = false): Promise<void> {
+  const tab = newTab ? window.open("", "_blank") : null;      // opened inside the click, or the browser blocks it
+  const token = await getToken(true);
+  const raw = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+  const base = raw.endsWith("/api/v1") ? raw : `${raw}/api/v1`;
+  const url = token ? `${base}${path}?token=${encodeURIComponent(token)}` : "/login";
+  if (tab) tab.location.href = url;
+  else window.location.assign(url);
+}
 
 export type Kind = "post" | "carousel" | "story" | "promo" | "reel";
 export type ItemStatus = "draft" | "in_review" | "approved" | "rejected" | "archived" | "scheduled" | "published";
@@ -22,6 +39,10 @@ export interface ContentItem {
   generation_status: "idle" | "pending" | "failed"; generation_error: string | null; created_by: string | null;
   created_at: string; updated_at: string;
   current?: Version | null; versions?: Version[]; decisions?: Decision[];
+  /** Drafts only: 1-based slots without a library photo. Non-empty = "Needs photos" (the server refuses to submit). */
+  needs_photos?: number[];
+  /** Approved items only: why autopilot could not schedule it (latest try). */
+  auto_schedule_error?: string | null;
 }
 
 export interface Finding {

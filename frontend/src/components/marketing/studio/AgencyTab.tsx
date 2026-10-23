@@ -20,10 +20,12 @@ const STEP_LABEL: Record<string, string> = { audit: "Audit", competitors: "Compe
 
 /** "Drafts: 2 of 7" while drafting; otherwise the status, and why a step was skipped. */
 function stepText(s: Step): string {
-  const d = (s.detail ?? {}) as { drafted?: number; of?: number; reason?: string; rewritten?: number; held?: number; submitted?: number };
+  const d = (s.detail ?? {}) as { drafted?: number; of?: number; reason?: string; rewritten?: number; held?: number; submitted?: number;
+    needs_photos?: number };
   if (s.step === "draft" && s.status === "running" && d.of) return `${d.drafted ?? 0} of ${d.of}`;
   if (s.step === "draft" && d.rewritten) return `${s.status}, ${d.rewritten} rewritten after review`;
-  if (s.step === "submit" && d.held) return `${d.submitted ?? 0} sent, ${d.held} held back`;
+  if (s.step === "submit" && (d.held || d.needs_photos))
+    return [`${d.submitted ?? 0} sent`, d.held && `${d.held} held back`, d.needs_photos && `${d.needs_photos} need photos`].filter(Boolean).join(", ");
   return s.status;
 }
 const STATUS_TONE: Record<string, Tone> = { done: "success", failed: "danger", skipped: "neutral", running: "info", needs_approval: "warning" };

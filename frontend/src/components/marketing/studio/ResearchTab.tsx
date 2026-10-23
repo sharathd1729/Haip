@@ -8,7 +8,7 @@ import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill } from "@/components/ui/kit";
-import { STUDIO, btn, btnPrimary, inputCls, studioError, when } from "./types";
+import { STUDIO, btn, btnPrimary, inputCls, openOAuth, studioError, when } from "./types";
 
 interface Competitor { id: string; handle: string; display_name: string | null; followers: number | null; last_snapshot_at: string | null; last_error: string | null }
 interface MeasuredComp { handle: string; followers: number | null; followers_source: string | null; median_engagement: number | null; posts_known: number; manual_posts: number; median_engagement_rate: number | null; posts_per_week: number | null; formats: Record<string, number> }
@@ -45,7 +45,6 @@ function AddPost({ competitorId, onDone }: { competitorId: string; onDone: () =>
 export function ResearchTab() {
   const { data: session } = useSession();
   const role = session?.user?.role;
-  const accessToken = (session as unknown as { accessToken?: string })?.accessToken ?? null;
   const qc = useQueryClient();
   const { toast } = useToast();
   const [handle, setHandle] = useState("");
@@ -90,9 +89,6 @@ export function ResearchTab() {
   if (q.isLoading) return <Skeleton className="h-64 w-full" />;
   if (q.isError || !q.data) return <Card><EmptyState title="Could not load research" hint={studioError(q.error, "Try again.")} /></Card>;
   const d = q.data;
-  const rawBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
-  const apiBase = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
-  const connectUrl = accessToken ? `${apiBase}/marketing/studio/research/facebook/oauth-start?token=${encodeURIComponent(accessToken)}` : null;
   const fbOn = d.facebook.status === "active";
 
   return (
@@ -107,7 +103,7 @@ export function ResearchTab() {
           ? role === "owner" && <button type="button" className={btn} onClick={() => { if (confirm("Disconnect Facebook? Competitor numbers that came from it will be deleted.")) disconnect.mutate(); }}>Disconnect</button>
           : <span className="flex flex-wrap gap-2">
               {role === "owner" && <button type="button" className={d.facebook.login_available ? btn : btnPrimary} onClick={() => setPasting(!pasting)}>{pasting ? "Cancel" : "Use a System User token"}</button>}
-              {d.facebook.login_available && connectUrl && <a className={btnPrimary} href={connectUrl}>Connect Facebook</a>}
+              {d.facebook.login_available && <button type="button" className={btnPrimary} onClick={() => openOAuth(`${STUDIO}/research/facebook/oauth-start`)}>Connect Facebook</button>}
             </span>)}
         {pasting && !fbOn && (
           <form className="grid w-full gap-2" onSubmit={e => { e.preventDefault(); if (sysToken.trim()) saveToken.mutate(); }}>

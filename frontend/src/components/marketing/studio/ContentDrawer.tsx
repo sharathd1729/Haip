@@ -17,7 +17,7 @@ import { LookVariants, ReelPlayer } from "./ReelAndLook";
 import { PromoteButton } from "./AdsTab";
 import { CanvaButton } from "./CreativePanel";
 import { WhatsAppDraft } from "./OutreachPanels";
-import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
+import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, studioHref, when, type ContentItem } from "./types";
 
 const LOOKS = [
   { value: "overlay", label: "Text on photo", hint: "Dark fade with white text" },
@@ -90,7 +90,8 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
         <div className="flex flex-wrap items-center gap-2">
           {!locked && <button type="button" className={btn} disabled={!dirty || busy} onClick={() => save.mutate()}>{save.isPending ? "Saving…" : "Save as new version"}</button>}
           {(item.status === "draft" || item.status === "rejected") && (
-            <button type="button" className={btnPrimary} disabled={dirty || busy} onClick={() => act.mutate("submit")}>Send for approval</button>
+            <button type="button" className={btnPrimary} disabled={dirty || busy || !!item.needs_photos?.length} onClick={() => act.mutate("submit")}
+              title={item.needs_photos?.length ? "Add a photo to every slot first." : undefined}>Send for approval</button>
           )}
           {item.status === "in_review" && canApprove && (
             <>
@@ -110,6 +111,15 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
           {item.generation_status === "pending" && <p className="rounded-lg bg-[var(--haip-status-info-bg)] p-3 text-sm text-[var(--haip-status-info-fg)]">The AI is writing a version…</p>}
           {item.generation_status === "failed" && item.generation_error && (
             <p className="rounded-lg bg-[var(--haip-status-danger-bg)] p-3 text-sm text-[var(--haip-status-danger-fg)]">AI could not write this: {item.generation_error}</p>
+          )}
+          {!!item.needs_photos?.length && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--haip-status-warning-bg)] p-3 text-sm text-[var(--haip-status-warning-fg)]">
+              <span>Needs photos: {item.kind === "post" || item.kind === "promo" ? "this post has no photo yet" : `no photo in ${item.needs_photos.join(", ")}`}. It can be sent for approval once every slot has one.</span>
+              <a className={btn} href={studioHref("library")}>Upload photos</a>
+            </div>
+          )}
+          {item.auto_schedule_error && (
+            <p className="rounded-lg bg-[var(--haip-status-danger-bg)] p-3 text-sm text-[var(--haip-status-danger-fg)]">Not scheduled automatically: {item.auto_schedule_error}</p>
           )}
           {item.status === "approved" && <p className="rounded-lg bg-[var(--haip-status-success-bg)] p-3 text-sm text-[var(--haip-status-success-fg)]">Approved. Schedule it below to post to Instagram. Any edit creates a new version that needs approval again.</p>}
 
