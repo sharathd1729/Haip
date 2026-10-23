@@ -53,6 +53,7 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "check_out": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-out/return date, else null. Same year-resolution rule as check_in above.>",
     "adults": "<integer number of adults ONLY if explicitly stated, else null. If the guest gives a total group/party size without breaking it into adults and children (e.g. '5 guests', 'party of 6', 'we are 4'), use that total number here -- guests overwhelmingly phrase headcount this way, and it is still a literal readback of what they said, not a guess. Only leave this null if the guest genuinely gave no headcount at all, or if they explicitly split out children and gave NO adult figure.>",
     "children": "<integer number of children ONLY if explicitly stated, else null>",
+    "party_size": "<integer TOTAL number of people travelling (adults + children) ONLY if the guest stated a headcount ('4 of us', 'we are 4', 'family of 5', '6 people'), else null. Count the whole group, never just the person writing or the people they named one by one (e.g. 'my 84-year-old father').>",
     "occasion": "<short phrase, e.g. 'anniversary', ONLY if explicitly stated, else null>",
     "budget": "<number, the guest's stated budget in INR, ONLY if explicitly stated, else null>",
     "special_requests": "<short phrase of a specific request the guest explicitly made (dietary, accessibility, celebration setup, etc.), else null>",
@@ -71,6 +72,8 @@ Rules for using the lead context:
   about the stay/after-sales, for a Lost lead there is no sales push, and if a quote was already sent do not recommend sending
   one -- recommend following it up. Never describe a booking differently from BOOKING STATUS.
 - Messages marked [outbound] are what the team actually sent. Only an [outbound] message can have answered a question.
+- The Adults / Children lines in the lead context are what HAIP currently shows, not something the guest said: never copy
+  them into "extracted", and never put 1 in "adults" for the person writing when they gave a group total.
 
 Be specific and concise. If data is missing, state what's unknown rather than
 inventing it. "extracted" fields are a strict, literal readback of what the
@@ -122,7 +125,7 @@ def _clean_analysis(raw: dict) -> dict:
     return out
 _EXTRACTED_KEYS = (
     "check_in", "check_out", "adults", "children", "occasion", "budget", "special_requests",
-    "route_mentioned", "quoted_amount", "upsell_offered", "upsell_accepted",
+    "route_mentioned", "quoted_amount", "upsell_offered", "upsell_accepted", "party_size",
 )
 
 
@@ -286,6 +289,25 @@ def _coerce_number(value):
     return None
 
 
+def _adults_with_party_size(adults, children, party_size, stored_children=None):
+    """The adult count to write, given the stated group total.
+
+    Live bug (Oct 2026): a guest wrote that they were 4 people including her 84-year-old father; the summary said a group of
+    4 but adults stayed 1 -- the model filled "adults" with the one person it could name (or the speaker) and nothing
+    checked it against the headcount. When the guest gave a total and the adults plus known children fall short of it,
+    the rest are adults: "4 of us" with no children = 4 adults, "4 of us, 1 child" = 3. Children come from this run, else
+    from what is on file. A larger adult count than the total is left as the model gave it (it is the more specific one)."""
+    if isinstance(party_size, bool) or party_size is None or not (0 < party_size <= 100):
+        return adults
+    kids = children if children is not None and 0 <= children <= 100 else (stored_children or 0)
+    implied = int(party_size) - int(kids)
+    if implied <= 0:
+        return adults
+    if adults is None or not (0 < adults <= 100) or int(adults) + int(kids) < int(party_size):
+        return implied
+    return adults
+
+
 def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     """Fill in Inquiry trip fields the guest explicitly stated in chat.
 
@@ -336,7 +358,12 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         inquiry.dates_from_chat = True
         written.append("check_out")
 
-    adults = _coerce_number(extracted.get("adults"))
+    adults = _adults_with_party_size(
+        _coerce_number(extracted.get("adults")),
+        _coerce_number(extracted.get("children")),
+        _coerce_number(extracted.get("party_size")),
+        inquiry.children,
+    )
     if adults is not None and 0 < adults <= 100 and int(adults) != inquiry.adults:
         inquiry.adults = int(adults)
         written.append("adults")
