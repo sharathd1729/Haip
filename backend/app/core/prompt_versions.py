@@ -141,6 +141,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Lead workflows follow-up draft (lead_followup_draft.py): one short follow-up a person approves; never a price.
     # v2 (2026-10-22): the owner's follow-up style from the sales playbook is added to the user message when set.
     "lead_followup_draft": "lead-followup-draft-v2",
+    # Why a lead was won / lost (lead_outcome.py): one catalogue reason + confidence + verbatim quotes from the evidence.
+    "lead_outcome_reason": "lead-outcome-reason-v1",
     # Marketing Studio (services/marketing_prompts.py).
     # v2: median baseline + stop/keep/test, pillars with position/rotation/out-of-scope, first comment and
     # carousel/story rules (techniques from Ootto-AI/claude-content-skills, MIT; see THIRD_PARTY_NOTICES.md).

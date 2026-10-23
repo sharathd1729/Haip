@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 import { Check, Flag, Loader2 } from "@/lib/icons";
 import { Drawer } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
-import { LOST_REASON_LABEL } from "@/lib/leadNextStep";
+import { OutcomeSheet } from "./OutcomeSheet";
 import type { LeadActionKey, PipelineStage } from "./types";
 
-export type SheetKey = "stage" | "lost" | "owner" | "task" | "more" | null;
+export type SheetKey = "stage" | "lost" | "won" | "owner" | "task" | "more" | null;
 
 function errText(e: unknown, fallback: string) {
   const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
@@ -38,8 +38,9 @@ function useLeadPatch(inquiryId: string, done: () => void, okTitle: (body: Recor
   });
 }
 
-export function StageSheet({ open, onClose, inquiryId, stages, currentKey, canReverse, onLost }: {
+export function StageSheet({ open, onClose, inquiryId, stages, currentKey, canReverse, onLost, onWon }: {
   open: boolean; onClose: () => void; inquiryId: string; stages: PipelineStage[]; currentKey?: string | null; canReverse: boolean; onLost: () => void;
+  onWon?: (stage: PipelineStage) => void;
 }) {
   const [backTo, setBackTo] = useState<PipelineStage | null>(null);
   const [reason, setReason] = useState("");
@@ -50,6 +51,7 @@ export function StageSheet({ open, onClose, inquiryId, stages, currentKey, canRe
   const pick = (s: PipelineStage) => {
     if (s.key === currentKey) return onClose();
     if (s.is_closed_lost) return onLost();
+    if (s.is_closed_won && onWon) return onWon(s);
     if (current && s.order < current.order && !s.is_closed_won) { setBackTo(s); return; }
     patch.mutate({ stage_id: s.id });
   };
@@ -85,29 +87,11 @@ export function StageSheet({ open, onClose, inquiryId, stages, currentKey, canRe
   );
 }
 
+// Mark lost = the Won / Lost dialog in "lost" mode (OutcomeSheet: the AI's reason from the evidence, one tap to confirm).
 export function LostSheet({ open, onClose, inquiryId, name, lostStage }: {
   open: boolean; onClose: () => void; inquiryId: string; name: string; lostStage?: PipelineStage;
 }) {
-  const [note, setNote] = useState("");
-  const patch = useLeadPatch(inquiryId, () => { setNote(""); onClose(); }, () => "Marked lost · reminders stopped");
-  return (
-    <Drawer open={open} onOpenChange={o => { if (!o) onClose(); }} title="Mark as lost"
-      description={`Why did ${name} not book? Reminders stop; if ${name} writes again it shows in My day.`}>
-      {!lostStage ? <p className="text-[14px] text-[var(--haip-fg-muted)]">This workspace has no Lost stage. Add one in Leads → Pipeline settings.</p> : (
-        <div className="grid gap-2">
-          <label className="grid gap-1 text-[12.5px] font-semibold text-[var(--haip-fg-2)]">Note (optional)
-            <input className={input} value={note} onChange={e => setNote(e.target.value)} placeholder="Anything the team should know" />
-          </label>
-          {Object.entries(LOST_REASON_LABEL).map(([k, label]) => (
-            <button key={k} type="button" disabled={patch.isPending} className={cn(opt, "border-[var(--haip-border)] disabled:opacity-60")}
-              onClick={() => patch.mutate({ stage_id: lostStage.id, lost_reason: k, ...(note.trim() ? { lost_note: note.trim() } : {}) })}>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-    </Drawer>
-  );
+  return <OutcomeSheet open={open} onClose={onClose} inquiryId={inquiryId} name={name} kind="lost" stage={lostStage} />;
 }
 
 export function OwnerSheet({ open, onClose, inquiryId, ownerId }: { open: boolean; onClose: () => void; inquiryId: string; ownerId?: string | null }) {

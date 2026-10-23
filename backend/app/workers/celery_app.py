@@ -50,6 +50,8 @@ celery_app = Celery(
         "app.workers.tasks.generate_ai_summary",
         # Lead autopilot: stage decisions from calls, chats, bookings and timing
         "app.workers.tasks.lead_autopilot",
+        # Why a lead was won / lost: the AI's proposal from the lead's evidence (a person confirms)
+        "app.workers.tasks.lead_outcome",
         # Lead workflows: missed-call / no-answer WhatsApp playbooks + the lead journey sweep
         "app.workers.tasks.lead_playbooks",
         "app.workers.tasks.agent_consults",
@@ -311,6 +313,9 @@ celery_app.conf.update(
         # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
         "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
         "lead_autopilot.sweep_all_tenants":           {"queue": "ai_scoring"},
+        # Won/lost reason proposals (lead_outcome.py): LLM work, same queue as the autopilot classifier.
+        "lead_outcome.propose":                       {"queue": "ai_scoring"},
+        "lead_outcome.sweep_all_tenants":             {"queue": "ai_scoring"},
         # Lead workflows (lead_playbooks.py): the playbook steps queue WhatsApp sends, so they share that queue.
         "lead_playbooks.on_call":                     {"queue": "whatsapp"},
         "lead_playbooks.on_callback_tap":             {"queue": "whatsapp"},
@@ -406,6 +411,12 @@ celery_app.conf.beat_schedule = {
     },
     # Lead autopilot, time-based rules (dates passed, unanswered calls, silence). 07:45 IST, before the team starts;
     # rules only, no LLM. Minute 45 is clear of the other jobs.
+    # Won/lost reasons for leads closed without one (a booking marked Sold, an AI move): the AI proposes, a person confirms.
+    # 02:35 IST, a quiet hour clear of the other jobs; at most 40 leads per workspace per night.
+    "lead-outcome-nightly-sweep": {
+        "task": "lead_outcome.sweep_all_tenants",
+        "schedule": crontab(hour=2, minute=35),
+    },
     "lead-autopilot-daily-sweep": {
         "task": "lead_autopilot.sweep_all_tenants",
         "schedule": crontab(hour=7, minute=45),

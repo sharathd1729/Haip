@@ -25,6 +25,7 @@ import { CallPanel, useClickToCall } from "@/components/leads/lead-page/CallPane
 import { LogCallSheet } from "@/components/leads/lead-page/LogCallSheet";
 import { LeadDetailsPanel, StepButton, stepButtons, type LeadPerms } from "@/components/leads/lead-page/LeadDetailsPanel";
 import { LostSheet, MoreSheet, OwnerSheet, StageSheet, TaskSheet, type SheetKey } from "@/components/leads/lead-page/LeadSheets";
+import { OutcomeSheet } from "@/components/leads/lead-page/OutcomeSheet";
 import { useReveal } from "@/components/leads/lead-page/PanelSections";
 import { SalesActionCard } from "@/components/sales/SalesActionCard";
 import { SignalDrawer } from "@/components/leads/SignalDrawer";
@@ -63,6 +64,7 @@ export default function LeadDetailPage() {
   const wide = useWide();
   const [panelOpen, setPanelOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetKey>(null);
+  const [wonStage, setWonStage] = useState<PipelineStage | null>(null);
   const [signalOpen, setSignalOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const composer = useRef<ComposerHandle>(null);
@@ -91,21 +93,6 @@ export default function LeadDetailPage() {
   const refresh = useMutation({
     mutationFn: () => api.post(`/leads/${inquiryId}/refresh-summary`),
     onSuccess: () => { toast({ title: "Summary queued", description: "It is rewritten in the background." }); setTimeout(() => qc.invalidateQueries({ queryKey: ["lead", inquiryId] }), 8000); },
-  });
-
-  // "Mark Sold" from the next step: the same audited stage move as the stage menu (PATCH /inquiries/{id} {stage_id}).
-  const markSold = useMutation({
-    mutationFn: (stageId: string) => api.patch(`/inquiries/${inquiryId}`, { stage_id: stageId }),
-    onSuccess: () => {
-      toast({ variant: "success", title: "Marked Sold · logged" });
-      qc.invalidateQueries({ queryKey: ["lead", inquiryId] });
-      qc.invalidateQueries({ queryKey: ["lead-feed", inquiryId] });
-      qc.invalidateQueries({ queryKey: ["leads"] });
-    },
-    onError: (e: unknown) => {
-      const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      toast({ variant: "error", title: "Not changed", description: typeof d === "string" ? d : "Please try again." });
-    },
   });
 
   const lead = leadQ.data;
@@ -166,7 +153,7 @@ export default function LeadDetailPage() {
       case "mark_sold": {
         const won = stages.find(st => st.is_closed_won);
         if (!won) { toast({ variant: "error", title: "This workspace has no Sold stage", description: "Add one in Leads → Pipeline settings." }); return; }
-        markSold.mutate(won.id);
+        setWonStage(won); setSheet("won");   // the Won dialog: why they booked (AI proposal from the evidence), then the move
         return;
       }
       case "review_draft":
@@ -288,7 +275,9 @@ export default function LeadDetailPage() {
           onSuccess={() => { qc.invalidateQueries({ queryKey: ["lead", inquiryId] }); qc.invalidateQueries({ queryKey: ["lead-feed", inquiryId] }); }} />
       )}
       <StageSheet open={sheet === "stage"} onClose={() => setSheet(null)} inquiryId={inquiryId} stages={stages} currentKey={lead.stage_key}
-        canReverse={["owner", "manager"].includes(role)} onLost={() => setSheet("lost")} />
+        canReverse={["owner", "manager"].includes(role)} onLost={() => setSheet("lost")} onWon={s => { setWonStage(s); setSheet("won"); }} />
+      <OutcomeSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} kind="won"
+        stage={wonStage ?? stages.find(s => s.is_closed_won)} />
       <LostSheet open={sheet === "lost"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} lostStage={stages.find(s => s.is_closed_lost)} />
       <OwnerSheet open={sheet === "owner"} onClose={() => setSheet(null)} inquiryId={inquiryId} ownerId={lead.assigned_agent_id} />
       <TaskSheet open={sheet === "task"} onClose={() => setSheet(null)} inquiryId={inquiryId} guestId={lead.guest_id} meId={me?.id ?? user?.id} name={name} />

@@ -394,11 +394,14 @@ def _move_lead_stage(db: Session, user: User, tenant_id: str, args: dict) -> Any
             actor_user_id=user.id,
             actor_role=user.role.value if hasattr(user.role, "value") else str(user.role),
             reason=args.get("reason"),
+            outcome={"reason": args.get("outcome_reason"), "note": args.get("outcome_note")} if args.get("outcome_reason") else None,
+            by_person=True,
         )
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
     except InvalidStageTransition as exc:
-        raise ToolError(exc.detail) from exc
+        detail = exc.detail
+        raise ToolError(detail.get("message") if isinstance(detail, dict) else detail) from exc
     return {"inquiry_id": inquiry.id, "stage_id": inquiry.stage_id}
 
 
@@ -787,6 +790,8 @@ TOOLS: list[dict] = [
                 "inquiry_id": {"type": "string"},
                 "new_stage_id": {"type": "string"},
                 "reason": {"type": "string", "description": "Required for backward moves"},
+                "outcome_reason": {"type": "string", "description": "Required when moving to a won/lost stage. Lost: price, dates_unavailable, location, no_response, chose_alternative, group_size, plans_cancelled, invalid_lead, other. Won: package_fit, price_value, occasion, referral_repeat, quick_response, other"},
+                "outcome_note": {"type": "string", "description": "Optional note on why"},
             },
             ["inquiry_id", "new_stage_id"],
         ),

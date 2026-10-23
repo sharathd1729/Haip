@@ -320,7 +320,7 @@ def test_marking_lost_needs_a_reason(client, db, tenant_and_user, capabilities_s
     inq.stage_id = active.id
     db.commit()
     r = client.patch(f"/api/v1/inquiries/{inq.id}", headers=h, json={"stage_id": lost.id})
-    assert r.status_code == 422 and "why the lead was lost" in r.json()["detail"]
+    assert r.status_code == 422 and "why the lead was lost" in r.json()["detail"]["message"]
     r = client.patch(f"/api/v1/inquiries/{inq.id}", headers=h, json={"stage_id": lost.id, "lost_reason": "budget_mismatch"})
     assert r.status_code == 200
 

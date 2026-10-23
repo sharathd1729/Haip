@@ -10,6 +10,7 @@ from app.models.inquiry import Inquiry, InquiryStage
 from app.models.conversation import Conversation, Message
 from app.schemas.inquiry import InquiryOut, InquiryCreateRequest, InquiryUpdateRequest
 from app.services import inquiry_service
+from app.services import lead_outcome
 from app.services.inquiry_service import get_or_create, update_stage, update_stage_by_id, InvalidStageTransition
 from pydantic import BaseModel
 
@@ -108,17 +109,16 @@ def get_inquiry(
     return inq
 
 
-def _require_lost_reason(db: Session, tenant_id: str, updates: dict) -> None:
-    """A person marking a lead Lost must say why (lead workflows phase 3): the lost reasons feed the reports and the
-    win-back playbook. The lead autopilot and the services supply their own reason and do not come through here."""
-    target_lost = False
+def _closing_kind(db: Session, tenant_id: str, updates: dict):
+    """won | lost when this PATCH moves the lead to a closed stage, else None."""
     if updates.get("stage_id"):
         from app.models.pipeline_stage import PipelineStage
-        target_lost = bool(db.query(PipelineStage.is_closed_lost).filter_by(id=updates["stage_id"], tenant_id=tenant_id).scalar())
-    elif updates.get("stage"):
-        target_lost = str(updates["stage"]).lower() == InquiryStage.LOST.value
-    if target_lost and not updates.get("lost_reason"):
-        raise HTTPException(status_code=422, detail="Choose why the lead was lost: open the lead and use Mark Lost.")
+        row = db.query(PipelineStage.is_closed_won, PipelineStage.is_closed_lost).filter_by(id=updates["stage_id"], tenant_id=tenant_id).first()
+        return ("won" if row[0] else "lost" if row[1] else None) if row else None
+    if updates.get("stage"):
+        st = str(updates["stage"]).lower()
+        return "won" if st == InquiryStage.BOOKED.value else "lost" if st in (InquiryStage.LOST.value, InquiryStage.GHOSTED.value) else None
+    return None
 
 
 @router.patch("/{inquiry_id}", response_model=InquiryOut)
@@ -142,7 +142,9 @@ def update_inquiry(
     # migrated over. Both share the same actor-role/reason backward-move
     # guardrails, just against different underlying data.
     actor_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
-    _require_lost_reason(db, current_user.tenant_id, updates)
+    # A person closing a lead must say why it was won / lost (lead_outcome): outcome_reason + optional note; an older
+    # client's lost_reason still counts. Checked inside BOTH stage paths (422 outcome_reason_required).
+    outcome = lead_outcome.from_body(updates, _closing_kind(db, current_user.tenant_id, updates))
     if "stage_id" in updates:
         try:
             update_stage_by_id(
@@ -153,6 +155,8 @@ def update_inquiry(
                 actor_user_id=current_user.id,
                 actor_role=actor_role,
                 reason=reason,
+                outcome=outcome,
+                by_person=True,
             )
         except InvalidStageTransition as e:
             raise HTTPException(status_code=422, detail=e.detail)
@@ -173,6 +177,8 @@ def update_inquiry(
                 actor_user_id=current_user.id,
                 actor_role=actor_role,
                 reason=reason,
+                outcome=outcome,
+                by_person=True,
             )
         except InvalidStageTransition as e:
             raise HTTPException(status_code=422, detail=e.detail)
