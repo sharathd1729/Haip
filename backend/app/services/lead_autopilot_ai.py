@@ -36,7 +36,10 @@ _CHAR_BUDGET = 6000
 
 SYSTEM_PROMPT = """You are the sales-pipeline assistant of a luxury hospitality business in India (caravan and villa stays).
 Decide whether this lead's stage should change, using ONLY the conversation and call notes given. Each message or call
-is tagged with a reference like [m:abc] or [c:abc].
+is tagged with a reference like [m:abc] or [c:abc]. Each message also names who wrote it: [guest] is the guest;
+[us: team member], [us: AI assistant] and [us: automated message] are what we sent; [us: campaign broadcast] is a marketing
+message we sent to many guests at once. Only [guest] lines show what the guest wants or declined; a guest not answering a
+campaign broadcast or an automated message is not a decline, and our own words are never the guest's evidence.
 
 Respond with ONLY a JSON object (no markdown fences, no other text):
 {
@@ -71,6 +74,7 @@ def build_context(db: Session, tenant_id: str, inquiry, stages: StageMap) -> tup
     from sqlalchemy import or_
     from app.models.call import Call
     from app.models.conversation import Conversation, Message
+    from app.services.message_author import author
 
     current = stages.by_id(inquiry.stage_id)
     lines = [
@@ -109,7 +113,8 @@ def build_context(db: Session, tenant_id: str, inquiry, stages: StageMap) -> tup
                 continue
             ref = f"m:{m.id}"
             body = _snippet(m.body)
-            line = f"[{ref}] [{getattr(m.direction, 'value', m.direction)}] {m.created_at.date() if m.created_at else '?'}: {body}"
+            who = author(m).lower().replace("us: ai", "us: AI")             # message_author: never a bare [outbound]
+            line = f"[{ref}] [{who}] {m.created_at.date() if m.created_at else '?'}: {body}"
             if budget - len(line) < 0 and kept:
                 break
             budget -= len(line)
