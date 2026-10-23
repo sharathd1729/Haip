@@ -7,6 +7,7 @@ import { PageHeader, Tabs } from "@/components/ui/kit";
 import { DailyLeadReport } from "@/components/reports/DailyLeadReport";
 import { CheckinCoverage } from "@/components/reports/CheckinCoverage";
 import { OutcomeReasons } from "@/components/reports/OutcomeReasons";
+import { CheckinMonths } from "@/components/reports/CheckinMonths";
 import api from "@/lib/api";
 import { DOWNLOAD_TIMEOUT_MS, downloadErrorMessage, saveBlob, toBlob } from "@/lib/download";
 import { cn } from "@/lib/utils";
@@ -201,7 +202,7 @@ export default function ReportsPage() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role ?? "";
   const canCrmReports = role === "owner" || role === "manager";
-  const [tab, setTab] = useState<"builder" | "daily" | "coverage" | "outcomes">("builder");
+  const [tab, setTab] = useState<"builder" | "daily" | "coverage" | "months" | "outcomes">("builder");
   const view = canCrmReports ? tab : "builder";
 
   const {
@@ -349,10 +350,11 @@ export default function ReportsPage() {
         <div className="max-w-4xl space-y-4 sm:space-y-5">
           {canCrmReports && (
             <Tabs label="Reports" value={view} onChange={v => setTab(v as typeof tab)} className="w-full sm:w-fit"
-              items={[{ value: "builder", label: "Build a report" }, { value: "daily", label: "Daily lead report" }, { value: "coverage", label: "Check-in coverage" }, { value: "outcomes", label: "Why we win / lose" }]} />
+              items={[{ value: "builder", label: "Build a report" }, { value: "daily", label: "Daily lead report" }, { value: "coverage", label: "Check-in coverage" }, { value: "months", label: "By check-in month" }, { value: "outcomes", label: "Why we win / lose" }]} />
           )}
           {view === "daily" && <DailyLeadReport />}
           {view === "coverage" && <CheckinCoverage />}
+          {view === "months" && <CheckinMonths />}
           {view === "outcomes" && <OutcomeReasons />}
           {view === "builder" && (<>
 

@@ -8,6 +8,7 @@ import api from "@/lib/api";
 import { Loader2 } from "@/lib/icons";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui/kit";
+import { DailyLeadEmailCard } from "@/components/settings/DailyLeadEmailCard";
 
 interface Rule {
   enabled: boolean; require_name: boolean; require_phone: boolean; require_check_in: boolean; require_location: boolean;
@@ -84,6 +85,7 @@ export default function LeadRulesPage() {
           )}
         </CardBody>
       </Card>
+      <DailyLeadEmailCard />
     </div>
   );
 }
