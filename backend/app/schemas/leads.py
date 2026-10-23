@@ -90,6 +90,8 @@ class LeadCardSchema(BaseModel):
                                         # the inquiry detail page's cosmetic display,
                                         # not for board column grouping (see stage_key)
     stage_key: Optional[str] = None    # tenant's pipeline_stages.key, or None if unset
+    # True while the guest waits past the work queue's "reply" SLA (work_queue_service.SLA_MINUTES); computed on read
+    # from the response time below (leads_service._sla_breached), not the dead inquiries.sla_breached column.
     sla_breached: bool = False
 
     # Trip intent
@@ -132,7 +134,7 @@ class LeadCardSchema(BaseModel):
 
     # Response time — computed on read from messages, never stored (same
     # pattern as profile_completeness_pct). The stored first_response_at /
-    # sla_breached columns are dead: nothing writes them.
+    # sla_breached columns are dead: nothing writes them (sla_breached above is computed from this).
     # status: "waiting" (guest's latest message unanswered; seconds = wait so
     # far) | "responded" (seconds = inbound→reply gap) | None (no messages).
     # Across multiple conversations, any waiting thread beats a responded

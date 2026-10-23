@@ -117,7 +117,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v8 (2026-10-18): adds the actionable block (services/ai_actionable.py): next_best_action with owner/channel/
     # deadline, blocking_objection + counter, missed_revenue (rupees only when grounded), temperature + reason,
     # haip_updates. Old keys unchanged; analysis.next_action is now the one-line form of next_best_action.
-    "leads360_summary":       "leads360-summary-v8",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    # v9 (2026-10-24): adds extracted.party_size (the stated group total) and tells the model the Adults/Children context lines
+    # are HAIP's current values, not the guest's words; adults below the total with no children are raised to it in code
+    # (generate_ai_summary._adults_with_party_size). Live: "4 of us incl. my father" was stored as adults=1.
+    "leads360_summary":       "leads360-summary-v9",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",
