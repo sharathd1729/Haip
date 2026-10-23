@@ -29,6 +29,8 @@ QUOTE_FOLLOWUP = "haip_quote_followup_v1"
 QUOTE_FINAL = "haip_quote_final_v1"
 CHECKIN = "haip_checkin_v1"
 REENGAGE = "haip_reengage_v1"                 # MARKETING: only to guests who agreed to offers
+# Send package (package_share_service): a person sends a published package to a lead whose 24-hour window is closed.
+PACKAGE_SHARE = "haip_package_share_v1"
 
 # Quick-reply button texts. The webhook matches a tap on these (lead_playbook_engine.on_guest_button).
 BTN_CALL_ME_BACK = "Call me back"
@@ -123,6 +125,14 @@ PACK: list[dict] = [
                   "dates and we'll check availability.",
                   ["Kiran", "a Ratha trip"]),
             _quick(BTN_STILL_PLANNING, BTN_NOT_NOW),
+        ],
+    },
+    {
+        "name": PACKAGE_SHARE, "label": "Package details", "when": "A person taps Send package and the guest's 24-hour window is closed.",
+        "components": [
+            _body("Hi {{1}}, here are the details of {{2}} you asked about: {{3}} Reply here with your dates and group size "
+                  "and we'll check availability.",
+                  ["Kiran", "Wild Karnataka, 3 nights", "https://rathaa.example/links#pkg-wild-karnataka"]),
         ],
     },
     {

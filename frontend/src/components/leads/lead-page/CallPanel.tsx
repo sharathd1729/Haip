@@ -62,10 +62,13 @@ const STEPS = ["Ringing you", "Connecting", "Logged"];
 
 // Callbacks stay calls (sales team, 22 Oct 2026): after an unanswered call the panel offers another try or logging a call
 // made from the agent's own phone, never "WhatsApp instead".
-export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onLogCall }: {
+export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onLogCall, onSendPackage }: {
   phase: CallPhase; error: string | null; newCall: FeedItem | null; name: string;
-  onClose: () => void; onRetry: () => void; onLogCall?: () => void;
+  onClose: () => void; onRetry: () => void; onLogCall?: () => void; onSendPackage?: () => void;
 }) {
+  const packageBtn = onSendPackage && (
+    <button type="button" onClick={onSendPackage} className="inline-flex min-h-11 items-center rounded-xl border border-[var(--haip-border-strong)] px-4 text-[14px] font-semibold text-[var(--haip-fg-2)]">Send package</button>
+  );
   const logBtn = onLogCall && (
     <button type="button" onClick={onLogCall} className="inline-flex min-h-11 items-center rounded-xl border border-[var(--haip-border-strong)] px-4 text-[14px] font-semibold text-[var(--haip-fg-2)]">Log a call</button>
   );
@@ -114,6 +117,7 @@ export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onLog
             {newCall.answered ? "The recording, transcript and AI summary appear in the conversation in a few minutes."
               : "Logged as a call attempt. Try again in a while; if they ring you back on your own phone, log that call here."}
           </p>
+          {newCall.answered && packageBtn && <div className="flex flex-wrap gap-2">{packageBtn}</div>}
           {!newCall.answered && (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={onRetry} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-[14px] font-semibold text-primary-foreground">Try again</button>

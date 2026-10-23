@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Calculator, Calendar, CheckSquare, ChevronDown, ChevronLeft, Eye, Flag, LayoutGrid, Phone, Sparkles, User } from "@/lib/icons";
+import { Calculator, Calendar, CheckSquare, ChevronDown, ChevronLeft, Eye, Flag, LayoutGrid, Phone, Send, Sparkles, User } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/page";
 import { useToast } from "@/components/ui/toast";
@@ -26,6 +26,7 @@ import { LogCallSheet } from "@/components/leads/lead-page/LogCallSheet";
 import { LeadDetailsPanel, StepButton, stepButtons, type LeadPerms } from "@/components/leads/lead-page/LeadDetailsPanel";
 import { LostSheet, MoreSheet, OwnerSheet, StageSheet, TaskSheet, type SheetKey } from "@/components/leads/lead-page/LeadSheets";
 import { OutcomeSheet } from "@/components/leads/lead-page/OutcomeSheet";
+import { SendPackageSheet } from "@/components/leads/lead-page/SendPackageSheet";
 import { useReveal } from "@/components/leads/lead-page/PanelSections";
 import { SalesActionCard } from "@/components/sales/SalesActionCard";
 import { SignalDrawer } from "@/components/leads/SignalDrawer";
@@ -67,6 +68,7 @@ export default function LeadDetailPage() {
   const [wonStage, setWonStage] = useState<PipelineStage | null>(null);
   const [signalOpen, setSignalOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [packageOpen, setPackageOpen] = useState(false);
   const composer = useRef<ComposerHandle>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -267,8 +269,10 @@ export default function LeadDetailPage() {
       {mounted && createPortal(
         <CallPanel phase={call.phase} error={call.error} newCall={call.newCall} name={name} onClose={call.close}
           onRetry={() => { call.close(); setTimeout(call.start, 0); }}
-          onLogCall={perms.canEdit ? () => { call.close(); setLogOpen(true); } : undefined} />, document.body)}
+          onLogCall={perms.canEdit ? () => { call.close(); setLogOpen(true); } : undefined}
+          onSendPackage={perms.canSend && hasPhone ? () => { call.close(); setPackageOpen(true); } : undefined} />, document.body)}
       <LogCallSheet open={logOpen} onClose={() => setLogOpen(false)} inquiryId={inquiryId} name={name} />
+      <SendPackageSheet open={packageOpen} onClose={() => setPackageOpen(false)} inquiryId={inquiryId} name={name} />
 
       {signalOpen && (
         <SignalDrawer inquiryId={inquiryId} onClose={() => setSignalOpen(false)}
@@ -285,6 +289,7 @@ export default function LeadDetailPage() {
         ...(perms.canBook ? [{ key: "book" as const, label: "Add booking", icon: <Calendar size={15} aria-hidden />, onClick: () => run("book") }] : []),
         ...(perms.canEdit ? [{ key: "stage" as const, label: "Move stage", hint: `Now: ${stageLabel}`, icon: <Flag size={15} aria-hidden />, onClick: () => setSheet("stage") }] : []),
         ...(perms.canEdit && !stage?.is_closed_lost && !stage?.is_closed_won ? [{ key: "lost" as const, label: "Mark lost", onClick: () => setSheet("lost") }] : []),
+        ...(perms.canSend && hasPhone ? [{ key: "send_package" as const, label: "Send package", hint: "A published package on WhatsApp", icon: <Send size={15} aria-hidden />, onClick: () => { setSheet(null); setPackageOpen(true); } }] : []),
         ...(perms.canEdit ? [{ key: "log_call" as const, label: "Log a call", hint: "A call from your own phone", icon: <Phone size={15} aria-hidden />, onClick: () => { setSheet(null); setLogOpen(true); } }] : []),
         { key: "task" as const, label: "Add a task", icon: <CheckSquare size={15} aria-hidden />, onClick: () => setSheet("task") },
         ...(perms.canEdit ? [{ key: "owner" as const, label: "Change owner", hint: `Now: ${lead.assigned_agent_name || "nobody"}`, icon: <User size={15} aria-hidden />, onClick: () => setSheet("owner") }] : []),
