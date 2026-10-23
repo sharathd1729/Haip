@@ -88,3 +88,17 @@ def test_lead_stage_classify_routes_to_the_structured_output_tier(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     adapter = get_llm("lead_stage_classify")
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
+
+
+def test_analyst_brief_routes_to_the_structured_output_tier_with_gemini_fallback(monkeypatch):
+    """The AI business analyst's brief (services/analyst/brief.py): JSON output from computed facts, gpt-oss-20b on NVIDIA,
+    retried once on Gemini (90 s budget) when a Gemini key is set."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+
+    assert _TASK_ROUTES["analyst_brief"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["analyst_brief"] == 90
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("analyst_brief")
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"

@@ -1085,6 +1085,23 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # the guest's screen.
         from app.services import price_policy
         price_mode = price_policy.price_mode(tenant)
+        # Learning loop (services/learning/resolver.py, THE hook): this conversation's arm of every running experiment. The
+        # control arm reads the base settings; a treatment may only show a PUBLISHED package's price or hand a big quote to a
+        # person (the guards below apply to both arms). Any failure here = the base settings.
+        from app.services.learning import lessons as learning_lessons
+        from app.services.learning import resolver as learning_resolver
+        try:
+            _learning = learning_resolver.for_conversation(db, tenant, conversation, guest_id=guest_id,
+                                                           guest_was_lead=getattr(guest, "lead_identified_at", None) is not None)
+            _pq = next((f for f in grounded_facts if f.get("tool") == "package_quote"), None) or {}
+            _pq_result = _pq.get("result") if isinstance(_pq.get("result"), dict) else {}
+            price_mode = learning_resolver.price_mode_for_turn(
+                price_mode, _learning, (_pq.get("args") or {}).get("package_key"),
+                float(_pq_result["total"]) if _pq_result.get("total") is not None else None)
+            _proven = learning_lessons.prompt_lines(db, tenant)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("learning_effective_failed", conversation_id=conversation_id, error=type(exc).__name__)
+            _learning, _proven = None, []
         missing_details = price_policy.missing_lead_details(guest, inquiry, details)
         qualified = price_policy.is_qualified(guest, inquiry, details)
 
@@ -1114,7 +1131,8 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             guest_missing_phone=guest_missing_phone,
             missing_details=missing_details,
             qualified=qualified,
-            playbook=sales_playbook.prompt_view(tenant),
+            playbook=_learning.prompt_playbook(db, tenant_id) if _learning is not None else sales_playbook.prompt_view(tenant),
+            proven_lessons=_proven,
         )
 
         # No explicit model= here: whatever get_llm("concierge_draft") routes

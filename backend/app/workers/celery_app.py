@@ -53,6 +53,8 @@ celery_app = Celery(
         # Lead workflows: missed-call / no-answer WhatsApp playbooks + the lead journey sweep
         "app.workers.tasks.lead_playbooks",
         "app.workers.tasks.agent_consults",
+        "app.workers.tasks.analyst_tasks",
+        "app.workers.tasks.learning_tasks",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
         # Knowledge from Instagram posts, running ads and the tenant's website (re-crawl)
@@ -341,6 +343,14 @@ celery_app.conf.update(
         "platform_leads.notify":                      {"queue": "default"},
         # Property assessment write-up (assessment_narrative.py): an LLM call, same queue as the other AI tasks.
         "assessment.narrative":                       {"queue": "ai_scoring"},
+        # AI business analyst (analyst_tasks.py): reports, follow-up answers, the 15-minute schedule tick.
+        "analyst.tick":                               {"queue": "ai_scoring"},
+        "analyst.run_report":                         {"queue": "ai_scoring"},
+        "analyst.answer_followup":                    {"queue": "ai_scoring"},
+        # Learning loop (learning_tasks.py): daily evaluation of half-and-half tests, the bench gate + start.
+        "learning.evaluate_all":                      {"queue": "ai_scoring"},
+        "learning.evaluate_tenant":                   {"queue": "ai_scoring"},
+        "learning.start_experiment":                  {"queue": "ai_scoring"},
     },
 )
 
@@ -354,6 +364,17 @@ celery_app.conf.beat_schedule = {
     },
     # Team alerts (P3/P4, lead_alert_service): every 2 minutes, odd minutes, so they never pile onto the even-minute jobs.
     # Ask a manager (agent_consult_notify): unanswered consults climb agent -> manager -> owner, then expire. Even minutes.
+    # AI business analyst (analyst.settings.is_due): every 15 minutes at :03/:18/:33/:48; each workspace's own times
+    # (default daily 09:00, weekly Monday 08:30, monthly 1st 08:30 IST). One report per kind + period, so ticks are no-ops after.
+    "analyst-tick-15min": {
+        "task": "analyst.tick",
+        "schedule": crontab(minute="3,18,33,48"),
+    },
+    # Learning loop: decide running experiments once a day (keep / roll back / stop), 07:15 IST, before the 08:00 briefs.
+    "learning-evaluate-daily": {
+        "task": "learning.evaluate_all",
+        "schedule": crontab(hour=7, minute=15),
+    },
     "agent-consults-escalate-2min": {
         "task": "agent_consults.escalate_all_tenants",
         "schedule": crontab(minute="*/2"),

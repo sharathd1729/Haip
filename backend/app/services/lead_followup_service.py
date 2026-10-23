@@ -100,6 +100,9 @@ def _start(db: Session, tenant: Tenant, key: str, ref: str, inquiry_id: Optional
            base: datetime, context: dict) -> bool:
     from app.services.lead_playbook_engine import start_run
     first = STEPS[key][0][1]
+    if key == cat.PROPOSAL_FOLLOWUP:                 # the learning loop may move the first follow-up (followup_timing, 2-48 h)
+        from app.services.learning import resolver as learning_resolver
+        first = learning_resolver.followup_first_delay(db, tenant, key, guest_id, first)
     run = start_run(db, tenant.id, key, ref, inquiry_id=inquiry_id, guest_id=guest_id,
                     next_run_at=max(base + first, _now()), context={"base": _iso(base), **context})
     return run is not None

@@ -90,6 +90,9 @@ class World:
     owner: Any
     manager: Any
     vehicles: list = field(default_factory=list)
+    # brand_config keys every scenario starts from (the learning bench gate's treated learning_base); a scenario's own
+    # setup is layered on top and never leaks into the next scenario.
+    keep: dict = field(default_factory=dict)
 
 
 def build_world(db: Session, today: Optional[date] = None, *, playbook: bool = True) -> World:
@@ -138,11 +141,16 @@ def build_world(db: Session, today: Optional[date] = None, *, playbook: bool = T
 def configure(db: Session, world: World, setup: dict) -> None:
     """Per-scenario tenant settings (price mode, policy overrides). Commits."""
     cfg = {k: v for k, v in (world.tenant.brand_config or {}).items() if k == "sales_playbook"}
+    cfg.update({k: dict(v) if isinstance(v, dict) else v for k, v in world.keep.items()})
     cfg["price_disclosure"] = setup.get("price_disclosure", "handoff")
     if setup.get("policy"):
         cfg["agent_policy"] = {"modes": dict(setup["policy"])}
     if setup.get("sales_agent"):
         cfg["sales_agent"] = {"mode": setup["sales_agent"]}
+    if setup.get("learning_base"):                 # a learning-loop control as a kept change / treatment would set it
+        cfg["learning_base"] = {**(cfg.get("learning_base") or {}), **setup["learning_base"]}
+    if setup.get("learning"):                      # the owner's autonomy levels (brand_config.learning)
+        cfg["learning"] = dict(setup["learning"])
     world.tenant.brand_config = cfg
     db.commit()
 
