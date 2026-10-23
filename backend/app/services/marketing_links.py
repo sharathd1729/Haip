@@ -5,8 +5,9 @@ id>" for an ad, "cr-<first 8 of the deal id>" for a creator's link (agency M7). 
 booking made after tapping a bio link or a Google post button traces back to the exact post (marketing_attribution).
 No cookies, no personal data in the URL.
 """
+import re
 from typing import Optional
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,8 @@ from app.models.marketing import MarketingContent, MarketingPublishAttempt
 from app.models.marketing_ads import MarketingAdDraft
 
 BIO_ITEMS = 12
+# A post's tracking code (= its utm_campaign) inside a guest's first WhatsApp message, e.g. "... (c-1a2b3c4d)".
+CODE_IN_TEXT = re.compile(r"\b(c-[0-9a-f]{8})\b", re.I)
 
 
 def campaign_for_content(content_id: str) -> str:
@@ -104,3 +107,18 @@ def bio_items(db: Session, tenant_id: str, site_url: str) -> list[dict]:
         if len(out) == BIO_ITEMS:
             break
     return out
+
+
+def tracking(db: Session, tenant, content_id: str) -> dict:
+    """Per-post tracking for organic posts (studio plan phase 1): the post's code, an Instagram DM link that carries it
+    as `ref` (Meta sends it back as a messaging referral, recorded in lead_attribution.raw_referral) and a WhatsApp link
+    whose prefilled first message carries it (matched in marketing_attribution.touches). Same code as the utm tag."""
+    from app.models.integration import Integration
+    from app.services.bio_packages import whatsapp_number
+    code = campaign_for_content(content_id)
+    ig = db.query(Integration).filter_by(tenant_id=tenant.id, kind="instagram", status="active").first()
+    username = ((ig.config or {}).get("username") if ig else None) or None
+    wa = whatsapp_number(None, tenant)
+    return {"code": code,
+            "instagram_dm": f"https://ig.me/m/{username}?ref={code}" if username else None,
+            "whatsapp": f"https://wa.me/{wa}?text={quote(f'Hi! I saw your post ({code})')}" if wa else None}

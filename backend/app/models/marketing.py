@@ -3,7 +3,7 @@
 Measured provider data and AI assessment are stored in separate columns so they can never be confused in the UI.
 A content version is immutable: an edit is a new version, and an approval is bound to one version's sha256.
 """
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, gen_uuid
@@ -161,6 +161,12 @@ class InstagramPostMetricDaily(Base, TimestampMixin):
     saved = Column(Integer, nullable=True)
     shares = Column(Integer, nullable=True)
     total_interactions = Column(Integer, nullable=True)
+    # Studio plan phase 1 (migration 174), every account post (not only HAIP's): views for all, the Reel watch numbers
+    # only for REELS (media_product_type). avg_watch_ms = ig_reels_avg_watch_time; skip_rate = reels_skip_rate (percent).
+    media_product_type = Column(String(20), nullable=True)
+    views = Column(Integer, nullable=True)
+    avg_watch_ms = Column(Integer, nullable=True)
+    skip_rate = Column(Float, nullable=True)
 
     __table_args__ = (UniqueConstraint("tenant_id", "media_id", "day", name="uq_ig_post_metrics_daily"),)
 
@@ -367,3 +373,25 @@ class MarketingNewsletterRecipient(Base, TimestampMixin):
     sent_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (UniqueConstraint("newsletter_id", "guest_id", name="uq_marketing_newsletter_recipient"),)
+
+
+class MarketingCreativeTag(Base, TimestampMixin):
+    """One tag record per post / Reel (Instagram media id) or ad (Meta ad id): studio plan phase 1, migration 174.
+    status pending | ready | failed; source ai | owner (an owner-corrected record is never re-tagged by the AI)."""
+    __tablename__ = "marketing_creative_tags"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    subject_type = Column(String(10), nullable=False)          # ig_media | ad
+    subject_id = Column(String(100), nullable=False)
+    content_id = Column(String, nullable=True)                 # the HAIP content item, when HAIP made it
+    tags = Column(JSON, nullable=True)                         # schemas.marketing_tags.CreativeTags
+    status = Column(String(12), nullable=False, default="pending")
+    source = Column(String(10), nullable=False, default="ai")
+    error = Column(Text, nullable=True)
+    model = Column(String(120), nullable=True)
+    prompt_version = Column(String(60), nullable=True)
+    corrected_by = Column(String, nullable=True)
+    corrected_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "subject_type", "subject_id", name="uq_marketing_creative_tags_subject"),)

@@ -185,6 +185,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_review_reply": "marketing-review-reply-v1",
     # Agency M7: OTA listing copy drafts (marketing_reputation); a person pastes them into the OTA.
     "marketing_ota_copy": "marketing-ota-copy-v1",
+    # Studio plan phase 1: creative tags from a post's / ad's own text (marketing_tagging) and the weekly Insights
+    # report's plain-English lines over code-computed facts (marketing_insights_report).
+    "marketing_tagging": "marketing-tagging-v1",
+    "marketing_insights": "marketing-insights-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
 }

@@ -215,7 +215,8 @@ class InstagramGraphAdapter:
 
     def get_recent_media(self, limit: int = 12) -> list[dict]:
         data = self._get(f"/{self._account_id}/media", params={
-            "fields": "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count",
+            "fields": "id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,like_count,"
+                      "comments_count",
             "limit": limit,
         })
         return data.get("data", [])

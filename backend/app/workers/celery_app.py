@@ -100,6 +100,7 @@ celery_app = Celery(
         "app.workers.tasks.instagram_insights_poll",
         # Marketing Studio AI runs (audit, plan, content)
         "app.workers.tasks.marketing_studio",
+        "app.workers.tasks.marketing_insights",      # studio plan phase 1: creative tags + the weekly Insights report
         "app.workers.tasks.marketing_ads",
         "app.workers.tasks.website",
         # Automations engine + timer triggers
@@ -264,6 +265,10 @@ celery_app.conf.update(
         "marketing_studio.video_submit":             {"queue": "default"},
         "marketing_studio.video_poll":               {"queue": "default"},
         "marketing_studio.draft_review_reply":       {"queue": "default"},
+        "marketing_studio.tag_creative":             {"queue": "default"},
+        "marketing_insights.tag_all":                {"queue": "default"},
+        "marketing_insights.tick":                   {"queue": "default"},
+        "marketing_insights.weekly_tenant":          {"queue": "default"},
         "marketing_reviews.sync_all":                {"queue": "default"},
         "marketing_reviews.sync_tenant":             {"queue": "default"},
         "marketing_newsletter.send_batch":           {"queue": "default"},
@@ -555,6 +560,15 @@ celery_app.conf.beat_schedule = {
     "marketing-weekly-report": {
         "task": "marketing_reports.weekly_all",
         "schedule": crontab(minute=30, hour=9, day_of_week=1),
+    },
+    # Studio plan phase 1: tag new posts/ads daily (06:40 IST), and the weekly Insights report from Monday 08:00 local.
+    "marketing-insights-tag": {
+        "task": "marketing_insights.tag_all",
+        "schedule": crontab(minute=40, hour=6),
+    },
+    "marketing-insights-tick": {
+        "task": "marketing_insights.tick",
+        "schedule": crontab(minute=7),
     },
     # Instagram publisher: posts approved, scheduled content whose time has come.
     "marketing-publish-dispatch": {

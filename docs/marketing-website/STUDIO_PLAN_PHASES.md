@@ -20,3 +20,25 @@ needs the owner (keys, Meta/Google approvals). External services are OFF by defa
   owners/managers, and the reason on the item.
 - **Activation** polls until the module is on (2 s, about a minute), and **connect buttons** fetch a fresh token at
   click time, so an old tab never lands on a raw 401.
+
+## Phase 1: the analyst
+
+- **Watch curve**: Meta insights add `video_thruplay_watched_actions`, `video_p25..p100_watched_actions`,
+  `video_avg_time_watched_actions`, `inline_link_click_ctr` (stored on `ad_metrics`, migration 174). Hook rate =
+  3-second views / impressions; hold rate = ThruPlays / 3-second views.
+- **Reels**: the Instagram poller reads the 25 latest posts of the account (all of them, not only HAIP's) and adds
+  `views`, and for Reels `ig_reels_avg_watch_time` and `reels_skip_rate` (in a separate call, so a refused metric never
+  loses reach / saves / shares).
+- **Tags**: one record per post, Reel and ad (`marketing_creative_tags`, RLS). The AI reads the post's own text
+  (caption, slide text, photo descriptions, ad copy); "unknown" when the text does not show it. Format comes from the
+  platform. Owners correct with `PATCH /marketing/studio/tags/{id}` (audited; corrected = final). No correction screen yet.
+- **Money funnel**: spend -> chats -> leads (people with a phone) -> qualified (same rule as the KPI catalogue) ->
+  booked -> revenue, per ad (lead_attribution) and per organic post (the post the lead's last named touch credits).
+- **Organic tracking**: each post has a code (`c-<8>`, the same as its utm tag), an Instagram DM link carrying it as
+  `ref` and a WhatsApp link prefilling it (Content drawer). Inbound matching reuses the referral capture and the first
+  WhatsApp message.
+- **Weekly Insights report**: Monday from 08:00 workspace time (hourly tick), stored with the AI analyst's reports
+  (`kind=marketing_insights`), pushed once. Sections: verdict, money funnel, ad leaderboard, posts vs own 30-day
+  median, what works by element, tired ads, context, next plan (fed to the weekly plan). Confidence words only:
+  Strong / Early signal / Not enough data. Numbers in code; the AI's sentences with a number not in the facts are
+  dropped; any AI failure leaves the deterministic report.

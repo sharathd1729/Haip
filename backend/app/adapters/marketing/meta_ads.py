@@ -30,7 +30,14 @@ INSIGHT_FIELDS = ",".join([
     "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_id", "ad_name",
     "spend", "impressions", "reach", "clicks", "unique_clicks", "inline_link_clicks", "frequency", "ctr", "cpm", "cpc",
     "actions", "account_currency", "date_start",
+    # Watch curve (studio plan phase 1): hook rate = 3-second views / impressions, hold rate = ThruPlays / 3-second views.
+    "inline_link_click_ctr", "video_thruplay_watched_actions", "video_p25_watched_actions", "video_p50_watched_actions",
+    "video_p75_watched_actions", "video_p95_watched_actions", "video_p100_watched_actions", "video_avg_time_watched_actions",
 ])
+# insights field -> ad_metrics column. Each is a list of {action_type: video_view, value}.
+VIDEO_FIELDS = {"video_thruplay_watched_actions": "video_thruplays", "video_p25_watched_actions": "video_p25",
+                "video_p50_watched_actions": "video_p50", "video_p75_watched_actions": "video_p75",
+                "video_p95_watched_actions": "video_p95", "video_p100_watched_actions": "video_p100"}
 
 ENTITY_FIELDS = {
     "campaign": "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time",
@@ -108,6 +115,14 @@ def _action_total(actions, names) -> int:
     return 0
 
 
+def _first_value(actions):
+    """The value of a one-entry action list (average watch time), or None."""
+    for a in actions or []:
+        if isinstance(a, dict):
+            return a.get("value")
+    return None
+
+
 def parse_row(raw: dict) -> Optional[dict]:
     """One insights row, normalised. None when it has no ad or no date (nothing to key it on)."""
     ad_id, day = raw.get("ad_id"), raw.get("date_start")
@@ -130,6 +145,9 @@ def parse_row(raw: dict) -> Optional[dict]:
         "video_views": _action_total(raw.get("actions"), ("video_view",)),
         "first_replies": _action_total(raw.get("actions"), FIRST_REPLY_ACTIONS),
         "cpc": _num(raw.get("cpc")),
+        "link_ctr": _num(raw.get("inline_link_click_ctr")),
+        "video_avg_watch_s": _num(_first_value(raw.get("video_avg_time_watched_actions"))),
+        **{col: _action_total(raw.get(f), ("video_view",)) for f, col in VIDEO_FIELDS.items()},
         "actions": [a for a in (raw.get("actions") or []) if isinstance(a, dict)][:60] or None,
     }
 

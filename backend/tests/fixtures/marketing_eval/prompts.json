@@ -11,6 +11,10 @@
     "sha": "b116ebf691851351a9aed3ce4a280e16c66135aed47b9c12521a9919e8e9d980",
     "version": "marketing-content-v7"
   },
+  "marketing_insights": {
+    "sha": "62beb598bdaa72b06dcf561f1312cc887fd33f8b11ada1ae485faa4becf9bcb7",
+    "version": "marketing-insights-v1"
+  },
   "marketing_ota_copy": {
     "sha": "3ee9e51949953d581bc9d213da4ec3553dedf77505dad0fca03a6ebef6cf2aaa",
     "version": "marketing-ota-copy-v1"
@@ -30,5 +34,9 @@
   "marketing_review_reply": {
     "sha": "cba34a095ee265724c9ac8d05369252438dedd8373da3bcc1e6e69665171f570",
     "version": "marketing-review-reply-v1"
+  },
+  "marketing_tagging": {
+    "sha": "7eba72076e27e48e02e271a858c365fec3b42a0be74e3abf51fa7e4a7c4e80b3",
+    "version": "marketing-tagging-v1"
   }
 }
