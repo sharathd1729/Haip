@@ -173,6 +173,18 @@ def _put(s3_key: str, content: bytes, content_type: str) -> None:
     _s3_client().put_object(**put_kwargs)
 
 
+def upload_lead_evidence(tenant_id: str, import_id: str, name: str, content: bytes, content_type: str) -> str:
+    """Store one file a person uploaded onto a lead (a call recording, or a photo/voice note from a WhatsApp chat export
+    zip; lead_evidence_service), return the key. Tenant-prefixed, one folder per upload, file name reduced to safe
+    characters. Read it back with get_presigned_media_url."""
+    safe_import = "".join(c for c in import_id if c.isalnum() or c == "-")[:64] or "upload"
+    safe_name = "".join(c for c in name if c.isalnum() or c in "-_.")[-120:].lstrip(".") or "file"
+    s3_key = f"{tenant_id}/lead_evidence/{safe_import}/{safe_name}"
+    _put(s3_key, content, content_type)
+    log.info("lead_evidence_stored", tenant_id=tenant_id, import_id=import_id, bytes=len(content))
+    return s3_key
+
+
 def upload_invoice_pdf(tenant_id: str, invoice_id: str, content: bytes) -> str:
     """Store an issued invoice/receipt PDF, return the key. One object per invoice id: re-rendering the same issued
     document overwrites itself, a reissue is a new invoice id and so a new object."""

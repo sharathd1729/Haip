@@ -51,6 +51,7 @@ from app.models.lead_workflow import LeadJourney, LeadView, PlaybookAction, Play
 from app.models.platform_lead import PlatformLead
 from app.models.roi_benchmark import RoiBenchmarkVersion
 from app.models.agent_consult import AgentConsult
+from app.models.lead_evidence import LeadEvidenceImport
 
 __all__ = [
     "BusinessRecord",
@@ -76,4 +77,5 @@ __all__ = [
     "LeadAutopilotEvent",
     "PlatformLead", "RoiBenchmarkVersion",
     "AgentConsult",
+    "LeadEvidenceImport",
 ]

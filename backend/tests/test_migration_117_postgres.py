@@ -69,7 +69,8 @@ def narrow_column():
 def test_alembic_head_is_117_and_118_is_not_auto_applied():
     """Alembic only sees alembic/versions. 118 lives in alembic/proposed, so it cannot ship by accident.
 
-    (Name kept because the failure register refers to it.) The chain tip is now 170 (merge of 168 and 169), on 168 (agent_consults: Ask a manager) and 169 (inquiries.lead_type + the human validation review), both on 167 (creators, creator deals, OTA copy, review consent), on 166 (inquiries.heard_about), on 165 (ad drafts, boost rules, CAPI events), on 164 (critic scores + clip length), on 163 (marketing newsletters), on 162 (marketing channels + guest reviews), on 161 (marketing creative jobs), on 160 (media asset tags), on 159 (marketing brand reviews), on 158 (website builder: sites, versions, domains, booking holds), on 157 (Marketing Studio
+    (Name kept because the failure register refers to it.) The chain tip is now 171 (lead evidence imports, guest location,
+    won/lost reason), on 170 (merge of 168 and 169), on 168 (agent_consults: Ask a manager) and 169 (inquiries.lead_type + the human validation review), both on 167 (creators, creator deals, OTA copy, review consent), on 166 (inquiries.heard_about), on 165 (ad drafts, boost rules, CAPI events), on 164 (critic scores + clip length), on 163 (marketing newsletters), on 162 (marketing channels + guest reviews), on 161 (marketing creative jobs), on 160 (media asset tags), on 159 (marketing brand reviews), on 158 (website builder: sites, versions, domains, booking holds), on 157 (Marketing Studio
     publish attempts), on 156 (marketing research), on 155 (marketing agency
     foundations), on 154 (Marketing Studio image jobs), on 153 (Marketing Studio tables; written as 129-133 on the
     unmerged branch and renumbered when it merged), on 152 (tasks.kind/playbook_run_id), on 151 (lead workflows: journeys, views, playbook runs/actions), on 150 (new booking: stays.gst_percent), on 148 (rate calculator: inquiry_quotes shared/approved
@@ -81,7 +82,8 @@ def test_alembic_head_is_117_and_118_is_not_auto_applied():
     migration; 119 follows 117 directly because number 118 is reserved for the proposed RLS migration.
     """
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["170"]
+    assert script.get_heads() == ["171"]
+    assert script.get_revision("171").down_revision == "170"
     assert set(script.get_revision("170").down_revision) == {"168", "169"}
     assert script.get_revision("168").down_revision == "167"
     assert script.get_revision("169").down_revision == "167"
