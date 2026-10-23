@@ -77,3 +77,18 @@ needs the owner (keys, Meta/Google approvals). External services are OFF by defa
   WhatsApp tracking code are added by code. Golden-hour times are not computed.
 - **Monthly strategy deck**: written on the 1st from 08:00 (or on demand); facts in code (last month vs goal, Insights
   next plan, radar, market signals, swipe hooks, briefs), prose grounded, deterministic fallback.
+
+## Phase 4: the producer
+
+- **Template Reel from photos** (Create > Produce, `POST /produce/reel-from-photos`): 2-5 library photos, a caption
+  line each, 6-15 s, 9:16, brand look and cover frame, rendered by the existing ffmpeg/Pillow reel renderer.
+  Hyperframes was not added: the server already renders Reels; a Node sidecar would be a second renderer.
+- **One brief -> several pieces** (`POST /briefs/{id}/produce`, button on a ready brief): each Reel script becomes a
+  Reel draft (shots as slots with the shot description), the first one again as a **trial Reel** with the second hook
+  as its opening, plus a carousel (hooks) and a story (posting plan). Library photos fill what they can; the rest is
+  "Needs photos" until shot.
+- **Trial Reels**: `trial_params` (graduation `SS_PERFORMANCE`) on the Reel container.
+- **Licensed audio**: `audio_configuration` with a trending-audio id, sent only while the owner's trending-audio source
+  works. Unverified: confirm with Meta before relying on it.
+- **Best posting time**: the existing suggestion from this account's own reach by hour.
+- **Not built**: the `is_ai_generated` flag (no documented publishing field found); label AI visuals in the app.

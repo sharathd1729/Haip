@@ -240,6 +240,19 @@ def _caption(payload: dict) -> str:
     return (payload.get("caption") or "") + (f"\n\n{tags}" if tags else "")
 
 
+def _reel_extras(db: Session, tenant: Tenant, payload: dict) -> dict:
+    """Trial Reel and licensed audio (studio plan phase 4); only what is set, so older publishers keep working. Audio
+    goes out only while the workspace has trending audio switched on and working (marketing_research_sources)."""
+    out: dict = {}
+    if payload.get("trial"):
+        out["trial"] = True
+    if payload.get("audio_id"):
+        from app.services import marketing_research_sources as research
+        if research.ready(db, tenant, "audio"):
+            out["audio_id"] = payload["audio_id"]
+    return out
+
+
 def _publisher_for(db: Session, tenant_id: str):
     from app.adapters.instagram.publishing import Publisher
     integ = db.query(Integration).filter_by(tenant_id=tenant_id, kind="instagram", status="active").first()
@@ -346,7 +359,7 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
         elif item.kind == "reel":
             if not containers:
                 containers = [pub.reel_container(url_for(images[0]), caption=_caption(payload),
-                                                 cover_url=url_for(images[1]))]
+                                                 cover_url=url_for(images[1]), **_reel_extras(db, tenant, payload))]
         elif not containers:
             containers = [pub.image_container(url_for(images[0]), caption=_caption(payload))]
         attempt.container_ids = containers

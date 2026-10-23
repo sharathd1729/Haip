@@ -6,6 +6,8 @@ POST /marketing/studio/briefs           ask for a shoot & collab brief {theme, d
 GET  /marketing/studio/briefs           recent briefs (read)        GET /briefs/{id} one brief (read)
 POST /marketing/studio/decks/run        write this month's strategy deck now (approve)
 GET  /marketing/studio/decks/latest     the latest deck, or {"deck": null} (approve: last month's money)
+POST /marketing/studio/briefs/{id}/produce          phase 4: Reels (+ a trial Reel), carousel and story drafts (edit)
+POST /marketing/studio/produce/reel-from-photos     phase 4: a 6-15 s template Reel from 2-5 library photos (edit)
 """
 from datetime import datetime, timezone
 from typing import Any
@@ -118,3 +120,36 @@ def latest_deck(user: User = Depends(get_current_user), db: Session = Depends(ge
     doc = (db.query(MarketingStrategyDoc).filter_by(tenant_id=user.tenant_id, kind="deck")
            .order_by(MarketingStrategyDoc.period.desc(), MarketingStrategyDoc.created_at.desc()).first())
     return {"deck": strategy.as_dict(doc) if doc else None, "as_of": datetime.now(timezone.utc).isoformat()}
+
+
+# ── Producer (studio plan phase 4) ─────────────────────────────────────────────────────────────────────────────────
+
+def _items(items) -> list[dict]:
+    return [{"id": i.id, "kind": i.kind, "title": i.title, "status": i.status} for i in items]
+
+
+@router.post("/briefs/{doc_id}/produce", status_code=201)
+def produce_from_brief(doc_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                       _m=_module, _c=_edit):
+    from app.services import marketing_producer as producer
+    try:
+        items = producer.from_brief(db, _tenant(db, user), doc_id, user.id)
+    except MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"items": _items(items)}
+
+
+@router.post("/produce/reel-from-photos", status_code=201)
+def reel_from_photos(body: dict[str, Any], user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                     _m=_module, _c=_edit):
+    from app.services import marketing_producer as producer
+    try:
+        item = producer.reel_from_photos(
+            db, _tenant(db, user), title=str(body.get("title") or "Reel")[:160], asset_ids=list(body.get("asset_ids") or [])[:10],
+            lines=[str(x)[:80] for x in (body.get("lines") or [])][:5], caption=str(body.get("caption") or "").strip()[:2200],
+            actor_id=user.id, trial=bool(body.get("trial")))
+    except MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"items": _items([item])}

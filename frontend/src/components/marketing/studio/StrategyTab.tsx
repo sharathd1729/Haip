@@ -74,6 +74,12 @@ export function StrategyTab() {
     onSuccess: () => { setForm(null); qc.invalidateQueries({ queryKey: ["studio-briefs"] }); toast({ variant: "success", title: "Writing the brief" }); },
     onError: e => toast({ variant: "error", title: "Not started", description: studioError(e, "Try again.") }),
   });
+  const produce = useMutation({
+    mutationFn: (id: string) => api.post(`${STUDIO}/briefs/${id}/produce`),
+    onSuccess: r => { qc.invalidateQueries({ queryKey: ["studio-briefs"] });
+      toast({ variant: "success", title: `${r.data.items.length} drafts made`, description: "Reels (one as a trial Reel), a carousel and a story, under Create > Content." }); },
+    onError: e => toast({ variant: "error", title: "No drafts made", description: studioError(e, "Try again.") }),
+  });
   const runDeck = useMutation({ mutationFn: () => api.post(`${STUDIO}/decks/run`), onSuccess: () => qc.invalidateQueries({ queryKey: ["studio-deck"] }),
     onError: e => toast({ variant: "error", title: "Not started", description: studioError(e, "Try again.") }) });
   const d = deck.data?.deck?.body as Record<string, string | string[]> | undefined;
@@ -131,6 +137,9 @@ export function StrategyTab() {
                   </button>
                   {b.error && <p className="text-xs text-[var(--haip-status-danger-fg)]">{b.error}</p>}
                   {open === b.id && b.body && <BriefView b={b.body as unknown as Brief} tracking={b.facts?.tracking} />}
+                  {open === b.id && b.status === "ready" && (
+                    <button type="button" className={`${btn} mt-2`} disabled={produce.isPending} onClick={() => produce.mutate(b.id)}>Make drafts from this brief</button>
+                  )}
                 </li>
               ))}
             </ul>

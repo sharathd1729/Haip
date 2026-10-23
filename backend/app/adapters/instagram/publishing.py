@@ -7,6 +7,7 @@ CAROUSEL parent with children=... Stories: media_type=STORIES, one container per
 scheduling; the caller publishes at the slot. Quota: GET /{ig_id}/content_publishing_limit (docs say 50-100 per 24h;
 we read it at runtime). Host pinned to graph.instagram.com; the token goes in the Authorization header.
 """
+import json
 import time
 from typing import Optional
 
@@ -74,12 +75,21 @@ class Publisher:
             params["caption"] = caption
         return self._req("POST", f"{self.ig}/media", **params)["id"]
 
-    def reel_container(self, video_url: str, *, caption: str, cover_url: Optional[str] = None) -> str:
+    def reel_container(self, video_url: str, *, caption: str, cover_url: Optional[str] = None, trial: bool = False,
+                       audio_id: Optional[str] = None) -> str:
         """A REELS container (agency M3): Instagram fetches the MP4 itself and takes minutes to process it, so
-        wait_ready may raise a transient error; the caller keeps the container id and retries."""
+        wait_ready may raise a transient error; the caller keeps the container id and retries.
+        trial (studio plan phase 4): a trial Reel, shown to non-followers first and shared to followers only if it
+        performs (trial_params graduation_strategy SS_PERFORMANCE). audio_id: a licensed track (`audio_configuration`,
+        owner's spec, UNVERIFIED: only sent when the workspace switched trending audio on)."""
         params = {"media_type": "REELS", "video_url": video_url, "caption": caption, "share_to_feed": "true"}
         if cover_url:
             params["cover_url"] = cover_url
+        if trial:
+            params["trial_params"] = json.dumps({"graduation_strategy": "SS_PERFORMANCE"})
+            params.pop("share_to_feed")
+        if audio_id:
+            params["audio_configuration"] = json.dumps({"audio_id": audio_id})
         return self._req("POST", f"{self.ig}/media", **params)["id"]
 
     def carousel_container(self, children: list[str], caption: str) -> str:
