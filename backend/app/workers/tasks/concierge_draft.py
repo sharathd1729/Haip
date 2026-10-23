@@ -299,10 +299,10 @@ def _check_no_media_claim(reply_text: str) -> tuple[bool, "str | None"]:
 
 def _history_block(history, limit: int = 8) -> str:
     """The last few real messages (never unsent AI drafts: build_concierge_context already excludes those), oldest first."""
+    from app.services.message_author import author_of
     lines = []
     for m in (history or [])[-limit:]:
-        direction = getattr(m.get("direction"), "value", m.get("direction"))
-        who = "GUEST" if str(direction).lower() == "inbound" else "US"
+        who = m.get("who") or author_of(m.get("direction"))
         body = (m.get("body") or "").strip()
         if body:
             lines.append(f"[{who}] {body[:400]}")
@@ -327,7 +327,9 @@ async def _classify_and_extract(latest_message: str, history=None, known: dict |
         system_prompt=(
             f"Today's date is {today}. Classify the newest WhatsApp/Instagram message from a hospitality guest and extract "
             "the stay details the guest has STATED. A date or headcount given earlier in the conversation still counts; if the "
-            "guest later changed it, use the latest value. Never guess: leave anything not stated as null. Resolve relative "
+            "guest later changed it, use the latest value. Only [GUEST] lines are the guest's own words: never take a date, "
+            "headcount, place or request from a line WE sent ([US: ...]), above all a [US: CAMPAIGN BROADCAST], which went to "
+            "many guests at once. Never guess: leave anything not stated as null. Resolve relative "
             "dates (e.g. 'next weekend', 'the 14th') against today's date; if no year is given, assume the next future "
             "occurrence of that date. List every distinct thing the guest is asking in `questions`."
         ),
@@ -352,6 +354,14 @@ async def _ground_reply(
     classification = await _classify_and_extract(latest_message, history=history, known=known)
     intent = classification.get("intent", "general")
     details = concierge_facts.clean_details(classification)
+    # A party size only WE wrote (a campaign's "8 guests each") is not the guest's, whatever the classifier returned.
+    from app.services.message_author import GUEST, author_of, keep_guest_headcount
+    _guest_lines = [latest_message] + [m.get("body") or "" for m in (history or [])
+                                       if (m.get("who") or author_of(m.get("direction"))) == GUEST]
+    _our_lines = [m.get("body") or "" for m in (history or []) if (m.get("who") or author_of(m.get("direction"))) != GUEST]
+    details, _dropped = keep_guest_headcount(details, _guest_lines, _our_lines, keys=("adults", "children"))
+    if _dropped:
+        log.info("concierge_headcount_not_from_guest", dropped=_dropped)
     if details_out is not None:
         details_out.update(details)
         details_out["intent"] = intent

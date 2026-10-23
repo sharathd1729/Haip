@@ -39,7 +39,7 @@ def test_adults_with_party_size(adults, children, party, stored_children, expect
 def test_prompt_asks_for_the_total_and_is_versioned():
     assert '"party_size"' in gas.SYSTEM_PROMPT and "party_size" in gas._EXTRACTED_KEYS
     assert "never put 1 in \"adults\" for the person writing" in gas.SYSTEM_PROMPT
-    assert get_version("leads360_summary") == "leads360-summary-v9"
+    assert get_version("leads360_summary") == "leads360-summary-v10"
 
 
 def _setup(db, **inquiry_kw):
