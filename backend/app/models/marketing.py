@@ -116,6 +116,7 @@ class MarketingImageJob(Base, TimestampMixin):
     status = Column(String(20), nullable=False, default="pending")   # pending | ready | failed
     error = Column(Text, nullable=True)
     asset_id = Column(String, nullable=True)
+    content_id = Column(String, nullable=True)      # the draft it was made for: filled into its empty slot once approved
     created_by = Column(String, nullable=True)
 
 

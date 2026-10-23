@@ -587,6 +587,8 @@ def instagram_oauth_callback(
     # after a successful token exchange -- exactly the failure this flow hit
     # in production once expiry tracking was added.
     now_dt = datetime.now(timezone.utc)
+    raw_perms = short_data.get("permissions")
+    granted = [p.strip() for p in (raw_perms.split(",") if isinstance(raw_perms, str) else raw_perms or []) if str(p).strip()]
     try:
         row = _upsert_integration(db, tenant_id, "instagram")
         row.credentials_kms_blob = encrypt_credentials({
@@ -598,6 +600,8 @@ def instagram_oauth_callback(
             "instagram_business_account_id": ig_account_id,
             "username": username,
             "token_refreshed_at": now_dt.isoformat(),
+            # What Instagram actually granted (the person can untick scopes); Marketing Studio checks posting with it.
+            **({"permissions": granted} if granted else {}),
             **(
                 {"token_expires_at": (now_dt + timedelta(seconds=token_expires_in)).isoformat()}
                 if token_expires_in else {}

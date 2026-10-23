@@ -27,6 +27,12 @@ from app.services import marketing_publish_service as pub
 from tests.test_marketing_studio_content import BASE, make_user, ws  # noqa: F401  (fixture)
 
 
+
+@pytest.fixture(autouse=True)
+def _instagram_connected(monkeypatch):
+    """Scheduling checks the Instagram connection (marketing_publish_service.instagram_problem); tested on its own."""
+    monkeypatch.setattr("app.services.marketing_publish_service.instagram_problem", lambda db, tenant_id: None)
+
 def _jpeg() -> bytes:
     out = io.BytesIO()
     Image.new("RGB", (1200, 900), (30, 120, 90)).save(out, format="JPEG")

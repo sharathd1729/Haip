@@ -48,12 +48,33 @@ def _asset_ids(kind: str, payload: dict) -> list[Optional[str]]:
     return [f["asset_id"] for f in render.frames(kind, payload)]
 
 
+PUBLISH_SCOPE = "instagram_business_content_publish"
+
+
+def instagram_problem(db: Session, tenant_id: str) -> Optional[str]:
+    """Why HAIP cannot post to Instagram right now, or None. Checked when scheduling (and on the setup checklist), so a
+    missing connection shows up before the slot, not at posting time. `config.permissions` is what Instagram granted at
+    connect (recorded since 24 Oct 2026); an older connection without it is trusted until the publisher says otherwise."""
+    integ = db.query(Integration).filter_by(tenant_id=tenant_id, kind="instagram", status="active").first()
+    if integ is None or not integ.credentials_kms_blob or not (integ.config or {}).get("instagram_business_account_id"):
+        return "Instagram is not connected. Connect it in Settings > Integrations."
+    perms = (integ.config or {}).get("permissions")
+    if isinstance(perms, list) and PUBLISH_SCOPE not in perms:
+        return "Instagram is connected without permission to post. Reconnect it and allow content publishing."
+    return None
+
+
 def preflight(db: Session, tenant_id: str, item: MarketingContent, payload: dict,
-              channel: str = "instagram") -> tuple[list[str], list[str]]:
+              channel: str = "instagram", *, check_connection: bool = False) -> tuple[list[str], list[str]]:
     """(problems that block publishing, notes). Every slide or frame needs an approved library photo; Facebook and
-    Google add their own rules (marketing_channels.problems)."""
+    Google add their own rules (marketing_channels.problems). `check_connection` (scheduling) adds the Instagram
+    connection + posting permission."""
     from app.services import marketing_channels as channels
     problems, notes = channels.problems(item.kind, payload, channel)
+    if check_connection and channel == "instagram":
+        ig = instagram_problem(db, tenant_id)
+        if ig:
+            problems.append(ig)
     ids = _asset_ids(item.kind, payload)
     if not ids or any(not a for a in ids):
         problems.append("Every slide or frame needs a photo from the library before it can be posted.")
@@ -99,7 +120,8 @@ def schedule_all(db: Session, tenant: Tenant, item_id: str, when: datetime, acto
     targets = channels.publish_targets(item) or ["instagram"]
     if item.status == "approved":
         payload = content_svc.approved_payload(db, tenant.id, item.id)
-        bad = [f"{channels.LABEL[c]}: {p}" for c in targets for p in preflight(db, tenant.id, item, payload, c)[0]]
+        bad = [f"{channels.LABEL[c]}: {p}" for c in targets
+               for p in preflight(db, tenant.id, item, payload, c, check_connection=True)[0]]
         if bad:
             raise MarketingError(422, "not_publishable", "This can't be posted yet.", sorted(set(bad)))
     return [schedule(db, tenant, item.id, when, actor_id, channel=c, _checked=True) for c in targets]
@@ -116,7 +138,7 @@ def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id
     if channel not in channels.CHANNELS:
         raise MarketingError(422, "bad_channel", "Unknown channel.")
     payload = content_svc.approved_payload(db, tenant.id, item.id)
-    problems, _ = preflight(db, tenant.id, item, payload, channel)
+    problems, _ = preflight(db, tenant.id, item, payload, channel, check_connection=True)
     if problems:
         raise MarketingError(422, "not_publishable", "This can't be posted yet.", problems)
     when = when if when.tzinfo else when.replace(tzinfo=timezone.utc)
@@ -178,8 +200,29 @@ def on_approved(db: Session, tenant: Tenant, item_id: str) -> Optional[Marketing
         day = date.fromisoformat(item.planned_for) if item.planned_for else None
         return schedule_all(db, tenant, item.id, suggest_time(db, tenant, day), "agency")[0]
     except MarketingError as exc:
-        log.info("auto_schedule_skipped", tenant_id=tenant.id, item_id=item.id, reason=exc.message)
+        _auto_schedule_failed(db, tenant.id, item, "; ".join([exc.message, *exc.problems]))
         return None
+
+
+def _auto_schedule_failed(db: Session, tenant_id: str, item: MarketingContent, reason: str) -> None:
+    """Autopilot could not schedule an approved item: a visible task row (shown on the item) + a push, never silent."""
+    from app.models.marketing import MarketingTask
+    log.info("auto_schedule_skipped", tenant_id=tenant_id, item_id=item.id, reason=reason)
+    db.add(MarketingTask(tenant_id=tenant_id, role="publish", step="auto_schedule", status="failed", trigger="schedule",
+                         ref_type="marketing_content", ref_id=item.id, error=reason[:2000],
+                         finished_at=datetime.now(timezone.utc)))
+    db.flush()
+    agency.notify_needs_approval(db, tenant_id, "Marketing: an approved post was not scheduled", f"{item.title}: {reason}"[:300])
+
+
+def auto_schedule_error(db: Session, tenant_id: str, item: MarketingContent) -> Optional[str]:
+    """Why autopilot did not schedule this approved item (the latest skip), or None."""
+    if item.status != "approved":
+        return None
+    from app.models.marketing import MarketingTask
+    row = (db.query(MarketingTask.error).filter_by(tenant_id=tenant_id, step="auto_schedule", ref_type="marketing_content",
+                                                   ref_id=item.id).order_by(MarketingTask.created_at.desc()).first())
+    return row[0] if row else None
 
 
 def cancel_for_edit(db: Session, tenant_id: str, item_id: str) -> int:

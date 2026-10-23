@@ -17,6 +17,12 @@ from app.services import marketing_publish_service as pub
 from tests.test_marketing_studio_content import BASE, ws  # noqa: F401  (fixture)
 
 
+
+@pytest.fixture(autouse=True)
+def _instagram_connected(monkeypatch):
+    """Scheduling checks the Instagram connection (marketing_publish_service.instagram_problem); tested on its own."""
+    monkeypatch.setattr("app.services.marketing_publish_service.instagram_problem", lambda db, tenant_id: None)
+
 class FakePublisher:
     def __init__(self, quota=10, fail=None, status=None):
         self.calls, self.quota, self.fail, self.status = [], quota, fail or {}, status or {}
@@ -127,10 +133,9 @@ def test_only_approved_publishable_content_can_be_scheduled(db, ws):  # noqa: F8
         pub.schedule(db, ws["tenant"], draft.id, datetime.now(timezone.utc), ws["owner"].id)
     assert exc.value.code == "not_approved"
 
-    no_photo = _approved(db, ws, payload={"caption": "no photo"})
-    with pytest.raises(svc.MarketingError) as exc:
-        pub.schedule(db, ws["tenant"], no_photo.id, datetime.now(timezone.utc), ws["owner"].id)
-    assert exc.value.code == "not_publishable" and "photo" in exc.value.problems[0]
+    with pytest.raises(svc.MarketingError) as exc:      # a draft without a photo never reaches approval (needs_photos)
+        _approved(db, ws, payload={"caption": "no photo"})
+    assert exc.value.code == "needs_photos"
 
     gif = MediaAsset(id=str(uuid.uuid4()), tenant_id=tid, storage_key="k", mime_type="image/gif", bytes=1, sha256="1" * 64, status="active")
     png = MediaAsset(id=str(uuid.uuid4()), tenant_id=tid, storage_key="k2", mime_type="image/png", bytes=1, sha256="2" * 64, status="active")

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, lead_touches, lead_calls, lead_review, lead_evidence, lead_validity, lead_outcome, package_share, marketing_partners, marketing_channels, marketing_public, website, website_public,
+    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, marketing_home, lead_touches, lead_calls, lead_review, lead_evidence, lead_validity, lead_outcome, package_share, marketing_partners, marketing_channels, marketing_public, website, website_public,
     tenants, users, guests, inquiries, conversations, properties,
     qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, reports_crm, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
@@ -81,6 +81,7 @@ api_router.include_router(marketing_creative.router)
 api_router.include_router(marketing_reels.router)
 api_router.include_router(marketing_ads.router)
 api_router.include_router(marketing_results.router)
+api_router.include_router(marketing_home.router)   # studio Home: setup checklist, insights report
 api_router.include_router(lead_touches.router)
 api_router.include_router(lead_calls.router)   # POST /leads/{id}/log-call (a call from a personal phone)
 api_router.include_router(lead_review.router)  # PUT /leads/{id}/lead-type, /leads/{id}/validation
