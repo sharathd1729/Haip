@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import structlog
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 from sqlalchemy import desc, false as sa_false, or_
@@ -164,6 +164,18 @@ def _batch_signals(
 # The stored Inquiry.first_response_at / sla_breached columns are dead — no
 # code path writes them. Same computed-on-read pattern as
 # profile_completeness_pct; see LeadCardSchema for the field contract.
+
+def _sla_breached(response_time: Optional[tuple[int, str]], now: Optional[datetime] = None) -> bool:
+    """A lead card's ``sla_breached``: the guest is still waiting on us and the wait is past the work queue's "reply" SLA
+    (``work_queue_service.severity_for("reply", ...)`` is not "fresh", i.e. the same SLA_MINUTES rule My day and the alerts
+    use). Pure: reads the already batch-computed (seconds, status), no query. A lead we already answered is not breached."""
+    if not response_time or response_time[1] != "waiting":
+        return False
+    from app.services.work_queue_service import severity_for
+
+    now = now or datetime.now(timezone.utc)
+    return severity_for("reply", now - timedelta(seconds=response_time[0]), now) != "fresh"
+
 
 def _batch_response_time(
     db: Session,
@@ -677,7 +689,8 @@ def _build_lead_card(
         primary_channel=primary_channel,
         inquiry_stage=stage_val,
         stage_key=inquiry.pipeline_stage.key if inquiry.pipeline_stage else None,
-        sla_breached=bool(inquiry.sla_breached),
+        # Was bool(inquiry.sla_breached): a column nothing writes, so every lead showed false.
+        sla_breached=_sla_breached(response_time),
         occasion=inquiry.occasion,
         group_type=inquiry.intent_tag,
         check_in=inquiry.check_in,
