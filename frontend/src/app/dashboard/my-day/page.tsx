@@ -21,6 +21,8 @@ import { Card, EmptyState, FilterBar, FilterChip, PageHeader, StatusPill, Tabs, 
 import { CalendarClashes } from "@/components/dashboard/today/CalendarClashes";
 import { ConsultsPanel } from "@/components/consults/ConsultsPanel";
 import { Flame, MessageCircle, Clock } from "@/lib/icons";
+import { useIsPhone } from "@/lib/useIsPhone";
+import { PhoneMyDay } from "@/components/myday/PhoneMyDay";
 
 type Kind = "consult" | "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
 type Flag = "not_called" | "open_lead" | "at_risk";
@@ -249,7 +251,12 @@ function Section({ title, hint, count, icon, children }: {
   );
 }
 
+/** Phones get their own My day (components/myday/PhoneMyDay.tsx, same GET /work-queue); tablets and desktops keep this page. */
 export default function MyDayPage() {
+  return useIsPhone() ? <PhoneMyDay /> : <DesktopMyDay />;
+}
+
+function DesktopMyDay() {
   const { data: session } = useSession();
   const role = session?.user?.role;
   const isOwnerView = role === "owner" || role === "manager";
