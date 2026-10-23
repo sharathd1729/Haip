@@ -18,6 +18,7 @@ import type { LeadCard } from "@/components/leads/LeadCard";
 import type { LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { useDial } from "@/components/myday/useDial";
 import { LeadFiltersSheet, LeadRowSheet } from "./LeadRowSheet";
+import { NewLeadAction } from "@/components/phone/QuickAdd";
 import { matches, tripText, waitedText } from "./leadRow";
 
 const AddLeadModal = dynamic(() => import("@/components/leads/AddLeadModal").then(m => m.AddLeadModal), { ssr: false });
@@ -103,7 +104,11 @@ export function PhoneLeads() {
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="grid gap-3 px-4 pb-24 pt-3">
-        <FilterSearch value={q} onChange={setQ} placeholder="Name or trip" label="Search leads" className="min-w-0 max-w-none" />
+        {/* "New lead" in words next to search: the floating "+" alone was missed on phones (owner feedback, Oct 2026). */}
+        <div className="flex items-center gap-2">
+          <FilterSearch value={q} onChange={setQ} placeholder="Name or trip" label="Search leads" className="min-w-0 max-w-none" />
+          <NewLeadAction primary />
+        </div>
         <ChipRow label="Leads by stage" value={chip} onChange={setChip} items={items} onFilters={() => setShowFilters(true)} filterCount={nFilters} />
         {!onStage && nFilters > 0 && <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">Filters apply to the stage lists, not to Needs action.</p>}
         {q && <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">Searching the {onStage ? (list.data?.pages.flatMap(p => p.leads).length ?? 0) : needsLeads.length} leads loaded here{onStage && list.hasNextPage ? " · load more to search further" : ""}.</p>}

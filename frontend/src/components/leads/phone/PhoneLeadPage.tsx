@@ -17,7 +17,7 @@ import api from "@/lib/api";
 import { Calendar, CheckSquare, ChevronLeft, Eye, Flag, MessageCircle, MoreHorizontal, Phone, Send, Sparkles, User } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { EmptyState, OneLineSummary, SheetActions, Tabs, sheetActionCls } from "@/components/ui/kit";
+import { EmptyState, OneLineSummary, QuickAction, SheetActions, Tabs, sheetActionCls } from "@/components/ui/kit";
 import { useQuoteSheet } from "@/components/quotes/QuoteSheetProvider";
 import { useCanQuote } from "@/components/quotes/SendQuoteButton";
 import { SalesActionCard } from "@/components/sales/SalesActionCard";
@@ -171,6 +171,8 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
             {canSend && <button type="button" className={sheetActionCls(!canCall)} onClick={message}><MessageCircle size={19} aria-hidden />WhatsApp</button>}
             {canSend && hasPhone && <button type="button" className={sheetActionCls()} onClick={() => setPackageOpen(true)}><Send size={19} aria-hidden />Send package</button>}
           </SheetActions>
+          {/* Log a call made from your own phone: visible here, not only in the ⋯ menu (owner feedback, Oct 2026). */}
+          {canEdit && <QuickAction icon={Phone} onClick={() => setLogOpen(true)} className="justify-self-start">Log a call</QuickAction>}
         </section>
 
         <section aria-label="AI note" className="grid gap-1 rounded-xl bg-[var(--haip-olive-bg)] px-3 py-2.5 text-[var(--haip-olive-fg)]">

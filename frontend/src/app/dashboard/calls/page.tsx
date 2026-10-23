@@ -231,9 +231,10 @@ export default function CallsPage() {
   <button onClick={() => setShowDialer(true)} className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90">
   <PhoneCall size={13} /> Dial
   </button>
-  <button onClick={() => setShowUpload(true)} className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border"
+  {/* Phones too (owner feedback, Oct 2026: there was no way to add a call record on a phone); labelled "Add call" there. */}
+  <button onClick={() => setShowUpload(true)} className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border max-sm:min-h-11"
   style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg)" }}>
-  <Upload size={13} /> Upload
+  <Upload size={13} /> <span className="sm:hidden">Add call</span><span className="max-sm:hidden">Upload</span>
   </button>
   </div>
   </div>

@@ -56,7 +56,11 @@ describe("Phone Leads", () => {
     expect(await screen.findByRole("button", { name: /Active\s*8/ })).toBeTruthy();
     expect(screen.getByText(/Wants a weekend near Bengaluru/)).toBeTruthy();
     expect(screen.getByText("unassigned")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "New lead" })).toBeTruthy();
+    // Two ways to add a lead by hand: the labelled button beside search and the floating "+" (aria-label "New lead").
+    const adds = screen.getAllByRole("button", { name: "New lead" });
+    expect(adds.length).toBe(2);
+    expect(adds[0].textContent).toContain("New lead");
+    expect(adds[0].className).toContain("min-h-11");
   });
 
   it("calls a lead with a phone and offers Assign for one without", async () => {

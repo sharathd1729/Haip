@@ -102,6 +102,16 @@ describe("Phone lead page", () => {
   });
 });
 
+describe("Log a call", () => {
+  it("is a visible button on the lead (not only in the ⋯ menu) and opens the existing log-a-call sheet", async () => {
+    renderPage();
+    const btn = await screen.findByRole("button", { name: "Log a call" });
+    expect(btn.className).toContain("min-h-11");
+    await userEvent.click(btn);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+});
+
 describe("tripChips", () => {
   it("lists where, when, who and what is missing", () => {
     expect(tripChips({ ...lead, check_in: null } as never).map(c => c.text)).toEqual(["Goa", "4 adults", "no dates", "no budget"]);
