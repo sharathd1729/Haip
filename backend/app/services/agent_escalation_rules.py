@@ -40,6 +40,7 @@ REASONS: dict[str, str] = {
     "prompt_injection": "The message tries to give the AI instructions",
     "escalation_keyword": "A keyword the owner listed",
     "policy_consult": "Your AI policy says a person decides this",
+    "collab_request": "Collaboration / barter request: a person says yes or no",
 }
 
 _ESCALATION_CATEGORY = {
@@ -129,6 +130,8 @@ class TurnSignals:
     availability_claim: Optional[str] = None     # a sentence saying dates are open (the caller found it)
     # Recent messages, oldest first: {"direction", "body", "ai", "sent", "intent", "human"} -- see agent_consult_flow.history
     history: list = field(default_factory=list)
+    # A collaboration / barter request from this guest no person has answered yet (collab_requests.pending).
+    collab_request: bool = False
 
 
 @dataclass
@@ -275,6 +278,8 @@ def evaluate(signals: TurnSignals) -> Verdict:
         v.add("prompt_injection")
     if _B2B_RE.search(text):
         v.add("b2b_partner")
+    if signals.collab_request:
+        v.add("collab_request")
     if _DISCOUNT_RE.search(text) or _DISCOUNT_NATIVE_RE.search(text):
         v.add("discount_request")
     _gateway(signals, v)

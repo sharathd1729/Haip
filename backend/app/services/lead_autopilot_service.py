@@ -117,6 +117,9 @@ def settings_stats(db: Session, tenant_id: str) -> dict:
 # ── Guards ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 def _live_commitment(db: Session, tenant_id: str, inquiry, now: datetime) -> Optional[str]:
     """Why this lead must not be auto-Lost, or None."""
+    from app.services import collab_requests
+    if collab_requests.pending_for_inquiry(db, tenant_id, inquiry) is not None:
+        return "a collaboration request is waiting for a person's yes or no"
     from app.models.inquiry_360 import InquiryQuote
     from app.models.stay_finance import StayPaymentLink
 

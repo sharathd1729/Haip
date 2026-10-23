@@ -99,6 +99,7 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
             sales_handoff=getattr(sales_turn, "handoff", None) if sales_turn is not None else None,
             availability_claim=_availability_claim(reply_text),
             history=history(db, tenant.id, conversation.id),
+            collab_request=_collab_waiting(db, tenant.id, conversation),
         )
         verdict = rules.evaluate(signals)
         # Who may decide what (agent_policy): the owner's mode per action class keeps, drops or adds a reason.
@@ -114,6 +115,13 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
     except Exception as exc:  # noqa: BLE001 -- the guards above still decide; the consult is an addition
         log.warning("consult_check_failed", conversation_id=conversation.id, error=str(exc)[:300])
     return turn
+
+
+def _collab_waiting(db: Session, tenant_id: str, conversation: Conversation) -> bool:
+    """A collaboration / barter request on this thread that no person has answered: a person says yes or no, so every turn
+    until then is held (the first gets the one holding line; never a second "the team will reach out")."""
+    from app.services import collab_requests
+    return collab_requests.pending(db, tenant_id, [conversation.id], conversation.guest_id) is not None
 
 
 def _availability_claim(reply_text: str) -> Optional[str]:

@@ -1439,6 +1439,21 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         if consult_turn.hold:
             should_auto_send, needs_human = False, True; needs_human_reasons.append(consult_turn.note)
 
+        # A collaboration / barter request waiting for a person (services/collab_requests.py). In autonomous mode the consult
+        # above holds it and tells the team; where no consult opened (draft mode, consults off, a forced draft) ONE task is
+        # raised below and, once the AI has already told the guest something, no further promise goes out on its own.
+        collab_ask = None
+        if not consult_turn.reasons:
+            try:
+                from app.services import collab_requests
+                collab_ask = collab_requests.pending(db, tenant_id, [conversation_id], guest_id)
+                if collab_ask is not None and collab_requests.ai_already_replied(db, tenant_id, conversation_id,
+                                                                                collab_ask.created_at):
+                    should_auto_send, needs_human = False, True
+                    needs_human_reasons.append("collaboration request waiting for a person: no new promise sent")
+            except Exception as exc:  # noqa: BLE001 -- the reply path must not fail on this check
+                log.warning("collab_request_check_failed", conversation_id=conversation_id, error=str(exc)[:200])
+
         draft_message_id = str(uuid.uuid4())
 
         # HAIP Inbox UI-fidelity pass, ticket 3: offer the drafted reply
@@ -1562,6 +1577,15 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         except Exception as exc:
             # A missed task must never cost the guest their reply.
             log.warning("price_handoff_failed", conversation_id=conversation_id, error=str(exc))
+
+        if collab_ask is not None:
+            try:
+                from app.services import collab_requests
+                collab_requests.ensure_task(db, tenant_id, conversation, guest, collab_ask)
+                db.commit()
+            except Exception as exc:  # noqa: BLE001 -- a missed task must never cost the guest their reply
+                db.rollback()
+                log.warning("collab_request_task_failed", conversation_id=conversation_id, error=str(exc)[:200])
 
         # ── Phone-decline alert ─────────────────────────────────────────────
         # Instagram-only: a WhatsApp conversation's identity IS a phone
