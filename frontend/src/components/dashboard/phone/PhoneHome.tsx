@@ -1,9 +1,10 @@
 "use client";
 // Home on a phone, for owners and managers (mobile-first plan, approved mockup 24 Oct 2026): a greeting and the period, how
 // many people are waiting (the ONE work queue, same query and key as My day and the Now button), today's four numbers, then
-// the trips of the next 7 days. "What the AI noticed", the definitions and the wide desktop blocks are left off the phone.
-// Every figure comes from the server: the business overview (GET /dashboard/business-overview) for leads / booked /
-// collected, and the bookings list (GET /bookings, needs bookings.read) for the trips and the money due on them.
+// the trips of the next 7 days and leads by check-in month. "What the AI noticed", the definitions and the wide desktop blocks
+// are left off the phone. Every figure comes from the server: the business overview (GET /dashboard/business-overview) for
+// new leads / booked / collected, GET /leads?validity=valid for the valid enquiries, the bookings list (GET /bookings, needs
+// bookings.read) for the trips and the money due on them, and GET /reports/checkin-months for leads by check-in.
 // A figure the role may not see is hidden, never shown as 0.
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { overviewProblem, useBusinessOverview } from "@/components/dashboard/com
 import { lakh, restricted } from "@/components/dashboard/command/owner";
 import { addDays, guestName, shortDay, todayIST, type AgendaList, type AgendaRow } from "@/lib/bookingAgenda";
 import { WaitingBanner } from "./WaitingBanner";
+import { CheckinMonthRows } from "./CheckinMonthRows";
 
 const TRIPS_SHOWN = 8;
 
@@ -36,6 +38,18 @@ export function useTripsNext7(enabled: boolean) {
       params: { check_in_from: today, check_in_to: addDays(today, 6), sort: "check_in_asc", per_page: 100, page: 1 },
     }).then(r => r.data),
     enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** Valid enquiries received in the period: GET /leads?validity=valid (lead_validity.effective, D-28: a person's review, else
+ *  the workspace's valid-lead rule of name + phone + location, check-in optional). The one valid-lead definition; nothing is
+ *  re-derived here. Guest enquiries only; `total` is the count, no rows are needed. */
+export function useValidEnquiries(period: string) {
+  return useQuery<{ total: number }>({
+    queryKey: ["leads", "phone-home-valid", period],
+    queryFn: () => api.get("/leads", { params: { validity: "valid", lead_type: "guest", enquiry_date_preset: period, page: 1, page_size: 1 } })
+      .then(r => r.data),
     staleTime: 60_000,
   });
 }
@@ -71,6 +85,7 @@ export function PhoneHome() {
   const periodLabel = PERIOD_PRESETS.find(p => p.value === period)?.label.toLowerCase() ?? "";
   const kpis = data?.owner?.kpis;
   const due = dueThisWeek(tripRows);
+  const valid = useValidEnquiries(period);
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
@@ -96,7 +111,9 @@ export function PhoneHome() {
         ) : (
           <section aria-label={`Numbers, ${periodLabel}`} className={cn("grid grid-cols-2 gap-2", overview.isPlaceholderData && "opacity-60")}>
             <Stat variant="dark" className="px-3 py-3" label="New leads" value={kpis.new_leads.count}
-              hint={<span title="Qualified: shared a phone number and a check-in date">{kpis.qualified.count} genuine · {periodLabel}</span>} />
+              hint={valid.data
+                ? <span title="Enquiries received in the period that are valid: a person's review, else the workspace's valid-lead rule">{valid.data.total} valid {valid.data.total === 1 ? "enquiry" : "enquiries"} · {periodLabel}</span>
+                : <>shared a phone · {periodLabel}</>} />
             {!restricted(kpis.bookings) && (
               <Stat className="px-3 py-3" label="Booked" value={kpis.bookings.count}
                 hint={!restricted(kpis.booked_value) ? `${lakh(kpis.booked_value.total)} · ${periodLabel}` : periodLabel} />
@@ -136,8 +153,7 @@ export function PhoneHome() {
           </RowSection>
         )}
 
-        {/* TODO(mobile-first): "Leads by check-in" (genuine enquiries per upcoming weekend vs the aim) goes here once that report
-            merges from its own branch; it is not on master yet. */}
+        <CheckinMonthRows />
 
         <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center gap-1 text-[13px] font-semibold text-primary">
           Team, calls and response times <ChevronRight size={14} />

@@ -46,6 +46,11 @@ function route(ov: ReturnType<typeof overview>, trips = [trip("b1"), trip("b2", 
   get.mockImplementation((url: string) => {
     if (url === "/work-queue") return Promise.resolve({ data: queue });
     if (url === "/dashboard/business-overview") return Promise.resolve({ data: ov });
+    if (url === "/leads") return Promise.resolve({ data: { total: 4, leads: [], stages: {} } });
+    if (url === "/reports/checkin-months") return Promise.resolve({ data: { rows: [
+      { month: "2026-10-01", label: "Oct 2026", enquiries: 12, valid: 7, won: 2, lost: 3, open: 7 },
+      { month: "2026-11-01", label: "Nov 2026", enquiries: 5, valid: 4, won: 0, lost: 0, open: 5 }],
+      no_date: { month: null, label: "Date not given yet", enquiries: 9, valid: 3, won: 0, lost: 1, open: 8 } } });
     if (url === "/bookings") return Promise.resolve({ data: { data: trips, meta: { current_page: 1, last_page: 1, per_page: 100, total: trips.length, from: 1, to: trips.length } } });
     return Promise.reject(new Error(url));
   });
@@ -66,7 +71,8 @@ describe("Phone Home", () => {
     expect(screen.getByText("2 call-backs · 1 new lead")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Assign 1" }).getAttribute("href")).toBe("/dashboard/my-day?kind=new_lead");
     expect(await screen.findByText("New leads")).toBeTruthy();
-    expect(screen.getByText(/4 genuine · today/)).toBeTruthy();
+    expect(await screen.findByText(/4 valid enquiries · today/)).toBeTruthy();
+    expect(get).toHaveBeenCalledWith("/leads", { params: { validity: "valid", lead_type: "guest", enquiry_date_preset: "today", page: 1, page_size: 1 } });
     expect(screen.getByText("Booked")).toBeTruthy();
     expect(screen.getByText("₹45,000")).toBeTruthy();
     expect(await screen.findByText("Due this week")).toBeTruthy();
@@ -93,6 +99,29 @@ describe("Phone Home", () => {
     expect(screen.queryByText("Due this week")).toBeNull();
     expect(screen.queryByText("Trips next 7 days")).toBeNull();
     expect(get.mock.calls.some(c => c[0] === "/bookings")).toBe(false);
+  });
+});
+
+describe("Leads by check-in", () => {
+  it("lists the months from the check-in report with the 'Date not given yet' row", async () => {
+    route(overview());
+    renderHome();
+    expect(await screen.findByText("Oct 2026")).toBeTruthy();
+    expect(screen.getByText("7 valid · 2 won · 7 open")).toBeTruthy();
+    expect(screen.getByText("Date not given yet")).toBeTruthy();
+    expect(screen.getByText("9 enquiries")).toBeTruthy();
+    expect(get).toHaveBeenCalledWith("/reports/checkin-months", expect.objectContaining({ params: expect.objectContaining({ months: 3 }) }));
+  });
+
+  it("leaves the section out for a role the report refuses", async () => {
+    route(overview());
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string, cfg?: unknown) => url === "/reports/checkin-months"
+      ? Promise.reject({ response: { status: 403 } }) : base(url, cfg));
+    renderHome();
+    await screen.findByText("New leads");
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.queryByText("Leads by check-in")).toBeNull();
   });
 });
 

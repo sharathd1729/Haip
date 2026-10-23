@@ -8,7 +8,8 @@ Newest first. One entry per decision that changes how the UI is built. Rule from
 - Rows, not cards: kit `CompactRow` (avatar, who, one-line why, severity-coloured wait, at most two 44px `RowAction`s), `ChipRow` (3-4 chips with counts + Filters), `BottomSheet` (Base UI dialog: focus trap, Esc, scrim, swipe down; 260ms transform/opacity ease-out), `OneLineSummary`, `Fab`. Gallery: `/dashboard/dev-kit`.
 - Off the phone: "What the AI noticed" and the definitions on Home, the leads board / bulk actions / column and pipeline settings, two-series charts (Impact, Instagram) and long AI paragraphs (Calls).
 - Reused, not rebuilt: stage / lost / owner changes use the lead page's own sheets; Collect and WhatsApp use the booking sheets; an AI draft opens the thread's approve flow. Nothing approves, sends or charges from a list.
-- Not done: a "Done" tab on My day (nothing records finished items), phone search on Leads beyond the loaded rows (GET /leads has no search parameter), the lead detail page (waits for the lead-evidence branch) and "Leads by check-in" on Home (its report is on another branch).
+- Not done: a "Done" tab on My day (nothing records finished items), phone search on Leads beyond the loaded rows (GET /leads has no search parameter), and the lead detail page (next, now that the lead-evidence branch has merged).
+- Phone Home after the #91 merge: the New leads tile's second figure is valid enquiries received in the period (GET /leads?validity=valid, the one D-28 definition: a person's review, else the valid-lead rule), not "phone + check-in date"; "Leads by check-in" shows this month and the next two from GET /reports/checkin-months plus its "Date not given yet" row.
 
 ## 2026-10-22
 
