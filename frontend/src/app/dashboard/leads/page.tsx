@@ -16,6 +16,8 @@ import { DataTable, PageHeader, StatusPill, type Column } from "@/components/ui/
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
 import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { NeedsActionView } from "@/components/leads/NeedsActionView";
+import { useIsPhone } from "@/lib/useIsPhone";
+import { PhoneLeads } from "@/components/leads/phone/PhoneLeads";
 
 // B5: only needed once the user opens pipeline settings -- keep it out of
 // this route's initial chunk.
@@ -403,7 +405,12 @@ function StageTable({
 
 type LeadsView = "action" | "pipeline";
 
+/** Phones get the compact Leads list (components/leads/phone/PhoneLeads.tsx); tablets and desktops keep this page. */
 export default function Leads360Page() {
+  return useIsPhone() ? <PhoneLeads /> : <DesktopLeads />;
+}
+
+function DesktopLeads() {
   // The pipeline is the default for every role ("Needs action" is one tab away). The last choice is remembered on this
   // device; it is read after mount so the first render matches the server.
   const [view, setViewState] = useState<LeadsView>("pipeline");

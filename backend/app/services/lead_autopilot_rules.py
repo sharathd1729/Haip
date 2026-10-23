@@ -4,6 +4,9 @@ Each rule reads facts HAIP already holds -- bookings, the inquiry's dates, quote
 most one Decision. The first rule that fires wins, in this order:
 
   1. booking_exists     a live booking (Stay) is linked to the lead           -> the tenant's closed-won stage (Sold)
+  1b. collab_request    the guest asked for a collaboration / barter deal and
+                        no person has answered (collab_requests.pending)    -> the tenant's collab-entry stage; while it
+                        waits NO other rule runs, so it is never auto-Lost (lead_autopilot_service blocks an AI Lost too)
   2. dates_passed       check-in is in the past and nothing was booked        -> closed-lost, reason "dates"
   3. explicit_decline   a person set the call outcome to Lost, or the guest's
                         LATEST message is a clear decline ("not interested",
@@ -14,6 +17,8 @@ most one Decision. The first rule that fires wins, in this order:
                         for quote_silence_days                              -> closed-lost, reason "no_response"
   6. no_reply           the team contacted the guest last and nothing came
                         back for silence_days                               -> closed-lost, reason "no_response"
+                        ("the team" = a person's message or our call; the AI's own replies, holding
+                        lines and automatic messages never count: a guest waiting on us is not Lost)
   7. qualified          an Unqualified lead has a phone -> the valid-lead entry stage; a General Enquiry / RNR lead
                         with a phone AND a stated requirement (dates, route or headcount) -> the first open "valid"
                         stage after the entry (Active)
@@ -65,6 +70,7 @@ class StageMap:
     valid_entry: object = None
     rnr: object = None
     qualified: object = None
+    collab: object = None
 
     @classmethod
     def load(cls, db: Session, tenant_id: str) -> "StageMap":
@@ -76,6 +82,7 @@ class StageMap:
         m.default_entry = next((s for s in stages if s.is_default_entry), None)
         m.valid_entry = next((s for s in stages if s.is_valid_lead_entry), None)
         m.rnr = next((s for s in stages if s.key == "rnr"), None)
+        m.collab = next((s for s in stages if s.is_collab_entry), None)
         anchor = m.valid_entry.order if m.valid_entry else None
         # "unsuitable" is a dead end (the work queue treats it as done), never where a qualified lead goes. Ratha had
         # Unsuitable and Active at the same order, and the first one by order was Unsuitable: autopilot moved every
@@ -146,9 +153,10 @@ class Signals:
     stays: list
     calls: list                  # newest first, this guest
     last_inbound: object         # Message or None (guest's latest real message)
-    last_outbound: object        # Message or None (latest message the team actually sent)
+    last_outbound: object        # Message or None (latest message a PERSON sent or approved: the contact rule)
     quotes: list                 # newest first
     stage_entered_at: Optional[datetime]
+    collab_ask: object = None    # a collaboration request no person has answered (collab_requests.pending)
 
 
 def gather(db: Session, tenant_id: str, inquiry) -> Signals:
@@ -171,17 +179,21 @@ def gather(db: Session, tenant_id: str, inquiry) -> Signals:
         base = db.query(Message).filter(Message.tenant_id == tenant_id, Message.conversation_id.in_(conv_ids),
                                         Message.is_internal.is_(False))
         last_in = base.filter(Message.direction == MessageDirection.INBOUND).order_by(Message.created_at.desc()).first()
-        # An AI draft nobody sent is not contact with the guest.
-        last_out = (base.filter(Message.direction == MessageDirection.OUTBOUND,
-                                or_(Message.is_ai_generated.is_(False), Message.is_ai_generated.is_(None),
-                                    Message.was_approved.is_(True), Message.sent_autonomously.is_(True)))
-                    .order_by(Message.created_at.desc()).first())
+        # Our contact = the ONE contact rule (work_queue_signals): a message a PERSON sent or approved. The AI's own replies and
+        # holding lines, playbook/system messages and campaign broadcasts (old rows too) are not: a guest waiting on US must
+        # never read as "we spoke last, they went silent" (live: the AI's "we'll get back to you" made a waiting guest Lost).
+        from app.services.work_queue_signals import contact_message_filters, is_legacy_campaign
+        last_out = next((m for m in base.filter(*contact_message_filters()).order_by(Message.created_at.desc()).limit(20)
+                         if not is_legacy_campaign(m.sender_name, m.channel_metadata)), None)
     quotes = (db.query(InquiryQuote).filter_by(tenant_id=tenant_id, inquiry_id=inquiry.id)
               .order_by(InquiryQuote.created_at.desc()).all())
+    from app.services import collab_requests
+    collab_ask = collab_requests.pending(db, tenant_id, conv_ids, inquiry.guest_id)
     return Signals(
         has_phone=bool(guest is not None and guest.lead_identified_at is not None),
         stays=stays, calls=calls, last_inbound=last_in, last_outbound=last_out, quotes=quotes,
         stage_entered_at=_aware(inquiry.current_stage_entered_at or inquiry.created_at),
+        collab_ask=collab_ask,
     )
 
 
@@ -235,6 +247,15 @@ def evaluate(db: Session, tenant_id: str, inquiry, stages: StageMap, settings: d
         stay = sig.stays[0]
         return Decision(stages.won, "booking_exists", f"A booking ({stay.check_in}) is linked to this lead",
                         evidence=[{"kind": "booking", "id": stay.id, "quote": f"Booking {stay.check_in} to {stay.check_out}"}])
+
+    # 1b. A collaboration / barter request waiting for a person: the collab stage, never a sales Lost. A request older than a
+    # person's own move of the lead is not moved again; either way nothing else is decided while it waits.
+    ask = sig.collab_ask
+    if ask is not None:
+        if stages.collab is not None and (sig.stage_entered_at is None or _aware(ask.created_at) >= sig.stage_entered_at):
+            return Decision(stages.collab, "collab_request", "The guest asked for a collaboration / barter deal; a person decides",
+                            evidence=[{"kind": "message", "id": ask.id, "quote": _snippet(ask.body)}])
+        return None
 
     if not sig.has_phone or stages.lost is None:
         return _qualify(inquiry, stages, current, sig)

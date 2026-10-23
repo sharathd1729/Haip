@@ -4,6 +4,8 @@
 // and wrap-up. The agent's wrap-up notes are stored separately from the AI
 // summary (POST /calls/{id}/wrap-up saves them to disposition_note).
 import { useEffect, useRef, useState } from "react";
+import { useIsPhone } from "@/lib/useIsPhone";
+import { OneLineSummary } from "@/components/ui/kit";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -69,6 +71,7 @@ export function CallDetailPanel({
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const phone = useIsPhone();
   const { data: session } = useSession();
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -183,7 +186,9 @@ export function CallDetailPanel({
   {(call.ai_summary || call.ai_next_action) && (
   <section className="rounded-xl bg-primary/10  p-4">
   <h3 className="text-[10px] font-bold uppercase tracking-wider text-primary ">What happened</h3>
-  {call.ai_summary && <p className="text-sm mt-1.5 leading-relaxed" style={{ color: "var(--haip-fg)" }}>{call.ai_summary}</p>}
+  {/* Phones: the summary on one line with "more" (mobile-first plan); desktop keeps the full paragraph. */}
+  {call.ai_summary && (phone ? <OneLineSummary text={call.ai_summary} className="mt-1.5 text-[var(--haip-fg)]" />
+    : <p className="text-sm mt-1.5 leading-relaxed" style={{ color: "var(--haip-fg)" }}>{call.ai_summary}</p>)}
   {call.ai_next_action && <p className="text-sm font-semibold mt-2 text-primary ">Next: {call.ai_next_action}</p>}
   {draftAction && (
   <button

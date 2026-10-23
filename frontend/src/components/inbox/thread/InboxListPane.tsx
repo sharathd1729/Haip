@@ -13,6 +13,8 @@ import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
 import { TypingDots } from "@/components/inbox/TypingDots";
 import { CallLogCard, type CallTimelineItem } from "@/components/inbox/CallLogCard";
 import { ConversationList, type InboxView } from "@/components/inbox/ConversationList";
+import { PhoneInboxList } from "@/components/inbox/phone/PhoneInboxList";
+import { useIsPhone } from "@/lib/useIsPhone";
 import {
   type Message, type ConversationDetail, type TimelineCallItem, type Mut,
   getWindowSecondsLeft, formatWindowCountdown, COMPOSER_REWRITE_LANGUAGES, COMPOSER_REWRITE_TONES,
@@ -37,6 +39,20 @@ export function InboxListPane({
   clickToCallMutation: Mut;
 }) {
   const queryClient = useQueryClient();
+  const phone = useIsPhone();
+  // Phones: WhatsApp-like rows with whose turn it is (components/inbox/phone/PhoneInboxList.tsx). Same feed, same thread.
+  if (phone) {
+    return (
+      <div className={cn("flex-col bg-card", mobileView === "list" ? "flex w-full" : "hidden")}>
+        <PhoneInboxList
+          conversations={displayConversations ?? (scopedFeed ? [] : conversations)} isLoading={listLoading}
+          view={inboxView} onViewChange={setInboxView} counts={viewCounts}
+          onSelect={id => { setActiveConversation(id); setMobileView("thread"); }}
+          onLoadMore={hasMoreConversations ? () => fetchNextConversationPage() : undefined} isLoadingMore={isLoadingMoreConversations}
+          channelFilter={channelFilter} channelOptions={CHANNEL_FILTERS} onChannelChange={setChannelFilter} />
+      </div>
+    );
+  }
   return (
       <div className={cn(
         "flex-col bg-card",

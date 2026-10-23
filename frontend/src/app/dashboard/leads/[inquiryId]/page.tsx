@@ -32,6 +32,8 @@ import { SalesActionCard } from "@/components/sales/SalesActionCard";
 import { SignalDrawer } from "@/components/leads/SignalDrawer";
 import { firstName, inr, istDate, nights } from "@/components/leads/lead-page/format";
 import type { LeadActionKey, LeadDetail, LeadFeed, PipelineStage } from "@/components/leads/lead-page/types";
+import { useIsPhone } from "@/lib/useIsPhone";
+import { PhoneLeadPage } from "@/components/leads/phone/PhoneLeadPage";
 
 const WIDE = "(min-width: 1200px)";
 const LIVE_QUOTE = new Set(["issued", "pending_approval", "accepted"]);
@@ -52,8 +54,14 @@ function status(e: unknown): number | undefined {
   return (e as { response?: { status?: number } })?.response?.status;
 }
 
+/** Phones get the mockup's lead page (components/leads/phone/PhoneLeadPage.tsx, same pieces and endpoints); tablets and
+ *  desktops keep this layout. */
 export default function LeadDetailPage() {
   const { inquiryId } = useParams<{ inquiryId: string }>();
+  return useIsPhone() ? <PhoneLeadPage inquiryId={inquiryId} /> : <DesktopLeadPage inquiryId={inquiryId} />;
+}
+
+function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();

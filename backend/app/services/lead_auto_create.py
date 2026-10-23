@@ -32,7 +32,7 @@ from app.models.pipeline_stage import PipelineStage
 _COLLAB_KEYWORDS = [
     "collab", "collaboration", "collaborate", "b2b", "partnership", "partner",
     "ugc", "content creator", "content creators", "creator", "creators",
-    "content",
+    "content", "barter", "influencer", "influencers",
 ]
 _COLLAB_RE = re.compile(
     r"\b(" + "|".join(re.escape(k) for k in _COLLAB_KEYWORDS) + r")\b",
@@ -43,6 +43,18 @@ def is_collab_message(text: str) -> bool:
     if not text:
         return False
     return bool(_COLLAB_RE.search(text))
+
+
+# The same ask later in a conversation (collab_requests). Stricter than the first-message routing above: "partner", "content" and
+# "b2b" are left out ("my partner and I" is a guest; a B2B rate is a trade enquiry, the b2b_partner consult).
+_COLLAB_REQUEST_RE = re.compile(
+    r"\b(collab|collabs|collaboration|collaborations|collaborate|barter|influencer|influencers|ugc|content creators?|"
+    r"creators?|paid promotion|sponsorship|partnership)\b", re.IGNORECASE)
+
+
+def is_collab_request(text: str) -> bool:
+    """A guest asking for a collaboration / barter / influencer deal, from their own words."""
+    return bool(text) and bool(_COLLAB_REQUEST_RE.search(text))
 
 
 # A business asking on behalf of its clients (lead_types.B2B). Whole words / phrases only, so "agency" never matches inside

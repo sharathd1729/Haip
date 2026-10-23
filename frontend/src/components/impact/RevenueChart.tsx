@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Tabs } from "@/components/ui/kit";
 import { inr, inrShort, num } from "@/components/dashboard/command/types";
 import { formatDay, formatMonth, type RevenueMonth } from "./types";
+import { useIsPhone } from "@/lib/useIsPhone";
 
 const SERIES = [
   { key: "booked_value" as const, label: "Bookings value", swatch: "bg-[var(--haip-series-1)]", color: "var(--haip-series-1)" },
@@ -37,6 +38,28 @@ export function RevenueChart({ months, goLiveMonth }: { months: RevenueMonth[]; 
   const rows: Row[] = useMemo(() => months.map(m => ({ ...m, label: formatMonth(m.month).slice(0, 3) + " " + m.month.slice(2, 4) })), [months]);
   const goLive = rows.find(r => r.month === goLiveMonth);
   const empty = months.every(m => !m.booked_value && !m.collected);
+  const phone = useIsPhone();
+
+  // Phones: no two-series chart or four-column table; one line per month with both figures (mobile-first plan).
+  if (phone) {
+    return empty ? <p className="text-[13px] text-[var(--haip-fg-subtle)]">No bookings or payments in these months yet.</p> : (
+      <ul className="divide-y divide-[var(--haip-border)]" aria-label="Bookings value and cash collected per month (IST)">
+        {months.map(m => (
+          <li key={m.month} className="flex items-baseline justify-between gap-3 py-2.5 text-[13.5px]">
+            <span className="min-w-0">
+              <span className="font-semibold text-[var(--haip-fg)]">{formatMonth(m.month)}</span>
+              {m.month === goLiveMonth && <span className="ml-1.5 text-[12px] text-[var(--haip-fg-subtle)]">go-live</span>}
+              <span className="block text-[12px] text-[var(--haip-fg-subtle)]">{num(m.bookings)} booking{m.bookings === 1 ? "" : "s"}</span>
+            </span>
+            <span className="shrink-0 text-right tabular-nums">
+              <span className="block text-[var(--haip-fg)]">{inr(m.booked_value)} <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">booked</span></span>
+              <span className="block text-[var(--haip-fg-2)]">{inr(m.collected)} <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">collected</span></span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
 
   return (
     <div>

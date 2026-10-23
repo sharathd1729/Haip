@@ -27,6 +27,8 @@ import {
   NO_FILTERS, SEGMENTS, canEditBookings, filterCount, filterParams, guestName, todayIST, useHydrated, vehicleSlot,
   type AgendaList, type AgendaRow, type Filters, type Segment,
 } from "@/lib/bookingAgenda";
+import { useIsPhone } from "@/lib/useIsPhone";
+import { PhoneBookings } from "@/components/bookings/phone/PhoneBookings";
 
 const PER_PAGE = 50;
 // The Owner Command Center deep-links here with ?quick=..., so a figure opens the bookings it counted.
@@ -226,9 +228,11 @@ function BookingsList() {
 }
 
 export default function BookingsPage() {
+  // Phones get the compact list with a 7-day strip and a booking sheet (components/bookings/phone/PhoneBookings.tsx).
+  const phone = useIsPhone();
   return (
     <Suspense fallback={<div className="p-6"><Skeleton className="h-10 w-48" /></div>}>
-      <BookingsList />
+      {phone ? <PhoneBookings /> : <BookingsList />}
     </Suspense>
   );
 }

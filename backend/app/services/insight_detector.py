@@ -89,34 +89,54 @@ def _auto_resolve(db: Session, tenant_id: str, category_code: str, target_id: Op
 
 # ─── CATEGORY A — Urgency Alerts ──────────────────────────────────────────────
 
+def _uncontacted_leads(db: Session, tenant_id: str) -> list[dict]:
+    """New leads nobody has contacted yet, read off the ONE work queue (work_queue_service, kind ``new_lead``): people with a
+    usable phone number (guests.lead_identified_at) that no person has called or written to since the number arrived, the
+    cold tail (severity ``stale``) left out as on Home and in the nav badge.
+
+    A1/A2 used to count every enquiry still in the legacy ``NEW`` stage with no ``first_response_at``. That swept in every old
+    Instagram / WhatsApp DM and auto-created conversation enquiry with no phone (a DM is not a lead, CLAUDE.md "Lead
+    definition"), so Home's "What the AI noticed" said "2169 leads not followed up in 24h" while My day had a handful."""
+    from app.models.tenant import Tenant
+    from app.services import work_queue_service
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if tenant is None:
+        return []
+    res = work_queue_service.build(db, tenant, None, kinds=["new_lead"])
+    return [i for i in res["items"] if i.get("kind") == "new_lead" and i.get("severity") != "stale"]
+
+
+def _since(item: dict) -> Optional[datetime]:
+    raw = item.get("since")
+    if not raw:
+        return None
+    dt = datetime.fromisoformat(raw)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 def detect_A1(db: Session, tenant_id: str) -> None:
-    """A1: Unresponded inquiries — NEW stage with no first_response_at for >24h."""
-    cutoff = (_NOW() - timedelta(hours=24)).isoformat()
-    count = db.query(func.count(Inquiry.id)).filter(
-        Inquiry.tenant_id == tenant_id,
-        Inquiry.stage == InquiryStage.NEW,
-        Inquiry.first_response_at.is_(None),
-        Inquiry.created_at <= cutoff,
-    ).scalar() or 0
+    """A1: new leads (a phone number on file) that no person has contacted for 24 h or more -- work queue kind new_lead."""
+    cutoff = _NOW() - timedelta(hours=24)
+    late = [i for i in _uncontacted_leads(db, tenant_id) if (_since(i) or _NOW()) <= cutoff]
+    count = len({i.get("guest_id") or i.get("title") for i in late})
 
     if count >= 1:
-        # Estimate revenue at risk
-        rev = db.query(func.sum(Inquiry.budget)).filter(
-            Inquiry.tenant_id == tenant_id,
-            Inquiry.stage == InquiryStage.NEW,
-            Inquiry.first_response_at.is_(None),
-            Inquiry.created_at <= cutoff,
-            Inquiry.budget.isnot(None),
-        ).scalar() or 0
+        # Estimate revenue at risk from the budgets on these people's open enquiries
+        inquiry_ids = [i["inquiry_id"] for i in late if i.get("inquiry_id")]
+        rev = (db.query(func.sum(Inquiry.budget)).filter(
+            Inquiry.tenant_id == tenant_id, Inquiry.id.in_(inquiry_ids), Inquiry.budget.isnot(None),
+        ).scalar() or 0) if inquiry_ids else 0
         rev_str = f" — ₹{rev/100000:.1f}L at risk" if rev > 0 else ""
         _upsert_insight(db, tenant_id, {
             "category_code": "A1",
             "category":      InsightCategory.URGENCY,
             "severity":      InsightSeverity.CRITICAL,
-            "title":         f"{count} lead{'s' if count > 1 else ''} not followed up in 24h{rev_str}",
-            "body":          f"{count} {'inquiries' if count > 1 else 'inquiry'} in NEW stage with no response for over 24 hours.",
-            "cta_label":     "Assign Now",
-            "cta_href":      "/dashboard/inquiries?filter=unresponded",
+            "title":         f"{count} new lead{'s' if count > 1 else ''} not contacted in 24h{rev_str}",
+            "body":          f"{count} {'people' if count > 1 else 'person'} shared a phone number and nobody has called or written "
+                             f"to them for over 24 hours.",
+            "cta_label":     "Open My day",
+            "cta_href":      "/dashboard/my-day?kind=new_lead",
             "data_snapshot": {"count": count, "revenue_at_risk": float(rev)},
             "expires_at":    _NOW() + timedelta(hours=4),
         })
@@ -125,29 +145,24 @@ def detect_A1(db: Session, tenant_id: str) -> None:
 
 
 def detect_A2(db: Session, tenant_id: str) -> None:
-    """A2: SLA breach imminent — inquiries where 80% of SLA window has elapsed."""
-    # Use 30-min default SLA; in future read from tenant.config
-    sla_minutes = 30
-    sla_80pct = timedelta(minutes=sla_minutes * 0.8)
-    cutoff = (_NOW() - sla_80pct).isoformat()
+    """A2: new leads past the first-contact target but not yet urgent -- work queue new_lead items at severity ``late``
+    (work_queue_service.SLA_MINUTES["new_lead"]), so this and My day agree on who is close to breaching."""
+    from app.services.work_queue_service import SLA_MINUTES
 
-    count = db.query(func.count(Inquiry.id)).filter(
-        Inquiry.tenant_id == tenant_id,
-        Inquiry.stage.in_([InquiryStage.NEW]),
-        Inquiry.first_response_at.is_(None),
-        Inquiry.created_at <= cutoff,
-    ).scalar() or 0
+    late_at, urgent_at = SLA_MINUTES["new_lead"][0], SLA_MINUTES["new_lead"][1]
+    near = [i for i in _uncontacted_leads(db, tenant_id) if i.get("severity") == "late"]
+    count = len({i.get("guest_id") or i.get("title") for i in near})
 
     if count >= 1:
         _upsert_insight(db, tenant_id, {
             "category_code": "A2",
             "category":      InsightCategory.URGENCY,
             "severity":      InsightSeverity.HIGH,
-            "title":         f"{count} {'inquiries are' if count > 1 else 'inquiry is'} approaching SLA deadline",
-            "body":          f"Respond in the next {int(sla_minutes * 0.2)} minutes to avoid SLA breach.",
-            "cta_label":     "Respond Now",
-            "cta_href":      "/dashboard/inquiries?filter=sla_due",
-            "data_snapshot": {"count": count, "sla_minutes": sla_minutes},
+            "title":         f"{count} new lead{'s are' if count > 1 else ' is'} past the {late_at}-minute first-call target",
+            "body":          f"Call them before they have waited {urgent_at} minutes.",
+            "cta_label":     "Call now",
+            "cta_href":      "/dashboard/my-day?kind=new_lead",
+            "data_snapshot": {"count": count, "sla_minutes": late_at},
             "expires_at":    _NOW() + timedelta(minutes=15),
         })
     else:

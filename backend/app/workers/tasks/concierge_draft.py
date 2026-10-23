@@ -299,10 +299,10 @@ def _check_no_media_claim(reply_text: str) -> tuple[bool, "str | None"]:
 
 def _history_block(history, limit: int = 8) -> str:
     """The last few real messages (never unsent AI drafts: build_concierge_context already excludes those), oldest first."""
+    from app.services.message_author import author_of
     lines = []
     for m in (history or [])[-limit:]:
-        direction = getattr(m.get("direction"), "value", m.get("direction"))
-        who = "GUEST" if str(direction).lower() == "inbound" else "US"
+        who = m.get("who") or author_of(m.get("direction"))
         body = (m.get("body") or "").strip()
         if body:
             lines.append(f"[{who}] {body[:400]}")
@@ -327,7 +327,9 @@ async def _classify_and_extract(latest_message: str, history=None, known: dict |
         system_prompt=(
             f"Today's date is {today}. Classify the newest WhatsApp/Instagram message from a hospitality guest and extract "
             "the stay details the guest has STATED. A date or headcount given earlier in the conversation still counts; if the "
-            "guest later changed it, use the latest value. Never guess: leave anything not stated as null. Resolve relative "
+            "guest later changed it, use the latest value. Only [GUEST] lines are the guest's own words: never take a date, "
+            "headcount, place or request from a line WE sent ([US: ...]), above all a [US: CAMPAIGN BROADCAST], which went to "
+            "many guests at once. Never guess: leave anything not stated as null. Resolve relative "
             "dates (e.g. 'next weekend', 'the 14th') against today's date; if no year is given, assume the next future "
             "occurrence of that date. List every distinct thing the guest is asking in `questions`."
         ),
@@ -352,6 +354,14 @@ async def _ground_reply(
     classification = await _classify_and_extract(latest_message, history=history, known=known)
     intent = classification.get("intent", "general")
     details = concierge_facts.clean_details(classification)
+    # A party size only WE wrote (a campaign's "8 guests each") is not the guest's, whatever the classifier returned.
+    from app.services.message_author import GUEST, author_of, keep_guest_headcount
+    _guest_lines = [latest_message] + [m.get("body") or "" for m in (history or [])
+                                       if (m.get("who") or author_of(m.get("direction"))) == GUEST]
+    _our_lines = [m.get("body") or "" for m in (history or []) if (m.get("who") or author_of(m.get("direction"))) != GUEST]
+    details, _dropped = keep_guest_headcount(details, _guest_lines, _our_lines, keys=("adults", "children"))
+    if _dropped:
+        log.info("concierge_headcount_not_from_guest", dropped=_dropped)
     if details_out is not None:
         details_out.update(details)
         details_out["intent"] = intent
@@ -783,6 +793,27 @@ def _already_drafted_for_latest_inbound(db, conversation_id: str) -> bool:
     ).first() is not None
 
 
+def _closing_acknowledgement(db, tenant_id: str, conversation_id: str) -> bool:
+    """The guest's unanswered burst only acknowledges or closes ("Okay", "thanks", "👍", "okay waiting to hear from you") and the
+    last message the guest got from us asked nothing. Live (Rathaa, Oct 2026): a bare "Okay" after our holding line opened an
+    "Ask a manager" consult. After a question of ours ("Shall I check the long weekend?") the same "Okay" is an answer and is
+    drafted as usual; with nothing from us yet, too."""
+    from app.models.conversation import MessageDirection
+    from app.services.agent_escalation_rules import is_acknowledgement
+    if not is_acknowledgement(unanswered_guest_text(db, tenant_id, conversation_id)):
+        return False
+    last = (
+        db.query(Message.body)
+        .filter(Message.tenant_id == tenant_id, Message.conversation_id == conversation_id,
+                Message.direction == MessageDirection.OUTBOUND, Message.is_internal.isnot(True),
+                # a held (unsent) AI draft is not something the guest saw
+                ~((Message.is_ai_generated.is_(True)) & (Message.was_approved.isnot(True))))
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    return last is not None and "?" not in (last[0] or "")
+
+
 def _known_enquiry(inquiry) -> dict:
     """What the CRM enquiry already records, for the classifier (never persisted back by this task)."""
     if not inquiry:
@@ -949,6 +980,12 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     trigger_summary_refresh(db=db, inquiry_id=str(inquiry.id), tenant_id=tenant_id, source="message")
                 except Exception as summary_exc:
                     log.warning("concierge_summary_refresh_skipped", conversation_id=conversation_id, error=str(summary_exc))
+            return
+
+        # "Okay" / "thanks" / "👍" after a message of ours that asked nothing: nothing to answer, so no "typing…", no model call,
+        # no draft, no consult. A forced "write a draft" click still drafts.
+        if not force and _closing_acknowledgement(db, tenant_id, conversation_id):
+            log.info("concierge_draft_skipped_acknowledgement", conversation_id=conversation_id, message_id=message_id)
             return
 
         # Let the guest see "typing…" while the draft is being generated --
@@ -1402,6 +1439,21 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         if consult_turn.hold:
             should_auto_send, needs_human = False, True; needs_human_reasons.append(consult_turn.note)
 
+        # A collaboration / barter request waiting for a person (services/collab_requests.py). In autonomous mode the consult
+        # above holds it and tells the team; where no consult opened (draft mode, consults off, a forced draft) ONE task is
+        # raised below and, once the AI has already told the guest something, no further promise goes out on its own.
+        collab_ask = None
+        if not consult_turn.reasons:
+            try:
+                from app.services import collab_requests
+                collab_ask = collab_requests.pending(db, tenant_id, [conversation_id], guest_id)
+                if collab_ask is not None and collab_requests.ai_already_replied(db, tenant_id, conversation_id,
+                                                                                collab_ask.created_at):
+                    should_auto_send, needs_human = False, True
+                    needs_human_reasons.append("collaboration request waiting for a person: no new promise sent")
+            except Exception as exc:  # noqa: BLE001 -- the reply path must not fail on this check
+                log.warning("collab_request_check_failed", conversation_id=conversation_id, error=str(exc)[:200])
+
         draft_message_id = str(uuid.uuid4())
 
         # HAIP Inbox UI-fidelity pass, ticket 3: offer the drafted reply
@@ -1525,6 +1577,15 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         except Exception as exc:
             # A missed task must never cost the guest their reply.
             log.warning("price_handoff_failed", conversation_id=conversation_id, error=str(exc))
+
+        if collab_ask is not None:
+            try:
+                from app.services import collab_requests
+                collab_requests.ensure_task(db, tenant_id, conversation, guest, collab_ask)
+                db.commit()
+            except Exception as exc:  # noqa: BLE001 -- a missed task must never cost the guest their reply
+                db.rollback()
+                log.warning("collab_request_task_failed", conversation_id=conversation_id, error=str(exc)[:200])
 
         # ── Phone-decline alert ─────────────────────────────────────────────
         # Instagram-only: a WhatsApp conversation's identity IS a phone
