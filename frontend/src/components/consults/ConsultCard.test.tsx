@@ -62,4 +62,25 @@ describe("ConsultBanner", () => {
     await waitFor(() => expect(get).toHaveBeenCalled());
     expect(container.textContent).toBe("");
   });
+
+  it("starts as a one-line bar so the chat stays visible, and opens the full card on tap", async () => {
+    get.mockResolvedValue({ data: [consult()] });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={qc}><ConsultBanner conversationId="c1" /></QueryClientProvider>);
+    const bar = await screen.findByRole("button", { name: /Priya asked/ });
+    expect(bar.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Approve & send" })).toBeNull();
+    await userEvent.click(bar);
+    expect(bar.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "Approve & send" })).toBeTruthy();
+  });
+
+  it("opens straight away when a ?consult= link points at it", async () => {
+    window.history.replaceState(null, "", "/dashboard/inbox?consult=k1");
+    get.mockResolvedValue({ data: [consult()] });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={qc}><ConsultBanner conversationId="c1" /></QueryClientProvider>);
+    expect(await screen.findByRole("button", { name: "Approve & send" })).toBeTruthy();
+    window.history.replaceState(null, "", "/");
+  });
 });
