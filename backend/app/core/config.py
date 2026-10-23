@@ -122,6 +122,17 @@ class Settings(BaseSettings):
     META_INSTAGRAM_ACCESS_TOKEN: str = ""
     META_INSTAGRAM_PAGE_ID: str = ""
     INSTAGRAM_APP_ID: str = ""
+    # Marketing Studio research (studio plan phase 2). Every source is OFF per workspace until the owner switches it on,
+    # and needs its key here. Empty = that source shows "ask your HAIP admin" and is skipped; nothing fails to boot.
+    RESEARCH_PROXY_URL: str = ""          # egress proxy for the logged-out competitor collector worker only
+    APIFY_TOKEN: str = ""                 # collector fallback + Meta Ad Library
+    YOUTUBE_API_KEY: str = ""
+    GOOGLE_PLACES_API_KEY: str = ""
+    GOOGLE_ADS_DEVELOPER_TOKEN: str = ""  # Keyword Planner volumes (with the four below)
+    GOOGLE_ADS_CLIENT_ID: str = ""
+    GOOGLE_ADS_CLIENT_SECRET: str = ""
+    GOOGLE_ADS_REFRESH_TOKEN: str = ""
+    GOOGLE_ADS_CUSTOMER_ID: str = ""
 
     # Personal/Business-app WhatsApp bridge (whatsmeow, unofficial -- Phase 1
     # read-only capture only; see whatsapp_personal_service.py). Internal

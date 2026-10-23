@@ -42,3 +42,23 @@ needs the owner (keys, Meta/Google approvals). External services are OFF by defa
   median, what works by element, tired ads, context, next plan (fed to the weekly plan). Confidence words only:
   Strong / Early signal / Not enough data. Numbers in code; the AI's sentences with a number not in the facts are
   dropped; any AI failure leaves the deterministic report.
+
+## Phase 2: the researcher (every source OFF until the owner switches it on)
+
+| Source | Evidence | Needs | Notes |
+|---|---|---|---|
+| Competitor posts/Reels (collector) | platform | `RESEARCH_PROXY_URL` + the collector worker | instaloader, logged out; Apify fallback (`APIFY_TOKEN`) |
+| Meta Ad Library | platform | `APIFY_TOKEN` | active ads only; India shows no spend |
+| Trending audio | platform | Facebook Login connection | `GET /ig_audio` per the owner's spec, **unverified**: keep off until one live call works |
+| Hashtag top posts | platform | Facebook Login connection | 30 unique hashtags per 7 days, enforced |
+| YouTube trending travel (IN) | platform | `YOUTUBE_API_KEY` | |
+| Google Trends daily (IN) | google | nothing | RSS |
+| Google News | google | nothing | RSS, queries from published destinations / profile city |
+| Competitor Google ratings + review themes | google | `GOOGLE_PLACES_API_KEY` | Places API (New); themes counted in code |
+| Keyword Planner volumes | google | `GOOGLE_ADS_*` (5 keys) | Google Ads API v19, **unverified** |
+| Reel reading (swipe file) | platform | `GEMINI_API_KEY` | ffmpeg cut times + vision model with the video |
+
+- The collector runs only in the `research_collector` service (`docker compose --profile research up -d
+  research_collector`), consumes only the `research_collect` queue, never logs in and never receives a tenant token or
+  HAIP's Meta app. Note: it shares `backend/.env` to write its rows, so the container holds the same server secrets.
+- Not built: Pinterest Trends (needs a Pinterest app + business OAuth); yt-dlp (instaloader returns the video URL).

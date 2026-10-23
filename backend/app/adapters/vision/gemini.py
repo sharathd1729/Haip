@@ -20,14 +20,16 @@ _ALLOWED_HOST = "generativelanguage.googleapis.com"
 TIMEOUT = 45
 
 
-def describe(model: VisionModel, jpeg: bytes, prompt: str, *, client: httpx.Client | None = None) -> tuple[dict, dict]:
+def describe(model: VisionModel, jpeg: bytes, prompt: str, *, client: httpx.Client | None = None,
+             mime_type: str = "image/jpeg") -> tuple[dict, dict]:
+    """`jpeg` is the media: a photo, or (mime_type video/mp4, <= 20 MB inline) a short video for the Reel reader."""
     if not settings.GEMINI_API_KEY:
         raise VisionError("GEMINI_API_KEY is not configured.", transient=False)
     url = f"{BASE}{model.path}:generateContent"
     if httpx.URL(url).host != _ALLOWED_HOST:
         raise VisionError("refusing to call an unexpected host", transient=False)
     body = {"contents": [{"parts": [{"text": prompt},
-                                    {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(jpeg).decode()}}]}],
+                                    {"inline_data": {"mime_type": mime_type, "data": base64.b64encode(jpeg).decode()}}]}],
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2}}
     started = time.monotonic()
     own = client is None

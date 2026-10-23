@@ -56,6 +56,27 @@ services:
     healthcheck:
       disable: true
 
+  # Competitor collector (Marketing Studio plan phase 2): OFF unless started with
+  # `docker compose --profile research up -d research_collector`. Logged out, public data only, egress through
+  # RESEARCH_PROXY_URL; never uses a tenant's Instagram/Facebook token or HAIP's Meta app. Consumes research_collect only.
+  research_collector:
+    profiles: ["research"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.collector
+    container_name: haip_research_collector
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+      - DB_POOL_SIZE=1
+      - DB_MAX_OVERFLOW=1
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
   frontend:
     build:
       context: ./frontend

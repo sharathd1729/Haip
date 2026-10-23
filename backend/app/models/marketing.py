@@ -215,6 +215,14 @@ class MarketingCompetitorPost(Base, TimestampMixin):
     posted_at = Column(String(50), nullable=True)
     note = Column(Text, nullable=True)
     created_by = Column(String, nullable=True)
+    # Studio plan phase 2 (migration 175): source collector | apify rows from the logged-out collector.
+    views = Column(Integer, nullable=True)
+    duration_s = Column(Float, nullable=True)
+    audio_name = Column(String(200), nullable=True)
+    hashtags = Column(JSON, nullable=True)
+    media_url = Column(Text, nullable=True)              # public CDN URL at collection time (expires on Meta's side)
+    media_key = Column(String(300), nullable=True)       # our copy for video reading; deleted after the retention days
+    media_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_marketing_competitor_posts_comp_media", "competitor_id", "media_id"),)
 

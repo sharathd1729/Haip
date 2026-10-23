@@ -40,6 +40,19 @@ def _item(key, label, done, *, required=True, detail="", tab=None, fix=None, key
             "fix": {"tab": tab, "label": fix} if tab and not done else None, "admin_keys": list(keys)}
 
 
+def _research_item(db: Session, tenant: Tenant) -> dict:
+    """Optional: outside research sources the owner switched on but the server or Facebook connection can't serve yet."""
+    from app.services import marketing_research_sources as research
+    on = [s for s in research.status(db, tenant) if s["on"]]
+    stuck = [s for s in on if not s["ready"]]
+    keys = sorted({k for s in stuck for k in s["missing_keys"]})
+    detail = ("Switched on but not working yet: " + "; ".join(
+        s["label"] + (" (needs the Facebook connection)" if s["needs_facebook_login"] else "") for s in stuck) + "."
+              if stuck else ("Off. Switch sources on in Plan > Sources." if not on else f"{len(on)} sources on."))
+    return _item("research", "Outside research sources working", bool(on) and not stuck, required=False, detail=detail,
+                 tab="sources", fix="Open sources", keys=keys)
+
+
 def checklist(db: Session, tenant: Tenant) -> dict:
     profile = ai.get_profile(tenant)
     lib = photos.library(db, tenant.id, videos=True)
@@ -69,6 +82,7 @@ def checklist(db: Session, tenant: Tenant) -> dict:
               detail="Decide what runs on its own and what waits for you.", tab="agency", fix="Choose autonomy"),
         _item("ads_budget", "Monthly ads budget set", cap > 0, required=False,
               detail="0 means HAIP never spends on ads.", tab="ads", fix="Set a budget"),
+        _research_item(db, tenant),
         _item("server", "AI and storage keys on the HAIP server", not missing,
               detail="" if not missing else "Ask your HAIP admin to set: " + ", ".join(missing) + ".", keys=missing),
     ]

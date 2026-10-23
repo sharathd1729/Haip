@@ -1,0 +1,4 @@
+# Only for the opt-in research_collector image (backend/Dockerfile.collector), never the API or the main worker.
+# instaloader (MIT): logged-out reading of PUBLIC Instagram profiles for the competitor collector (studio plan phase 2).
+# It also returns a Reel's video URL, so no separate downloader (yt-dlp) is installed.
+instaloader==4.13.2

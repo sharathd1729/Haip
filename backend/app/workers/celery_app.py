@@ -101,6 +101,7 @@ celery_app = Celery(
         # Marketing Studio AI runs (audit, plan, content)
         "app.workers.tasks.marketing_studio",
         "app.workers.tasks.marketing_insights",      # studio plan phase 1: creative tags + the weekly Insights report
+        "app.workers.tasks.marketing_research_tasks",  # studio plan phase 2: research sources, collector, swipe file
         "app.workers.tasks.marketing_ads",
         "app.workers.tasks.website",
         # Automations engine + timer triggers
@@ -269,6 +270,13 @@ celery_app.conf.update(
         "marketing_insights.tag_all":                {"queue": "default"},
         "marketing_insights.tick":                   {"queue": "default"},
         "marketing_insights.weekly_tenant":          {"queue": "default"},
+        "marketing_research.signals_all":            {"queue": "default"},
+        "marketing_research.collect_signals":        {"queue": "default"},
+        "marketing_research.collect_all":            {"queue": "default"},
+        # ONLY the separate opt-in collector worker consumes this queue (docker-compose.prod.yml profile "research").
+        "marketing_research.collect_competitors":    {"queue": "research_collect"},
+        "marketing_research.read_video":             {"queue": "default"},
+        "marketing_research.sweep_media":            {"queue": "default"},
         "marketing_reviews.sync_all":                {"queue": "default"},
         "marketing_reviews.sync_tenant":             {"queue": "default"},
         "marketing_newsletter.send_batch":           {"queue": "default"},
@@ -569,6 +577,19 @@ celery_app.conf.beat_schedule = {
     "marketing-insights-tick": {
         "task": "marketing_insights.tick",
         "schedule": crontab(minute=7),
+    },
+    # Studio plan phase 2: outside research (each source off until the owner switches it on).
+    "marketing-research-signals": {
+        "task": "marketing_research.signals_all",
+        "schedule": crontab(minute=30, hour=5),
+    },
+    "marketing-research-collect": {
+        "task": "marketing_research.collect_all",
+        "schedule": crontab(minute=0, hour=22, day_of_week=0),
+    },
+    "marketing-research-sweep-media": {
+        "task": "marketing_research.sweep_media",
+        "schedule": crontab(minute=15, hour=4),
     },
     # Instagram publisher: posts approved, scheduled content whose time has come.
     "marketing-publish-dispatch": {

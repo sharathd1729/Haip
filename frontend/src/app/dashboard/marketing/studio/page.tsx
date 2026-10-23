@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, EmptyState, PageHeader, Tabs } from "@/components/ui/kit";
 import { ContentTab } from "@/components/marketing/studio/ContentTab";
 import { InsightsReport } from "@/components/marketing/studio/InsightsReport";
+import { SourcesPanel } from "@/components/marketing/studio/SourcesPanel";
 import { HomeTab } from "@/components/marketing/studio/HomeTab";
 import { ApprovalsTab } from "@/components/marketing/studio/ApprovalsTab";
 import { ResearchTab } from "@/components/marketing/studio/ResearchTab";
@@ -29,7 +30,7 @@ import { STUDIO, btn, btnPrimary, studioError } from "@/components/marketing/stu
 const GROUPS: { value: string; label: string; leaves: { value: string; label: string }[] }[] = [
   { value: "home", label: "Home", leaves: [{ value: "home", label: "Overview" }] },
   { value: "insights", label: "Insights", leaves: [{ value: "report", label: "Weekly report" }, { value: "results", label: "Results" }, { value: "audit", label: "Audit" }] },
-  { value: "plan", label: "Plan", leaves: [{ value: "plan", label: "Plan" }, { value: "research", label: "Research" }] },
+  { value: "plan", label: "Plan", leaves: [{ value: "plan", label: "Plan" }, { value: "research", label: "Research" }, { value: "sources", label: "Sources" }] },
   { value: "create", label: "Create", leaves: [{ value: "content", label: "Content" }, { value: "library", label: "Library" }, { value: "partners", label: "Partners" }] },
   { value: "publish", label: "Publish", leaves: [{ value: "approvals", label: "Approvals" }, { value: "ads", label: "Ads" }, { value: "reviews", label: "Reviews" }] },
   { value: "settings", label: "Settings", leaves: [{ value: "profile", label: "Brand" }] },
@@ -101,6 +102,7 @@ function Studio() {
             )}
             {leaf === "home" && <HomeTab />}
             {leaf === "report" && <InsightsReport />}
+            {leaf === "sources" && <SourcesPanel />}
             {leaf === "approvals" && <ApprovalsTab />}
             {leaf === "research" && <ResearchTab />}
             {leaf === "content" && <ContentTab />}
