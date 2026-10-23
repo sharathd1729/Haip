@@ -12,7 +12,9 @@ type Level = "off" | "suggest" | "autopilot";
 interface Member { role: string; label: string; does: string; public: boolean; level: Level; effective_level: Level }
 interface Step { role: string; step: string; status: string; error: string | null; detail: Record<string, unknown> | null }
 interface Run { run_id: string; status: string; trigger: string; started_at: string; finished_at: string | null; summary: Record<string, unknown> | null; error: string | null; steps: Step[] }
-interface Agency { paused: boolean; roster: Member[]; runs: Run[]; schedule: string; pending_approvals: number }
+interface Agency { paused: boolean; roster: Member[]; runs: Run[]; schedule: string; pending_approvals: number;
+  publish_kinds?: Record<string, Level> }
+const KINDS: [string, string][] = [["story", "Stories"], ["carousel", "Carousels"], ["post", "Posts"], ["promo", "Promos"], ["reel", "Reels"]];
 
 const LEVEL_LABEL: Record<Level, string> = { off: "Off", suggest: "Asks first", autopilot: "Autopilot" };
 const STEP_LABEL: Record<string, string> = { audit: "Audit", competitors: "Competitors", plan: "Weekly plan", draft: "Drafts",
@@ -40,7 +42,7 @@ export function AgencyTab() {
     refetchInterval: d => (d.state.data?.runs?.some(r => r.status === "running") ? 5000 : false),
   });
   const save = useMutation({
-    mutationFn: (patch: { roles?: Record<string, Level>; paused?: boolean }) => api.put(`${STUDIO}/agency`, patch),
+    mutationFn: (patch: { roles?: Record<string, Level>; paused?: boolean; publish_kinds?: Record<string, Level> }) => api.put(`${STUDIO}/agency`, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["studio-agency"] }),
     onError: e => toast({ variant: "error", title: "Not saved", description: studioError(e, "Try again.") }),
   });
@@ -88,6 +90,26 @@ export function AgencyTab() {
           </ul>
         </CardBody>
       </Card>
+
+      {isOwner && (
+        <Card>
+          <CardHeader title="Posting by content type" description="Which approved content posts by itself. A type left on the publisher's level follows it; the kill switch stops everything." />
+          <CardBody>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {KINDS.map(([kind, label]) => (
+                <li key={kind} className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold">{label}</span>
+                  <select className={inputCls + " w-40"} aria-label={`${label} posting`} disabled={save.isPending}
+                    value={a.publish_kinds?.[kind] ?? ""} onChange={e => e.target.value && save.mutate({ publish_kinds: { [kind]: e.target.value as Level } })}>
+                    <option value="" disabled>Publisher's level</option>
+                    {(["off", "suggest", "autopilot"] as Level[]).map(l => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}
+                  </select>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardHeader title="Recent runs" description="What the agency did, step by step. A failed step shows why." />

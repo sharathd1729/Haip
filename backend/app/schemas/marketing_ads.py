@@ -36,6 +36,9 @@ class AdSettings(_Strict):
     capi_enabled: bool = False                                    # send bookings to Meta as Purchase events
     dataset_id: Optional[str] = Field(default=None, pattern=r"^\d{5,20}$")
     capi_test_code: Optional[str] = Field(default=None, max_length=40)   # Meta's test-events code while trying it
+    # Studio plan phase 5: also tell Meta when a click-to-WhatsApp chat became a lead (LeadSubmitted) and a qualified
+    # lead (QualifiedLead). Off by default; needs capi_enabled + dataset_id too.
+    capi_lead_events: bool = False
 
 
 class AdDraftIn(_Strict):

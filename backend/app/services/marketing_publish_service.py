@@ -194,7 +194,7 @@ def on_approved(db: Session, tenant: Tenant, item_id: str) -> Optional[Marketing
     item = content_svc.get_item(db, tenant.id, item_id)
     from app.services import marketing_whatsapp
     marketing_whatsapp.on_approved(db, tenant, item)
-    if agency.level(tenant, "publish") != "autopilot":
+    if agency.publish_level(tenant, item.kind) != "autopilot":
         return None
     try:
         day = date.fromisoformat(item.planned_for) if item.planned_for else None

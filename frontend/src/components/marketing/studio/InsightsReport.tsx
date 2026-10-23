@@ -32,6 +32,9 @@ interface Report {
     context: { spend: number; spend_previous_week: number; posts: number; posts_previous_week: number;
       occasions: { date: string; name: string }[] };
     next_plan: { do_more: PlanItem[]; stop: PlanItem[]; test: PlanItem[] };
+    content_ranking?: { content_id: string; title: string | null; spend: number; qualified: number; bookings: number;
+      revenue: number; cost_per_qualified: number | null; cost_per_booking: number | null }[];
+    opening_tests?: { theme?: string; a_hook?: string; b_hook?: string; status: string; a: { reach: number; rate?: number | null }; b: { reach: number; rate?: number | null } }[];
     minimums: { ad_impressions: number; ad_chats: number; reel_age_days: number; group_items: number };
   };
 }
@@ -186,6 +189,35 @@ export function InsightsReport() {
           {!!f.context.occasions.length && <p className="text-xs text-[var(--haip-fg-muted)]">Coming up: {f.context.occasions.map(o => `${o.name} (${day(o.date)})`).join(", ")}.</p>}
         </CardBody>
       </Card>
+
+      {!!f.content_ranking?.length && (
+        <Card>
+          <CardHeader title="Content ranked by results" description={`Last 28 days to ${day(r.period.to)}: bookings first, then qualified leads, then the lower cost per qualified lead (posts and the ads made from them).`} />
+          <CardBody>
+            <ul className="space-y-1 text-sm">
+              {f.content_ranking.map(c => (
+                <li key={c.content_id} className="flex flex-wrap justify-between gap-2">
+                  <span className="font-semibold">{c.title}</span>
+                  <span className="text-xs tabular-nums text-[var(--haip-fg-muted)]">{c.bookings} booked · {c.qualified} qualified · {money(c.revenue)}{c.spend ? ` · spend ${money(c.spend)} · ${money(c.cost_per_qualified)} per qualified` : ""}</span>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      )}
+
+      {!!f.opening_tests?.length && (
+        <Card>
+          <CardHeader title="Opening tests" description="A Reel against its trial Reel with another opening, judged like the analyst's tests (interactions per person reached)." />
+          <CardBody>
+            <ul className="space-y-1 text-sm">
+              {f.opening_tests.map((t, i) => (
+                <li key={i}><b>{t.status}</b>{t.theme ? ` · ${t.theme}` : ""}: “{t.a_hook}” {pct(t.a.rate)} of {t.a.reach.toLocaleString("en-IN")} vs “{t.b_hook}” {pct(t.b.rate)} of {t.b.reach.toLocaleString("en-IN")}</li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardHeader title="Next plan" description="Fed to next week's plan. Each has a number to check and a date." />

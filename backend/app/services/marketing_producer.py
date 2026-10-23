@@ -83,15 +83,19 @@ def from_brief(db: Session, tenant: Tenant, doc_id: str, actor_id: str) -> list:
         made.append(item)
         return item
 
+    tests = []
     for i, r in enumerate(b.get("reels", [])[:3]):
         clips = _clip_slots(b, r.get("shots", []))
         if len(clips) < 2:
             continue
-        make("reel", r.get("title") or f"Reel {i + 1}", {"caption": caption, "clips": clips, "cover_text": (hooks[i] if i < len(hooks) else None)})
+        first = make("reel", r.get("title") or f"Reel {i + 1}", {"caption": caption, "clips": clips,
+                                                                 "cover_text": (hooks[i] if i < len(hooks) else None)})
         if i == 0 and len(hooks) > 1:            # the same Reel with another opening, posted as a trial Reel
-            make("reel", f"{r.get('title') or 'Reel'} (trial: second opening)",
-                 {"caption": caption, "clips": [{**clips[0], "caption": hooks[1][:80]}, *clips[1:]],
-                  "cover_text": hooks[1][:60], "trial": True})
+            trial = make("reel", f"{r.get('title') or 'Reel'} (trial: second opening)",
+                         {"caption": caption, "clips": [{**clips[0], "caption": hooks[1][:80]}, *clips[1:]],
+                          "cover_text": hooks[1][:60], "trial": True})
+            if first is not None and trial is not None:
+                tests.append({"a": first.id, "b": trial.id, "a_hook": hooks[0], "b_hook": hooks[1]})
     if len(hooks) >= 2:
         make("carousel", "Carousel", {"caption": caption, "slides": [{"headline": h[:80]} for h in hooks[:5]]})
     plan = b.get("posting_plan") or []
@@ -99,5 +103,5 @@ def from_brief(db: Session, tenant: Tenant, doc_id: str, actor_id: str) -> list:
         make("story", "Story", {"frames": [{"text": p.get("what", "")[:120]} for p in plan[:5]]})
     for item in made:
         photos.attach_photos(db, tenant, item.id, actor_id=actor_id)
-    doc.input = {**(doc.input or {}), "produced": [i.id for i in made]}
+    doc.input = {**(doc.input or {}), "produced": [i.id for i in made], "opening_tests": tests}
     return made

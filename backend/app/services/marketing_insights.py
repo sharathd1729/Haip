@@ -33,6 +33,7 @@ from app.schemas.marketing_tags import TAG_FIELDS
 from app.services import marketing_ads_insights as ads_insights
 from app.services import marketing_attribution as attribution
 from app.services import marketing_insights_stats as st
+from app.services.analyst.brief import inr
 from app.services.marketing_tagging import tags_by_subject
 
 log = structlog.get_logger()
@@ -272,7 +273,7 @@ def verdict(f: dict, board: list[dict], posts: list[dict], tired: list[dict], pl
     good = [a for a in board if a["confidence"] != st.NOT_ENOUGH and a["qualified"]]
     if good:
         a = good[0]
-        wins.append({"text": f"Best ad: {a['name']} brought {a['qualified']} qualified leads at Rs {a['cost_per_qualified']} each.",
+        wins.append({"text": f"Best ad: {a['name']} brought {a['qualified']} qualified leads at {inr(a['cost_per_qualified'])} each.",
                      "confidence": a["confidence"]})
     for p in sorted((p for p in posts if p["confidence"] != st.NOT_ENOUGH), key=lambda p: -(p["reach_vs_median"] or 0)):
         if p["reach_vs_median"] and p["reach_vs_median"] > 1:
@@ -291,10 +292,10 @@ def verdict(f: dict, board: list[dict], posts: list[dict], tired: list[dict], pl
                          "confidence": st.STRONG})
     for a in board:
         if a["confidence"] != st.NOT_ENOUGH and not a["qualified"] and a["spend"]:
-            problems.append({"text": f"Ad {a['name']} spent Rs {a['spend']} with {a['chats']} chats and no qualified lead.",
+            problems.append({"text": f"Ad {a['name']} spent {inr(a['spend'])} with {a['chats']} chats and no qualified lead.",
                              "confidence": a["confidence"]})
     if f["ads"]["spend"] and not f["ads"]["chats"]:
-        problems.append({"text": f"Rs {f['ads']['spend']} spent last week without a single chat.", "confidence": st.STRONG})
+        problems.append({"text": f"{inr(f['ads']['spend'])} spent last week without a single chat.", "confidence": st.STRONG})
     actions = ([{"text": f"Do more: {i['what']}. Check {i['check_metric']} by {i['check_by']}.", "confidence": i["confidence"]}
                 for i in plan["do_more"]] + [{"text": f"Stop: {i['what']}. Check by {i['check_by']}.", "confidence": i["confidence"]}
                                              for i in plan["stop"]]
@@ -333,7 +334,9 @@ def facts(db: Session, tenant: Tenant, today: Optional[date] = None) -> dict:
     els = elements(db, tenant.id, all_posts, board_rows)
     plan = next_plan(els, tired, until + timedelta(days=CHECK_AFTER_DAYS))
     prev = ads_insights.per_ad(db, tenant.id, since - timedelta(days=7), since - timedelta(days=1))
-    return {"period": {"from": since.isoformat(), "to": until.isoformat()}, "funnel": f, "ads": board[:15],
+    from app.services import marketing_judge as judge          # phase 5: content ranked by results, opening tests
+    return {"content_ranking": judge.content_ranking(db, tenant, until - timedelta(days=LEADERBOARD_DAYS - 1), until),
+            "opening_tests": judge.opening_tests(db, tenant.id),"period": {"from": since.isoformat(), "to": until.isoformat()}, "funnel": f, "ads": board[:15],
             "posts": review, "elements": els, "fatigue": tired,
             "context": context(db, tenant, since, until, ads_week, prev, all_posts),
             "verdict": verdict(f, board, review, tired, plan), "next_plan": plan,

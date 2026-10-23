@@ -92,3 +92,19 @@ needs the owner (keys, Meta/Google approvals). External services are OFF by defa
   works. Unverified: confirm with Meta before relying on it.
 - **Best posting time**: the existing suggestion from this account's own reach by hour.
 - **Not built**: the `is_ai_generated` flag (no documented publishing field found); label AI visuals in the app.
+
+## Phase 5: the judge
+
+- **Conversions API for Business Messaging** (Ads settings, OFF by default): with "Tell Meta about bookings" on and
+  a dataset id, the extra switch also sends **LeadSubmitted** (the person gave a phone number) and **QualifiedLead**
+  (the enquiry passed the qualified rule) for chats that came from a click-to-WhatsApp ad (`ctwa_clid` already
+  captured from the first message's referral), once each, `action_source=business_messaging`,
+  `messaging_channel=whatsapp`, hashed identifiers only, only for guests whose latest marketing consent is granted.
+  Purchase (bookings) works as before. Migration 177.
+- **Ranking**: every HAIP content item ranked by bookings, then qualified leads, then cost per qualified lead (its
+  organic results plus the ads made from it); in the weekly Insights report.
+- **Opening tests**: the producer's Reel / trial Reel pairs are decided with the AI analyst's half-and-half rule
+  (`learning.evaluate.decide`: keep at p < 0.05 with at least 1,000 people reached per arm, stop-loss, 14 days). The
+  result says which opening to keep; nothing changes by itself.
+- **Autopilot per content type** (Home > Posting by content type, owner): e.g. stories post by themselves while Reels
+  wait for a person. Publishing switched off and the kill switch still stop everything.

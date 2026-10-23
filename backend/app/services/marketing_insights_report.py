@@ -19,6 +19,7 @@ from app.services import marketing_ai_service as ai
 from app.services import marketing_insights as insights
 from app.services import usage_service
 from app.services.analyst import grounding
+from app.services.analyst.brief import inr
 from app.services.marketing_prompts import _schema
 
 log = structlog.get_logger()
@@ -56,7 +57,7 @@ def deterministic(facts: dict) -> dict:
     v = facts["verdict"]
     f = facts["funnel"]
     headline = (v["wins"][0]["text"] if v["wins"] else v["problems"][0]["text"] if v["problems"] else
-                f"Last week: Rs {f['ads']['spend']} on ads, {int(f['ads']['chats'] + f['organic']['chats'])} chats traced.")
+                f"Last week: {inr(f['ads']['spend'])} on ads, {int(f['ads']['chats'] + f['organic']['chats'])} chats traced.")
     return {"headline": headline, **{s: [{**i, "explanation": None} for i in v[s]] for s in SECTIONS}}
 
 

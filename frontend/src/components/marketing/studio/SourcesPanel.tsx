@@ -18,7 +18,7 @@ interface Swipe { id: string; source_url: string | null; hook_text?: string; hoo
 const EVIDENCE_TONE: Record<string, Tone> = { own: "success", platform: "info", google: "highlight" };
 
 function state(s: Source): { text: string; tone: Tone } {
-  if (!s.on) return { text: "Off", tone: "neutral" };
+  if (!s.on) return { text: s.missing_keys.length ? `Off · needs ${s.missing_keys.join(", ")}` : "Off", tone: "neutral" };
   if (s.missing_keys.length) return { text: `Needs ${s.missing_keys.join(", ")}`, tone: "warning" };
   if (s.needs_facebook_login) return { text: "Needs the Facebook connection", tone: "warning" };
   return { text: "On", tone: "success" };
@@ -58,7 +58,7 @@ export function SourcesPanel() {
                 <li key={s.key} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="font-semibold">{s.label} <StatusPill tone={EVIDENCE_TONE[s.evidence] ?? "neutral"} className="ml-1">{s.evidence}</StatusPill></p>
-                    <p className="text-xs text-[var(--haip-fg-subtle)]"><StatusPill tone={st.tone}>{st.text}</StatusPill>{s.missing_keys.length ? " Ask your HAIP admin to set these." : ""}</p>
+                    <p className="text-xs text-[var(--haip-fg-subtle)]"><StatusPill tone={st.tone}>{st.text}</StatusPill>{s.missing_keys.length ? " Your HAIP admin sets these keys." : ""}</p>
                   </div>
                   {isOwner && (
                     <label className="flex min-h-11 items-center gap-2 text-sm">
