@@ -107,7 +107,7 @@ function DateField({
 // mobile bottom sheet — same state, two layouts, so there's exactly one
 // place these controls are defined. ────────────────────────────────────────
 
-function FilterControls({
+export function FilterControls({
   filters, set, clearAll, activeCount, users, properties, layout,
 }: {
   filters: LeadsFilters;
