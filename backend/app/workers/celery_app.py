@@ -277,6 +277,8 @@ celery_app.conf.update(
         "marketing_research.collect_competitors":    {"queue": "research_collect"},
         "marketing_research.read_video":             {"queue": "default"},
         "marketing_research.sweep_media":            {"queue": "default"},
+        "marketing_strategy.write_doc":              {"queue": "default"},
+        "marketing_strategy.tick":                   {"queue": "default"},
         "marketing_reviews.sync_all":                {"queue": "default"},
         "marketing_reviews.sync_tenant":             {"queue": "default"},
         "marketing_newsletter.send_batch":           {"queue": "default"},
@@ -586,6 +588,11 @@ celery_app.conf.beat_schedule = {
     "marketing-research-collect": {
         "task": "marketing_research.collect_all",
         "schedule": crontab(minute=0, hour=22, day_of_week=0),
+    },
+    # Studio plan phase 3: the monthly strategy deck, the 1st from 08:00 workspace time.
+    "marketing-strategy-tick": {
+        "task": "marketing_strategy.tick",
+        "schedule": crontab(minute=12),
     },
     "marketing-research-sweep-media": {
         "task": "marketing_research.sweep_media",

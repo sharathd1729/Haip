@@ -191,6 +191,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_insights": "marketing-insights-v1",
     # Studio plan phase 2: what a Reel does (hook, shots, text, CTA) read by the vision model into the swipe file.
     "marketing_video_read": "marketing-video-read-v1",
+    # Studio plan phase 3: shoot & collab brief, monthly strategy deck (marketing_strategy).
+    "marketing_brief": "marketing-shoot-brief-v1",
+    "marketing_deck": "marketing-strategy-deck-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
 }

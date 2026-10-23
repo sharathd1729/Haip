@@ -62,3 +62,18 @@ needs the owner (keys, Meta/Google approvals). External services are OFF by defa
   research_collector`), consumes only the `research_collect` queue, never logs in and never receives a tenant token or
   HAIP's Meta app. Note: it shares `backend/.env` to write its rows, so the container holds the same server secrets.
 - Not built: Pinterest Trends (needs a Pinterest app + business OAuth); yt-dlp (instaloader returns the video URL).
+
+## Phase 3: the strategist
+
+- **Season calendar**: `brand_config.marketing_studio.season_calendar`, seeded with the plan's dates (Diwali 7-9 Nov,
+  24 Nov bridge weekend, Christmas, New Year, Republic Day 2027, Holi, summer escape). Owner-only `PUT /calendar`
+  (audited). No editing screen yet.
+- **Theme radar** (`GET /radar`): top 3 themes for the next 8 weeks, 0-100, all in code: season lead time 20, own
+  demand (guest messages naming it) 20, Google 15, platform + competitor posts 10, how similar posts did 10, gap
+  (demand while competitors are quiet) 10, free vehicle nights 10, novelty 5. "Shoot by" = 21 days before the dates.
+- **Shoot & collab brief** (`POST /briefs`): the plan's JSON shape (focus, must-get, shot list with size / angle /
+  movement / lens / seconds / time of day / talent / props / audio / why / priority, B-roll, 5 hooks, 2-3 Reel
+  scripts, captions, 2-4 week posting plan; collab: creator brief, deliverables, usage rights). The ASCI label and the
+  WhatsApp tracking code are added by code. Golden-hour times are not computed.
+- **Monthly strategy deck**: written on the 1st from 08:00 (or on demand); facts in code (last month vs goal, Insights
+  next plan, radar, market signals, swipe hooks, briefs), prose grounded, deterministic fallback.

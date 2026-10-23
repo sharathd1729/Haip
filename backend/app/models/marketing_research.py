@@ -1,4 +1,5 @@
-"""Research signals and the swipe file (studio plan phase 2, migration 175). Both tenant tables with RLS."""
+"""Research signals and the swipe file (studio plan phase 2, migration 175) and the strategist's documents (phase 3,
+migration 176). All tenant tables with RLS."""
 from sqlalchemy import JSON, Column, Date, Float, ForeignKey, Index, String, Text, UniqueConstraint
 
 from app.core.database import Base
@@ -44,3 +45,26 @@ class MarketingSwipeItem(Base, TimestampMixin):
     error = Column(Text, nullable=True)
     model = Column(String(120), nullable=True)
     prompt_version = Column(String(60), nullable=True)
+
+
+class MarketingStrategyDoc(Base, TimestampMixin):
+    """The strategist's outputs (studio plan phase 3, migration 176): a shoot & collab brief or a monthly strategy deck.
+    Numbers and scores come from code (`facts`); the AI writes only the text in `body`."""
+    __tablename__ = "marketing_strategy_docs"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    kind = Column(String(10), nullable=False)          # brief | deck
+    title = Column(String(200), nullable=False)
+    period = Column(String(10), nullable=True)         # deck: YYYY-MM
+    status = Column(String(12), nullable=False, default="pending")   # pending | ready | failed
+    input = Column(JSON, nullable=True)                # what the owner asked for (brief) / nothing (deck)
+    facts = Column(JSON, nullable=True)                # code-computed: theme score + evidence, month numbers
+    body = Column(JSON, nullable=True)                 # the AI's text, validated
+    error = Column(Text, nullable=True)
+    source = Column(String(16), nullable=True)         # llm | deterministic
+    model = Column(String(120), nullable=True)
+    prompt_version = Column(String(60), nullable=True)
+    created_by = Column(String, nullable=True)
+
+    __table_args__ = (Index("ix_marketing_strategy_docs_tenant_kind", "tenant_id", "kind", "created_at"),)

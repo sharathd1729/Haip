@@ -175,6 +175,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # report whose numbers code computed (marketing_insights_report; a sentence with an unknown number is dropped).
     "marketing_tagging":  ("nvidia", "openai/gpt-oss-20b"),
     "marketing_insights": ("nvidia", "openai/gpt-oss-20b"),
+    # Studio plan phase 3: shoot & collab brief (creative text over the radar's evidence) and the monthly deck's prose
+    # over code-computed facts (numbers grounded like the analyst's).
+    "marketing_brief": ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_deck":  ("nvidia", "openai/gpt-oss-20b"),
     # Website builder AI developer (website_ai_service): structured JSON operations on the site draft via one tool,
     # every operation re-validated against website_blocks.json; never publishes. Same tool-calling tier as marketing_*.
     "website_content": ("nvidia", "openai/gpt-oss-20b"),
@@ -211,6 +215,8 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "marketing_ota_copy":          60,
     "marketing_tagging":           45,
     "marketing_insights":          90,
+    "marketing_brief":             90,
+    "marketing_deck":              90,
     "website_content":             90,
 }
 

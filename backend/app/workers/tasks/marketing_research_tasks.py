@@ -1,4 +1,6 @@
-"""Studio plan phase 2 Celery tasks. Exact-name routes in celery_app.py.
+"""Studio plan phase 2 + 3 Celery tasks (researcher, strategist). Exact-name routes in celery_app.py.
+  marketing_strategy.write_doc            shoot brief / monthly deck text (router marketing_brief / marketing_deck)
+  marketing_strategy.tick                 hourly: the 1st from 08:00 local, queue that month's deck once
 
   marketing_research.signals_all          beat daily 05:30: queue collect_signals for workspaces with a source on
   marketing_research.collect_signals      Google / YouTube / Places / Keyword Planner / hashtags / audio (queue default)
@@ -96,3 +98,45 @@ def sweep_media():
         n = src.sweep_media(db)
         db.commit()
     return {"deleted": n}
+
+
+# ── Strategist (studio plan phase 3) ───────────────────────────────────────────────────────────────────────────────
+
+@shared_task(name="marketing_strategy.write_doc", bind=True, max_retries=2)
+def write_doc(self, tenant_id: str, doc_id: str):
+    """A shoot brief or a monthly deck. Only a transient provider error is retried (the deck never needs it: it falls
+    back to its deterministic text)."""
+    from app.models.marketing_research import MarketingStrategyDoc
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_strategy as strategy
+    with SessionLocal() as db:
+        try:
+            doc = strategy.write(db, tenant_id, doc_id)
+            db.commit()
+            return {"status": doc.status}
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < 2:
+                raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
+            doc = db.query(MarketingStrategyDoc).filter_by(id=doc_id, tenant_id=tenant_id).one()
+            doc.status, doc.error = "failed", f"The AI is unavailable right now: {exc}"[:2000]
+            db.commit()
+            return {"status": "failed"}
+
+
+@shared_task(name="marketing_strategy.tick")
+def strategy_tick():
+    """Hourly: on the 1st from 08:00 workspace time, write that month's strategy deck once."""
+    from app.core import tenant_tz
+    from app.models.tenant import Tenant
+    from app.services import marketing_strategy as strategy
+    with SessionLocal() as db:
+        due = strategy.due_decks(db, tenant_tz.get_tenant_now)
+        ids = []
+        for tid, month in due:
+            tenant = db.query(Tenant).filter_by(id=tid).one()
+            ids.append((tid, strategy.request_deck(db, tenant, month, None).id))
+        db.commit()
+    for tid, doc_id in ids:
+        write_doc.delay(tid, doc_id)
+    return {"queued": len(ids)}
