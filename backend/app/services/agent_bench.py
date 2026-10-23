@@ -137,7 +137,8 @@ def build_world(db: Session, today: Optional[date] = None, *, playbook: bool = T
 
 def configure(db: Session, world: World, setup: dict) -> None:
     """Per-scenario tenant settings (price mode, policy overrides). Commits."""
-    cfg = {k: v for k, v in (world.tenant.brand_config or {}).items() if k == "sales_playbook"}
+    # The playbook and the learning loop's base controls (a bench-gate treatment, learning.bench_gate) survive each scenario.
+    cfg = {k: v for k, v in (world.tenant.brand_config or {}).items() if k in ("sales_playbook", "learning_base")}
     cfg["price_disclosure"] = setup.get("price_disclosure", "handoff")
     if setup.get("policy"):
         cfg["agent_policy"] = {"modes": dict(setup["policy"])}

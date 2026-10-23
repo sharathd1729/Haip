@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import date, datetime
-from typing import Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -29,11 +28,8 @@ from app.models.inquiry import Inquiry
 from app.models.inquiry_360 import InquiryQuote
 from app.models.lead_attribution import LeadAttribution
 from app.models.pipeline_stage import PipelineStage
-from app.models.property import Stay
 from app.services import kpi_metrics, lead_metrics
 from app.services.date_presets import IST
-from app.services.kpi_metrics import OCCUPYING_STATUSES, UNQUALIFIED
-from app.services.lead_types import is_guest_sql
 
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
@@ -217,15 +213,3 @@ def journey(db: Session, tenant_id: str, d_from: date, d_to: date, lo: datetime,
         "_workflow_agents": wf["agents"],
         "_quote_amounts": q["amounts"],
     }
-
-
-def open_guest_enquiries(db: Session, tenant_id: str) -> int:
-    return int(db.query(func.count(Inquiry.id)).filter(
-        Inquiry.tenant_id == tenant_id, Inquiry.qualification_status != UNQUALIFIED, is_guest_sql(Inquiry.lead_type)).scalar() or 0)
-
-
-def live_bookings(db: Session, tenant_id: str, guest_ids: Optional[list[str]] = None) -> int:
-    q = db.query(func.count(Stay.id)).filter(Stay.tenant_id == tenant_id, Stay.status.in_(list(OCCUPYING_STATUSES)))
-    if guest_ids is not None:
-        q = q.filter(Stay.guest_id.in_(guest_ids or ["-"]))
-    return int(q.scalar() or 0)

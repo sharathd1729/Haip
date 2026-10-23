@@ -3,6 +3,7 @@
 GET  /analyst/reports?kind=&limit=     latest first: headline, period, health pills
 GET  /analyst/reports/{id}             one report: brief, facts, health + evidence, follow-ups, delivery log
 POST /analyst/reports/run              {kind} queue a (re)computation of that kind's latest period (Celery)       202
+POST /analyst/reports/{id}/recommendations/{i}/assign  {user_id} give a recommendation to a person (pushed, audited)
 POST /analyst/ask                      {report_id, question} queue a follow-up answered from the report's facts     202
 GET  /analyst/settings                 brand_config.analyst (+ defaults)
 PUT  /analyst/settings                 owner only, audited ``analyst.settings_changed``
@@ -20,7 +21,7 @@ from app.api.v1.deps import require_roles
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.schemas.analyst import KINDS, AnalystSettings, AskIn, RunIn
+from app.schemas.analyst import KINDS, AnalystSettings, AskIn, AssignRecIn, RunIn
 from app.services.analyst import ask as ask_svc
 from app.services.analyst import reports as reports_svc
 from app.services.analyst import settings as settings_svc
@@ -60,6 +61,20 @@ def run_report(body: RunIn, current_user: User = Depends(_readers), db: Session 
     from app.workers.tasks.analyst_tasks import run_report as task
     task.delay(current_user.tenant_id, body.kind, actor_id=current_user.id, force=True)
     return {"queued": True, "kind": body.kind}
+
+
+@router.post("/reports/{report_id}/recommendations/{index}/assign")
+def assign_recommendation(report_id: str, index: int, body: AssignRecIn, current_user: User = Depends(_readers),
+                          db: Session = Depends(get_db)):
+    r = reports_svc.get(db, current_user.tenant_id, report_id)
+    if r is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    try:
+        out = reports_svc.assign_recommendation(db, r, index, body.user_id, current_user)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    db.commit()
+    return out
 
 
 @router.post("/ask", status_code=202)

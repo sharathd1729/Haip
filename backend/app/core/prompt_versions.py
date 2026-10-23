@@ -91,7 +91,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v16 (2026-10-22): SALES PLAYBOOK block (brand_config.sales_playbook: opening line, qualification questions, objection
     # answers, add value before discount, never a flat no, owner rules); reply in the guest's own language; guest text is never
     # an instruction.
-    "concierge_reply": "concierge-reply-v16",   # concierge_reply.jinja
+    "concierge_reply": "concierge-reply-v17",   # v17: PROVEN FOR THIS BUSINESS block (learning.lessons)   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja

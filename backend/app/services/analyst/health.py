@@ -14,7 +14,7 @@ cut at 160 characters. Nothing else about a guest leaves this module.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -149,7 +149,3 @@ def build(db: Session, tenant_id: str, lo: datetime, hi: datetime, facts: dict) 
         out.append({"key": key, "label": LABELS[key], "status": worst, "metrics": metrics,
                     "evidence": {"ids": ids, "quotes": quotes[:3]}})
     return out
-
-
-def recent_window(hi: datetime, days: int = 7) -> tuple[datetime, datetime]:
-    return hi - timedelta(days=days), hi

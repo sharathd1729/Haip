@@ -68,12 +68,38 @@ def generate(db: Session, tenant, kind: str, *, today: Optional[date] = None, us
     try:
         from app.services.learning import proposals
         proposals.from_report(db, tenant, row)
+        from app.services.learning import lessons
+        lessons.from_findings(db, tenant.id, row)
     except Exception as exc:  # noqa: BLE001 -- a proposal problem never loses the report
         log.warning("analyst_proposals_failed", tenant_id=tenant.id, report_id=row.id, error=type(exc).__name__)
     db.commit()
     log.info("analyst_report_written", tenant_id=tenant.id, kind=kind, period_start=cur.d_from.isoformat(),
              source=written["source"], findings=len(facts["findings"]))
     return row
+
+
+def assign_recommendation(db: Session, report: AnalystReport, index: int, user_id: str, actor) -> dict:
+    """Give one recommendation to a team member: kept on the report (``delivery.actions``), pushed to them, audited."""
+    from app.core.audit import append_audit
+    from app.models.user import User
+    recs = (report.brief or {}).get("recommendations") or []
+    if not 0 <= index < len(recs):
+        raise LookupError("recommendation not found")
+    person = db.query(User).filter_by(id=user_id, tenant_id=report.tenant_id, is_active=True, is_deleted=False).first()
+    if person is None:
+        raise LookupError("person not found")
+    actions = dict((report.delivery or {}).get("actions") or {})
+    actions[str(index)] = {"assigned_to": user_id, "name": person.name, "by": actor.id, "at": datetime.now(timezone.utc).isoformat()}
+    report.delivery = {**(report.delivery or {}), "actions": actions}
+    append_audit(db, tenant_id=report.tenant_id, actor_user_id=actor.id, action="analyst.recommendation_assigned",
+                 target_type="analyst_report", target_id=report.id, payload={"index": index, "to": user_id})
+    try:
+        from app.services.push_service import send_to_tenant
+        send_to_tenant(db, report.tenant_id, title="A recommendation for you", body=str(recs[index].get("action"))[:140],
+                       url="/dashboard/analyst", tag=f"analyst-{report.id}-{index}", user_id=user_id)
+    except Exception as exc:  # noqa: BLE001 -- push is best-effort
+        log.warning("analyst_assign_push_failed", report_id=report.id, error=type(exc).__name__)
+    return actions[str(index)]
 
 
 def summary_out(r: AnalystReport) -> dict:

@@ -24,7 +24,6 @@ log = structlog.get_logger()
 
 @shared_task(name="analyst.run_report")
 def run_report(tenant_id: str, kind: str, actor_id: Optional[str] = None, force: bool = False, deliver: bool = True) -> dict:
-    from app.models.analyst import AnalystReport
     from app.services.analyst import delivery, reports
     db = SessionLocal()
     try:

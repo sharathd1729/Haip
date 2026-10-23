@@ -51,10 +51,8 @@ class AskIn(_Strict):
     question: str = Field(min_length=3, max_length=500)
 
 
-class AssignIn(_Strict):
-    inquiry_id: str = Field(min_length=1, max_length=64)
+class AssignRecIn(_Strict):
     user_id: str = Field(min_length=1, max_length=64)
-    code: Optional[str] = Field(default=None, max_length=12)
 
 
 # ── the brief the model must return (validated in code, numbers grounded in the facts) ─────────────────────

@@ -5,7 +5,6 @@ import re
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-import pytest
 
 from app.models.analyst import AnalystReport
 from app.models.audit_event import AuditEvent
@@ -247,3 +246,20 @@ def test_delivery_template_is_only_a_draft(client, db):
     assert got["created"] == ["haip_analyst_brief_v1"] and got["templates"][0]["status"] == "draft"
     assert client.post(f"{R}/templates", headers=_h(w.mgr)).json()["created"] == []
     assert client.post(f"{R}/templates", headers=_h(w.foh)).status_code == 403
+
+
+def test_assign_a_recommendation(client, db):
+    w = world(db)
+    r = _report(db, w)
+    r.brief = {**r.brief, "recommendations": [{"action": "Return missed calls", "owner_role": "sales", "due": "today",
+                                               "expected_effect": "", "change_proposal": None}]}
+    db.commit()
+    url = f"{R}/reports/{r.id}/recommendations/0/assign"
+    with patch("app.services.push_service.send_to_tenant") as push:
+        got = client.post(url, json={"user_id": w.mgr.id}, headers=_h(w.owner))
+    assert got.status_code == 200 and got.json()["assigned_to"] == w.mgr.id and push.call_args.kwargs["user_id"] == w.mgr.id
+    assert client.post(f"{R}/reports/{r.id}/recommendations/5/assign", json={"user_id": w.mgr.id}, headers=_h(w.owner)).status_code == 404
+    assert client.post(url, json={"user_id": w.mgr.id}, headers=_h(w.foh)).status_code == 403
+    other = world(db)
+    assert client.post(url, json={"user_id": other.mgr.id}, headers=_h(other.owner)).status_code == 404
+    assert db.query(AuditEvent).filter_by(tenant_id=w.t.id, action="analyst.recommendation_assigned").count() == 1
