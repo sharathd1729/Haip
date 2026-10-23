@@ -1,11 +1,13 @@
-FROM golang:1-bookworm AS build
+FROM golang:1.26-bookworm AS build
 WORKDIR /src
-COPY go.mod ./
+# go.mod + go.sum pin every dependency (whatsmeow included) to an exact,
+# checksum-verified version. Never run `go mod tidy` here: it would pull
+# whatever is newest upstream on each rebuild. To upgrade, run
+# `go get go.mau.fi/whatsmeow@latest && go mod tidy` locally and commit both files.
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
 COPY *.go ./
-# No go.sum is committed -- there's no Go toolchain in the environment this
-# was written in to generate one for real. `go mod tidy` resolves and pins
-# real versions here, at image-build time, where network access exists.
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o /out/bridge .
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -o /out/bridge .
 
 FROM gcr.io/distroless/base-debian12
 COPY --from=build /out/bridge /bridge
