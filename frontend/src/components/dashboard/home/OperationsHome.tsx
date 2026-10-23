@@ -18,6 +18,7 @@ import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
 import { KpiTiles } from "@/components/dashboard/home/KpiTiles";
 import { RevenueChart, LeadFunnel, TeamTable, LeadSources, AiNoticed } from "@/components/dashboard/home/Panels";
 import type { OverviewResponse } from "@/components/dashboard/home/types";
+import { useIsPhone } from "@/lib/useIsPhone";
 
 const RANGES = PERIOD_PRESETS;
 
@@ -42,6 +43,7 @@ export function OperationsHome() {
   const isOwnerView = role === "owner" || role === "manager";
   const firstName = (session?.user?.name || "").split(" ")[0];
   const qc = useQueryClient();
+  const phone = useIsPhone();
   const { toast } = useToast();
 
   // Today on every load, like the owner view; a pick is kept only for this tab's session (useDashboardPeriod).
@@ -142,7 +144,8 @@ export function OperationsHome() {
               {showTeam && <TeamTable agents={data.agents ?? []} rangeLabel={rangeLabel} />}
               <LeadSources sources={data.sources} rangeLabel={rangeLabel} className={showTeam ? undefined : "lg:col-span-5"} />
             </div>
-            <AiNoticed insights={data.top_insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} />
+            {/* Phones leave "What the AI noticed" off (mobile-first plan); desktop unchanged. */}
+            {!phone && <AiNoticed insights={data.top_insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} />}
           </>
         )}
       </div>

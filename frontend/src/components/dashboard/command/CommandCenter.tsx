@@ -25,6 +25,8 @@ import { OwnerKpis } from "./OwnerKpis";
 import { SinceHaip } from "./SinceHaip";
 import { ArrivalsCard, TargetCard } from "./TargetAndArrivals";
 import { periodLabel, type BusinessOverview } from "./types";
+import { useIsPhone } from "@/lib/useIsPhone";
+import { PhoneHome } from "@/components/dashboard/phone/PhoneHome";
 import type { OwnerBlock } from "./owner";
 
 const INITIAL: Filters = { preset: "today", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
@@ -87,7 +89,12 @@ function Loading() {
   );
 }
 
+/** Phones get their own Home (components/dashboard/phone/PhoneHome.tsx); tablets and desktops keep this page unchanged. */
 export function CommandCenter() {
+  return useIsPhone() ? <PhoneHome /> : <DesktopCommandCenter />;
+}
+
+function DesktopCommandCenter() {
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
   const caravan = useBusinessType() === "caravan";
