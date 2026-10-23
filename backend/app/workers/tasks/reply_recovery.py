@@ -55,7 +55,8 @@ def missed_replies(db, tenant_id: str, now: datetime) -> list[tuple[str, str]]:
         if msg is None or not body or body.startswith("["):        # media-only / reactions / Instagram "[...]" placeholders: no text to answer
             continue
         meta = msg.channel_metadata
-        if isinstance(meta, dict) and meta.get("source") == "personal_bridge":    # written to the agent's personal phone: not ours to answer
+        # written to the agent's personal phone (bridge mirror, or an uploaded chat export): not ours to answer
+        if isinstance(meta, dict) and meta.get("source") in ("personal_bridge", "chat_export"):
             continue
         out.append((msg.id, conversation_id, at))
     out.sort(key=lambda r: r[2])

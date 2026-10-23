@@ -39,6 +39,7 @@ class FeedItemSchema(BaseModel):
     has_recording: bool = False
     has_transcript: bool = False
     manual: bool = False                     # logged by hand (a call from the agent's own phone); its note is in `text`
+    imported: bool = False                   # uploaded evidence: a message from a WhatsApp chat export, a call recording
     # quote
     quote_id: Optional[str] = None
     amount: Optional[float] = None

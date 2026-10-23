@@ -10,12 +10,12 @@ import { Card, CardBody, CardHeader, DataTable, EmptyState, type Column } from "
 interface Block { automatic: Record<AutoKey, number>; human: Record<HumanKey, number> }
 interface Row extends Block { agent_id: string | null; name: string }
 interface DailyReport { date: string; agents: Row[]; total: Block; definitions: Record<string, string> }
-type AutoKey = "received" | "handled" | "in_valid_stage" | "conversions";
+type AutoKey = "received" | "handled" | "in_valid_stage" | "valid_now" | "conversions";
 type HumanKey = "reviewed" | "valid" | "not_valid" | "not_yet_reviewed";
 
 const AUTO: { key: AutoKey; label: string }[] = [
   { key: "received", label: "Received" }, { key: "handled", label: "Handled" },
-  { key: "in_valid_stage", label: "In a valid stage" }, { key: "conversions", label: "Bookings" },
+  { key: "in_valid_stage", label: "In a valid stage" }, { key: "valid_now", label: "Valid now" }, { key: "conversions", label: "Bookings" },
 ];
 const HUMAN: { key: HumanKey; label: string }[] = [
   { key: "reviewed", label: "Reviewed" }, { key: "valid", label: "Valid" },

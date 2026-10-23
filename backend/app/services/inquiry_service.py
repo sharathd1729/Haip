@@ -124,6 +124,16 @@ class InvalidStageTransition(Exception):
         super().__init__(self.detail)
 
 
+class OutcomeReasonRequired(InvalidStageTransition):
+    """A PERSON moved a lead to a closed-won / closed-lost stage without saying why (lead_outcome). API: 422 with
+    ``detail = {"code": "outcome_reason_required", "kind", "message", "reasons"}``."""
+    def __init__(self, kind: str, message: str):
+        from app.services.lead_outcome import CATALOGUE
+        super().__init__("open", kind, message)
+        self.kind = kind
+        self.detail = {"code": "outcome_reason_required", "kind": kind, "message": message, "reasons": list(CATALOGUE[kind])}
+
+
 def _is_backward(from_stage: InquiryStage, to_stage: InquiryStage) -> bool:
     """True when to_stage has a lower pipeline rank than from_stage."""
     return (
@@ -405,9 +415,14 @@ def update_stage(
     actor_user_id: str,
     actor_role: str,
     reason: Optional[str] = None,
+    outcome: Optional[dict] = None,
+    by_person: bool = False,
 ) -> Inquiry:
     """
     Transition an inquiry to a new stage, enforcing the state machine.
+
+    ``outcome`` {reason, note[, source]} / ``by_person``: a move to BOOKED / LOST / GHOSTED by a person needs a reason from
+    lead_outcome.CATALOGUE (OutcomeReasonRequired otherwise); same rule as update_stage_by_id.
 
     Forward transitions are always allowed.
     Exit transitions (→ LOST / GHOSTED) are allowed from any non-terminal stage.
@@ -437,14 +452,18 @@ def update_stage(
             f"Inquiry is {current.value} (terminal) and cannot be moved further."
         )
 
+    from app.services import lead_outcome
+    closing = lead_outcome.kind_of(new_stage == InquiryStage.BOOKED, new_stage in EXIT_STAGES)
+    checked = lead_outcome.check(closing, outcome, by_person)
+
     # ── Exit transitions: LOST / GHOSTED from any active stage ────────────────
     if new_stage in EXIT_STAGES:
-        _apply_stage(db, inquiry, new_stage, actor_user_id, reason)
+        _apply_stage(db, inquiry, new_stage, actor_user_id, reason, outcome=checked)
         return inquiry
 
     # ── Forward transition ─────────────────────────────────────────────────────
     if new_stage in ALLOWED_FORWARD.get(current, set()):
-        _apply_stage(db, inquiry, new_stage, actor_user_id, reason)
+        _apply_stage(db, inquiry, new_stage, actor_user_id, reason, outcome=checked)
         return inquiry
 
     # ── Backward transition — needs elevated role + reason ────────────────────
@@ -460,7 +479,7 @@ def update_stage(
                 current.value, new_stage.value,
                 "A reason is required when reversing a stage transition."
             )
-        _apply_stage(db, inquiry, new_stage, actor_user_id, reason)
+        _apply_stage(db, inquiry, new_stage, actor_user_id, reason, outcome=checked)
         return inquiry
 
     # ── Anything else is explicitly disallowed ────────────────────────────────
@@ -530,6 +549,8 @@ def revert_automatic_move(
     if current.is_closed_lost:
         inquiry.lost_reason = None
         inquiry.lost_note = None
+        from app.services import lead_outcome
+        lead_outcome.clear(inquiry)
     return inquiry
 
 
@@ -586,6 +607,7 @@ def _apply_stage(
     new_stage: InquiryStage,
     actor_user_id: str,
     reason: Optional[str],
+    outcome: Optional[dict] = None,
 ) -> None:
     """Write the stage change + audit event + Inquiry360 stage log. Caller must commit."""
     old_stage = inquiry.stage
@@ -643,6 +665,10 @@ def _apply_stage(
     except Exception as exc:
         log.warning("audit_write_failed", error=str(exc))
 
+    if outcome:   # lead_outcome: why it was won / lost (checked by the caller before the move)
+        from app.services import lead_outcome
+        lead_outcome.record(db, inquiry, "won" if new_stage == InquiryStage.BOOKED else "lost", outcome, actor_user_id)
+
     _notify_stage_hooks(db, inquiry, actor_user_id)
 
     log.info(
@@ -663,6 +689,8 @@ def update_stage_by_id(
     actor_user_id: str,
     actor_role: str,
     reason: Optional[str] = None,
+    outcome: Optional[dict] = None,
+    by_person: bool = False,
 ) -> Inquiry:
     """
     stage_id-driven transition (Leads360 restructure Phase 1 §2.2) — the
@@ -714,7 +742,10 @@ def update_stage_by_id(
         )
 
     if new_stage.is_closed_won or new_stage.is_closed_lost:
-        _apply_stage_by_id(db, inquiry, current, new_stage, actor_user_id, reason)
+        # lead_outcome: a person must say why; a rule brings its own reason; other automatic closings record none.
+        from app.services import lead_outcome
+        checked = lead_outcome.check(lead_outcome.kind_of(new_stage.is_closed_won, new_stage.is_closed_lost), outcome, by_person)
+        _apply_stage_by_id(db, inquiry, current, new_stage, actor_user_id, reason, outcome=checked)
         return inquiry
 
     if new_stage.order > current.order:
@@ -780,6 +811,8 @@ def reopen_lost_inquiry(
     _apply_stage_by_id(db, inquiry, current, target, actor_user_id, reason)
     inquiry.lost_reason = None
     inquiry.lost_note = None
+    from app.services import lead_outcome
+    lead_outcome.clear(inquiry)
     return inquiry
 
 
@@ -790,6 +823,7 @@ def _apply_stage_by_id(
     new_stage: PipelineStage,
     actor_user_id: str,
     reason: Optional[str],
+    outcome: Optional[dict] = None,
 ) -> None:
     """Write the stage change + audit event + Inquiry360 stage log. Caller must commit."""
     now = datetime.now(timezone.utc)
@@ -846,6 +880,10 @@ def _apply_stage_by_id(
         )
     except Exception as exc:
         log.warning("audit_write_failed", error=str(exc))
+
+    if outcome:   # lead_outcome: why it was won / lost (checked by update_stage_by_id before the move)
+        from app.services import lead_outcome
+        lead_outcome.record(db, inquiry, "won" if new_stage.is_closed_won else "lost", outcome, actor_user_id)
 
     _notify_stage_hooks(db, inquiry, actor_user_id)
 

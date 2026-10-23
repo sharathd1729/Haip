@@ -42,6 +42,7 @@ export function MessageBubble({ item, canSend, inquiryId }: { item: FeedItem; ca
           <ChannelTag channel={item.channel} />
           {out && <span className="text-[11.5px] font-semibold text-[var(--haip-fg-muted)]">· {item.is_ai ? "AI reply" : item.sender_name || "Team"}</span>}
           {item.is_template && <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">· template</span>}
+          {item.imported && <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">· imported chat</span>}
         </span>
         <span className="whitespace-pre-wrap break-words">{item.text || (item.media_type ? `[${item.media_type}]` : "—")}</span>
         <span className="flex items-center justify-end gap-1.5 text-[11.5px] text-[var(--haip-fg-subtle)]">
@@ -115,7 +116,7 @@ export function CallCard({ item }: { item: FeedItem }) {
           <span className="block text-[12.5px] text-[var(--haip-fg-subtle)]">
             {istTime(item.at)}{item.by_name ? ` · ${inbound ? "answered by" : "by"} ${item.by_name}` : ""}
             {!item.answered && !inbound ? " · logged as an attempt" : ""}
-            {item.manual ? " · from a personal phone, logged by hand" : ""}
+            {item.manual ? " · from a personal phone, logged by hand" : item.imported ? " · uploaded recording" : ""}
           </span>
         </span>
       </div>

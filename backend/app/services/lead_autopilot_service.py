@@ -202,9 +202,15 @@ def _apply(db: Session, tenant_id: str, inquiry, event: LeadAutopilotEvent, curr
     event.prev_lost_note = inquiry.lost_note
     db.info[APPLYING_FLAG] = inquiry.id
     try:
+        # A RULE move records its own won/lost reason (source "rule", e.g. dates passed -> dates_unavailable); an AI move
+        # records none, so the nightly lead_outcome sweep proposes one for a person to confirm.
+        outcome = None
+        if event.source == "rule" and target.is_closed_lost:
+            from app.services.lead_outcome import AUTOPILOT_LOST
+            outcome = {"reason": AUTOPILOT_LOST.get(event.lost_reason or "", "other"), "source": "rule"}
         inquiry_service.update_stage_by_id(
             db, tenant_id=tenant_id, inquiry_id=inquiry.id, new_stage_id=target.id,
-            actor_user_id=None, actor_role="system", reason=f"Autopilot: {event.reason}",
+            actor_user_id=None, actor_role="system", reason=f"Autopilot: {event.reason}", outcome=outcome,
         )
     finally:
         db.info.pop(APPLYING_FLAG, None)

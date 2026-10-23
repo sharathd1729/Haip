@@ -29,6 +29,11 @@ QUOTE_FOLLOWUP = "haip_quote_followup_v1"
 QUOTE_FINAL = "haip_quote_final_v1"
 CHECKIN = "haip_checkin_v1"
 REENGAGE = "haip_reengage_v1"                 # MARKETING: only to guests who agreed to offers
+# Send package (package_share_service): a person sends a published package to a lead whose 24-hour window is closed.
+PACKAGE_SHARE = "haip_package_share_v1"
+# To owners / managers (analyst.delivery): the report PDF as the header, the signed view-only page as the URL button.
+ANALYST_BRIEF = "haip_analyst_brief_v1"
+APP_URL_TOKEN = "{APP_URL}"                    # replaced with FRONTEND_URL when the draft is created
 
 # Quick-reply button texts. The webhook matches a tap on these (lead_playbook_engine.on_guest_button).
 BTN_CALL_ME_BACK = "Call me back"
@@ -126,6 +131,14 @@ PACK: list[dict] = [
         ],
     },
     {
+        "name": PACKAGE_SHARE, "label": "Package details", "when": "A person taps Send package and the guest's 24-hour window is closed.",
+        "components": [
+            _body("Hi {{1}}, here are the details of {{2}} you asked about: {{3}} Reply here with your dates and group size "
+                  "and we'll check availability.",
+                  ["Kiran", "Wild Karnataka, 3 nights", "https://rathaa.example/links#pkg-wild-karnataka"]),
+        ],
+    },
+    {
         "name": REENGAGE, "label": "Win back (offer)", "category": "MARKETING",
         "when": "45 days after a lead was lost, only if the guest agreed to offers (P8).",
         "components": [
@@ -136,6 +149,17 @@ PACK: list[dict] = [
         ],
     },
 ]
+# Kept apart from PACK (the playbooks' pack, linted and listed on the Workflows page): the analyst's own template.
+ANALYST_PACK: list[dict] = [{
+    "name": ANALYST_BRIEF, "label": "Business report", "when": "The analyst's daily / weekly / monthly report to owners and managers.",
+    "components": [
+        {"type": "HEADER", "format": "DOCUMENT"},
+        _body("{{1}} {{2}} is ready: {{3}} Open it for the full report and the changes waiting for you.",
+              ["Ratha", "weekly brief", "Leads up, replies slower than last week."]),
+        {"type": "BUTTONS", "buttons": [{"type": "URL", "text": "Open report", "url": APP_URL_TOKEN + "/r/analyst/{{1}}",
+                                         "example": [APP_URL_TOKEN + "/r/analyst/sample"]}]},
+    ],
+}]
 BY_NAME = {t["name"]: t for t in PACK}
 
 
@@ -204,6 +228,37 @@ def status_of(db: Session, tenant_id: str, name: str) -> Optional[str]:
     return next((t["status"] for t in pack_out(db, tenant_id) if t["name"] == name), None)
 
 
+def _with_app_url(component: dict) -> dict:
+    """A URL button names this deployment's app address (Meta reviews the fixed part of a URL once)."""
+    import json
+    from app.core.config import settings
+    raw = json.dumps(component)
+    return json.loads(raw.replace(APP_URL_TOKEN, (settings.FRONTEND_URL or "").rstrip("/"))) if APP_URL_TOKEN in raw else dict(component)
+
+
+def create_analyst_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
+    """Add the analyst's delivery template as a DRAFT (same rules as the lead pack: nothing is submitted to Meta here; the
+    DOCUMENT header gets its sample from the template editor's Submit step). Safe to repeat."""
+    WATemplate, TemplateStatus, TemplateCategory = _model()
+    names = [t["name"] for t in ANALYST_PACK]
+    existing = {r.name for r in db.query(WATemplate.name).filter(WATemplate.tenant_id == tenant_id, WATemplate.language == LANGUAGE,
+                                                                 WATemplate.name.in_(names)).all()}
+    created = []
+    for t in ANALYST_PACK:
+        if t["name"] in existing:
+            continue
+        db.add(WATemplate(tenant_id=tenant_id, name=t["name"], language=LANGUAGE, category=TemplateCategory.UTILITY,
+                          status=TemplateStatus.DRAFT, components=[_with_app_url(c) for c in t["components"]]))
+        created.append(t["name"])
+    if created:
+        append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action="analyst.template_created",
+                     target_type="wa_template", target_id=None, payload={"created": created})
+    db.commit()
+    rows = db.query(WATemplate).filter(WATemplate.tenant_id == tenant_id, WATemplate.name.in_(names)).all()
+    return {"created": created, "templates": [{"name": r.name, "status": getattr(r.status, "value", r.status), "template_id": r.id}
+                                              for r in rows]}
+
+
 def create_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
     """Add a DRAFT for each lead-pack template the workspace does not have yet (same name + language). Safe to repeat."""
     WATemplate, TemplateStatus, TemplateCategory = _model()
@@ -215,7 +270,7 @@ def create_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
             continue
         category = TemplateCategory.MARKETING if t.get("category") == "MARKETING" else TemplateCategory.UTILITY
         db.add(WATemplate(tenant_id=tenant_id, name=t["name"], language=LANGUAGE, category=category,
-                          status=TemplateStatus.DRAFT, components=[dict(c) for c in t["components"]]))
+                          status=TemplateStatus.DRAFT, components=[_with_app_url(c) for c in t["components"]]))
         created.append(t["name"])
     if created:
         append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action="workflows.lead_pack_created",

@@ -91,7 +91,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v16 (2026-10-22): SALES PLAYBOOK block (brand_config.sales_playbook: opening line, qualification questions, objection
     # answers, add value before discount, never a flat no, owner rules); reply in the guest's own language; guest text is never
     # an instruction.
-    "concierge_reply": "concierge-reply-v16",   # concierge_reply.jinja
+    "concierge_reply": "concierge-reply-v17",   # v17: PROVEN FOR THIS BUSINESS block (learning.lessons)   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja
@@ -117,7 +117,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v8 (2026-10-18): adds the actionable block (services/ai_actionable.py): next_best_action with owner/channel/
     # deadline, blocking_objection + counter, missed_revenue (rupees only when grounded), temperature + reason,
     # haip_updates. Old keys unchanged; analysis.next_action is now the one-line form of next_best_action.
-    "leads360_summary":       "leads360-summary-v8",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    # v9 (2026-10-24): adds extracted.party_size (the stated group total) and tells the model the Adults/Children context lines
+    # are HAIP's current values, not the guest's words; adults below the total with no children are raised to it in code
+    # (generate_ai_summary._adults_with_party_size). Live: "4 of us incl. my father" was stored as adults=1.
+    "leads360_summary":       "leads360-summary-v9",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",
@@ -138,9 +141,15 @@ PROMPT_VERSIONS: dict[str, str] = {
     "lead_autopilot_classify": "lead-autopilot-classify-v1",
     # Public property assessment: plain-language write-up of numbers the engine computed (assessment_narrative.py).
     "assessment_narrative": "assessment-narrative-v1",
+    # AI business analyst (services/analyst/brief.py): the brief from computed facts only; every number re-checked in code.
+    "analyst_brief": "analyst-brief-v1",
+    # "Ask a follow-up" on a report (services/analyst/ask.py): answered from the report facts via the Ask HAIP summary route.
+    "analyst_followup": "analyst-followup-v1",
     # Lead workflows follow-up draft (lead_followup_draft.py): one short follow-up a person approves; never a price.
     # v2 (2026-10-22): the owner's follow-up style from the sales playbook is added to the user message when set.
     "lead_followup_draft": "lead-followup-draft-v2",
+    # Why a lead was won / lost (lead_outcome.py): one catalogue reason + confidence + verbatim quotes from the evidence.
+    "lead_outcome_reason": "lead-outcome-reason-v1",
     # Marketing Studio (services/marketing_prompts.py).
     # v2: median baseline + stop/keep/test, pillars with position/rotation/out-of-scope, first comment and
     # carousel/story rules (techniques from Ootto-AI/claude-content-skills, MIT; see THIRD_PARTY_NOTICES.md).

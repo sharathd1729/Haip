@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { ValidityBadge } from "@/components/leads/ValidityBadge";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -350,6 +351,7 @@ const LEAD_COLUMNS: Column<LeadCardType>[] = [
       <span className="grid text-xs">
         <span className="text-[var(--haip-fg)]">{LEAD_TYPE_LABEL[l.lead_type || "guest"] ?? l.lead_type}</span>
         <span className="text-[var(--haip-fg-subtle)]">{CAME_FROM_LABEL[l.came_from || "unknown"]}</span>
+        <ValidityBadge validity={l.validity} />
       </span>
     ),
   },

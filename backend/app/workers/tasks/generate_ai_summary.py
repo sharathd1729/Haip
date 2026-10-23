@@ -15,6 +15,7 @@ Constitution checks:
 """
 
 import asyncio
+import re
 from datetime import datetime, timezone
 import structlog
 
@@ -52,6 +53,7 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "check_out": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-out/return date, else null. Same year-resolution rule as check_in above.>",
     "adults": "<integer number of adults ONLY if explicitly stated, else null. If the guest gives a total group/party size without breaking it into adults and children (e.g. '5 guests', 'party of 6', 'we are 4'), use that total number here -- guests overwhelmingly phrase headcount this way, and it is still a literal readback of what they said, not a guess. Only leave this null if the guest genuinely gave no headcount at all, or if they explicitly split out children and gave NO adult figure.>",
     "children": "<integer number of children ONLY if explicitly stated, else null>",
+    "party_size": "<integer TOTAL number of people travelling (adults + children) ONLY if the guest stated a headcount ('4 of us', 'we are 4', 'family of 5', '6 people'), else null. Count the whole group, never just the person writing or the people they named one by one (e.g. 'my 84-year-old father').>",
     "occasion": "<short phrase, e.g. 'anniversary', ONLY if explicitly stated, else null>",
     "budget": "<number, the guest's stated budget in INR, ONLY if explicitly stated, else null>",
     "special_requests": "<short phrase of a specific request the guest explicitly made (dietary, accessibility, celebration setup, etc.), else null>",
@@ -70,6 +72,8 @@ Rules for using the lead context:
   about the stay/after-sales, for a Lost lead there is no sales push, and if a quote was already sent do not recommend sending
   one -- recommend following it up. Never describe a booking differently from BOOKING STATUS.
 - Messages marked [outbound] are what the team actually sent. Only an [outbound] message can have answered a question.
+- The Adults / Children lines in the lead context are what HAIP currently shows, not something the guest said: never copy
+  them into "extracted", and never put 1 in "adults" for the person writing when they gave a group total.
 
 Be specific and concise. If data is missing, state what's unknown rather than
 inventing it. "extracted" fields are a strict, literal readback of what the
@@ -121,8 +125,51 @@ def _clean_analysis(raw: dict) -> dict:
     return out
 _EXTRACTED_KEYS = (
     "check_in", "check_out", "adults", "children", "occasion", "budget", "special_requests",
-    "route_mentioned", "quoted_amount", "upsell_offered", "upsell_accepted",
+    "route_mentioned", "quoted_amount", "upsell_offered", "upsell_accepted", "party_size",
 )
+
+
+class SummaryRejected(Exception):
+    """The model's reply is not a usable prose summary. Raised inside the task so the existing retry path runs; carries only a
+    short reason, never the model's text (it quotes the guest)."""
+
+
+# Every key the prompt asks for, as the model spells it. One of these in the summary text means it rendered fields, not prose.
+_FIELD_NAMES = frozenset(
+    ("summary", "analysis", "extracted", "lead_analysis", "intent", "sentiment", "objection", "reply_urgency", "next_action",
+     "unanswered_questions", "requirements", "inferences", "follow_up", "next_best_action", "blocking_objection",
+     "missed_revenue", "temperature", "haip_updates", "check_in", "check_out", "adults", "children", "occasion", "budget",
+     "special_requests", "route_mentioned", "quoted_amount", "upsell_offered", "upsell_accepted", "party_size")
+)
+_SNAKE_TOKEN = re.compile(r"(?<![A-Za-z0-9])_?[a-z]+(?:_[a-z]+)+(?![A-Za-z0-9])")
+_JSON_KEY = re.compile(r'"[A-Za-z_][A-Za-z0-9_ ]{0,40}"\s*:')
+_LABEL_LINE = re.compile(r"^\s*(?:[#*>-]+\s*)?[A-Za-z][A-Za-z /&-]{0,40}:\s*(?:-\s*)?$", re.MULTILINE)
+_LITERAL_VALUE = re.compile(r":\s*(?:null|true|false|\[|\{)", re.IGNORECASE)
+_TERMINAL = re.compile(r"[.!?…।][\"'”’)\]]*$")
+
+
+def summary_rejection_reason(text) -> str | None:
+    """Why ``text`` is not a clean prose summary, or None when it is. Shared with scripts/repair_broken_summaries.py.
+
+    Rejects what the model emits when it does not follow the JSON contract: backticked or snake_case field names
+    (`requirements`, upsell_accepted), JSON keys or literal values (": null", ": ["), markdown field labels on their own line
+    ("Next best action:"), and text cut off mid-sentence (no closing punctuation, the max_tokens case)."""
+    if not isinstance(text, str) or not text.strip():
+        return "empty"
+    t = text.strip()
+    if t[0] in "{[" or _JSON_KEY.search(t):
+        return "json"
+    if "`" in t:
+        return "backticks"
+    if any(m.group(0).lstrip("_") in _FIELD_NAMES or m.group(0).startswith("_") for m in _SNAKE_TOKEN.finditer(t)):
+        return "field_names"
+    if _LITERAL_VALUE.search(t):
+        return "literal_values"
+    if _LABEL_LINE.search(t):
+        return "field_labels"
+    if not _TERMINAL.search(t):
+        return "truncated"
+    return None
 
 
 def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None, str | None]:
@@ -164,7 +211,10 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None, st
             extracted = {k: extracted_raw.get(k) for k in _EXTRACTED_KEYS}
         lead_analysis_raw = parsed.get("lead_analysis")
         lead_analysis = lead_analysis_raw.strip() if isinstance(lead_analysis_raw, str) and lead_analysis_raw.strip() else None
-        return summary or raw, analysis, extracted, lead_analysis
+        # Never fall back to the raw JSON: an empty or malformed "summary" makes the whole run unusable (caller keeps the old one).
+        if summary_rejection_reason(summary):
+            return "", None, None, None
+        return summary, analysis, extracted, lead_analysis
 
     # Truncated/malformed JSON: salvage the summary value rather than storing
     # a raw JSON fragment as the "prose" summary.
@@ -175,11 +225,32 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None, st
                 salvaged = _json.loads(f'"{m.group(1)}"')  # unescape
             except (ValueError, TypeError):
                 salvaged = m.group(1)
-            if salvaged.strip():
+            if salvaged.strip() and not summary_rejection_reason(salvaged.strip()):
                 return salvaged.strip(), None, None, None
         return "", None, None, None   # unusable JSON fragment — caller logs + keeps old summary
 
-    return raw, None, None, None
+    # Plain text is only kept when it reads as a prose summary. A markdown rendering of the JSON fields ("Requirements:"
+    # then "`requirements`: [...]") or a cut-off fragment used to be stored verbatim as the lead's summary.
+    if summary_rejection_reason(text):
+        return "", None, None, None
+    return text, None, None, None
+
+
+def _rejection_reason_for(raw: str) -> str:
+    """For the log line only: why _parse_summary_response returned no summary (the JSON's own "summary" value when there is
+    one, else the whole reply)."""
+    import json as _json
+
+    text = re.sub(r"<think>.*?</think>", "", raw or "", flags=re.DOTALL).strip().strip("`").strip()
+    if text.startswith("json"):
+        text = text[4:].strip()
+    try:
+        parsed = _json.loads(text)
+    except (ValueError, TypeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        return "summary_field_" + (summary_rejection_reason(str(parsed.get("summary") or "")) or "unusable")
+    return summary_rejection_reason(text) or "unusable"
 
 
 def _valid_iso_date(value) -> str | None:
@@ -216,6 +287,25 @@ def _coerce_number(value):
         except ValueError:
             return None
     return None
+
+
+def _adults_with_party_size(adults, children, party_size, stored_children=None):
+    """The adult count to write, given the stated group total.
+
+    Live bug (Oct 2026): a guest wrote that they were 4 people including her 84-year-old father; the summary said a group of
+    4 but adults stayed 1 -- the model filled "adults" with the one person it could name (or the speaker) and nothing
+    checked it against the headcount. When the guest gave a total and the adults plus known children fall short of it,
+    the rest are adults: "4 of us" with no children = 4 adults, "4 of us, 1 child" = 3. Children come from this run, else
+    from what is on file. A larger adult count than the total is left as the model gave it (it is the more specific one)."""
+    if isinstance(party_size, bool) or party_size is None or not (0 < party_size <= 100):
+        return adults
+    kids = children if children is not None and 0 <= children <= 100 else (stored_children or 0)
+    implied = int(party_size) - int(kids)
+    if implied <= 0:
+        return adults
+    if adults is None or not (0 < adults <= 100) or int(adults) + int(kids) < int(party_size):
+        return implied
+    return adults
 
 
 def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
@@ -268,7 +358,12 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         inquiry.dates_from_chat = True
         written.append("check_out")
 
-    adults = _coerce_number(extracted.get("adults"))
+    adults = _adults_with_party_size(
+        _coerce_number(extracted.get("adults")),
+        _coerce_number(extracted.get("children")),
+        _coerce_number(extracted.get("party_size")),
+        inquiry.children,
+    )
     if adults is not None and 0 < adults <= 100 and int(adults) != inquiry.adults:
         inquiry.adults = int(adults)
         written.append("adults")
@@ -306,6 +401,14 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         if route_mentioned != inquiry.route_mentioned:
             inquiry.route_mentioned = route_mentioned
             written.append("route_mentioned")
+        # The guest's starting city (lead_validity's location check): the origin of an "A to B" route, only while empty --
+        # a person's edit on the lead page is never overwritten.
+        if not getattr(inquiry, "guest_location", None):
+            from app.services.lead_validity import origin_of_route
+            origin = origin_of_route(route_mentioned)
+            if origin:
+                inquiry.guest_location = origin
+                written.append("guest_location")
 
     # quoted_amount/quoted_at already exist on Inquiry but had no write path
     # anywhere in the codebase before this (confirmed via grep) -- a formal
@@ -392,7 +495,8 @@ def _booking_status_text(db, tenant_id: str, inquiry) -> str:
 def _previous_analysis_text(inquiry) -> str:
     """Last run's summary and analysis, so the new run updates them instead of starting from the last 30 messages alone."""
     parts = []
-    if inquiry.ai_summary:
+    # A broken stored summary (raw field dump) is not fed back as "update this": the model would copy its format.
+    if inquiry.ai_summary and not summary_rejection_reason(inquiry.ai_summary):
         parts.append(f"PREVIOUS SUMMARY (update it, do not start over): {inquiry.ai_summary[:700]}")
     prev = inquiry.ai_analysis if isinstance(inquiry.ai_analysis, dict) else {}
     kept = {k: prev.get(k) for k in ("intent", "objection", "unanswered_questions", "requirements") if prev.get(k)}
@@ -549,8 +653,18 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
 
         summary_text, analysis, extracted, lead_analysis = _parse_summary_response(raw_text)
         if not summary_text:
-            log.warning("generate_ai_summary_unparseable", inquiry_id=inquiry_id)
-            return
+            # Nothing from this run is written (the previous summary stays). Raising hands it to the retry path below: a
+            # malformed reply is usually a one-off from the model. Only the reason and sizes are logged, never the text.
+            reason = _rejection_reason_for(raw_text)
+            log.error(
+                "generate_ai_summary_rejected",
+                inquiry_id=inquiry_id,
+                tenant_id=tenant_id,
+                reason=reason,
+                raw_chars=len(raw_text),
+                model=result.get("model"),
+            )
+            raise SummaryRejected(reason)
 
         # ── Write to DB ────────────────────────────────────────────────────────
         inquiry.ai_summary = summary_text

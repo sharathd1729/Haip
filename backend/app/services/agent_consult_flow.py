@@ -101,7 +101,7 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
         verdict = rules.evaluate(signals)
         # Who may decide what (agent_policy): the owner's mode per action class keeps, drops or adds a reason.
         from app.services import agent_policy
-        reasons, policy_hold, notes = agent_policy.apply(tenant, intent, reply_text, verdict.reasons)
+        reasons, policy_hold, notes = agent_policy.apply(tenant, intent, reply_text, verdict.reasons, price_mode=price_mode)
         if notes:
             verdict.evidence["policy"] = notes
         if reasons:

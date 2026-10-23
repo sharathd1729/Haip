@@ -152,6 +152,13 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # PERSON approves before it is sent; a price in the reply is rejected and replaced by fixed wording. Same tier as
     # concierge_rewrite (short text, no tools), with the Gemini fallback below.
     "lead_followup_draft": ("nvidia", "openai/gpt-oss-20b"),
+    # Why a lead was won / lost (lead_outcome.py): reads the lead's own call transcripts + messages and returns one reason
+    # from the fixed catalogue with verbatim quotes (checked in code). Internal analysis, structured JSON output -- the
+    # gpt-oss-20b tier with the Gemini fallback below. A PERSON confirms it; it never sets the reason by itself.
+    "outcome_reason": ("nvidia", "openai/gpt-oss-20b"),
+    # AI business analyst (services/analyst/brief.py): a structured brief from computed facts (JSON). Internal, not
+    # guest-facing; every number is re-checked against the facts and a deterministic brief stands in on any failure.
+    "analyst_brief": ("nvidia", "openai/gpt-oss-20b"),
     # Marketing Studio: audit reading, plan + calendar, one content piece. Structured output via one tool, so the
     # reliable tool-calling tier; every result is re-validated and reviewed by a person before anything leaves HAIP.
     "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
@@ -188,6 +195,8 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "deep_reason":                 120,   # judge's low-confidence re-score
     "assessment_narrative":        60,
     "lead_followup_draft":         40,
+    "outcome_reason":              45,
+    "analyst_brief":               90,
     "marketing_audit":             60,
     "marketing_plan":              90,
     "marketing_content":           60,

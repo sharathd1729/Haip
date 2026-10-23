@@ -12,6 +12,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { istDate } from "./format";
 import type { LeadValidation } from "./types";
+import type { LeadValidity } from "@/components/leads/ValidityBadge";
 
 const TYPES = [
   { value: "guest", label: "Guest" },
@@ -27,8 +28,8 @@ type CheckKey = (typeof CHECKS)[number]["key"];
 
 const pill = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-[14px] font-semibold";
 
-export function LeadReviewCard({ inquiryId, leadType, validation, canEdit }: {
-  inquiryId: string; leadType?: string | null; validation?: LeadValidation | null; canEdit: boolean;
+export function LeadReviewCard({ inquiryId, leadType, validation, validity, canEdit }: {
+  inquiryId: string; leadType?: string | null; validation?: LeadValidation | null; validity?: LeadValidity | null; canEdit: boolean;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -56,6 +57,16 @@ export function LeadReviewCard({ inquiryId, leadType, validation, canEdit }: {
     <Card>
       <CardHeader title="Valid enquiry?" description="Your call, not the AI's. It feeds the daily lead report." />
       <CardBody className="grid gap-3" data-testid="lead-review-card">
+        {validity?.enabled && (
+          <div className={cn("grid gap-1 rounded-xl border px-3 py-2",
+            validity.auto_valid ? "border-[var(--haip-status-success-border)] bg-[var(--haip-status-success-bg)]" : "border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-bg)]")}>
+            <span className={cn("text-[13.5px] font-semibold", validity.auto_valid ? "text-[var(--haip-status-success-fg)]" : "text-[var(--haip-status-danger-fg)]")}>
+              Automatic check: {validity.auto_valid ? "Valid" : "Not valid"}{status ? " (your review below decides)" : ""}
+            </span>
+            {validity.reasons.length > 0 && <span className="text-[13px] text-[var(--haip-fg-2)]">{validity.reasons.join(" · ")}</span>}
+            {validity.notes.length > 0 && <span className="text-[12.5px] text-[var(--haip-fg-muted)]">To follow up: {validity.notes.join(" · ")}</span>}
+          </div>
+        )}
         <div className="grid gap-1.5">
           <span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">Lead type</span>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Lead type">

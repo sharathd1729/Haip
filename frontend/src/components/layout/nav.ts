@@ -9,8 +9,8 @@ import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
-  AtSign, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
-  Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
+  AtSign, BadgeCheck, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
+  FlaskConical, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
@@ -65,6 +65,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { title: "Insights", links: [
     { label: "Reports", href: "/dashboard/reports", icon: I["/dashboard/reports"], resource: "reports" },
     { label: "Impact", href: "/dashboard/impact", icon: TrendingUp, resource: "analytics", onlyRoles: ["owner", "manager"] },
+    { label: "Analyst", href: "/dashboard/analyst", icon: Sparkles, resource: "analytics", onlyRoles: ["owner", "manager"] },
     { label: "Instagram insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
     { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "Website", href: "/dashboard/marketing/website", icon: Globe, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
@@ -78,7 +79,9 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Team", href: "/dashboard/settings/team", icon: UsersRound, resource: "users" },
     { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
     { label: "Lead autopilot", href: "/dashboard/settings/lead-autopilot", icon: Bot, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "Lead rules", href: "/dashboard/settings/lead-rules", icon: BadgeCheck, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Lead workflows", href: "/dashboard/workflows", icon: Workflow, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "AI learning", href: "/dashboard/settings/learning", icon: FlaskConical, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },
