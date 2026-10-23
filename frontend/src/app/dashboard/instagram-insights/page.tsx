@@ -9,6 +9,7 @@ import { Eye, Users, UserPlus, Instagram, Heart, MessageSquare, Send, Image as I
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";
+import { useIsPhone } from "@/lib/useIsPhone";
 
 const TEAL = "var(--primary)"; const PINK = "#e1306c"; const AMBER = "#fbbf24"; const GRAY = "#e5e7eb";
 
@@ -98,6 +99,7 @@ export default function InstagramInsightsPage() {
     queryFn: () => api.get("/instagram-insights", { params: { range_days: 30 } }).then(r => r.data),
     staleTime: 5 * 60_000,
   });
+  const phone = useIsPhone();
 
   if (isLoading) return <PageSkeleton />;
 
@@ -163,6 +165,20 @@ export default function InstagramInsightsPage() {
               <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
                 Reach &amp; Profile Views Over Time
               </h2>
+              {/* Phones: the two totals for the period instead of a two-line chart (mobile-first plan). */}
+              {phone ? (
+                <dl className="grid grid-cols-2 gap-3 text-[13px]">
+                  {([["Reach", "reach"], ["Profile views", "profile_views"]] as const).map(([label, key]) => (
+                    <div key={key}>
+                      <dt className="text-[var(--haip-fg-subtle)]">{label}</dt>
+                      <dd className="font-[family-name:var(--font-display)] text-[22px] font-semibold tabular-nums text-[var(--haip-fg)]">
+                        {trend.reduce((n, d) => n + (Number(d[key]) || 0), 0).toLocaleString("en-IN")}
+                      </dd>
+                    </div>
+                  ))}
+                  <p className="col-span-2 text-[12px] text-[var(--haip-fg-subtle)]">Last 30 days, added up per day</p>
+                </dl>
+              ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={trend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={GRAY} />
@@ -176,6 +192,7 @@ export default function InstagramInsightsPage() {
                   <Line type="monotone" dataKey="profile_views" name="Profile Views" stroke={TEAL} strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
+              )}
             </div>
 
             <div className="haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
