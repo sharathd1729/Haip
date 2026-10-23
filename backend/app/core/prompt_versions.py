@@ -145,7 +145,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v2 (2026-10-18): adds "actions": up to 3 next best actions, each with lead, owner, channel and deadline.
     "daily_briefing": "daily-briefing-v2",
     # Lead autopilot AI classifier (lead_autopilot_ai.py): stage decision + lost reason + confidence + evidence refs.
-    "lead_autopilot_classify": "lead-autopilot-classify-v1",
+    # v2 (2026-10-24): message lines name their author (message_author) instead of [inbound]/[outbound]; only [guest] lines are
+    # the guest's evidence, and silence after a campaign broadcast or an automated message is not a decline.
+    "lead_autopilot_classify": "lead-autopilot-classify-v2",
     # Public property assessment: plain-language write-up of numbers the engine computed (assessment_narrative.py).
     "assessment_narrative": "assessment-narrative-v1",
     # AI business analyst (services/analyst/brief.py): the brief from computed facts only; every number re-checked in code.

@@ -192,7 +192,7 @@ class TestAiClassifier:
                                     "evidence": [{"ref": f"m:{m.id}", "quote": "beyond what we can spend"}]})
         assert ev.source == "ai" and ev.status == "applied" and inq.stage_id == s["lost"].id
         assert inq.lost_reason == LostReason.BUDGET_MISMATCH
-        assert ev.prompt_version == "lead-autopilot-classify-v1" and ev.evidence[0]["id"] == m.id
+        assert ev.prompt_version == "lead-autopilot-classify-v2" and ev.evidence[0]["id"] == m.id
 
     def test_below_threshold_stays_a_suggestion(self, db):
         t, s, inq, m = self._ambiguous(db)

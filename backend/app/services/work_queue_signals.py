@@ -300,6 +300,25 @@ def _message_channel(channel, source: Optional[str]) -> str:
     return value if value in ("whatsapp", "instagram") else (value or "other")
 
 
+def contact_message_filters() -> list:
+    """SQL conditions for an outbound message that MAY be a person's contact (touch_rows and the lead autopilot's "we spoke
+    last" rule share them). Pair with is_legacy_campaign() on each row."""
+    return [
+        Message.direction == MessageDirection.OUTBOUND,
+        Message.is_internal.isnot(True),
+        Message.sent_autonomously.isnot(True),
+        or_(Message.sender_kind.is_(None), Message.sender_kind.notin_(NOT_CONTACT_KINDS)),
+        or_(Message.is_ai_generated.isnot(True), Message.was_approved.is_(True)),
+    ]
+
+
+def is_legacy_campaign(sender_name: Optional[str], channel_metadata) -> bool:
+    """A campaign broadcast written before ``sender_kind`` existed (migration 151): only its "Campaign: <name>" sender name or
+    its metadata say what it is (message_author). A broadcast is never a person contacting this guest."""
+    from app.services.message_author import CAMPAIGN, author_of
+    return author_of("outbound", sender_name=sender_name, channel_metadata=channel_metadata) == CAMPAIGN
+
+
 def touch_rows(db: Session, tenant_id: str, since_by_guest: dict) -> list[tuple]:
     """Every contact and call attempt with these people since their own cut-off: [(guest_id, at, kind, channel)], kind
     "contact" | "attempt", channel whatsapp | instagram | personal_whatsapp | call | quote.
@@ -307,7 +326,8 @@ def touch_rows(db: Session, tenant_id: str, since_by_guest: dict) -> list[tuple]
     Contact = a message a human sent or approved, an outbound call that was answered, an inbound call that was answered, or a
     quote an agent shared from the rate calculator (sent, or copied to paste into their own WhatsApp -- the copy leaves no
     message behind, so the quote's shared_at is the only record). The AI's own autonomous replies and HAIP's automatic
-    messages (playbook / system / campaign, ``Message.sender_kind``) are not contact. An unanswered outbound call is an
+    messages (playbook / system / campaign, ``Message.sender_kind``; a campaign row older than that column by its sender name,
+    is_legacy_campaign) are not contact. An unanswered outbound call is an
     attempt, not contact."""
     from app.services import call_status_service
 
@@ -321,22 +341,15 @@ def touch_rows(db: Session, tenant_id: str, since_by_guest: dict) -> list[tuple]
         return at is not None and _aware_dt(at) >= _aware_dt(since_by_guest[guest_id])
 
     msgs = (
-        db.query(Conversation.guest_id, Message.created_at, Conversation.channel, Conversation.source)
+        db.query(Conversation.guest_id, Message.created_at, Conversation.channel, Conversation.source,
+                 Message.sender_name, Message.channel_metadata)
         .join(Message, Message.conversation_id == Conversation.id)
-        .filter(
-            Conversation.tenant_id == tenant_id,
-            Conversation.guest_id.in_(ids),
-            Message.direction == MessageDirection.OUTBOUND,
-            Message.is_internal.isnot(True),
-            Message.sent_autonomously.isnot(True),
-            or_(Message.sender_kind.is_(None), Message.sender_kind.notin_(NOT_CONTACT_KINDS)),
-            or_(Message.is_ai_generated.isnot(True), Message.was_approved.is_(True)),
-            Message.created_at >= earliest,
-        )
+        .filter(Conversation.tenant_id == tenant_id, Conversation.guest_id.in_(ids), *contact_message_filters(),
+                Message.created_at >= earliest)
         .all()
     )
-    for guest_id, at, channel, source in msgs:
-        if after(guest_id, at):
+    for guest_id, at, channel, source, sender_name, meta in msgs:
+        if after(guest_id, at) and not is_legacy_campaign(sender_name, meta):
             rows.append((guest_id, _aware_dt(at), "contact", _message_channel(channel, source)))
 
     for call in db.query(Call).filter(Call.tenant_id == tenant_id, Call.guest_id.in_(ids), Call.created_at >= earliest):

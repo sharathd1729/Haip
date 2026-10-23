@@ -6,6 +6,7 @@ the tenant's collaboration stage. Now: a consult holds the AI's draft and tells 
 where no consult can open, ONE task per conversation and no new promise after the first; the lead autopilot moves the lead to the
 collab-entry stage and never auto-Losts it while the request waits.
 """
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -131,7 +132,9 @@ def _world(db, *, mode="autonomous", consults=True):
 
 
 def _guest_says(db, t, c, body, _minutes):
-    # Real time (the default), so each guest line comes after whatever the previous run stored or sent.
+    # Real time (the default), so each guest line comes after whatever the previous run stored or sent. The pause keeps it
+    # strictly later on Windows, whose clock can give the previous run's draft the very same timestamp.
+    time.sleep(0.05)
     m = Message(id=str(uuid.uuid4()), tenant_id=t.id, conversation_id=c.id, direction="inbound", channel="whatsapp", body=body)
     db.add(m)
     db.commit()
