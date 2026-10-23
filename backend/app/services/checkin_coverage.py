@@ -3,7 +3,9 @@ GET /reports/checkin-coverage (endpoints/reports_crm.py).
 
 Counted: OPEN guest enquiries (lead_types) whose check-in falls on the date, that are valid by one of two rules, kept apart:
   reviewed_valid   a person marked the enquiry Valid (lead_review_service)
-  stage_valid      nobody reviewed it, and it sits in a "valid" pipeline stage, is not spam, and is not closed
+  stage_valid      nobody reviewed it, and it is valid by the workspace's valid-lead rule when that is on (lead_validity,
+                   ``basis_kind`` "rule"), else it sits in a "valid" pipeline stage, is not spam, and is not closed ("stage")
+``no_date_valid``: valid open enquiries with no check-in date yet -- never in a date, their total shown apart (D-28).
 A person's "Not valid" always wins; Sold / Lost / Unsuitable enquiries are not counted (a sale shows as a booked vehicle).
 
 Each date and each weekend (Fri-Sun, one enquiry counted once) is flagged ``below_target`` under TARGET valid enquiries.
@@ -54,6 +56,23 @@ def build(db: Session, tenant_id: str, d_from: date, d_to: date) -> dict:
     rows = (db.query(Inquiry).filter(Inquiry.tenant_id == tenant_id, is_guest_sql(Inquiry.lead_type), Inquiry.check_in.isnot(None),
                                      Inquiry.check_in >= d_from.isoformat(), Inquiry.check_in < (d_to + timedelta(days=1)).isoformat())
             .all())
+    from app.models.tenant import Tenant
+    from app.services import lead_validity
+    rule = lead_validity.settings_of(db.query(Tenant).filter_by(id=tenant_id).first())
+
+    def bucket(inq, views) -> Optional[str]:
+        """reviewed_valid | stage_valid (= not reviewed, valid by the rule when it is on, else by the stage) | None."""
+        if inq.validation_status == "valid":
+            return "reviewed_valid"
+        if inq.validation_status is not None:
+            return None
+        if rule["enabled"]:
+            return "stage_valid" if views[inq.id]["status"] == "valid" else None
+        if inq.stage_id in valid_stage and inq.qualification_status != kpi_metrics.UNQUALIFIED:
+            return "stage_valid"
+        return None
+
+    views = lead_validity.classify_many(db, tenant_id, rows, rule) if rule["enabled"] else {}
     by_day: dict[date, dict] = defaultdict(lambda: {"reviewed_valid": set(), "stage_valid": set()})
     unparsed = 0
     for inq in rows:
@@ -63,10 +82,17 @@ def build(db: Session, tenant_id: str, d_from: date, d_to: date) -> dict:
             continue
         if ci < d_from or ci > d_to or lead_task_closer.state_of(inq, won, shut) is not None:
             continue
-        if inq.validation_status == "valid":
-            by_day[ci]["reviewed_valid"].add(inq.id)
-        elif inq.validation_status is None and inq.stage_id in valid_stage and inq.qualification_status != kpi_metrics.UNQUALIFIED:
-            by_day[ci]["stage_valid"].add(inq.id)
+        b = bucket(inq, views)
+        if b:
+            by_day[ci][b].add(inq.id)
+
+    # Valid open enquiries with no check-in date yet (D-28: a missing date never makes a lead invalid): kept out of the
+    # per-date counts, their total shown on its own.
+    undated = [i for i in db.query(Inquiry).filter(Inquiry.tenant_id == tenant_id, is_guest_sql(Inquiry.lead_type),
+                                                   (Inquiry.check_in.is_(None)) | (Inquiry.check_in == "")).all()
+               if lead_task_closer.state_of(i, won, shut) is None]
+    undated_views = lead_validity.classify_many(db, tenant_id, undated, rule) if rule["enabled"] else {}
+    no_date_valid = sum(1 for i in undated if bucket(i, undated_views))
 
     vehicles = {p.id: p.name for p in db.query(Property).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True)).all()
                 if not vehicle_pool.is_placeholder_name(p.name)}
@@ -108,7 +134,10 @@ def build(db: Session, tenant_id: str, d_from: date, d_to: date) -> dict:
                              "partial": len(inside) < 3, "booked_vehicles": names(held)})
         friday += timedelta(weeks=1)
 
+    basis = ("Open guest enquiries by check-in date. Reviewed valid = a person said Valid; by rule = not reviewed, valid by the "
+             "workspace's valid-lead rule. Not valid, Sold, Lost and Unsuitable are not counted.") if rule["enabled"] else (
+             "Open guest enquiries by check-in date. Reviewed valid = a person said Valid; stage valid = not reviewed, "
+             "in a valid stage and not spam. Not valid, Sold, Lost and Unsuitable are not counted.")
     return {"from": d_from.isoformat(), "to": d_to.isoformat(), "target": TARGET, "vehicles": sorted(vehicles.values()),
-            "days": days, "weekends": weekends, "unparsed": unparsed,
-            "basis": "Open guest enquiries by check-in date. Reviewed valid = a person said Valid; stage valid = not reviewed, "
-                     "in a valid stage and not spam. Not valid, Sold, Lost and Unsuitable are not counted."}
+            "days": days, "weekends": weekends, "unparsed": unparsed, "no_date_valid": no_date_valid,
+            "basis_kind": "rule" if rule["enabled"] else "stage", "basis": basis}

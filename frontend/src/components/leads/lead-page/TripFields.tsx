@@ -43,6 +43,7 @@ export function TripFields({ lead, feed, canEdit }: { lead: LeadDetail; feed?: L
     { key: "adults", label: "Adults", kind: "number", value: lead.adults ? String(lead.adults) : "", display: lead.adults ? String(lead.adults) : "Add" },
     { key: "children", label: "Children", kind: "number", value: lead.children ? String(lead.children) : "", display: lead.children ? String(lead.children) : "None" },
     { key: "pickup", label: "Pickup", kind: "text", value: trip.pickup ?? "", display: trip.pickup || "Add" },
+    { key: "guest_location", label: "Guest location (city)", kind: "text", value: lead.guest_location ?? "", display: lead.guest_location || "Add" },
     { key: "budget", label: "Budget (₹)", kind: "number", value: lead.budget_estimate ? String(lead.budget_estimate) : "",
       display: lead.budget_range_label || (lead.budget_estimate ? inr(lead.budget_estimate) : "Add") },
     { key: "occasion", label: "Occasion", kind: "text", value: lead.occasion ?? "", display: lead.occasion || "Add" },

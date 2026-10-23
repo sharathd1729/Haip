@@ -60,7 +60,7 @@ def test_daily_report_splits_automatic_and_human_numbers_per_agent(client, db):
     assert res.status_code == 200, res.text
     body = res.json()
     rows = {r["name"]: r for r in body["agents"]}
-    assert rows["Asha"]["automatic"] == {"received": 2, "handled": 1, "in_valid_stage": 1, "conversions": 1}
+    assert rows["Asha"]["automatic"] == {"received": 2, "handled": 1, "in_valid_stage": 1, "valid_now": 1, "conversions": 1}
     assert rows["Asha"]["human"]["not_yet_reviewed"] == 1
     assert rows["Owner"]["human"] == {"reviewed": 1, "valid": 1, "not_valid": 0, "not_yet_reviewed": 0}
     assert rows["Owner"]["automatic"]["handled"] == 1

@@ -150,7 +150,7 @@ export function LeadDetailsPanel({ lead, feed, stages, step, temp, perms, run, o
       </Card>
 
       <JourneyCard inquiryId={lead.inquiry_id} canEdit={perms.canEdit} />
-      <LeadReviewCard inquiryId={lead.inquiry_id} leadType={lead.lead_type} validation={lead.validation} canEdit={perms.canEdit} />
+      <LeadReviewCard inquiryId={lead.inquiry_id} leadType={lead.lead_type} validation={lead.validation} validity={lead.validity} canEdit={perms.canEdit} />
       <WhereFromCard inquiryId={lead.inquiry_id} canEdit={perms.canEdit} />
       <EvidenceCard inquiryId={lead.inquiry_id} canEdit={perms.canEdit} />
       <TripFields lead={lead} feed={feed} canEdit={perms.canEdit} />

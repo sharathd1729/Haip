@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, lead_touches, lead_calls, lead_review, lead_evidence, marketing_partners, marketing_channels, marketing_public, website, website_public,
+    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, lead_touches, lead_calls, lead_review, lead_evidence, lead_validity, marketing_partners, marketing_channels, marketing_public, website, website_public,
     tenants, users, guests, inquiries, conversations, properties,
     qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, reports_crm, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
@@ -79,6 +79,7 @@ api_router.include_router(lead_touches.router)
 api_router.include_router(lead_calls.router)   # POST /leads/{id}/log-call (a call from a personal phone)
 api_router.include_router(lead_review.router)  # PUT /leads/{id}/lead-type, /leads/{id}/validation
 api_router.include_router(lead_evidence.router)  # POST/GET /leads/{id}/evidence (chat exports, call recordings)
+api_router.include_router(lead_validity.router)  # GET/PUT /lead-validity/settings (automatic valid-lead rule)
 api_router.include_router(marketing_partners.router)
 api_router.include_router(marketing_channels.router)
 api_router.include_router(marketing_public.router)

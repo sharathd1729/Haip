@@ -30,6 +30,8 @@ export interface LeadsFilters {
   // CRM reporting (22 Oct 2026): guest | b2b | partner; paid | organic | unknown (GET /leads?lead_type=&came_from=)
   lead_type?: string;
   came_from?: string;
+  // valid | invalid (a person's review, else the workspace's valid-lead rule) | not_reviewed (GET /leads?validity=)
+  validity?: string;
 }
 
 const ENQUIRY_PRESETS = [
@@ -167,6 +169,14 @@ function FilterControls({
         onChange={v => set({ lead_type: v || undefined })}
         options={[{ value: "guest", label: "Guests" }, { value: "b2b", label: "B2B / trade" }, { value: "partner", label: "Partners" }]}
         placeholder="Type"
+        className={fieldCls}
+      />
+
+      <Select
+        value={filters.validity}
+        onChange={v => set({ validity: v || undefined })}
+        options={[{ value: "valid", label: "Valid" }, { value: "invalid", label: "Invalid" }, { value: "not_reviewed", label: "Not reviewed" }]}
+        placeholder="Valid?"
         className={fieldCls}
       />
 

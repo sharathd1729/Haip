@@ -306,6 +306,14 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         if route_mentioned != inquiry.route_mentioned:
             inquiry.route_mentioned = route_mentioned
             written.append("route_mentioned")
+        # The guest's starting city (lead_validity's location check): the origin of an "A to B" route, only while empty --
+        # a person's edit on the lead page is never overwritten.
+        if not getattr(inquiry, "guest_location", None):
+            from app.services.lead_validity import origin_of_route
+            origin = origin_of_route(route_mentioned)
+            if origin:
+                inquiry.guest_location = origin
+                written.append("guest_location")
 
     # quoted_amount/quoted_at already exist on Inquiry but had no write path
     # anywhere in the codebase before this (confirmed via grep) -- a formal

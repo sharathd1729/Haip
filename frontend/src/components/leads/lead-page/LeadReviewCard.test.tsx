@@ -40,6 +40,15 @@ describe("LeadReviewCard", () => {
     await waitFor(() => expect(put).toHaveBeenCalledWith("/leads/i1/lead-type", { lead_type: "guest" }));
   });
 
+  it("shows the automatic check with its reasons and follow-up notes", () => {
+    wrap(<LeadReviewCard inquiryId="i1" leadType="guest" validation={null} canEdit
+      validity={{ enabled: true, auto_valid: false, reasons: ["Location: Hyderabad (not Bengaluru)"], notes: ["No check-in date yet"],
+        location: "Hyderabad", status: "invalid", source: "rule" }} />);
+    expect(screen.getByText("Automatic check: Not valid")).toBeTruthy();
+    expect(screen.getByText("Location: Hyderabad (not Bengaluru)")).toBeTruthy();
+    expect(screen.getByText("To follow up: No check-in date yet")).toBeTruthy();
+  });
+
   it("is read-only without edit rights", () => {
     wrap(<LeadReviewCard inquiryId="i1" leadType="guest" validation={null} canEdit={false} />);
     expect(screen.queryByRole("button", { name: /^Valid$/ })).toBeNull();

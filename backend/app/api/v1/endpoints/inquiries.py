@@ -180,7 +180,7 @@ def update_inquiry(
             raise HTTPException(status_code=404, detail=str(e))
 
     # Lead page trip fields: an empty string clears; pickup lives in custom_fields (no column of its own).
-    for k in ("route_mentioned", "special_requests"):
+    for k in ("route_mentioned", "special_requests", "guest_location"):
         if k in updates:
             updates[k] = updates[k].strip() or None
             setattr(inq, k, updates.pop(k))

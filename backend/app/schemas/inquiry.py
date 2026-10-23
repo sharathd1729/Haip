@@ -98,3 +98,5 @@ class InquiryUpdateRequest(BaseModel):
     route_mentioned: Optional[str] = Field(None, max_length=255)
     special_requests: Optional[str] = Field(None, max_length=2000)
     pickup: Optional[str] = Field(None, max_length=255)
+    # Migration 171: the guest's starting city (lead_validity's location check). Empty string clears it.
+    guest_location: Optional[str] = Field(None, max_length=100)
