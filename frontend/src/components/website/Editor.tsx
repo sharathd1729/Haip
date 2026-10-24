@@ -51,7 +51,9 @@ export function Editor({ site, role, initialPage }: { site: SiteOut; role: strin
   const canPublish = role === "owner";
   const canApprove = role === "owner" || role === "manager";
 
-  const doc = draft.doc;
+  // A v2 (new builder) draft is a SiteSpec, not a block document: this editor can't show it; preview it instead.
+  const isSpecV2 = (draft.doc as unknown as { spec_version?: number } | null)?.spec_version === 2;
+  const doc = isSpecV2 ? null : draft.doc;
   const page = doc ? pageOf(doc, pageId) || doc.pages[0] : undefined;
   const block = page?.content.find(b => b.props.id === selected);
   const mediaList = useMemo(() => media.data || [], [media.data]);
@@ -80,6 +82,18 @@ export function Editor({ site, role, initialPage }: { site: SiteOut; role: strin
   };
 
   if (draft.loadError) return <p className="p-6 text-sm">{webError(draft.loadError, "Couldn't open the editor.")} <button className="underline" onClick={draft.load}>Try again</button></p>;
+  if (isSpecV2) {
+    return (
+      <div className="mx-auto grid max-w-[640px] gap-3 p-6 text-sm">
+        <p className="font-semibold">This draft uses the new website builder.</p>
+        <p className="text-[var(--haip-fg-muted)]">Editing it here arrives in a later phase. Open the preview to see it as guests will.</p>
+        <div className="flex gap-2">
+          <Link href="/dashboard/marketing/website" className={btn}>Back to Website</Link>
+          <button type="button" className={btnPrimary} onClick={preview}>Open preview</button>
+        </div>
+      </div>
+    );
+  }
   if (!doc || !page || !liveData) return <div className="p-6 text-sm text-[var(--haip-fg-muted)]">Opening the editor…</div>;
 
   const shared = { draft, page, live: liveData, env, media: mediaList, pickPhoto, setPageId, selected, setSelected: select, touched };
