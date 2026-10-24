@@ -250,9 +250,10 @@ export const MessageBubble = memo(function MessageBubble({
           <p className="max-w-[80%] px-1 text-[11px] leading-snug text-[var(--haip-status-danger-fg)] text-right" role="status">{deliveryError}</p>
         )}
 
-        {/* AI draft action buttons */}
+        {/* AI draft action buttons. They wrap: five pills are wider than a phone bubble, and in an end-aligned column an
+            unwrapped row overflows to the left, where the thread clips it (Approve was cut off at 375px). */}
         {isAiDraft && (
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div data-testid="ai-draft-actions" className={cn("flex flex-wrap items-center gap-1.5 mt-0.5 max-w-full", isOut && "justify-end")}>
             {onApprove && (
               <button
                 onClick={() => onApprove(id)}

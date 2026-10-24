@@ -16,6 +16,14 @@ describe("AI draft controls", () => {
     expect(screen.getByRole("button", { name: /translate/i })).toBeTruthy();
   });
 
+  it("wraps the action row so it never spills off the left edge on a phone", () => {
+    render(<MessageBubble {...base} isAiDraft onApprove={vi.fn()} onRewrite={vi.fn()} onEdit={vi.fn()} onReject={vi.fn()} />);
+    const row = screen.getByTestId("ai-draft-actions");
+    expect(row.className).toContain("flex-wrap");
+    expect(row.className).toContain("max-w-full");
+    expect(row.contains(screen.getByRole("button", { name: /approve/i }))).toBe(true);
+  });
+
   it("hides Approve, Tone and Translate when the user cannot send", () => {
     render(<MessageBubble {...base} isAiDraft onEdit={vi.fn()} onReject={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /approve/i })).toBeNull();
