@@ -373,3 +373,54 @@ def test_price_check_does_not_join_fields_or_read_dates(db, tid):
     body = {"cadence": "3 posts per day", "calendar": [{"date": "2026-10-19", "kind": "post", "pillar": "Routes", "idea": "x"}]}
     assert svc.check_text(db, tid, body) == []
     assert svc.check_text(db, tid, {"caption": "Only Rs 9,999 per night"}) != []
+
+
+# ── no structured output (live: "Draft my brand voice" answered in prose, 24 Oct 2026) ─────────────────────────────
+
+def _adapter(provider, *results):
+    a = MagicMock(provider=provider)
+    replies = list(results)
+
+    async def complete(**_):
+        return replies.pop(0)
+    a.complete.side_effect = complete
+    return a
+
+
+def _routes(nvidia, gemini):
+    return patch("app.adapters.llm.get_llm", side_effect=lambda task, tid=None: gemini if task == "marketing_content_premium" else nvidia)
+
+
+TOOL = {"name": "t", "input_schema": {"type": "object"}}
+
+
+def test_json_written_as_text_is_used_without_a_retry():
+    nvidia, gemini = _adapter("nvidia", {"content": 'Here it is: {"tagline": "Roads, not rooms"}', "tool_use": None}), _adapter("gemini")
+    with _routes(nvidia, gemini), patch("app.core.config.settings.GEMINI_API_KEY", "k"):
+        data, _, provider = ai._call("marketing_brand_dna", "t1", "sys", "user", TOOL)
+    assert data == {"tagline": "Roads, not rooms"} and provider == "nvidia"
+    gemini.complete.assert_not_called()
+
+
+def test_prose_answer_is_retried_once_on_gemini():
+    nvidia = _adapter("nvidia", {"content": "I think your brand voice is warm.", "tool_use": None})
+    gemini = _adapter("gemini", {"content": "", "tool_use": {"tagline": "Roads, not rooms"}})
+    with _routes(nvidia, gemini), patch("app.core.config.settings.GEMINI_API_KEY", "k"):
+        data, _, provider = ai._call("marketing_brand_dna", "t1", "sys", "user", TOOL)
+    assert data == {"tagline": "Roads, not rooms"} and provider == "gemini"
+    assert nvidia.complete.call_count == 1 and gemini.complete.call_count == 1
+
+
+def test_no_structured_output_from_either_model_still_fails_clearly():
+    nvidia, gemini = _adapter("nvidia", {"content": "prose", "tool_use": None}), _adapter("gemini", {"content": "more prose", "tool_use": None})
+    with _routes(nvidia, gemini), patch("app.core.config.settings.GEMINI_API_KEY", "k"):
+        with pytest.raises(ValueError, match="did not return structured output"):
+            ai._call("marketing_brand_dna", "t1", "sys", "user", TOOL)
+
+
+def test_without_a_gemini_key_there_is_no_retry():
+    nvidia, gemini = _adapter("nvidia", {"content": "prose", "tool_use": None}), _adapter("gemini")
+    with _routes(nvidia, gemini), patch("app.core.config.settings.GEMINI_API_KEY", ""):
+        with pytest.raises(ValueError):
+            ai._call("marketing_brand_dna", "t1", "sys", "user", TOOL)
+    gemini.complete.assert_not_called()

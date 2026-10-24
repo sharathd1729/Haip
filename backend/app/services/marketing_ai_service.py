@@ -8,6 +8,7 @@ with backoff; anything else (unparseable output, schema violation, a price in a 
 `failed` with a readable error and is not retried.
 """
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -151,24 +152,55 @@ def _is_transient(exc: Exception) -> bool:
 MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_content_premium": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000, "marketing_ota_copy": 3000, "marketing_tagging": 1200, "marketing_insights": 2500, "marketing_brief": 6000, "marketing_deck": 4000}
 
 
-def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tuple[dict, dict, str]:
-    """Run one tool-calling completion. Returns (tool input, raw response, provider)."""
-    from app.adapters.llm import get_llm
-
-    adapter = get_llm(task, tenant_id)
+def _complete(adapter, task: str, system: str, user: str, tool: dict) -> dict:
     loop = asyncio.new_event_loop()
     try:
-        raw = loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=MAX_TOKENS.get(task, 3000), tools=[tool]))
+        return loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=MAX_TOKENS.get(task, 3000), tools=[tool]))
     except Exception as exc:  # noqa: BLE001 -- classified below
         if _is_transient(exc):
             raise LLMTransientError(f"{type(exc).__name__}: {exc}") from exc
         raise ValueError(f"AI provider error: {type(exc).__name__}: {str(exc)[:300]}") from exc
     finally:
         loop.close()
+
+
+def _tool_input(raw: dict) -> Optional[dict]:
+    """The tool's input dict; else a JSON object the model wrote as plain text instead of calling the tool."""
     data = raw.get("tool_use")   # adapters return the tool's input dict itself (see nvidia_nim.py)
-    if not isinstance(data, dict) or not data:
+    if isinstance(data, dict) and data:
+        return data
+    text = raw.get("content") or ""
+    s, e = text.find("{"), text.rfind("}") + 1
+    if s < 0 or e <= s:
+        return None
+    try:
+        data = json.loads(text[s:e])
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) and data else None
+
+
+def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tuple[dict, dict, str]:
+    """Run one tool-calling completion. Returns (tool input, raw response, provider).
+
+    gpt-oss on NVIDIA runs with tool_choice=auto and sometimes answers in prose instead of calling the tool (live:
+    "Draft my brand voice", 24 Oct 2026). The router's Gemini fallback only covers errors and timeouts, so a reply
+    with no structured output gets one retry on the Gemini route before failing."""
+    from app.adapters.llm import get_llm
+    from app.core.config import settings
+
+    adapter = get_llm(task, tenant_id)
+    raw = _complete(adapter, task, system, user, tool)
+    data, provider = _tool_input(raw), getattr(adapter, "provider", None) or "unknown"
+    if data is None and provider != "gemini" and settings.GEMINI_API_KEY:
+        log.warning("marketing_ai_no_structured_output", task=task, provider=provider, retry="gemini",
+                    content_chars=len(raw.get("content") or ""))
+        adapter = get_llm("marketing_content_premium", tenant_id)   # the Gemini route
+        raw = _complete(adapter, task, system, user, tool)
+        data, provider = _tool_input(raw), getattr(adapter, "provider", None) or "gemini"
+    if data is None:
         raise ValueError("The AI did not return structured output.")
-    return data, raw, getattr(adapter, "provider", None) or "unknown"
+    return data, raw, provider
 
 
 def _errors(exc: ValidationError) -> str:
