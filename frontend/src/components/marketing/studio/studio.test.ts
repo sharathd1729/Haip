@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { studioError } from "./types";
 import { emptyPayload } from "./PayloadForm";
+import { sentence } from "./BrainPanels";
 
 const err = (detail: unknown) => ({ response: { data: { detail } } });
 
@@ -25,5 +26,13 @@ describe("emptyPayload", () => {
     const p = emptyPayload("story");
     expect(p.frames).toHaveLength(1);
     expect(p.caption).toBeUndefined();
+  });
+});
+
+describe("sentence", () => {
+  it("adds a full stop only when the text has none", () => {
+    expect(sentence("Scenic escapes.")).toBe("Scenic escapes.");
+    expect(sentence("Scenic escapes ")).toBe("Scenic escapes.");
+    expect(sentence("Really?")).toBe("Really?");
   });
 });
