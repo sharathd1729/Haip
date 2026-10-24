@@ -193,7 +193,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Studio plan phase 1: creative tags from a post's / ad's own text (marketing_tagging) and the weekly Insights
     # report's plain-English lines over code-computed facts (marketing_insights_report).
     "marketing_tagging": "marketing-tagging-v1",
-    "marketing_insights": "marketing-insights-v1",
+    "marketing_insights": "marketing-insights-v2",
     # Studio plan phase 2: what a Reel does (hook, shots, text, CTA) read by the vision model into the swipe file.
     "marketing_video_read": "marketing-video-read-v1",
     # Studio plan phase 3: shoot & collab brief, monthly strategy deck (marketing_strategy).

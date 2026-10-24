@@ -1,5 +1,5 @@
 """Write and read the weekly Insights report (studio plan phase 1). Facts come from marketing_insights (code only); the
-AI (router task `marketing_insights`, prompt marketing-insights-v1) writes a headline and one plain-English line per
+AI (router task `marketing_insights`, prompt marketing-insights-v2) writes a headline and one plain-English line per
 verdict item. analyst.grounding drops any sentence whose number is not in the facts; a failed or unusable AI answer
 leaves the deterministic text. Called from Celery only (`marketing_insights.weekly_tenant`), never in a request.
 """
@@ -32,7 +32,8 @@ The FACTS (JSON) were computed by code. Write:
 - headline: one sentence, the most important thing about last week.
 - explain.wins / explain.problems / explain.actions: for each verdict item, in the same order, ONE short sentence on why it
   matters or what to do next.
-Rules: use only numbers that appear in the facts, written the same way; never invent a number, percentage or date.
+Rules: use only numbers that appear in the facts; never invent a number, percentage or date. Write money as rupees
+with Indian grouping and no decimals (11325.0 -> ₹11,325; 125000 -> ₹1,25,000), never as a raw figure like 11325.0.
 Keep each item's confidence word (Strong / Early signal / Not enough data) honest: never call an "Early signal" proven.
 When data is thin, say so. No jargon, no hype, no emojis."""
 
