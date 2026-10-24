@@ -124,4 +124,46 @@ def test_a_primary_error_that_is_not_a_timeout_is_not_retried_longer():
     secondary = _Fake("gemini", exc=RuntimeError("down"))
     with pytest.raises(RuntimeError, match="500"):
         _run(_adapter(primary, secondary).complete("sys", "user"))
+    assert len(primary.calls) == 2   # the two normal attempts, no extra longer one
+
+
+class _Flaky(_Fake):
+    """Fails the first call, then answers: NVIDIA's random hang (live, 25 Oct 2026)."""
+
+    async def complete(self, system_prompt, user_message, model=None, max_tokens=4096, tools=None, **kw):
+        self.calls.append({"model": model})
+        if len(self.calls) == 1:
+            raise RuntimeError("Error code: 504")
+        return dict(self._result)
+
+
+def test_a_second_free_primary_attempt_runs_before_the_paid_fallback():
+    primary, secondary = _Flaky("nvidia"), _Fake("gemini")
+    adapter = FallbackAdapter(primary, secondary, task="call_scoring", primary_timeout=1.0, primary_attempts=2)
+    result = _run(adapter.complete("sys", "user"))
+    assert result["content"] == "nvidia" and len(primary.calls) == 2
+    assert secondary.calls == []
+
+
+def test_single_attempt_goes_straight_to_the_fallback():
+    primary, secondary = _Flaky("nvidia"), _Fake("gemini")
+    adapter = FallbackAdapter(primary, secondary, task="analyst_followup", primary_timeout=1.0, primary_attempts=1)
+    assert _run(adapter.complete("sys", "user"))["content"] == "gemini"
     assert len(primary.calls) == 1
+
+
+def test_fallback_runs_on_the_low_gemini_model(monkeypatch):
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "NVIDIA_API_KEY", "test-key")
+    adapter = get_llm("lead_summary")
+    assert isinstance(adapter, FallbackAdapter)
+    assert adapter._secondary._default_model == "gemini-3.1-flash-lite"
+    assert adapter._primary_attempts == 2
+    assert get_llm("analyst_followup")._primary_attempts == 1
+
+
+def test_gemini_model_names_pass_through_unmapped():
+    from app.adapters.llm.gemini import _map_model
+    assert _map_model("gemini-3.1-flash-lite") == "gemini-3.1-flash-lite"
+    assert _map_model("gemini-2.5-flash") == "gemini-3.6-flash"   # blocked for new keys: still remapped
+    assert _map_model("claude-haiku") == "gemini-3.6-flash"

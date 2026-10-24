@@ -175,11 +175,13 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "marketing_research": ("gemini", "gemini-3.6-flash"),
     "marketing_review":   ("gemini", "gemini-3.6-flash"),     # brand editor: advisory findings on one draft
     "marketing_brand_dna": ("gemini", "gemini-3.6-flash"),    # brand voice DRAFT from the business's own published text
-    "marketing_review_reply": ("gemini", "gemini-3.6-flash"), # a reply to a public Google review; a person posts it
+    # Small Studio steps run on the low model (owner, 25 Oct 2026: "generic work or small tasks use low models"); live
+    # check: correct tags and a usable review reply in ~2 s with ~140 output tokens (3.6 Flash: ~700, it thinks).
+    "marketing_review_reply": ("gemini", "gemini-3.1-flash-lite"), # a reply to a public Google review; a person posts it
     "marketing_ota_copy": ("gemini", "gemini-3.6-flash"),     # OTA listing copy drafts (agency M7); a person pastes them
     # Studio plan phase 1: tags each post / ad from its text (marketing_tagging), and explains the weekly Insights
     # report whose numbers code computed (marketing_insights_report; a sentence with an unknown number is dropped).
-    "marketing_tagging":  ("gemini", "gemini-3.6-flash"),
+    "marketing_tagging":  ("gemini", "gemini-3.1-flash-lite"),
     "marketing_insights": ("gemini", "gemini-3.6-flash"),
     # Studio plan phase 3: shoot & collab brief (creative text over the radar's evidence) and the monthly deck's prose
     # over code-computed facts (numbers grounded like the analyst's).
@@ -195,7 +197,8 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
 # given seconds (NIM has had multi-hour 504/hang stretches -- calls sat at
 # "pending", Leads360 summaries went missing). Value = how long the NVIDIA
 # attempt may run before Gemini is tried. Needs GEMINI_API_KEY; without it the
-# task simply runs on NVIDIA as before. Guest-facing tasks are not listed:
+# task simply runs on NVIDIA as before. NVIDIA (free) gets two attempts before the fallback, which is the LOW
+# Gemini model (gemini-3.1-flash-lite, cheap, no thinking), not 3.6 Flash. Guest-facing tasks are not listed:
 # concierge_draft is already on Gemini and has its own retry/timeout handling.
 _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "call_analysis":               60,
@@ -214,6 +217,9 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "analyst_followup":            40,
     "website_content":             90,
 }
+
+# A person waits on these in the UI: one NVIDIA attempt, then the fallback, so the wait is not doubled.
+_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup"}
 
 
 def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
@@ -250,11 +256,13 @@ def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     primary_timeout = _GEMINI_FALLBACK_TASKS.get(task)
     if primary_timeout is not None and provider == "nvidia" and settings.GEMINI_API_KEY:
         from app.adapters.llm.fallback import FallbackAdapter
+        from app.adapters.llm.gemini import GEMINI_FLASH_LITE
         adapter = FallbackAdapter(
             primary=adapter,
-            secondary=_build_adapter("gemini", None),
+            secondary=_build_adapter("gemini", GEMINI_FLASH_LITE),
             task=task,
             primary_timeout=primary_timeout,
+            primary_attempts=1 if task in _SINGLE_PRIMARY_ATTEMPT else 2,
         )
     return adapter
 

@@ -109,9 +109,8 @@ Routing is **NVIDIA NIM-first**, except `concierge_draft` (guest replies): **Gem
 
 **Gemini fallback** (`adapters/llm/fallback.py`): internal-analysis tasks (`call_analysis`,
 `call_scoring`, `lead_summary`, `daily_briefing`, `quick_classify`, `lead_stage_classify`, `outcome_reason`, `agent_*`, `deep_reason`, `assessment_narrative`)
-run on NVIDIA with a 30–120s limit and retry once on Gemini on error/timeout (needs
-`GEMINI_API_KEY`; without it, unchanged). Tradeoff: transcripts can reach Google during NVIDIA
-outages. A negative Gemini balance also disables this fallback. Gemini 400s ("invalid argument") on min/maxItems of object arrays: `_fit_gemini_schema` moves them to the description.
+run on NVIDIA (FREE plan) with a 30–120s limit, get a 2nd NVIDIA attempt (NIM hangs at random; `analyst_followup` gets one), then the LOW
+model `gemini-3.1-flash-lite` (needs `GEMINI_API_KEY`). Owner rule: small/generic work uses low models. `gemini._map_model` passes real `gemini-*` names through (it used to run 3.6 Flash for any unknown name). Tradeoff: transcripts can reach Google during NVIDIA outages. A negative Gemini balance also disables this fallback. Gemini 400s ("invalid argument") on min/maxItems of object arrays: `_fit_gemini_schema` moves them to the description.
 
 Task keys below are the exact strings accepted by `get_llm(task)` — verified against
 `_TASK_ROUTES` in `backend/app/adapters/llm/__init__.py`. That dict is the source of
@@ -135,7 +134,8 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `concierge_draft` · `marketing_content_premium` (owner opt-in; falls back to `marketing_content`) | Gemini | gemini-3.6-flash |
 | `lead_followup_draft` · `outcome_reason` (won/lost reason) | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
 | `assessment_narrative` · `analyst_brief` (AI analyst, 90 s) · `analyst_followup` (40 s) | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
-| Every Marketing Studio step: `marketing_audit` · `marketing_plan` · `marketing_content` · `marketing_research` · `marketing_review` · `marketing_brand_dna` · `marketing_review_reply` · `marketing_ota_copy` · `marketing_tagging` · `marketing_insights` · `marketing_brief` · `marketing_deck` (since 24 Oct 2026: gpt-oss came back empty, thinking used the whole budget; budgets in `marketing_ai_service.MAX_TOKENS` leave room for thinking; a reply with no tool output gets one more Gemini try) | Gemini | gemini-3.6-flash |
+| Studio steps: `marketing_audit` · `marketing_plan` · `marketing_content` · `marketing_research` · `marketing_review` · `marketing_brand_dna` · `marketing_ota_copy` · `marketing_insights` · `marketing_brief` · `marketing_deck` (since 24 Oct 2026: gpt-oss came back empty, thinking used the whole budget; budgets in `marketing_ai_service.MAX_TOKENS` leave room for thinking; a reply with no tool output gets one more Gemini try) | Gemini | gemini-3.6-flash |
+| `marketing_tagging` · `marketing_review_reply` (small Studio steps, low model) | Gemini | gemini-3.1-flash-lite |
 | `website_content` | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
 
 Unknown task keys route to `fallback` (they previously defaulted to Claude,

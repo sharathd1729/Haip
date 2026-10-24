@@ -142,5 +142,7 @@ def test_every_marketing_studio_step_runs_on_gemini_with_room_to_think():
     from app.adapters.llm import _TASK_ROUTES
     from app.services.marketing_ai_service import MAX_TOKENS
     studio = [t for t in _TASK_ROUTES if t.startswith("marketing_")]
-    assert studio and all(_TASK_ROUTES[t] == ("gemini", "gemini-3.6-flash") for t in studio)
+    small = {"marketing_tagging", "marketing_review_reply"}   # low model for small steps (owner, 25 Oct 2026)
+    assert studio and all(_TASK_ROUTES[t] == ("gemini", "gemini-3.6-flash") for t in studio if t not in small)
+    assert all(_TASK_ROUTES[t] == ("gemini", "gemini-3.1-flash-lite") for t in small)
     assert all(MAX_TOKENS[t] >= 4000 for t in MAX_TOKENS)

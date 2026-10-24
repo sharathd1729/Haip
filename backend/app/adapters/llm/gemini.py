@@ -28,7 +28,7 @@ log = structlog.get_logger()
 # issue -- Google's own error, not a guess). gemini-3.6-flash confirmed
 # reachable and present in this key's /v1beta/models listing.
 GEMINI_FLASH      = "gemini-3.6-flash"       # default — current, works on new-project keys
-GEMINI_FLASH_LITE = "gemini-2.5-flash-lite"  # lighter / faster for classify
+GEMINI_FLASH_LITE = "gemini-3.1-flash-lite"  # cheap fallback for small/internal tasks (2.5-flash-lite: 404 on this key)
 GEMINI_FLASH_PRO  = "gemini-3.6-flash"       # re-judge (same model, higher quality prompt)
 GEMINI_PRO        = "gemini-3.6-flash"       # alias kept for compat
 GEMINI_FLASH_8B   = GEMINI_FLASH_LITE        # legacy alias
@@ -452,4 +452,6 @@ def _map_model(model_alias: str) -> str:
         "gemini-1.5-flash-8b":        GEMINI_FLASH_LITE,
         "gemini-1.5-pro":             GEMINI_FLASH_PRO,
     }
-    return _MAP.get(model_alias, GEMINI_FLASH)
+    # A real Gemini model name passes through. Only Claude aliases / unknown names fall back to GEMINI_FLASH: the old
+    # catch-all silently ran gemini-3.6-flash for every newer name (e.g. gemini-3.1-flash-lite), live 25 Oct 2026.
+    return _MAP.get(model_alias) or (model_alias if model_alias.startswith("gemini-") else GEMINI_FLASH)

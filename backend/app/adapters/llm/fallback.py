@@ -31,8 +31,12 @@ class FallbackAdapter(LLMAdapter):
         secondary: LLMAdapter,
         task: str,
         primary_timeout: float,
+        primary_attempts: int = 2,
     ):
         self._primary = primary
+        # NVIDIA is free and its hangs are random (live, 25 Oct 2026: the same request took 4-10 s or hung past 120 s),
+        # so a second NVIDIA attempt usually lands and costs nothing; only then is the paid fallback tried.
+        self._primary_attempts = max(1, primary_attempts)
         self._secondary = secondary
         self._task = task
         self._primary_timeout = primary_timeout
@@ -54,72 +58,77 @@ class FallbackAdapter(LLMAdapter):
         tools: Optional[list] = None,
         **kwargs,
     ) -> dict:
-        try:
-            return await asyncio.wait_for(
-                self._primary.complete(
-                    system_prompt=system_prompt,
-                    user_message=user_message,
-                    model=model,
-                    max_tokens=max_tokens,
-                    tools=tools,
-                    **kwargs,
-                ),
-                timeout=self._primary_timeout,
-            )
-        except Exception as primary_exc:  # CancelledError is not an Exception: it still propagates
-            log.warning(
-                "llm_primary_failed_using_fallback",
-                task=self._task,
-                primary=getattr(self._primary, "provider", None),
-                fallback=getattr(self._secondary, "provider", None),
-                error=repr(primary_exc)[:300],
-                timed_out=isinstance(primary_exc, asyncio.TimeoutError),
-            )
+        for attempt in range(1, self._primary_attempts + 1):
             try:
-                # No `model` and no provider-specific kwargs (thinking=...):
-                # both name things only the primary provider understands, so
-                # the secondary uses its own routed default.
-                result = await self._secondary.complete(
-                    system_prompt=system_prompt,
-                    user_message=user_message,
-                    max_tokens=max_tokens,
-                    tools=tools,
+                return await asyncio.wait_for(
+                    self._primary.complete(
+                        system_prompt=system_prompt,
+                        user_message=user_message,
+                        model=model,
+                        max_tokens=max_tokens,
+                        tools=tools,
+                        **kwargs,
+                    ),
+                    timeout=self._primary_timeout,
                 )
-            except Exception as secondary_exc:
-                log.error(
-                    "llm_fallback_also_failed",
-                    task=self._task,
-                    primary_error=repr(primary_exc)[:200],
-                    fallback_error=repr(secondary_exc)[:200],
-                )
-                # The primary only ran out of time and the fallback is down
-                # too: give the primary one more, longer attempt before
-                # giving up. Real incident (Ratha, Oct 2026): NVIDIA was
-                # regularly just slower than the short bound, and Gemini
-                # (out of billing credit) could no longer paper over that, so
-                # every slow call scoring failed outright.
-                if isinstance(primary_exc, asyncio.TimeoutError):
-                    longer = min(self._primary_timeout * 3, _MAX_RETRY_TIMEOUT_SECONDS)
-                    try:
-                        result = await asyncio.wait_for(
-                            self._primary.complete(
-                                system_prompt=system_prompt,
-                                user_message=user_message,
-                                model=model,
-                                max_tokens=max_tokens,
-                                tools=tools,
-                                **kwargs,
-                            ),
-                            timeout=longer,
-                        )
-                        log.info("llm_primary_succeeded_on_longer_retry", task=self._task, timeout_sec=longer)
-                        return result
-                    except Exception as retry_exc:  # noqa: BLE001
-                        log.error("llm_primary_longer_retry_failed", task=self._task, error=repr(retry_exc)[:200])
-                # The primary's failure is the root cause the retry machinery
-                # (Celery retries, DLQ) should see.
-                raise primary_exc from secondary_exc
-            if isinstance(result, dict):
-                result["fallback_used"] = True
-            log.info("llm_fallback_succeeded", task=self._task)
-            return result
+            except Exception as exc:  # CancelledError is not an Exception: it still propagates
+                primary_exc = exc
+                if attempt < self._primary_attempts:
+                    log.warning("llm_primary_failed_retrying_primary", task=self._task, attempt=attempt,
+                                error=repr(exc)[:300], timed_out=isinstance(exc, asyncio.TimeoutError))
+        log.warning(
+            "llm_primary_failed_using_fallback",
+            task=self._task,
+            primary=getattr(self._primary, "provider", None),
+            fallback=getattr(self._secondary, "provider", None),
+            error=repr(primary_exc)[:300],
+            timed_out=isinstance(primary_exc, asyncio.TimeoutError),
+        )
+        try:
+            # No `model` and no provider-specific kwargs (thinking=...):
+            # both name things only the primary provider understands, so
+            # the secondary uses its own routed default.
+            result = await self._secondary.complete(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                max_tokens=max_tokens,
+                tools=tools,
+            )
+        except Exception as secondary_exc:
+            log.error(
+                "llm_fallback_also_failed",
+                task=self._task,
+                primary_error=repr(primary_exc)[:200],
+                fallback_error=repr(secondary_exc)[:200],
+            )
+            # The primary only ran out of time and the fallback is down
+            # too: give the primary one more, longer attempt before
+            # giving up. Real incident (Ratha, Oct 2026): NVIDIA was
+            # regularly just slower than the short bound, and Gemini
+            # (out of billing credit) could no longer paper over that, so
+            # every slow call scoring failed outright.
+            if isinstance(primary_exc, asyncio.TimeoutError):
+                longer = min(self._primary_timeout * 3, _MAX_RETRY_TIMEOUT_SECONDS)
+                try:
+                    result = await asyncio.wait_for(
+                        self._primary.complete(
+                            system_prompt=system_prompt,
+                            user_message=user_message,
+                            model=model,
+                            max_tokens=max_tokens,
+                            tools=tools,
+                            **kwargs,
+                        ),
+                        timeout=longer,
+                    )
+                    log.info("llm_primary_succeeded_on_longer_retry", task=self._task, timeout_sec=longer)
+                    return result
+                except Exception as retry_exc:  # noqa: BLE001
+                    log.error("llm_primary_longer_retry_failed", task=self._task, error=repr(retry_exc)[:200])
+            # The primary's failure is the root cause the retry machinery
+            # (Celery retries, DLQ) should see.
+            raise primary_exc from secondary_exc
+        if isinstance(result, dict):
+            result["fallback_used"] = True
+        log.info("llm_fallback_succeeded", task=self._task)
+        return result

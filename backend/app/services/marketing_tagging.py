@@ -6,7 +6,7 @@ destination, talent, text on screen, CTA, pacing, audio, occasion (schemas/marke
   * What the AI reads is text HAIP already has: the caption, and for HAIP-made content the approved slide / frame text and
     the library photo descriptions; for ads the ad copy. No image is sent. Format (and "not a video") comes from the
     platform's own media type in code, never from the AI.
-  * Router task `marketing_tagging` (NVIDIA gpt-oss-20b, Gemini fallback), prompt marketing-tagging-v1, Celery only
+  * Router task `marketing_tagging` (Gemini 3.1 Flash-Lite, the low model), prompt marketing-tagging-v1, Celery only
     (`marketing_studio.tag_creative`); `queue_untagged` makes the pending rows (daily beat + before each report).
   * An owner correction (`correct`) is final: source=owner, audited, never re-tagged.
 """
