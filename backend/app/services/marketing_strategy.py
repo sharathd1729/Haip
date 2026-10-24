@@ -2,7 +2,7 @@
 
 Facts (theme score + evidence from marketing_radar, last month's numbers from marketing_reports, the Insights next plan,
 the swipe file's proven hooks, research signals) are computed in code and stored on the doc; the AI writes the text
-(router tasks `marketing_brief` / `marketing_deck`, prompts marketing-shoot-brief-v1 / marketing-strategy-deck-v1).
+(router tasks `marketing_brief` / `marketing_deck`, prompts marketing-shoot-brief-v2 / marketing-strategy-deck-v1).
 The deck's prose goes through the analyst number grounding; the brief's creative numbers (shot length, lens) are
 directions, not facts, and every text passes the workspace's price policy + banned words. The tracking code and the
 ASCI label come from code, never from the AI. Celery only (`marketing_strategy.write_doc`).

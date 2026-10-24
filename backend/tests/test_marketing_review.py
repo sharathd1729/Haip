@@ -121,7 +121,7 @@ def test_ai_editor_adds_advice_capped_at_medium_with_known_labels(db, ws):  # no
     with patch.object(ai, "_call", side_effect=fake):
         row = review.run_ai(db, ws["tenant"], item.id)
     assert seen["task"] == "marketing_review" and "[caption] Monsoon in Coorg" in seen["user"]
-    assert row.ai_status == "ready" and row.summary == "Close." and row.prompt_version == "marketing-review-v2"
+    assert row.ai_status == "ready" and row.summary == "Close." and row.prompt_version == "marketing-review-v3"
     assert [(a["severity"], a["where"]) for a in row.advice] == [("medium", "caption"), ("low", "caption")]
     with patch.object(ai, "_call", return_value=({"summary": "x", "findings": [{"issue": "y", "where": "caption",
                                                                                 "severity": "high"}]}, {}, "nvidia")):

@@ -95,9 +95,21 @@ interface Draft {
   draft?: { tagline?: string | null; audience?: string | null; tone?: string | null; usps: string[]; gaps: string[];
     voice: { trait: string; we_are: string; we_are_not: string; sounds_like: string | null; not_like: string | null }[];
     channel_tone: Record<string, string | null>; claims: Claim[] };
+  sources?: Record<string, number>;
 }
 
-/** "Draft my brand voice": a suggestion from the website, Instagram and property text. Applying it fills the form;
+const SOURCE_LABELS: [string, string, string][] = [["captions", "Instagram caption", "Instagram captions"],
+  ["properties", "property description", "property descriptions"], ["knowledge", "knowledge base answer", "knowledge base answers"],
+  ["packages", "package", "packages"], ["destinations", "destination", "destinations"], ["itineraries", "itinerary", "itineraries"],
+  ["policies", "policy", "policies"], ["ads", "ad", "ads"]];
+
+/** "your website, 12 Instagram captions, 5 packages" from the draft's per-source counts. */
+export function sourcesRead(s: Record<string, number> = {}): string {
+  const parts = SOURCE_LABELS.filter(([k]) => (s[k] ?? 0) > 0).map(([k, one, many]) => `${s[k]} ${s[k] === 1 ? one : many}`);
+  return [...((s.website_chars ?? 0) > 0 ? ["your website"] : []), ...parts].join(", ");
+}
+
+/** "Draft my brand voice": a suggestion from the website, Instagram, property text, knowledge base, business records and ads. Applying it fills the form;
  *  nothing is saved until the owner presses Save profile. */
 export function BrandDraftPanel({ onApply }: { onApply: (d: NonNullable<Draft["draft"]>) => void }) {
   const qc = useQueryClient();
@@ -115,7 +127,7 @@ export function BrandDraftPanel({ onApply }: { onApply: (d: NonNullable<Draft["d
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">Draft my brand voice</h3>
-          <p className="text-xs text-[var(--haip-fg-subtle)]">Written from your website, Instagram captions and property descriptions. You choose what to keep.</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)]">Written from your website, Instagram, properties, knowledge base, packages and policies, and ads. You choose what to keep.</p>
         </div>
         <button type="button" className={btn} disabled={ask.isPending || d?.status === "pending"} onClick={() => ask.mutate()}>
           {d?.status === "pending" ? "Writing…" : d?.status === "ready" ? "Write again" : "Write a draft"}</button>
@@ -128,6 +140,7 @@ export function BrandDraftPanel({ onApply }: { onApply: (d: NonNullable<Draft["d
           {d.draft.voice.length > 0 && <ul className="space-y-1">{d.draft.voice.map((v, i) => (
             <li key={i}><span className="font-semibold">{v.trait}:</span> {v.we_are}. <span className="text-[var(--haip-fg-subtle)]">Not: {v.we_are_not}.</span></li>))}</ul>}
           {d.draft.claims.length > 0 && <p className="text-xs text-[var(--haip-fg-subtle)]">{d.draft.claims.length} fact{d.draft.claims.length === 1 ? "" : "s"} found in your own text. Check each before saving: saved facts count as approved.</p>}
+          {d.sources && sourcesRead(d.sources) && <p className="text-xs text-[var(--haip-fg-subtle)]">Read: {sourcesRead(d.sources)}.</p>}
           {d.draft.gaps.length > 0 && <p className="text-xs text-[var(--haip-fg-subtle)]">Your sources don't say: {d.draft.gaps.join(" · ")}</p>}
           <button type="button" className={btnPrimary} onClick={() => d.draft && onApply(d.draft)}>Use this draft in the form</button>
         </div>

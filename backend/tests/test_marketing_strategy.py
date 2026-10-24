@@ -86,7 +86,7 @@ def test_brief_is_written_with_code_owned_label_and_tracking(db, ws):  # noqa: F
     with patch.object(ai, "_call", return_value=(dict(BRIEF), {"model": "m"}, "nvidia")) as call:
         strategy.write(db, ws["tenant"].id, doc.id)
     assert call.call_args.args[0] == "marketing_brief"
-    assert doc.status == "ready" and len(doc.body["hooks"]) == 5 and doc.prompt_version == "marketing-shoot-brief-v1"
+    assert doc.status == "ready" and len(doc.body["hooks"]) == 5 and doc.prompt_version == "marketing-shoot-brief-v2"
     assert doc.body["collab"]["asci_label"] == "#Ad" and doc.body["collab"]["tracking_code"].startswith("c-")
     bad = strategy.request_brief(db, ws["tenant"], {"theme": "Diwali"}, ws["owner"].id)
     with patch.object(ai, "_call", return_value=({**BRIEF, "captions": ["Only Rs 4,999 a night!"]}, {"model": "m"}, "nvidia")):

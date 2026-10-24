@@ -178,7 +178,7 @@ def test_plan_prompt_includes_research(db, ws):  # noqa: F811
     db.commit()
     with patch.object(ai, "_call", side_effect=ValueError("stop")) as call:
         ai.run_plan(db, tid, plan.id)
-    assert "Slow mornings" in call.call_args.args[3] and plan.prompt_version == "marketing-plan-v6"
+    assert "Slow mornings" in call.call_args.args[3] and plan.prompt_version == "marketing-plan-v7"
 
 
 # ── Facebook OAuth (single-use state) ───────────────────────────────────────────────────────────────────────────────

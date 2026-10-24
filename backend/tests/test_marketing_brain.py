@@ -204,7 +204,7 @@ def test_plan_gets_the_demand_brief_and_keeps_it(db, ws):  # noqa: F811
     with patch.object(ai, "_demand", return_value=brief), patch.object(ai, "_call", side_effect=fake):
         ai.run_plan(db, tid, plan.id)
     assert plan.status == "ready", plan.error
-    assert "2026-11-13" in seen["user"] and "Demand comes first" in seen["system"] and plan.prompt_version == "marketing-plan-v6"
+    assert "2026-11-13" in seen["user"] and "Demand comes first" in seen["system"] and plan.prompt_version == "marketing-plan-v7"
     assert plan.body["demand"] == brief and plan.body["calendar"][0]["bucket"] == "proven"
 
 
@@ -221,7 +221,7 @@ def test_brand_draft_is_a_suggestion_from_published_text_only(db, ws):  # noqa: 
     from app.models.property import Property
     tid = ws["tenant"].id
     out = dna.run(db, tid)
-    assert out["status"] == "failed" and "Nothing published" in out["error"]
+    assert out["status"] == "failed" and "Nothing to learn from" in out["error"]
     db.add(Property(tenant_id=tid, name="Ratha 1", slug=f"r1-{uuid.uuid4().hex[:6]}", type="caravan", is_active=True,
                     description="A chauffeur-driven luxury caravan for slow trips through Coorg."))
     db.commit()

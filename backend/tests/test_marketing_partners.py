@@ -199,7 +199,7 @@ def test_ota_copy_is_validated_checked_and_queued(client, db, ws, monkeypatch): 
     with patch.object(ai, "_call", side_effect=fake):
         row = reputation.run_copy(db, tid, row_id)
     assert seen == {"task": "marketing_ota_copy", "tool": "submit_listing"}
-    assert row.status == "ready" and row.body["copy"]["title"] == AIRBNB["title"] and row.prompt_version == "marketing-ota-copy-v1"
+    assert row.status == "ready" and row.body["copy"]["title"] == AIRBNB["title"] and row.prompt_version == "marketing-ota-copy-v2"
     with patch.object(ai, "_call", return_value=({**AIRBNB, "title": "x" * 60}, {}, "nvidia")):
         row = reputation.run_copy(db, tid, row_id)
     assert row.status == "failed" and "limits" in row.error

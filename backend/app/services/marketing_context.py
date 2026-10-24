@@ -6,9 +6,14 @@
   * reviewers' notes: on this post first, then recent notes on other posts (so feedback is not lost);
   * the descriptions of photos in the library (so each slot asks for a photo the workspace actually has).
 Everything here is the workspace's own data, read-only, capped in size.
-"""
-from typing import Optional
 
+`business_facts` is the other half of what every Studio step (brand voice, audit, plan, copywriter, critic, brief)
+knows: the owner-approved knowledge base and the published business records, read through the same rules the
+concierge uses. It is part of `marketing_ai_service._facts`, so the number grounding accepts figures from it too.
+"""
+from typing import Any, Optional
+
+import structlog
 from sqlalchemy.orm import Session
 
 from app.models.marketing import MarketingApproval, MarketingContent, MarketingContentVersion, MarketingPlan
@@ -18,6 +23,56 @@ MAX_SIBLINGS = 14
 MAX_RECENT = 8
 MAX_NOTES = 6
 MAX_PHOTOS = 40
+MAX_KB_ENTRIES = 40
+MAX_KB_CHARS = 8000
+MAX_KB_ENTRY_CHARS = 1200
+MAX_RECORDS = 12               # per kind (packages, destinations, itineraries)
+
+log = structlog.get_logger()
+
+
+def _strip(value: Any) -> Any:
+    from app.services.price_policy import strip_prices
+    if isinstance(value, str):
+        return strip_prices(value)
+    if isinstance(value, dict):
+        return {k: _strip(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_strip(v) for v in value]
+    return value
+
+
+def business_facts(db: Session, tenant, property_id: Optional[str] = None) -> dict:
+    """{"knowledge": [...], "business_data": {...}}, each left out when empty. No prices: price figures are stripped
+    from all text and money keys withheld (price_policy), and payment / cancellation terms appear only in the
+    "grounded" price mode, exactly as in the concierge prompt."""
+    from app.services import knowledge_service, price_policy, sales_gateway
+
+    out: dict = {}
+    kb, used = [], 0
+    for e in knowledge_service.usable_entries(db, tenant.id, property_id=property_id, limit=MAX_KB_ENTRIES):
+        line = _strip(f"Q: {e.question}\nA: {e.content}" if e.question else e.content)[:MAX_KB_ENTRY_CHARS]
+        if used + len(line) > MAX_KB_CHARS:
+            break
+        kb.append(line)
+        used += len(line)
+    if kb:
+        out["knowledge"] = kb
+    try:                                           # best effort, like the concierge: a failed read leaves it out
+        facts = sales_gateway.concierge_business_facts(db, tenant.id)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("marketing_business_facts_failed", tenant_id=tenant.id, error=str(exc)[:200])
+        facts = []
+    body = dict(facts[0]["result"]) if facts else {}
+    if price_policy.price_mode(tenant) != "grounded":
+        body.pop("payment_policy", None)
+        body.pop("cancellation_policy", None)
+    for k in ("packages", "destinations", "itineraries"):
+        if isinstance(body.get(k), list):
+            body[k] = body[k][:MAX_RECORDS]        # shortcut: count cap, not a char budget; fine for a few dozen records
+    if body:
+        out["business_data"] = _strip(price_policy.redact_price_facts(body))
+    return out
 
 
 def _opening(kind: str, payload: dict) -> Optional[str]:
