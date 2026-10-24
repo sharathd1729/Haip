@@ -32,6 +32,8 @@ def _conv(db, w, *, created=None, guest=None, lead=False):
     if guest is None:
         db.add(g)
         db.flush()
+    else:   # a guest has at most ONE open WhatsApp thread (partial unique index, enforced on PostgreSQL): close the earlier ones
+        db.query(Conversation).filter_by(tenant_id=w.t.id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True)             .update({"is_open": False})
     c = Conversation(id=str(uuid.uuid4()), tenant_id=w.t.id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True,
                      created_at=created or datetime.now(timezone.utc))
     db.add(c)

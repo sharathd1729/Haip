@@ -163,6 +163,15 @@ export function ProfileTab() {
   );
 }
 
+// The server's own reason when it gave one; otherwise the HTTP status in plain words (a proxy size limit answers 413 with no JSON).
+export function uploadError(e: unknown): string {
+  const status = (e as { response?: { status?: number } })?.response?.status;
+  const plain = status === 413 ? "too big for the server's upload limit"
+    : status ? `server answered ${status}`
+    : "the upload didn't reach the server (connection dropped or file too big)";
+  return studioError(e, `${plain}. Photos: JPEG, PNG or WebP up to 10 MB. Clips: MP4 or MOV, up to 90 s and 100 MB.`);
+}
+
 export function LibraryTab() {
   const { data: session } = useSession();
   const role = session?.user?.role;
@@ -177,10 +186,21 @@ export function LibraryTab() {
   const assets = useQuery<Asset[]>({ queryKey: ["studio-media"], queryFn: () => api.get(`${STUDIO}/media`).then(r => r.data) });
   const templates = useQuery<{ key: string; label: string }[]>({ queryKey: ["studio-templates"], queryFn: () => api.get(`${STUDIO}/templates`).then(r => r.data) });
   const upload = useMutation({
-    // A video goes to /media/clips (agency M3: probed, sound and metadata stripped, used by reels).
-    mutationFn: (f: File) => { const fd = new FormData(); fd.append("file", f); return api.post(`${STUDIO}/media${f.type.startsWith("video/") ? "/clips" : ""}`, fd); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["studio-media"] }),
-    onError: e => toast({ variant: "error", title: "Upload failed", description: studioError(e, "Photos: JPEG, PNG or WebP up to 10 MB. Clips: MP4 or MOV, up to 90 s and 100 MB.") }),
+    // One file at a time, so one bad file never stops the rest. A video goes to /media/clips (agency M3).
+    mutationFn: async (files: File[]) => {
+      const failed: string[] = [];
+      for (const f of files) {
+        const fd = new FormData(); fd.append("file", f);
+        try { await api.post(`${STUDIO}/media${f.type.startsWith("video/") ? "/clips" : ""}`, fd); }
+        catch (e) { failed.push(`${f.name}: ${uploadError(e)}`); }
+      }
+      return { done: files.length - failed.length, failed };
+    },
+    onSuccess: ({ done, failed }) => {
+      qc.invalidateQueries({ queryKey: ["studio-media"] });
+      if (failed.length) toast({ variant: "error", title: `${done} uploaded, ${failed.length} failed`, description: failed.join(" · ") });
+      else toast({ variant: "success", title: done === 1 ? "Uploaded" : `${done} files uploaded` });
+    },
   });
   const review = useMutation({
     mutationFn: ({ id, approve }: { id: string; approve: boolean }) => api.post(`${STUDIO}/media/${id}/${approve ? "approve" : "reject"}`, {}),
@@ -197,9 +217,9 @@ export function LibraryTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-[var(--haip-fg-muted)]">Your own photos, creatives made from them, and approved AI images.</p>
-        <input ref={file} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" className="sr-only"
-          onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }} />
-        <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photo or clip"}</button>
+        <input ref={file} type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" className="sr-only"
+          onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) upload.mutate(fs); e.target.value = ""; }} />
+        <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photos or clips"}</button>
       </div>
       <TaggingBar />
       <ChannelsPanel />

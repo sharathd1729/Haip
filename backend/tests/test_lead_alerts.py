@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
+
 from app.api.v1.endpoints.messaging import TemplateCategory, TemplateStatus, WATemplate
 from app.core.security import create_access_token, get_password_hash
 from app.models.audit_event import AuditEvent
@@ -70,6 +72,17 @@ def _setup(db, tid, *keys, approve=True):
                               status=TemplateStatus.APPROVED, components=[dict(c) for c in pack.BY_NAME[name]["components"]]))
     db.commit()
     return tenant
+
+
+@pytest.fixture(autouse=True)
+def _queue_guests(db, tenant_and_user):
+    """The fake work-queue items below point at guests "g1"/"g2". PostgreSQL enforces playbook_runs.guest_id -> guests
+    (SQLite does not), so the rows must exist."""
+    tid = _tid(tenant_and_user)
+    for gid in ("g1", "g2"):
+        if not db.get(Guest, gid):
+            db.add(Guest(id=gid, tenant_id=tid, name="Kiran Rao", phone=""))
+    db.commit()
 
 
 def _item(kind="new_lead", severity="late", owner=None, guest_id="g1", inquiry_id=None, since=None):

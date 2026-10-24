@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from pydantic import model_validator
 from typing import List
 import logging
+import os
 
 _log = logging.getLogger("haip.config")
 
@@ -17,6 +18,11 @@ _INSECURE_KEY_DEFAULTS = {
 class Settings(BaseSettings):
     # App
     ENVIRONMENT: str = "development"
+    # Local test mode (docs/LOCAL_TESTING.md): "fake" answers every outbound call except the AI providers locally and
+    # records it in an outbox (app/core/fake_services.py). Refused in production. LOCAL_DATA_DIR holds the outbox and
+    # the local stand-in for R2/S3 (default: <repo>/.local-data).
+    EXTERNAL_SERVICES: str = "real"
+    LOCAL_DATA_DIR: str = ""
     SECRET_KEY: str = "change-me-in-production"
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:3000"
@@ -208,6 +214,10 @@ class Settings(BaseSettings):
         is_prod = self.ENVIRONMENT == "production"
 
         # ── Hard failures (always, any environment) ───────────────────────────
+        if self.EXTERNAL_SERVICES not in ("real", "fake"):
+            raise ValueError("EXTERNAL_SERVICES must be 'real' or 'fake'.")
+        if is_prod and self.EXTERNAL_SERVICES != "real":
+            raise ValueError("EXTERNAL_SERVICES=fake is a local test mode and is never allowed in production.")
         if not self.DATABASE_URL:
             raise ValueError(
                 "DATABASE_URL is required. Set it to your PostgreSQL connection string."
@@ -299,7 +309,8 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
 
     class Config:
-        env_file = ".env"
+        # The local stack (scripts/local/start.ps1) points this at .env.local so the real .env is never read.
+        env_file = os.environ.get("HAIP_ENV_FILE", ".env")
         case_sensitive = True
         extra = "ignore"
 
