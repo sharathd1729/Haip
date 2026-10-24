@@ -53,3 +53,11 @@ export function queryOf(sp: Record<string, string | string[] | undefined>): Reco
   for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && v.length < 200) out[k] = v;
   return out;
 }
+
+// Signed storage URLs are https in production. The local copy (EXTERNAL_SERVICES=fake) serves files from the API on
+// http://localhost, so development also accepts that host; production never does.
+export function isStorageRedirect(loc: string | null | undefined): loc is string {
+  if (!loc) return false;
+  if (loc.startsWith("https://")) return true;
+  return process.env.NODE_ENV !== "production" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(loc);
+}

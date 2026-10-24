@@ -50,7 +50,7 @@ export function WaButton({ wa, label, quiet, className = "" }: { wa: WaLink | nu
   return (
     <a className={`sv-btn${quiet ? " sv-btn--quiet" : ""} ${className}`.trim()} href={wa.href} target="_blank" rel="noopener noreferrer"
       data-wa-ref={wa.code}>
-      <MessageCircle aria-hidden="true" size={18} strokeWidth={1.75} />{label}
+      <MessageCircle aria-hidden="true" size={18} strokeWidth={1.75} /><span className="sv-btn__label">{label}</span>
     </a>
   );
 }

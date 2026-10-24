@@ -64,7 +64,11 @@
 .sv .sv-nav { display: none; gap: 28px; font-size: .9375rem; }
 .sv .sv-nav a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; color: var(--v-muted); }
 .sv .sv-nav a[aria-current="page"] { color: var(--v-ink); text-decoration: underline; text-underline-offset: 8px; text-decoration-thickness: 1px; }
-.sv .sv-top__cta { display: flex; align-items: center; gap: 8px; }
+.sv .sv-top__cta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sv .sv-brand { min-width: 0; }
+/* Smallest phones (320px): brand + labelled button + menu don't fit, so the header button keeps only its icon. */
+@media (max-width: 359px) { .sv .sv-top .sv-btn__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .sv .sv-top .sv-btn { padding-inline: 12px; min-width: 44px; } }
 .sv .sv-menu { position: relative; }
 .sv .sv-menu summary { list-style: none; display: grid; place-content: center; gap: 6px; width: 44px; height: 44px; cursor: pointer;
   border-radius: var(--v-r-btn); }
