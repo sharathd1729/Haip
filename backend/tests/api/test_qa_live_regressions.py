@@ -3,7 +3,9 @@ and the Meta quality page 503'd on a fresh database because its inline table was
 import uuid
 from datetime import datetime, timezone
 
-from app.core.database import Base
+import pytest
+
+from app.core.database import Base, engine
 from app.models.call import Call, CallDirection
 from app.models.module import Module, WorkspaceModule
 
@@ -12,6 +14,9 @@ def _auth(tu):
     return {"Authorization": f"Bearer {tu['access_token']}"}
 
 
+# The leaderboard filters on CAST(started_at AS TIMESTAMP); SQLite turns that cast into a number, so only PostgreSQL
+# (production) can return the row.
+@pytest.mark.skipif(engine.dialect.name != "postgresql", reason="the started_at timestamp cast needs PostgreSQL")
 def test_agent_leaderboard_names_the_agent(client, db, tenant_and_user):
     tu = tenant_and_user
     m = db.query(Module).filter_by(code="calls").first() or Module(id=str(uuid.uuid4()), code="calls", name="Calls")
