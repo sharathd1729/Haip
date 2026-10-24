@@ -8,7 +8,10 @@ POST /marketing/studio/media/{id}/people-ok      consent for a photo showing peo
 GET  /marketing/studio/demand                    open dates, long weekends and festivals the strategist uses
 GET  /marketing/studio/profile/draft             the brand voice draft (suggestion only)
 POST /marketing/studio/profile/draft             write a new draft from the website, Instagram and properties (queued)
+POST /marketing/studio/brand-kit/suggest         brand colours (+ typeface) from the HAIP website theme, else the logo
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -140,6 +143,20 @@ def put_brand_kit(body: dict, user: User = Depends(get_current_user), db: Sessio
         raise _err(exc)
     db.commit()
     return kit
+
+
+class KitSuggestIn(BaseModel):
+    logo_asset_id: Optional[str] = None
+
+
+@router.post("/brand-kit/suggest")
+def suggest_brand_kit(body: KitSuggestIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                      _m=_module, _c=_edit):
+    """Colours (and typeface) read from the HAIP website's theme, else from the logo. A suggestion: nothing is saved."""
+    try:
+        return kit_svc.suggest(db, _tenant(db, user), body.logo_asset_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
 
 
 @router.get("/demand")

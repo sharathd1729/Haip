@@ -3,7 +3,7 @@
   * Deterministic checks (marketing_lint) against the same facts the copywriter was given. Only these can be `high`,
     and a high finding blocks the AGENCY from sending the draft for approval (a person can still send it; the approver
     sees every finding next to the preview). For a version a person wrote, an unknown number is advice, not a block.
-  * The AI brand editor (task `marketing_review`, prompt marketing-review-v2) adds advice only: voice, unsupported
+  * The AI brand editor (task `marketing_review`, prompt marketing-review-v3) adds advice only: voice, unsupported
     claims, clarity, the ask. Its findings are capped at medium. It never runs in a request handler.
   * The same call is the critic (agency M3): 1-5 scores on hook, specificity, voice, clarity and the ask. Below the bar
     (`weak_points`) the agency rewrites the draft once; the scores never block a person.

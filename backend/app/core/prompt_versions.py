@@ -161,14 +161,17 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Why a lead was won / lost (lead_outcome.py): one catalogue reason + confidence + verbatim quotes from the evidence.
     "lead_outcome_reason": "lead-outcome-reason-v1",
     # Marketing Studio (services/marketing_prompts.py).
+    # 24 Oct 2026: every prompt fed `marketing_ai_service._facts` got a new input ("Business facts" now carries the
+    # approved knowledge base and the published business records, marketing_context.business_facts), so audit v3,
+    # plan v7, research v2, content v8, review v3, ota-copy v2 and shoot-brief v2 were bumped with no text change.
     # v2: median baseline + stop/keep/test, pillars with position/rotation/out-of-scope, first comment and
     # carousel/story rules (techniques from Ootto-AI/claude-content-skills, MIT; see THIRD_PARTY_NOTICES.md).
-    "marketing_audit": "marketing-audit-v2",
+    "marketing_audit": "marketing-audit-v3",
     # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
     # v4 (M2): the demand brief (open dates, long weekends, festivals); targets, campaigns, 60/30/10 buckets,
     # indicator + stop_if per entry, reactive days.
-    "marketing_plan": "marketing-plan-v6",
-    "marketing_research": "marketing-research-v1",
+    "marketing_plan": "marketing-plan-v7",
+    "marketing_research": "marketing-research-v2",
     # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
     "website_generate": "website-generate-v1",
     "website_edit": "website-edit-v1",
@@ -177,15 +180,16 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
     # v5 (M2): approved claims; a post sells exactly its plan entry's target dates.
     # v6 (M3): optional comment_dm ("comment STAY for dates").
-    "marketing_content": "marketing-content-v7",
+    "marketing_content": "marketing-content-v8",
     # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.
-    "marketing_review": "marketing-review-v2",
+    "marketing_review": "marketing-review-v3",
     # Brand DNA draft (marketing_brand_dna): voice/tone/claims SUGGESTED from the website, captions, property text.
-    "marketing_brand_dna": "marketing-brand-dna-v1",
+    # v2: also the approved knowledge base, published business records (no prices) and Meta ad copy.
+    "marketing_brand_dna": "marketing-brand-dna-v2",
     # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.
     "marketing_review_reply": "marketing-review-reply-v1",
     # Agency M7: OTA listing copy drafts (marketing_reputation); a person pastes them into the OTA.
-    "marketing_ota_copy": "marketing-ota-copy-v1",
+    "marketing_ota_copy": "marketing-ota-copy-v2",
     # Studio plan phase 1: creative tags from a post's / ad's own text (marketing_tagging) and the weekly Insights
     # report's plain-English lines over code-computed facts (marketing_insights_report).
     "marketing_tagging": "marketing-tagging-v1",
@@ -193,7 +197,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Studio plan phase 2: what a Reel does (hook, shots, text, CTA) read by the vision model into the swipe file.
     "marketing_video_read": "marketing-video-read-v1",
     # Studio plan phase 3: shoot & collab brief, monthly strategy deck (marketing_strategy).
-    "marketing_brief": "marketing-shoot-brief-v1",
+    "marketing_brief": "marketing-shoot-brief-v2",
     "marketing_deck": "marketing-strategy-deck-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",

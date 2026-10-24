@@ -131,12 +131,14 @@ MAX_AUTO_ATTEMPTS = 6
 PYTHON_VECTOR_FALLBACK = False
 
 # Which entries retrieval may ever return. One definition, used by every query below, so a change here changes every path.
-_ELIGIBLE_SQL = """
+_USABLE_SQL = """
     k.tenant_id = :tid
     AND k.is_active IS TRUE
     AND k.review_status = 'approved'
     AND k.embedding_status = 'done'
     AND k.stale_since IS NULL
+"""
+_ELIGIBLE_SQL = _USABLE_SQL + """
     AND (k.property_id IS NULL OR k.property_id = :pid)
 """
 
@@ -488,6 +490,22 @@ def search_detailed(
     hits.sort(key=lambda h: (round(h["score"], 2), priority_by_id.get(h["id"], 0), h.get("updated_at") or ""), reverse=True)
     hits = hits[:top_k]
     return SearchOutcome(hits=hits, status="ok" if hits else "no_match")
+
+
+def usable_entries(db: Session, tenant_id: str, property_id: Optional[str] = None, limit: int = 40) -> list[KnowledgeEntry]:
+    """The entries retrieval may use (the same rule as search_detailed), without a question: highest priority, then newest.
+
+    For callers that read the whole knowledge base as background (Marketing Studio), not to answer one guest question.
+    `property_id` scopes like retrieval does (tenant-wide entries + that property's); None = every property's entries."""
+    scope = _ELIGIBLE_SQL if property_id else _USABLE_SQL
+    ids = [r.id for r in db.execute(
+        text(f"""SELECT k.id FROM knowledge_entries k WHERE {scope}
+                 ORDER BY k.priority DESC, COALESCE(k.source_published_at, k.updated_at) DESC LIMIT :lim"""),
+        {"tid": tenant_id, "pid": property_id, "lim": limit}).fetchall()]
+    if not ids:
+        return []
+    rows = {e.id: e for e in db.query(KnowledgeEntry).filter(KnowledgeEntry.tenant_id == tenant_id, KnowledgeEntry.id.in_(ids))}
+    return [rows[i] for i in ids if i in rows]
 
 
 _SELECT_COLUMNS = """

@@ -62,7 +62,8 @@ def put_profile(db: Session, tenant: Tenant, data: dict, actor_id: str) -> dict:
 
 
 def _facts(db: Session, tenant: Tenant, property_id: Optional[str] = None) -> dict:
-    """What the AI may rely on. No prices, no availability: those belong to the booking system and a person."""
+    """What the AI may rely on: properties, the profile, the approved knowledge base and the published business records
+    (marketing_context.business_facts). No prices, no availability: those belong to the booking system and a person."""
     from app.services.vehicle_pool import is_placeholder_name
 
     q = db.query(Property).filter(Property.tenant_id == tenant.id, Property.is_active.is_(True))
@@ -74,7 +75,8 @@ def _facts(db: Session, tenant: Tenant, property_id: Optional[str] = None) -> di
         for p in q.limit(10).all() if not is_placeholder_name(p.name)
     ]
     return {"brand_name": tenant.brand_name or tenant.name, "business_type": tenant.business_type,
-            "profile": get_profile(tenant), "properties": props}
+            "profile": get_profile(tenant), "properties": props,
+            **marketing_context.business_facts(db, tenant, property_id)}
 
 
 # ── Measured data ───────────────────────────────────────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ Review -> post: a person records how the guest agreed (consent_note, who, when; 
 content item quoting the review word for word with the guest's first name only; it goes through the same brand review,
 approval, publishing and ads as any post. A review can become a post once.
 
-OTA copy: the AI (task `marketing_ota_copy`, prompt marketing-ota-copy-v1) writes each platform's fields from the
+OTA copy: the AI (task `marketing_ota_copy`, prompt marketing-ota-copy-v2) writes each platform's fields from the
 property's own facts; the result is re-validated against the platform's limits, the workspace's price policy and the
 deterministic checks (numbers not in the facts, guarantees, stock phrases). There is no OTA API: a person copies it in.
 Runs in Celery (`marketing_studio.ota_copy`), never in a request handler.
