@@ -324,6 +324,7 @@ def ai_generate(body: AiGenerate, user: User = Depends(get_current_user), db: Se
 def ai_jobs(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
     site = _site(db, user)
     rows = (db.query(SiteAiJob).filter_by(tenant_id=user.tenant_id, site_id=site.id)
+            .filter(SiteAiJob.kind.in_(("generate", "edit")))       # art director steps have their own API
             .order_by(SiteAiJob.created_at.desc()).limit(30).all())
     return [ai.job_out(j) for j in rows]
 

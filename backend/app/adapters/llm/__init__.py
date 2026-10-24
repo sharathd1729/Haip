@@ -188,6 +188,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # Website builder AI developer (website_ai_service): structured JSON operations on the site draft via one tool,
     # every operation re-validated against website_blocks.json; never publishes. Same tool-calling tier as marketing_*.
     "website_content": ("nvidia", "openai/gpt-oss-20b"),
+    # Website art director (website_builder_ai, W2): sitemap / wireframe / 3 style directions as one tool call each,
+    # validated as a SiteSpec. Planning = the studio's Gemini tier; a one-slot copy polish is a small task on Flash-Lite.
+    "website_plan": ("gemini", "gemini-3.6-flash"),
+    "website_copy": ("gemini", "gemini-3.1-flash-lite"),
 }
 
 

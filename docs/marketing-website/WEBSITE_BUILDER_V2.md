@@ -78,9 +78,36 @@ Transitions, transform/opacity only, nothing under `prefers-reduced-motion`. No 
 `backend/scripts/seed_local_demo.py` now ends with `scripts/_demo_site.py`: itineraries, FAQs and consented reviews for the
 made-up Wanderwheel Caravans, then a published three-page v2 site that uses all 24 variants.
 
+## W2: the art director
+
+Page `/dashboard/marketing/website/builder` (owner/manager; API `/api/v1/websites/builder`, `website.approve`, every change
+audited as `website.builder_*`). Four steps, in the order agencies use; each needs the owner's approval before the next.
+
+1. **Brief**: HAIP fills the facts (`website_builder_service.brief_facts`: profile, brand kit, published packages /
+   destinations / itineraries, price policy, approved FAQs, usable photos and reviews, stays, location, and the guest mix from
+   the last year's enquiries: occasions, cities, sources, party size). The owner adds goals, audience, tone, must-haves and
+   words to avoid. Text that states a price is left out of the brief.
+2. **Sitemap**: pages and the sections on each, with a one-line reason for every page and section.
+3. **Wireframe**: the approved sitemap's sections (same pages, same order) with one variant each and their short copy, plus
+   SEO title/description per page: a SiteSpec skeleton without styling.
+4. **Style**: three directions (preset or custom AA-checked palette, display + body face from the fixed list, radius, calm
+   motion, a sample headline). Picking one assembles the full spec and creates a v2 draft (`create_draft`); bindings fill the
+   real content; publishing is the normal approval flow.
+
+Storage: no new table. Every brief and step run is a `site_ai_jobs` row (kind brief|sitemap|wireframe|style|copy);
+`result.based_on` names the approved previous step it was built from, so re-approving an earlier step makes later steps stale.
+"Ask for changes" re-runs the step with the owner's words and the previous proposal.
+
+AI: Celery `website.builder_step` -> `website_builder_ai.run` (never in a request). Planning on router task `website_plan`
+(Gemini 3.6 Flash, 32k output budget for thinking); `POST /builder/copy` polishes one text slot of the v2 draft on
+`website_copy` (Gemini 3.1 Flash-Lite). Each answer is one tool call, checked by `schemas/site_builder.py` and then as a
+SiteSpec (types, variants, AA contrast, no typed price, sitemap kept). A failing answer gets one retry with the problems;
+failing again ends the step with those problems shown to the owner. Prompts: `website_builder_prompts.py`, versions
+`website-sitemap/wireframe/style/copy-v1`.
+
 ## Left for later phases
 
-W2 art director (brief, sitemap/wireframe/style approvals, AI writes specs); W3 references; W4 chat + click-to-edit,
+W3 references (feed the art director with captured patterns); W4 chat + click-to-edit,
 parsing `data-wa-ref` codes into leads, forms with page/section, funnel report; W5 editorial/cinematic motion, more section
 types, image pipeline (AVIF/WebP sizes), self-hosted fonts, JSON-LD per section, Lighthouse/contrast publish gates, a
 policies page for v2 (until then a v2 site can't take online payments: the checklist blocks it).
