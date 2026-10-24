@@ -28,7 +28,10 @@ def _prompts() -> dict:
     from app.services import marketing_brand_dna as dna
     from app.services import marketing_guest_reviews as guest_reviews
     from app.services import marketing_prompts as p
+    from app.services import marketing_insights_report as insights_report
     from app.services import marketing_reputation as reputation
+    from app.services import marketing_strategy as strategy
+    from app.services import marketing_tagging as tagging
     return {
         "marketing_audit": (p.AUDIT_SYSTEM, [p.AUDIT_TOOL]),
         "marketing_plan": (p.PLAN_SYSTEM, [p.PLAN_TOOL]),
@@ -38,6 +41,10 @@ def _prompts() -> dict:
         "marketing_brand_dna": (dna.SYSTEM, [dna._tool()]),
         "marketing_review_reply": (guest_reviews.SYSTEM, [guest_reviews._tool()]),
         "marketing_ota_copy": (p.OTA_SYSTEM, [reputation.ota_tool(k) for k in ("airbnb", "booking", "makemytrip")]),
+        "marketing_tagging": (tagging.SYSTEM, [tagging.tool()]),
+        "marketing_insights": (insights_report.SYSTEM, [insights_report.tool()]),
+        "marketing_brief": (strategy.BRIEF_SYSTEM, [strategy.brief_tool()]),
+        "marketing_deck": (strategy.DECK_SYSTEM, [strategy.deck_tool()]),
     }
 
 

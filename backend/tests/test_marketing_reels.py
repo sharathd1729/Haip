@@ -30,6 +30,12 @@ pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("
                                 reason="ffmpeg is not installed")
 
 
+
+@pytest.fixture(autouse=True)
+def _instagram_connected(monkeypatch):
+    """Scheduling checks the Instagram connection (marketing_publish_service.instagram_problem); tested on its own."""
+    monkeypatch.setattr("app.services.marketing_publish_service.instagram_problem", lambda db, tenant_id: None)
+
 def _clip(tmp_path, seconds=3, size="320x180", audio=True, name="c.mov") -> bytes:
     """A synthetic clip WITH a sound track and a title tag, so the test can prove both are stripped."""
     out = tmp_path / name

@@ -77,11 +77,16 @@ def touches(db: Session, tenant_id: str, inquiries: list[Inquiry]) -> dict[str, 
         if inq_id not in by_id:
             continue
         draft = drafts.get(a.ad_id) if a.ad_id else None
+        ref = (a.raw_referral or {}).get("ref") if isinstance(a.raw_referral, dict) else None
+        by_code = links.resolve_campaign(db, tenant_id, ref) if ref else {}      # ig.me/...?ref=c-xxxxxxxx (organic)
         out[inq_id].append({
             "at": _utc(a.first_message_at or a.created_at), "kind": "ad" if a.source_type == "ad" or a.ad_id else "post",
             "channel": a.destination_channel, "ad_id": a.ad_id, "ad_draft_id": draft.id if draft else None,
-            "content_id": (draft.content_id if draft else None) or posts.get(a.source_url),
-            "detail": a.headline or a.campaign_id or a.source_url})
+            "content_id": (draft.content_id if draft else None) or posts.get(a.source_url) or by_code.get("content_id"),
+            "detail": a.headline or a.campaign_id or a.source_url or ref})
+    for conv_id, inq_id, at, content_id, code in first_message_codes(db, tenant_id, conv_inq):
+        out[inq_id].append({"at": _utc(at), "kind": "post", "channel": "whatsapp", "ad_id": None, "ad_draft_id": None,
+                            "content_id": content_id, "detail": code})
     for inq in inquiries:
         u = (inq.custom_fields or {}).get("utm") or {}
         if u:
@@ -100,6 +105,29 @@ def touches(db: Session, tenant_id: str, inquiries: list[Inquiry]) -> dict[str, 
                                 "ad_id": None, "ad_draft_id": None, "content_id": None, "detail": None})
     epoch = datetime(2000, 1, 1, tzinfo=timezone.utc)
     return {k: sorted(v, key=lambda t: t["at"] or epoch) for k, v in out.items()}
+
+
+def first_message_codes(db: Session, tenant_id: str, conv_inq: dict) -> list[tuple]:
+    """(conversation, inquiry, at, content id, code) for chats whose FIRST guest message carries a post's tracking code
+    (the WhatsApp link from marketing_links.tracking prefills it)."""
+    from sqlalchemy import and_, func
+
+    from app.models.conversation import Message, MessageDirection
+    if not conv_inq:
+        return []
+    inbound = (Message.tenant_id == tenant_id, Message.conversation_id.in_(list(conv_inq)),
+               Message.direction == MessageDirection.INBOUND)
+    firsts = (db.query(Message.conversation_id.label("cid"), func.min(Message.created_at).label("at"))
+              .filter(*inbound).group_by(Message.conversation_id).subquery())
+    first = {m.conversation_id: m for m in db.query(Message).join(
+        firsts, and_(Message.conversation_id == firsts.c.cid, Message.created_at == firsts.c.at)).filter(*inbound)}
+    out = []
+    for conv_id, m in first.items():
+        found = links.CODE_IN_TEXT.search(m.body or "")
+        cid = links.resolve_campaign(db, tenant_id, found.group(1)).get("content_id") if found else None
+        if cid:
+            out.append((conv_id, conv_inq[conv_id], m.created_at, cid, found.group(1).lower()))
+    return out
 
 
 def chain(ts: list[dict], before: Optional[datetime] = None) -> dict:

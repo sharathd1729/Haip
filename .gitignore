@@ -42,6 +42,7 @@ frontend/.env.development
 *.txt
 !requirements*.txt
 !*.env.example
+!backend/.env.collector.example
 
 # ── OS / Editor ───────────────────────────────────────────────────────────────
 .DS_Store

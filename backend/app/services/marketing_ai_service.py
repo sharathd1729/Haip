@@ -148,7 +148,7 @@ def _is_transient(exc: Exception) -> bool:
 
 # Output budgets per task. A two-week calendar overran 3,000 tokens on a live gpt-oss-20b run (18 Oct 2026) and the
 # tool call was cut off, so the plan gets more room.
-MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_content_premium": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000, "marketing_ota_copy": 3000}
+MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_content_premium": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000, "marketing_ota_copy": 3000, "marketing_tagging": 1200, "marketing_insights": 2500, "marketing_brief": 6000, "marketing_deck": 4000}
 
 
 def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tuple[dict, dict, str]:
@@ -277,6 +277,8 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     clips = _clip_count(db, tenant_id)
     from app.services import marketing_learning
     learned = marketing_learning.summary_for_plan(db, tenant_id)
+    from app.services import marketing_insights
+    insights_next = marketing_insights.for_plan(db, tenant_id)
     try:
         user = (f"Business facts:\n{_facts(db, tenant)}\n\nPeriod: {plan.period_start} to {plan.period_end}\n"
                 f"Owner's brief: {plan.brief or '(none)'}\n"
@@ -284,7 +286,8 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
                 f"Competitor research: {_latest_research(db, tenant_id)}\n"
                 f"Demand (computed from bookings and the holiday calendar): {demand or '(not available)'}\n"
                 f"Video clips in the library: {clips}\n"
-                f"What has measurably worked on this account (published posts vs its own median):\n{learned}")
+                f"What has measurably worked on this account (published posts vs its own median):\n{learned}\n"
+                f"Last weekly Insights report (do more / stop / test, each with a check date):\n{insights_next}")
         data, raw, provider = _call("marketing_plan", tenant_id, _system(prompts.PLAN_SYSTEM, tenant), user, prompts.PLAN_TOOL)
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_plan", ref_id=plan.id)
         body = MarketingPlanBody.model_validate(normalise_plan(data)).model_dump(mode="json")

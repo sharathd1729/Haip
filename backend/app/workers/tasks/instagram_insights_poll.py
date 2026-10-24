@@ -30,7 +30,10 @@ _ENGAGEMENT_METRICS = [
 ]
 _DEMOGRAPHIC_BREAKDOWNS = ["city", "country", "age", "gender"]
 _MEDIA_INSIGHT_METRICS = ["reach", "saved", "shares", "total_interactions"]
-_RECENT_MEDIA_LIMIT = 12
+_RECENT_MEDIA_LIMIT = 25           # about a month of posts: the insights report compares each to a 30-day median
+# Asked in a SEPARATE call, so a metric Meta refuses for one media type never loses reach/saves/shares above.
+_VIEW_METRICS = ["views"]
+_REEL_METRICS = ["views", "ig_reels_avg_watch_time", "reels_skip_rate"]
 
 
 class InstagramInsightsSnapshot(Base, TimestampMixin):
@@ -226,10 +229,19 @@ def _poll_recent_posts(db, tenant_id: str, adapter) -> None:
         target.total_interactions = media_insights.get("total_interactions")
         if not existing:
             db.add(target)
-        _record_daily(db, tenant_id, target)
+        reel = item.get("media_product_type") == "REELS"
+        try:
+            extra = adapter.get_media_insights(media_id, _REEL_METRICS if reel else _VIEW_METRICS)
+        except httpx.HTTPStatusError as exc:
+            log.info("instagram_media_views_unavailable", tenant_id=tenant_id, media_id=media_id,
+                     status=exc.response.status_code)
+            extra = {}
+        _record_daily(db, tenant_id, target, {
+            "media_product_type": item.get("media_product_type"), "views": extra.get("views"),
+            "avg_watch_ms": extra.get("ig_reels_avg_watch_time"), "skip_rate": extra.get("reels_skip_rate")})
 
 
-def _record_daily(db, tenant_id: str, post: "InstagramPostSnapshot") -> None:
+def _record_daily(db, tenant_id: str, post: "InstagramPostSnapshot", extra: dict | None = None) -> None:
     """Keep a per-day history of each post's numbers (the snapshot above is overwritten in place).
     One row per post per local day; a second poll on the same day updates that row."""
     from app.core.tenant_tz import get_tenant_now
@@ -247,3 +259,6 @@ def _record_daily(db, tenant_id: str, post: "InstagramPostSnapshot") -> None:
         db.flush()      # sessions run with autoflush off: make the row visible to a second record in this transaction
     for f in ("media_type", "posted_at", "like_count", "comments_count", "reach", "saved", "shares", "total_interactions"):
         setattr(row, f, getattr(post, f))
+    for f, v in (extra or {}).items():
+        if v is not None:
+            setattr(row, f, v)

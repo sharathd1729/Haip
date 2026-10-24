@@ -10,12 +10,10 @@ GET  /marketing/studio/content  POST same                          content items
 GET  /marketing/studio/content/{id}                                item + current/approved version + history
 POST /marketing/studio/content/{id}/versions                       save an edit (new version; voids an approval)
 POST /marketing/studio/content/{id}/generate                       AI writes a new version (async)
-POST /marketing/studio/content/{id}/submit | approve | reject | archive
-GET  /marketing/studio/media    POST same (multipart)              media library
-POST /marketing/studio/media/{id}/render   GET .../templates        template creative from a library photo
+POST /marketing/studio/content/{id}/submit | approve | reject | archive   (submit refuses a draft without photos)
+GET|POST /marketing/studio/media (multipart); POST media/{id}/render, GET templates: library + template creatives
 GET  /marketing/studio/usage                                       metered usage for this module
-GET  /marketing/studio/settings   PUT same (owner)                 opt-in switches (AI images)
-GET  /marketing/studio/image-models                                models with licence status (blocked ones say why)
+GET  /marketing/studio/settings   PUT same (owner)                 opt-in switches (AI images); GET image-models
 POST /marketing/studio/images     GET same                         AI image jobs (async; result needs approval)
 POST /marketing/studio/media/{id}/approve | reject                 review an AI image (marketing.approve)
 """
@@ -39,6 +37,7 @@ from app.models.user import User
 from app.services import marketing_ai_service as ai
 from app.services import marketing_content_service as svc
 from app.services import marketing_image_service as images
+from app.services import marketing_publish_service as publish
 from app.services import media_library_service as media
 from app.services.authz_service import require_capability
 from app.services.media_storage import get_presigned_media_url
@@ -249,7 +248,11 @@ def _item_out(db: Session, item: MarketingContent, *, full: bool = False) -> dic
            "current_version_id": item.current_version_id, "approved_version_id": item.approved_version_id,
            "generation_status": item.generation_status, "generation_error": item.generation_error,
            "created_by": item.created_by, "created_at": item.created_at, "updated_at": item.updated_at}
+    if item.status in ("draft", "rejected"):            # "Needs photos": submit refuses it
+        v = svc.get_version(db, item.tenant_id, item.current_version_id)
+        out["needs_photos"] = svc.missing_photos(item.kind, v.payload) if v is not None else []
     if full:
+        out["auto_schedule_error"] = publish.auto_schedule_error(db, item.tenant_id, item)
         h = svc.history(db, item.tenant_id, item.id)
         out["current"] = _version_out(svc.get_version(db, item.tenant_id, item.current_version_id))
         out["versions"] = [_version_out(v) for v in h["versions"]]
@@ -275,7 +278,7 @@ def create_content(body: ContentCreate, user: User = Depends(get_current_user), 
     return _item_out(db, item, full=True)
 
 
-@router.get("/content/{item_id}")
+@router.get("/content/{item_id}")  # + needs_photos (drafts) and auto_schedule_error (why autopilot did not schedule)
 def get_content(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
     return _item_out(db, _run(svc.get_item, db, user.tenant_id, item_id), full=True)
 

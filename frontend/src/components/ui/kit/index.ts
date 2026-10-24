@@ -13,3 +13,4 @@ export { ChipRow, type ChipItem } from "./ChipRow";
 export { BottomSheet, SheetActions, SheetLine, sheetActionCls, SWIPE_CLOSE_PX } from "./BottomSheet";
 export { OneLineSummary, ONE_LINE_CHARS } from "./OneLineSummary";
 export { Fab } from "./Fab";
+export { QuickAction } from "./QuickAction";

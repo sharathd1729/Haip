@@ -9,6 +9,12 @@ What is sent: event_id "stay:<id>" (Meta's dedup key), the stay's created time, 
 identifiers (SHA-256 of the E.164 phone digits, the lower-cased email, HAIP's guest id, country "in"). Click-to-
 WhatsApp bookings also carry the ad's ctwa_clid with action_source business_messaging; the rest are "chat"/"other".
 Hourly sweep (Celery `marketing_capi.sweep_all` -> `marketing_capi.send_tenant`, queue whatsapp), at most 100 per call.
+
+Studio plan phase 5 (Conversions API for Business Messaging), only with `capi_lead_events` on: a chat that came from a
+click-to-WhatsApp ad (lead_attribution.ctwa_clid) is also reported when the person became a LEAD (LeadSubmitted, at
+guests.lead_identified_at) and when the enquiry became QUALIFIED (QualifiedLead, lead_metrics' qualified rule, found by
+the sweep), once each per enquiry, action_source business_messaging + messaging_channel whatsapp + the ctwa_clid, with
+the same consent rule and hashed identifiers. A chat without a ctwa_clid is never reported as a lead.
 """
 import hashlib
 from datetime import datetime, timedelta, timezone
@@ -94,21 +100,84 @@ def queue_new(db: Session, tenant: Tenant, *, now: Optional[datetime] = None) ->
     return pending
 
 
+LEAD_EVENTS = ("LeadSubmitted", "QualifiedLead")
+
+
+def _aware(dt: Optional[datetime]) -> Optional[datetime]:
+    return None if dt is None else (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc))
+
+
+def queue_leads(db: Session, tenant: Tenant, *, now: Optional[datetime] = None) -> int:
+    """Decide LeadSubmitted / QualifiedLead for click-to-WhatsApp enquiries in Meta's 7-day window. Returns pending."""
+    from app.models.inquiry import Inquiry
+    from app.services.lead_metrics import qualified_inquiry_ids
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - WINDOW
+    atts = (db.query(LeadAttribution).filter(LeadAttribution.tenant_id == tenant.id, LeadAttribution.ctwa_clid.isnot(None),
+                                             LeadAttribution.inquiry_id.isnot(None),
+                                             LeadAttribution.created_at >= now - timedelta(days=90)).limit(2000).all())
+    if not atts:
+        return 0
+    inq_ids = list({a.inquiry_id for a in atts})
+    inqs = {i.id: i for i in db.query(Inquiry).filter(Inquiry.tenant_id == tenant.id, Inquiry.id.in_(inq_ids))}
+    guests = {g.id: g for g in db.query(Guest).filter(Guest.tenant_id == tenant.id, Guest.id.in_({a.guest_id for a in atts}))}
+    seen = {(i, n) for i, n in db.query(MarketingCapiEvent.inquiry_id, MarketingCapiEvent.event_name).filter(
+        MarketingCapiEvent.tenant_id == tenant.id, MarketingCapiEvent.inquiry_id.in_(inq_ids))}
+    qualified = qualified_inquiry_ids(db, tenant.id, inq_ids)
+    ok = consented(db, tenant.id, list(guests))
+    pending, done = 0, set()
+    for a in atts:
+        g, inq = guests.get(a.guest_id), inqs.get(a.inquiry_id)
+        if g is None or inq is None or a.inquiry_id in done:
+            continue
+        done.add(a.inquiry_id)
+        wanted = []
+        lead_at = _aware(g.lead_identified_at)
+        if lead_at is not None and lead_at >= cutoff:
+            wanted.append(("LeadSubmitted", f"lead:{inq.id}"))
+        if inq.id in qualified and (_aware(inq.updated_at) or now) >= cutoff:
+            wanted.append(("QualifiedLead", f"qualified:{inq.id}"))
+        for name, event_id in wanted:
+            if (inq.id, name) in seen:
+                continue
+            reason = None if g.id in ok else "no marketing consent"
+            db.add(MarketingCapiEvent(tenant_id=tenant.id, inquiry_id=inq.id, event_name=name, event_id=event_id,
+                                      status="skipped" if reason else "pending", reason=reason,
+                                      action_source="business_messaging"))
+            pending += 0 if reason else 1
+    db.commit()
+    return pending
+
+
+def lead_event(row: MarketingCapiEvent, guest: Guest, attribution: LeadAttribution) -> dict:
+    when = _aware(guest.lead_identified_at) if row.event_name == "LeadSubmitted" else _aware(row.created_at)
+    return {"event_name": row.event_name, "event_time": int((when or datetime.now(timezone.utc)).timestamp()),
+            "event_id": row.event_id, "action_source": "business_messaging", "messaging_channel": "whatsapp",
+            "user_data": {**user_data(guest), "ctwa_clid": attribution.ctwa_clid}}
+
+
 def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Optional[Callable] = None,
                 now: Optional[datetime] = None) -> dict:
     settings = ads.get_settings(tenant)
     if not settings["capi_enabled"] or not settings["dataset_id"]:
         return {"sent": 0, "skipped": "off"}
     queue_new(db, tenant, now=now)
+    if settings.get("capi_lead_events"):
+        queue_leads(db, tenant, now=now)
     rows = (db.query(MarketingCapiEvent).filter(MarketingCapiEvent.tenant_id == tenant.id,
                                                 MarketingCapiEvent.status.in_(("pending", "failed")),
                                                 MarketingCapiEvent.tries < MAX_TRIES)
             .order_by(MarketingCapiEvent.created_at.asc()).limit(BATCH).all())
     if not rows:
         return {"sent": 0}
-    stays = {s.id: s for s in db.query(Stay).filter(Stay.tenant_id == tenant.id, Stay.id.in_([r.stay_id for r in rows]))}
-    guests = {g.id: g for g in db.query(Guest).filter(Guest.tenant_id == tenant.id,
-                                                      Guest.id.in_([s.guest_id for s in stays.values()]))}
+    stays = {s.id: s for s in db.query(Stay).filter(Stay.tenant_id == tenant.id,
+                                                    Stay.id.in_([r.stay_id for r in rows if r.stay_id]))}
+    lead_atts: dict[str, LeadAttribution] = {}
+    for a in db.query(LeadAttribution).filter(LeadAttribution.tenant_id == tenant.id, LeadAttribution.ctwa_clid.isnot(None),
+                                              LeadAttribution.inquiry_id.in_([r.inquiry_id for r in rows if r.inquiry_id])):
+        lead_atts.setdefault(a.inquiry_id, a)
+    guests = {g.id: g for g in db.query(Guest).filter(Guest.tenant_id == tenant.id, Guest.id.in_(
+        [s.guest_id for s in stays.values()] + [a.guest_id for a in lead_atts.values()]))}
     ok = consented(db, tenant.id, list(guests))                  # consent is re-checked at send time
     atts = {}
     inquiry_ids = [s.inquiry_id for s in stays.values() if s.inquiry_id]
@@ -119,6 +188,20 @@ def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Optional[Callabl
     batch, events = [], []
     cutoff = (now or datetime.now(timezone.utc)) - WINDOW
     for r in rows:
+        if r.inquiry_id and not r.stay_id:                  # a lead event (studio plan phase 5)
+            a = lead_atts.get(r.inquiry_id)
+            g = guests.get(a.guest_id) if a else None
+            if g is None or g.id not in ok or not settings.get("capi_lead_events"):
+                r.status, r.reason = "skipped", ("no marketing consent" if g is not None and g.id not in ok
+                                                 else "lead events switched off" if g is not None else "chat changed")
+                continue
+            ev = lead_event(r, g, a)
+            if ev["event_time"] < int(((now or datetime.now(timezone.utc)) - WINDOW).timestamp()):
+                r.status, r.reason = "skipped", "too old for Meta"
+                continue
+            batch.append(r)
+            events.append(ev)
+            continue
         s = stays.get(r.stay_id)
         g = guests.get(s.guest_id) if s else None
         created = None
@@ -162,6 +245,6 @@ def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Optional[Callabl
 def recent(db: Session, tenant_id: str, limit: int = 50) -> list[dict]:
     rows = (db.query(MarketingCapiEvent).filter_by(tenant_id=tenant_id)
             .order_by(MarketingCapiEvent.created_at.desc()).limit(limit).all())
-    return [{"stay_id": r.stay_id, "status": r.status, "reason": r.reason, "value": float(r.value) if r.value else None,
+    return [{"stay_id": r.stay_id, "inquiry_id": r.inquiry_id, "event_name": r.event_name, "status": r.status, "reason": r.reason, "value": float(r.value) if r.value else None,
              "currency": r.currency, "action_source": r.action_source, "sent_at": r.sent_at, "tries": r.tries,
              "created_at": r.created_at} for r in rows]

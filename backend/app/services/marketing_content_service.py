@@ -205,9 +205,20 @@ def _current_or_409(db: Session, tenant_id: str, item: MarketingContent, seen_ve
     return version
 
 
+def missing_photos(kind: str, payload: Optional[dict]) -> list[int]:
+    """1-based positions of the slides / frames / clips that have no library photo yet (empty = ready)."""
+    from app.services.marketing_render import frames
+    fr = frames(kind, payload or {})
+    return [n for n, f in enumerate(fr, start=1) if not f["asset_id"]] if fr else [1]
+
+
 def submit(db: Session, tenant_id: str, item_id: str, seen_version_id: str, actor: User) -> MarketingContent:
     item = get_item(db, tenant_id, item_id)
     version = _current_or_409(db, tenant_id, item, seen_version_id)
+    gaps = missing_photos(item.kind, version.payload)
+    if gaps:      # approving it would only fail later at scheduling ("Every slide or frame needs a photo")
+        raise MarketingError(422, "needs_photos", "Add a photo to every slide or frame before sending it for approval.",
+                             [f"Without a photo: {', '.join(map(str, gaps))}"])
     if not _guarded(db, tenant_id, item.id, from_statuses=("draft", "rejected"), seen_version_id=version.id,
                     values={"status": "in_review"}):
         raise MarketingError(409, "wrong_state", "Only a draft or rejected item can be sent for review.")

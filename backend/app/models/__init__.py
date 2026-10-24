@@ -27,7 +27,8 @@ from app.models.guest_merge_event import GuestMergeEvent
 from app.models.business_record import BusinessRecord
 from app.models.media_asset import MediaAsset
 from app.models.usage_event import UsageEvent
-from app.models.marketing import MarketingApproval, MarketingAudit, MarketingContent, MarketingContentVersion, MarketingImageJob, MarketingPlan, MarketingTask, InstagramPostMetricDaily, MarketingCompetitor, MarketingCompetitorSnapshot, MarketingCompetitorPost, MarketingResearchBrief, MarketingPublishAttempt, MarketingReview, MarketingCreativeJob, MarketingGuestReview, MarketingNewsletter, MarketingNewsletterRecipient
+from app.models.marketing import MarketingApproval, MarketingAudit, MarketingContent, MarketingContentVersion, MarketingImageJob, MarketingPlan, MarketingTask, InstagramPostMetricDaily, MarketingCompetitor, MarketingCompetitorSnapshot, MarketingCompetitorPost, MarketingResearchBrief, MarketingPublishAttempt, MarketingReview, MarketingCreativeJob, MarketingGuestReview, MarketingNewsletter, MarketingNewsletterRecipient, MarketingCreativeTag
+from app.models.marketing_research import MarketingSignal, MarketingStrategyDoc, MarketingSwipeItem
 from app.models.marketing_ads import MarketingAdDraft, MarketingBoostRule, MarketingCapiEvent
 from app.models.marketing_partners import MarketingCreator, MarketingCreatorDeal, MarketingOtaCopy
 from app.models.website import BookingHold, GuestAccessToken, Site, SiteAiJob, SiteDomain, SitePageView, SiteVersion

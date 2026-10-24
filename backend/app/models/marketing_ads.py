@@ -62,12 +62,15 @@ class MarketingBoostRule(Base, TimestampMixin):
 
 
 class MarketingCapiEvent(Base, TimestampMixin):
-    """One booking sent (or deliberately not sent) to Meta as a Purchase event. Unique per stay: never sent twice."""
+    """One event sent (or deliberately not sent) to Meta: a booking as Purchase (stay_id, unique per stay), or since
+    studio plan phase 5 a click-to-WhatsApp lead as LeadSubmitted / QualifiedLead (inquiry_id, unique per enquiry and
+    event, migration 177). Never sent twice."""
     __tablename__ = "marketing_capi_events"
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
-    stay_id = Column(String, nullable=False)
+    stay_id = Column(String, nullable=True)
+    inquiry_id = Column(String, nullable=True)
     event_name = Column(String(40), nullable=False, default="Purchase")
     event_id = Column(String(80), nullable=False)                  # Meta's dedup key
     value = Column(Numeric(14, 2), nullable=True)
@@ -79,4 +82,5 @@ class MarketingCapiEvent(Base, TimestampMixin):
     sent_at = Column(DateTime(timezone=True), nullable=True)
     fbtrace_id = Column(String(80), nullable=True)
 
-    __table_args__ = (UniqueConstraint("tenant_id", "stay_id", "event_name", name="uq_marketing_capi_events_stay"),)
+    __table_args__ = (UniqueConstraint("tenant_id", "stay_id", "event_name", name="uq_marketing_capi_events_stay"),
+                      UniqueConstraint("tenant_id", "inquiry_id", "event_name", name="uq_marketing_capi_events_inquiry"))

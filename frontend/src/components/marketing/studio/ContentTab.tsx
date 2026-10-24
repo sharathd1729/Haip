@@ -42,6 +42,7 @@ export function ContentTab() {
         <StatusPill tone={STATUS[c.status].tone}>{STATUS[c.status].label}</StatusPill>
         {c.generation_status === "pending" && <StatusPill tone="info">AI writing</StatusPill>}
         {c.generation_status === "failed" && <StatusPill tone="danger">AI failed</StatusPill>}
+        {!!c.needs_photos?.length && <StatusPill tone="warning">Needs photos</StatusPill>}
       </span>) },
     { key: "updated", header: "Updated", align: "right", hideBelow: "md", cell: c => when(c.updated_at) },
   ];
