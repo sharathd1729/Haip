@@ -163,26 +163,28 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # route (it used ask_haip_freeform_summary, which has no Gemini fallback and timed out in production at 60 s); the Ask
     # HAIP summary route stays without one because it reads raw query rows.
     "analyst_followup": ("nvidia", "openai/gpt-oss-20b"),
-    # Marketing Studio: audit reading, plan + calendar, one content piece. Structured output via one tool, so the
-    # reliable tool-calling tier; every result is re-validated and reviewed by a person before anything leaves HAIP.
-    "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
-    "marketing_plan":    ("nvidia", "openai/gpt-oss-20b"),
-    "marketing_content": ("nvidia", "openai/gpt-oss-20b"),
+    # Marketing Studio: every step runs on Gemini (24 Oct 2026). On gpt-oss-20b the studio's tool calls came back empty
+    # (reasoning used the whole output budget; live: brand voice, finish_reason MAX_TOKENS, 0 output tokens), and the
+    # owner chose Gemini for these steps. Structured output via one tool; every result is re-validated and reviewed by
+    # a person before anything leaves HAIP. Budgets in marketing_ai_service.MAX_TOKENS leave room for thinking.
+    "marketing_audit":   ("gemini", "gemini-3.6-flash"),
+    "marketing_plan":    ("gemini", "gemini-3.6-flash"),
+    "marketing_content": ("gemini", "gemini-3.6-flash"),
     # Agency M3: the owner may pick the stronger writer for copy. Falls back to marketing_content on any error.
     "marketing_content_premium": ("gemini", "gemini-3.6-flash"),
-    "marketing_research": ("nvidia", "openai/gpt-oss-20b"),
-    "marketing_review":   ("nvidia", "openai/gpt-oss-20b"),     # brand editor: advisory findings on one draft
-    "marketing_brand_dna": ("nvidia", "openai/gpt-oss-20b"),    # brand voice DRAFT from the business's own published text
-    "marketing_review_reply": ("nvidia", "openai/gpt-oss-20b"), # a reply to a public Google review; a person posts it
-    "marketing_ota_copy": ("nvidia", "openai/gpt-oss-20b"),     # OTA listing copy drafts (agency M7); a person pastes them
+    "marketing_research": ("gemini", "gemini-3.6-flash"),
+    "marketing_review":   ("gemini", "gemini-3.6-flash"),     # brand editor: advisory findings on one draft
+    "marketing_brand_dna": ("gemini", "gemini-3.6-flash"),    # brand voice DRAFT from the business's own published text
+    "marketing_review_reply": ("gemini", "gemini-3.6-flash"), # a reply to a public Google review; a person posts it
+    "marketing_ota_copy": ("gemini", "gemini-3.6-flash"),     # OTA listing copy drafts (agency M7); a person pastes them
     # Studio plan phase 1: tags each post / ad from its text (marketing_tagging), and explains the weekly Insights
     # report whose numbers code computed (marketing_insights_report; a sentence with an unknown number is dropped).
-    "marketing_tagging":  ("nvidia", "openai/gpt-oss-20b"),
-    "marketing_insights": ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_tagging":  ("gemini", "gemini-3.6-flash"),
+    "marketing_insights": ("gemini", "gemini-3.6-flash"),
     # Studio plan phase 3: shoot & collab brief (creative text over the radar's evidence) and the monthly deck's prose
     # over code-computed facts (numbers grounded like the analyst's).
-    "marketing_brief": ("nvidia", "openai/gpt-oss-20b"),
-    "marketing_deck":  ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_brief": ("gemini", "gemini-3.6-flash"),
+    "marketing_deck":  ("gemini", "gemini-3.6-flash"),
     # Website builder AI developer (website_ai_service): structured JSON operations on the site draft via one tool,
     # every operation re-validated against website_blocks.json; never publishes. Same tool-calling tier as marketing_*.
     "website_content": ("nvidia", "openai/gpt-oss-20b"),
@@ -210,18 +212,6 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "outcome_reason":              45,
     "analyst_brief":               90,
     "analyst_followup":            40,
-    "marketing_audit":             60,
-    "marketing_plan":              90,
-    "marketing_content":           60,
-    "marketing_research":          60,
-    "marketing_review":            45,
-    "marketing_brand_dna":         90,
-    "marketing_review_reply":      45,
-    "marketing_ota_copy":          60,
-    "marketing_tagging":           45,
-    "marketing_insights":          90,
-    "marketing_brief":             90,
-    "marketing_deck":              90,
     "website_content":             90,
 }
 

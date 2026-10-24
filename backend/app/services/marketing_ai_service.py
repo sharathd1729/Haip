@@ -147,15 +147,16 @@ def _is_transient(exc: Exception) -> bool:
     return (isinstance(status, int) and (status == 429 or status >= 500)) or "timeout" in name or "connection" in name
 
 
-# Output budgets per task. A two-week calendar overran 3,000 tokens on a live gpt-oss-20b run (18 Oct 2026) and the
-# tool call was cut off, so the plan gets more room.
-MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_content_premium": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000, "marketing_ota_copy": 3000, "marketing_tagging": 1200, "marketing_insights": 2500, "marketing_brief": 6000, "marketing_deck": 4000}
+# Output budgets per task. Gemini and gpt-oss both "think" before answering and the thinking counts against this
+# budget: at 3,000 the brand-voice draft came back with finish_reason MAX_TOKENS and no output at all (24 Oct 2026).
+# A two-week calendar also overran 3,000 earlier (18 Oct). Only tokens actually used are billed.
+MAX_TOKENS = {"marketing_audit": 12000, "marketing_plan": 24000, "marketing_content": 12000, "marketing_content_premium": 12000, "marketing_review": 8000, "marketing_brand_dna": 12000, "marketing_review_reply": 4000, "marketing_ota_copy": 12000, "marketing_tagging": 6000, "marketing_insights": 12000, "marketing_brief": 24000, "marketing_deck": 16000}
 
 
 def _complete(adapter, task: str, system: str, user: str, tool: dict) -> dict:
     loop = asyncio.new_event_loop()
     try:
-        return loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=MAX_TOKENS.get(task, 3000), tools=[tool]))
+        return loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=MAX_TOKENS.get(task, 12000), tools=[tool]))
     except Exception as exc:  # noqa: BLE001 -- classified below
         if _is_transient(exc):
             raise LLMTransientError(f"{type(exc).__name__}: {exc}") from exc
