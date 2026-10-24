@@ -134,3 +134,13 @@ def test_analyst_followup_has_its_own_route_with_gemini_fallback(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     adapter = get_llm("analyst_followup")
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
+
+
+def test_every_marketing_studio_step_runs_on_gemini_with_room_to_think():
+    """24 Oct 2026: on gpt-oss the studio's tool calls came back empty (thinking used the whole 3,000-token budget,
+    finish_reason MAX_TOKENS, 0 output). Every studio step is on Gemini now, with budgets well above that."""
+    from app.adapters.llm import _TASK_ROUTES
+    from app.services.marketing_ai_service import MAX_TOKENS
+    studio = [t for t in _TASK_ROUTES if t.startswith("marketing_")]
+    assert studio and all(_TASK_ROUTES[t] == ("gemini", "gemini-3.6-flash") for t in studio)
+    assert all(MAX_TOKENS[t] >= 4000 for t in MAX_TOKENS)

@@ -135,8 +135,8 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `concierge_draft` · `marketing_content_premium` (owner opt-in; falls back to `marketing_content`) | Gemini | gemini-3.6-flash |
 | `lead_followup_draft` · `outcome_reason` (won/lost reason) | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
 | `assessment_narrative` · `analyst_brief` (AI analyst, 90 s) · `analyst_followup` (40 s) | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
-| `marketing_tagging` (creative tags, 45 s) · `marketing_insights` (weekly Insights text, 90 s) · `marketing_brief` · `marketing_deck` (90 s) | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
-| `marketing_audit` · `marketing_plan` · `marketing_content` · `marketing_research` · `marketing_review` · `marketing_brand_dna` · `marketing_review_reply` · `marketing_ota_copy` · `website_content` | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
+| Every Marketing Studio step: `marketing_audit` · `marketing_plan` · `marketing_content` · `marketing_research` · `marketing_review` · `marketing_brand_dna` · `marketing_review_reply` · `marketing_ota_copy` · `marketing_tagging` · `marketing_insights` · `marketing_brief` · `marketing_deck` (since 24 Oct 2026: gpt-oss came back empty, thinking used the whole budget; budgets in `marketing_ai_service.MAX_TOKENS` leave room for thinking; a reply with no tool output gets one more Gemini try) | Gemini | gemini-3.6-flash |
+| `website_content` | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
 
 Unknown task keys route to `fallback` (they previously defaulted to Claude,
 which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
