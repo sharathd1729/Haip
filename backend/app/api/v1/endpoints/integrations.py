@@ -17,6 +17,7 @@ from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
 from app.models.integration import Integration
 from app.models.tenant import Tenant
+from app.workers.tasks.meta_quality_poll import MetaQualitySnapshot   # module level so create_all sees the inline table
 from app.core.audit import append_audit
 from app.services import webhook_verify_service
 from app.schemas.integration import IntegrationOut, IntegrationConnectRequest, IntegrationHealthResponse
@@ -1096,7 +1097,6 @@ def get_meta_quality(
     S7 — Return the last `days` of Meta WABA quality snapshots for the tenant.
     Frontend uses these to render the quality trend chart.
     """
-    from app.workers.tasks.meta_quality_poll import MetaQualitySnapshot
     from datetime import timedelta
     from sqlalchemy import func
 

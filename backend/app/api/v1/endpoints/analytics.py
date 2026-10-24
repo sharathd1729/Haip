@@ -474,7 +474,7 @@ def agent_leaderboard(
 
     user_ids = [r.user_id for r in rows]
     users = {
-        str(u.id): u.full_name
+        str(u.id): u.name
         for u in db.query(UserModel).filter(UserModel.id.in_(user_ids)).all()
     }
 
