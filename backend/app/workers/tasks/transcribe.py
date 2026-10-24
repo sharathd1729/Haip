@@ -107,7 +107,7 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
         call.transcript_json = turns_dicts
         db.commit()
 
-        log.info("transcribe_done", call_id=call_id, turns=len(turns_dicts), provider=provider)
+        log.info("transcribe_done", call_id=call_id, turns=len(turns_dicts), provider=result.provider)
 
         # Chain: classify → judge → wrap_up (best-effort — fails gracefully if broker is down)
         try:
