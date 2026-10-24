@@ -179,7 +179,8 @@ def test_autopilot_sends_once(db, rzp):
     assert db.query(AuditEvent).filter_by(tenant_id=w.t.id, action="quote.sent").one().payload["actor"] == "ai_sales_agent"
     assert sales_action_service.deliver_autopilot(db, w.t.id, action.id) == {"status": "ignored"}
 
-    msg2 = _more(db, w, conv, "Great, thanks!")
+    # Not "Great, thanks!": a bare thank-you is an acknowledgement the concierge no longer drafts a reply to.
+    msg2 = _more(db, w, conv, "When will the quote reach me?")
     _, draft2, _, agent_send2 = _ask(db, w, conv, msg2, reply="Your quote is in the message above.")
     assert _sales_fact(draft2)["status"] == "quote_already_sent"
     agent_send2.assert_not_called()
