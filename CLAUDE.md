@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 24 Oct 2026 (Alembic head `177`)
+**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 25 Oct 2026 (Alembic head `177`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -111,7 +111,7 @@ Routing is **NVIDIA NIM-first**, except `concierge_draft` (guest replies): **Gem
 `call_scoring`, `lead_summary`, `daily_briefing`, `quick_classify`, `lead_stage_classify`, `outcome_reason`, `agent_*`, `deep_reason`, `assessment_narrative`)
 run on NVIDIA with a 30–120s limit and retry once on Gemini on error/timeout (needs
 `GEMINI_API_KEY`; without it, unchanged). Tradeoff: transcripts can reach Google during NVIDIA
-outages. A negative Gemini balance also disables this fallback.
+outages. A negative Gemini balance also disables this fallback. Gemini 400s ("invalid argument") on min/maxItems of object arrays: `_fit_gemini_schema` moves them to the description.
 
 Task keys below are the exact strings accepted by `get_llm(task)` — verified against
 `_TASK_ROUTES` in `backend/app/adapters/llm/__init__.py`. That dict is the source of

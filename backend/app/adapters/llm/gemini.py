@@ -66,7 +66,7 @@ def _anthropic_tool_to_gemini(tool: dict) -> dict:
 
     Gemini requires property types to be uppercase ("STRING", "NUMBER", "BOOLEAN", "ARRAY", "OBJECT").
     """
-    schema = _upcase_schema_types(tool.get("input_schema", {"type": "OBJECT", "properties": {}}))
+    schema = _fit_gemini_schema(_upcase_schema_types(tool.get("input_schema", {"type": "OBJECT", "properties": {}})))
     return {
         "function_declarations": [
             {
@@ -76,6 +76,44 @@ def _anthropic_tool_to_gemini(tool: dict) -> dict:
             }
         ]
     }
+
+
+# JSON-Schema keys Gemini's Schema proto does not have (it answers 400 to them); `const` becomes a one-value enum.
+_GEMINI_UNSUPPORTED = {"additionalProperties", "$schema", "$defs", "$id", "exclusiveMinimum", "exclusiveMaximum",
+                       "uniqueItems", "multipleOf", "examples"}
+
+
+def _fit_gemini_schema(node):
+    """Reduce an (already upcased) schema to what Gemini function declarations accept.
+
+    Confirmed live (24 Oct 2026, Marketing Studio weekly plan): Gemini answers a bare 400 "Request contains an
+    invalid argument." when an array of OBJECTS carries minItems/maxItems -- the plan's calendar (maxItems 62) and
+    the shoot brief (shots 3-20, hooks 5, posting_plan 2-16) failed, maxItems <= 20 passed, the same schema without
+    the bounds passed. Each bound multiplies the decoder's states. So those bounds move into the description (the
+    model still sees them) and the caller's Pydantic model enforces them on the result. Arrays of scalars keep theirs.
+    """
+    if isinstance(node, list):
+        return [_fit_gemini_schema(x) for x in node]
+    if not isinstance(node, dict):
+        return node
+    out = {}
+    for k, v in node.items():
+        if k in _GEMINI_UNSUPPORTED:
+            continue
+        if k == "const":
+            out["enum"] = [v]
+        elif k == "properties" and isinstance(v, dict):
+            out[k] = {name: _fit_gemini_schema(sub) for name, sub in v.items()}
+        else:
+            out[k] = _fit_gemini_schema(v)
+    items = out.get("items")
+    if out.get("type") == "ARRAY" and isinstance(items, dict) and items.get("type") == "OBJECT":
+        lo, hi = out.pop("minItems", None), out.pop("maxItems", None)
+        if lo is not None or hi is not None:
+            bound = (f"exactly {lo}" if lo == hi else f"{lo} to {hi}" if lo is not None and hi is not None
+                     else f"at least {lo}" if lo is not None else f"at most {hi}")
+            out["description"] = (out.get("description", "") + f" ({bound} items)").strip()
+    return out
 
 
 def _upcase_schema_types(schema: dict) -> dict:
@@ -213,8 +251,10 @@ class GeminiAdapter(LLMAdapter):
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(url, json=payload, headers=_auth_headers())
             if resp.status_code != 200:
+                # 2,000 chars so Google's `details` / `fieldViolations` (when it sends them) are not cut off.
                 log.error("gemini_api_error",
-                          status=resp.status_code, body=resp.text[:500], model=gemini_model)
+                          status=resp.status_code, body=resp.text[:2000], model=gemini_model,
+                          tools=[t.get("name") for t in tools or []])
                 resp.raise_for_status()
             data = resp.json()
 
