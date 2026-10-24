@@ -24,8 +24,7 @@ switch ($Part) {
     "beat" { Start-Logged $Backend "python -m celery -A app.workers.celery_app beat --loglevel=info -s `"$(Join-Path $LocalData 'celerybeat-schedule')`"" }
     "frontend" {
         # Checks for next itself: an interrupted first install leaves node_modules half-filled ("'next' is not recognized").
-        if (-not (Test-Path (Join-Path $Frontend "node_modules\.bin
-ext.cmd"))) { Push-Location $Frontend; npm ci --no-audit --no-fund; Pop-Location }
+        if (-not (Test-Path (Join-Path $Frontend "node_modules\.bin\next.cmd"))) { Push-Location $Frontend; npm ci --no-audit --no-fund; Pop-Location }
         # The browser talks to Next (3000), which proxies /api/v1 to the API; sign-in calls the API directly.
         $env:BACKEND_URL = "http://127.0.0.1:8000"
         $env:NEXT_PUBLIC_API_URL = "http://localhost:3000"
