@@ -146,3 +146,13 @@ def test_every_marketing_studio_step_runs_on_gemini_with_room_to_think():
     assert studio and all(_TASK_ROUTES[t] == ("gemini", "gemini-3.6-flash") for t in studio if t not in small)
     assert all(_TASK_ROUTES[t] == ("gemini", "gemini-3.1-flash-lite") for t in small)
     assert all(MAX_TOKENS[t] >= 4000 for t in MAX_TOKENS)
+
+
+def test_website_art_director_plans_on_flash_and_polishes_copy_on_flash_lite():
+    """Owner rule (W2): planning (sitemap, wireframe, style) on Gemini 3.6 Flash; a one-slot copy tweak is a small task and
+    runs on the low model. Both get output budgets that leave room for Gemini's thinking."""
+    from app.adapters.llm import _TASK_ROUTES
+    from app.services.marketing_ai_service import MAX_TOKENS
+    assert _TASK_ROUTES["website_plan"] == ("gemini", "gemini-3.6-flash")
+    assert _TASK_ROUTES["website_copy"] == ("gemini", "gemini-3.1-flash-lite")
+    assert MAX_TOKENS["website_plan"] >= 24000 and MAX_TOKENS["website_copy"] >= 4000

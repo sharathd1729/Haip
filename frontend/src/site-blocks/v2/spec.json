@@ -1,0 +1,45 @@
+{
+  "spec_version": 2,
+  "sections": {
+    "hero": {"label": "Hero", "variants": ["fullbleed-image", "split", "centered-minimal"], "source": "media:approved"},
+    "packages": {"label": "Packages", "variants": ["cards-3", "comparison", "feature"], "source": "business_data:packages"},
+    "itinerary": {"label": "Itinerary", "variants": ["timeline", "accordion", "day-cards"], "source": "business_data:itineraries"},
+    "gallery": {"label": "Gallery", "variants": ["masonry", "filmstrip", "grid"], "source": "media:approved"},
+    "reviews": {"label": "Reviews", "variants": ["quote-carousel", "grid", "rating-strip"], "source": "reviews:approved"},
+    "faq": {"label": "FAQ", "variants": ["accordion", "two-column", "compact"], "source": "knowledge:faq"},
+    "contact": {"label": "Contact and map", "variants": ["split", "card", "minimal"], "source": "site:contact"},
+    "booking-cta": {"label": "Booking call to action", "variants": ["sticky-bar", "banner", "inline-form"], "source": "site:contact"}
+  },
+  "palettes": {
+    "forest-amber": {"label": "Forest and amber", "ink": "#1B2420", "surface": "#F5F1E8", "primary": "#2F5D46", "accent": "#A8641C"},
+    "monsoon-slate": {"label": "Monsoon slate", "ink": "#162027", "surface": "#EEF1EE", "primary": "#28495A", "accent": "#B85A2E"},
+    "estate-olive": {"label": "Estate olive and brick", "ink": "#23241C", "surface": "#F4EFE3", "primary": "#4B5A2A", "accent": "#A4432C"},
+    "coast-sand": {"label": "Coast and sand", "ink": "#1A2531", "surface": "#F7F2EA", "primary": "#1D5C75", "accent": "#B9552F"},
+    "rani-indigo": {"label": "Rani pink and indigo", "ink": "#24192A", "surface": "#FBF5F0", "primary": "#8A2C57", "accent": "#3149A0"},
+    "lamp-night": {"label": "Ink blue and lamp gold", "ink": "#F2EBDD", "surface": "#121A2E", "primary": "#E3B14E", "accent": "#E58A6B"}
+  },
+  "fonts": {
+    "display": {
+      "fraunces": {"family": "Fraunces", "stack": "\"Fraunces\", Georgia, serif", "google": "Fraunces:ital,wght@0,400;0,600;1,400", "tracking": "-0.01em", "weight": 400},
+      "bricolage": {"family": "Bricolage Grotesque", "stack": "\"Bricolage Grotesque\", system-ui, sans-serif", "google": "Bricolage+Grotesque:wght@400;600", "tracking": "-0.025em", "weight": 600},
+      "instrument-serif": {"family": "Instrument Serif", "stack": "\"Instrument Serif\", Georgia, serif", "google": "Instrument+Serif:ital@0;1", "tracking": "-0.01em", "weight": 400},
+      "dm-serif": {"family": "DM Serif Display", "stack": "\"DM Serif Display\", Georgia, serif", "google": "DM+Serif+Display:ital@0;1", "tracking": "0em", "weight": 400},
+      "cormorant": {"family": "Cormorant Garamond", "stack": "\"Cormorant Garamond\", Georgia, serif", "google": "Cormorant+Garamond:ital,wght@0,500;0,600;1,500", "tracking": "0em", "weight": 600},
+      "playfair": {"family": "Playfair Display", "stack": "\"Playfair Display\", Georgia, serif", "google": "Playfair+Display:ital,wght@0,400;0,600;1,400", "tracking": "-0.01em", "weight": 400}
+    },
+    "body": {
+      "figtree": {"family": "Figtree", "stack": "\"Figtree\", system-ui, sans-serif", "google": "Figtree:wght@400;500;600"},
+      "inter": {"family": "Inter", "stack": "\"Inter\", system-ui, sans-serif", "google": "Inter:wght@400;500;600"},
+      "karla": {"family": "Karla", "stack": "\"Karla\", system-ui, sans-serif", "google": "Karla:wght@400;500;700"},
+      "manrope": {"family": "Manrope", "stack": "\"Manrope\", system-ui, sans-serif", "google": "Manrope:wght@400;500;600"},
+      "source-sans": {"family": "Source Sans 3", "stack": "\"Source Sans 3\", system-ui, sans-serif", "google": "Source+Sans+3:wght@400;600"},
+      "dm-sans": {"family": "DM Sans", "stack": "\"DM Sans\", system-ui, sans-serif", "google": "DM+Sans:wght@400;500;600"}
+    }
+  },
+  "radius": {
+    "soft": {"card": "18px", "button": "12px", "media": "14px"},
+    "sharp": {"card": "2px", "button": "2px", "media": "0px"},
+    "pill": {"card": "24px", "button": "999px", "media": "20px"}
+  },
+  "motion": ["calm"]
+}

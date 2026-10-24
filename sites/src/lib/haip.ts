@@ -1,5 +1,9 @@
 // Server-side access to the HAIP guest API. HAIP_API_URL is the internal API address (never sent to browsers).
 import type { LiveData, SiteEnv, Stay } from "@/site-blocks/types";
+import type { LiveDataV2 } from "@/site-blocks/v2/types";
+
+/** A published version is a v1 block document or a v2 SiteSpec (spec_version 2); isV2() tells them apart. */
+export type AnyLive = LiveData | LiveDataV2;
 
 export function apiRoot(): string {
   const raw = (process.env.HAIP_API_URL || "http://localhost:8000").replace(/\/$/, "");
@@ -18,7 +22,7 @@ export function siteHost(headerHost: string | null): string {
   return h;
 }
 
-export async function getLive(host: string): Promise<LiveData | null> {
+export async function getLive(host: string): Promise<AnyLive | null> {
   const r = await fetch(`${apiRoot()}/public/sites/${encodeURIComponent(host)}/bootstrap`,
     { next: { revalidate: 300, tags: [`site:${host}`] } });
   if (r.status === 404) return null;
@@ -26,7 +30,7 @@ export async function getLive(host: string): Promise<LiveData | null> {
   return r.json();
 }
 
-export async function getPreview(token: string): Promise<LiveData | null> {
+export async function getPreview(token: string): Promise<AnyLive | null> {
   const r = await fetch(`${apiRoot()}/public/preview/${encodeURIComponent(token)}/bootstrap`, { cache: "no-store" });
   return r.ok ? r.json() : null;
 }
@@ -38,7 +42,7 @@ export async function getStay(host: string, slug: string, preview?: string): Pro
   return r.ok ? r.json() : null;
 }
 
-export function envFor(live: LiveData, opts: { mode: "live" | "preview"; base: string; query: Record<string, string>; stay?: Stay | null; mediaBase: string }): SiteEnv {
+export function envFor(live: Pick<LiveData, "assets">, opts: { mode: "live" | "preview"; base: string; query: Record<string, string>; stay?: Stay | null; mediaBase: string }): SiteEnv {
   const assets: SiteEnv["assets"] = {};
   for (const [id, a] of Object.entries(live.assets)) assets[id] = { src: `${opts.mediaBase}/${id}`, alt: a.alt };
   return { mode: opts.mode, base: opts.base, apiBase: opts.mode === "live" ? "/_haip/api" : null, assets, stay: opts.stay ?? null, query: opts.query };

@@ -59,11 +59,21 @@ def usable_assets(db: Session, tenant_id: str, ids: set[str]) -> set[str]:
     return {r[0] for r in rows}
 
 
+def normalise(doc: dict) -> dict:
+    """The document as validation would store it: v2 specs strictly (website_spec_service), v1 block docs as before."""
+    from app.services import website_spec_service as wspec
+    return wspec.validate(doc) if wspec.is_v2(doc) else wb.validate_doc(doc)[0]
+
+
 def clean_for_tenant(db: Session, tenant_id: str, doc: dict) -> tuple[dict, list[str]]:
-    clean, problems = wb.validate_doc(doc)
+    from app.services import website_spec_service as wspec
+    v2 = wspec.is_v2(doc)
+    clean, problems = (wspec.validate(doc), []) if v2 else wb.validate_doc(doc)
     ids = wb.asset_ids(clean)
     keep = usable_assets(db, tenant_id, ids)
     removed = wb.strip_assets(clean, keep)
+    if removed and v2:
+        clean = wspec.validate(clean)      # an emptied photo slot becomes "none" again
     if removed:
         problems.append(f"{removed} photo{'s' if removed != 1 else ''} not in your approved library {'were' if removed != 1 else 'was'} removed")
     return clean, problems
@@ -148,7 +158,11 @@ def publish(db: Session, site: Site, version_id: str, actor: User, seen_sha256: 
     v = get_version(db, site, version_id)
     if seen_sha256 and seen_sha256 != v.sha256:
         raise WebsiteError(409, "version_changed", "This version changed since you looked at it.")
-    if wb.validate_doc(v.doc)[0] != v.doc or sha_of(v.doc) != v.sha256:
+    try:
+        intact = normalise(v.doc) == v.doc
+    except WebsiteError:
+        intact = False
+    if not intact or sha_of(v.doc) != v.sha256:
         raise WebsiteError(409, "integrity_failed", "This version failed its integrity check and can't be published.")
     if v.status == "draft":
         if v.id != site.draft_version_id or _role(actor) != "owner":
@@ -221,6 +235,9 @@ def history(db: Session, site: Site, limit: int = 30) -> list[dict]:
 
 def checks(db: Session, site: Site, doc: dict) -> list[dict]:
     """The publish checklist. level "block" stops publishing; "warn" is shown but allowed."""
+    from app.services import website_spec_service as wspec
+    if wspec.is_v2(doc):
+        return wspec.checks(db, site, doc)
     from app.models.tenant import Tenant
     from app.services import business_data_service as bds
     from app.services.invoice_service import get_profile

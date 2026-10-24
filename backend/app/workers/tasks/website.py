@@ -1,6 +1,7 @@
 """Website builder background work (exact-name routes in celery_app.py).
 
   website.ai_job          AI developer run (queue default). Only a transient provider error is retried (2x, backoff).
+  website.builder_step    art director step: sitemap / wireframe / style / copy (website_builder_ai.run), same retries.
   website.after_booking   confirmation email + WhatsApp + staff push + GST invoice after a paid website booking (whatsapp).
   website.expire_holds    every 5 min: lapsed holds free their dates; their Razorpay links are cancelled best-effort.
   website.verify_domains  hourly: pending custom domains re-check DNS.
@@ -33,6 +34,32 @@ def _tenant_ids() -> list[str]:
             if db.query(Site.id).filter(Site.tenant_id == tid).first():
                 out.append(tid)
     return out
+
+
+@shared_task(name="website.builder_step", bind=True, max_retries=MAX_RETRIES)
+def builder_step(self, tenant_id: str, job_id: str):
+    from app.services import website_builder_ai as ai
+    from app.services import website_builder_service as wbs
+    from app.services.marketing_ai_service import LLMTransientError
+
+    with SessionLocal() as db:
+        set_tenant_context(db, tenant_id)
+        try:
+            ai.run(db, tenant_id, job_id)
+            db.commit()
+        except LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            set_tenant_context(db, tenant_id)
+            wbs.mark_failed(db, tenant_id, job_id, "The AI service is busy right now. Try again in a few minutes.")
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 -- never leave a step stuck in running
+            db.rollback()
+            set_tenant_context(db, tenant_id)
+            wbs.mark_failed(db, tenant_id, job_id, f"The art director hit a problem ({type(exc).__name__}). Try again.")
+            db.commit()
+            log.exception("website_builder_step_crashed", tenant_id=tenant_id, job_id=job_id)
 
 
 @shared_task(name="website.ai_job", bind=True, max_retries=MAX_RETRIES)
