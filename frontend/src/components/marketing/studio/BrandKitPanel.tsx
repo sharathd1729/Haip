@@ -9,7 +9,7 @@ import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui/kit";
-import { STUDIO, btnPrimary, inputCls, studioError, type Asset } from "./types";
+import { STUDIO, btn, btnPrimary, inputCls, studioError, type Asset } from "./types";
 
 interface Kit { logo_asset_id: string | null; primary: string | null; accent: string | null; font: "plain" | "sans" | "serif"; logo_position: "top_left" | "top_right" | "none" }
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -37,11 +37,19 @@ export function BrandKitPanel() {
   const media = useQuery<Asset[]>({ queryKey: ["studio-media"], queryFn: () => api.get(`${STUDIO}/media`).then(r => r.data), staleTime: 60_000 });
   const writer = useQuery<{ model: string }>({ queryKey: ["studio-creative-model"], queryFn: () => api.get(`${STUDIO}/creative-model`).then(r => r.data) });
   const [kit, setKit] = useState<Kit | null>(null);
+  const [suggestedFrom, setSuggestedFrom] = useState<"website" | "logo" | null>(null);
   useEffect(() => { if (q.data) setKit(q.data); }, [q.data]);
   const save = useMutation({
     mutationFn: () => api.put(`${STUDIO}/brand-kit`, kit),
     onSuccess: r => { qc.setQueryData(["studio-brand-kit"], r.data); toast({ variant: "success", title: "Brand kit saved", description: "New drafts use it; approved posts keep their look." }); },
     onError: e => toast({ variant: "error", title: "Not saved", description: studioError(e, "Check the colours (#RRGGBB).") }),
+  });
+  // A suggestion only: it fills the form; nothing is stored until Save.
+  const suggest = useMutation({
+    mutationFn: () => api.post(`${STUDIO}/brand-kit/suggest`, { logo_asset_id: kit?.logo_asset_id ?? null })
+      .then(r => r.data as Pick<Kit, "primary" | "accent" | "font"> & { source: "website" | "logo" }),
+    onSuccess: d => { setKit(k => k && { ...k, primary: d.primary, accent: d.accent, font: d.font }); setSuggestedFrom(d.source); },
+    onError: e => toast({ variant: "error", title: "No suggestion", description: studioError(e, "Pick a logo first.") }),
   });
   const setWriter = useMutation({
     mutationFn: (model: string) => api.put(`${STUDIO}/creative-model`, { model }),
@@ -72,6 +80,13 @@ export function BrandKitPanel() {
               </span>
               <span className="block text-xs text-[var(--haip-fg-subtle)]">Upload it to the library first; a PNG keeps its transparent background. It is never used as a post photo.</span>
             </label>
+            {canEdit && (
+              <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+                <button type="button" className={btn} disabled={suggest.isPending} onClick={() => suggest.mutate()}>
+                  {suggest.isPending ? "Reading…" : "Fill from my website / logo"}</button>
+                {suggestedFrom && <span className="text-xs text-[var(--haip-fg-subtle)]">Suggested from your {suggestedFrom}. Check the colours, then Save.</span>}
+              </div>
+            )}
             <Colour label="Brand colour" value={kit.primary} onChange={v => setKit({ ...kit, primary: v })} />
             <Colour label="Accent (buttons and bars)" value={kit.accent} onChange={v => setKit({ ...kit, accent: v })} />
             <label className="space-y-1">
