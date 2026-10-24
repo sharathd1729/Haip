@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from contextlib import asynccontextmanager
 from app.core.config import settings
+from app.core import fake_services
 from app.core.database import engine, Base
 from app.core.logging import configure_logging
 from app.core.tenancy import tenant_context_middleware
@@ -148,6 +149,10 @@ app.middleware("http")(request_id_middleware)         # inner
 app.middleware("http")(tenant_context_middleware)     # sets tenant_id on request.state
 
 app.include_router(api_router)
+# Local test mode only: fakes outbound calls and adds /dev/outbox + /dev/media. Absent (404) everywhere else.
+fake_services.install_if_enabled()
+if fake_services.enabled():
+    app.include_router(fake_services.build_router())
 app.include_router(mcp_router)
 app.include_router(mcp_oauth_router)
 # Public, API-key authenticated API with its own OpenAPI file and docs (/api/public/v1/docs)

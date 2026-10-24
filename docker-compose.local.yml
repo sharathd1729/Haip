@@ -1,0 +1,38 @@
+# Local test environment (docs/LOCAL_TESTING.md). Started by scripts/local/start.ps1.
+# Odd ports (55432 / 56379) so it never collides with a Postgres or Redis already installed on the laptop.
+# Bound to 127.0.0.1 only: nothing on the network can reach the local database.
+name: haip-local
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: haip_local_pg
+    environment:
+      POSTGRES_USER: haip
+      POSTGRES_PASSWORD: haip
+      POSTGRES_DB: haip_local
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - haip_local_pg:/var/lib/postgresql/data
+      - ./.local-data/dumps:/dumps
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U haip -d haip_local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: haip_local_redis
+    ports:
+      - "127.0.0.1:56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  haip_local_pg:
+    name: haip_local_pg

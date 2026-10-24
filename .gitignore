@@ -57,3 +57,8 @@ uvicorn_*.txt
 
 # Agent bench reports (scripts/agent_bench.py --out)
 agent_bench_reports/
+
+# Local test environment (docs/LOCAL_TESTING.md): outbox, local file store, production dumps -- never commit
+.local-data/
+*.dump
+!backend/.env.local.example
