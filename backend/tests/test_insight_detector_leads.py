@@ -7,6 +7,8 @@ with a usable phone number (guests.lead_identified_at); these tests pin that onl
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource, InquiryStage
 from app.models.insight import Insight
@@ -14,6 +16,14 @@ from app.models.tenant import Tenant
 from app.services.insight_detector import detect_A1, detect_A2
 
 NOW = datetime.now(timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_now():
+    """NOW is set at import (collection); a full run reaches these tests 30+ min later, ageing every "N minutes ago" past
+    its threshold. Re-read the clock per test."""
+    global NOW
+    NOW = datetime.now(timezone.utc)
 
 
 def _tenant(db):

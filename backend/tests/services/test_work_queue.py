@@ -7,6 +7,8 @@ read the same numbers as the queue.
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.models.call import Call, CallDirection
 from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
@@ -18,6 +20,14 @@ from app.models.user import User, UserRole
 from app.services import dashboard_service, work_queue_service as wq
 
 NOW = datetime.now(timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_now():
+    """NOW is set at import (collection); a full run reaches these tests 30+ min later, ageing every "N minutes ago" past
+    its threshold. Re-read the clock per test."""
+    global NOW
+    NOW = datetime.now(timezone.utc)
 
 
 def _tenant(db):

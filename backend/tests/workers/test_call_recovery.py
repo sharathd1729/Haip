@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy.orm import Session as SASession
 
 from app.models.call import Call, CallDirection
@@ -17,6 +18,14 @@ from app.workers.tasks import call_recovery as rec
 from app.workers.tasks.judge import judge
 
 NOW = datetime.now(timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_now():
+    """NOW is set at import (collection); a full run reaches these tests 30+ min later, ageing every "N minutes ago" past
+    its threshold. Re-read the clock per test."""
+    global NOW
+    NOW = datetime.now(timezone.utc)
 
 
 def _tenant(db):
