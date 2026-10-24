@@ -113,13 +113,23 @@ def free_nights(db: Session, tenant_id: str, start: date, end: date) -> dict[str
     for prop in props:
         if is_placeholder_name(prop.name):
             continue
-        nights, d = [], start
-        while d < end:
-            if calculator_service.is_open(db, tenant_id, str(prop.id), d.isoformat(), (d + timedelta(days=1)).isoformat()):
-                nights.append(d)
-            d += timedelta(days=1)
-        out[prop.name] = nights
+        out[prop.name] = _open_nights(lambda a, b, pid=str(prop.id): calculator_service.is_open(
+            db, tenant_id, pid, a.isoformat(), b.isoformat()), start, end)
     return out
+
+
+def _open_nights(is_open, start: date, end: date) -> list[date]:
+    """Nights in [start, end) where is_open(night, night+1) holds. A range that is open is open on every night in it,
+    so only booked stretches are split: a mostly free calendar takes a few checks, not one per night (QA 25 Oct 2026:
+    ~344 queries and 2-8 s per /marketing/studio/demand call)."""
+    if start >= end:
+        return []
+    if is_open(start, end):
+        return [start + timedelta(days=i) for i in range((end - start).days)]
+    if (end - start).days == 1:
+        return []
+    mid = start + timedelta(days=(end - start).days // 2)
+    return _open_nights(is_open, start, mid) + _open_nights(is_open, mid, end)
 
 
 def windows(lws: list[dict], occ: list[dict], start: date, end: date) -> list[dict]:

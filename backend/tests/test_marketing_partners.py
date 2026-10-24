@@ -69,7 +69,7 @@ def test_free_dates_are_open_runs_of_nights(db, ws):  # noqa: F811
     _vehicle(db, ws["tenant"].id)
     today = date(2026, 11, 2)
     taken = {"2026-11-07", "2026-11-08"}
-    with patch("app.services.calculator_service.calculator_service.is_open", side_effect=lambda d, t, p, a, b: a not in taken):
+    with patch("app.services.calculator_service.calculator_service.is_open", side_effect=lambda d, t, p, a, b: not any(a <= n < b for n in taken)):   # range check, like the real one
         got = creators.free_windows(db, ws["tenant"], nights=2, horizon=12, today=today)
     assert [(w["check_in"], w["check_out"], w["free_nights"]) for w in got] == [
         ("2026-11-05", "2026-11-07", 2), ("2026-11-09", "2026-11-11", 5)]   # 9-13 Nov; the horizon ends on the 14th

@@ -180,7 +180,7 @@ def test_free_nights_use_the_booking_availability_check(db, ws):  # noqa: F811
     db.commit()
     start = date(2026, 11, 1)
     with patch("app.services.calculator_service.calculator_service.is_open",
-               side_effect=lambda db_, t, p, a, b: a != "2026-11-02"):
+               side_effect=lambda db_, t, p, a, b: not (a <= "2026-11-02" < b)):   # a range check, like the real one
         free = demand.free_nights(db, tid, start, start + timedelta(days=4))
     assert free == {"Ratha 1": [date(2026, 11, 1), date(2026, 11, 3), date(2026, 11, 4)]}
 
@@ -250,3 +250,21 @@ def test_brand_draft_endpoints_queue_once_and_need_edit(client, db, ws, monkeypa
     assert r.status_code == 202 and r.json()["status"] == "pending" and queued == [(ws["tenant"].id,)]
     assert client.post(f"{BASE}/profile/draft", headers=ws["mkt_h"]).status_code == 409
     assert client.get(f"{BASE}/profile/draft", headers=ws["mkt_h"]).json()["status"] == "pending"
+
+
+def test_open_nights_matches_a_per_night_check_with_far_fewer_calls():
+    from datetime import date, timedelta
+    from app.services.marketing_demand import _open_nights
+    start, end = date(2026, 11, 1), date(2027, 1, 30)
+    booked = {start + timedelta(days=i) for i in (3, 4, 40, 88)}
+    calls = []
+
+    def is_open(a, b):
+        calls.append((a, b))
+        return not any(a + timedelta(days=i) in booked for i in range((b - a).days))
+
+    got = _open_nights(is_open, start, end)
+    want = [start + timedelta(days=i) for i in range((end - start).days) if start + timedelta(days=i) not in booked]
+    assert got == want
+    assert len(calls) < 60          # per night it was 90
+    assert _open_nights(is_open, end, end) == []
