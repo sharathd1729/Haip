@@ -151,6 +151,12 @@ def _upcase_schema_types(schema: dict) -> dict:
     return result
 
 
+def _billed_output(usage: dict) -> int:
+    """Output tokens Google bills: the answer plus the model's thinking. candidatesTokenCount alone left out the
+    thinking, often 1-3k tokens a call on gemini-3.6-flash (live, 24 Oct 2026), so usage_events undercounted cost."""
+    return (usage.get("candidatesTokenCount") or 0) + (usage.get("thoughtsTokenCount") or 0)
+
+
 def _extract_json(text: str) -> dict:
     """
     Robustly extract the first JSON object from a string.
@@ -316,7 +322,7 @@ class GeminiAdapter(LLMAdapter):
                     return {
                         "content": raw_retry, "tool_use": tool_use_retry,
                         "input_tokens": usage_meta2.get("promptTokenCount", 0),
-                        "output_tokens": usage_meta2.get("candidatesTokenCount", 0),
+                        "output_tokens": _billed_output(usage_meta2),
                         "model": retry_model,
                     }
             # Retry 2: plain text JSON fallback (no FC, no JSON mode)
@@ -344,7 +350,7 @@ class GeminiAdapter(LLMAdapter):
         # Usage metadata
         usage_meta = data.get("usageMetadata", {})
         input_tokens  = usage_meta.get("promptTokenCount", 0)
-        output_tokens = usage_meta.get("candidatesTokenCount", 0)
+        output_tokens = _billed_output(usage_meta)
 
         cost_usd = 0.0
         log.info("gemini_call_completed",
@@ -408,13 +414,13 @@ class GeminiAdapter(LLMAdapter):
         usage_meta = data.get("usageMetadata", {})
         tool_use = _extract_json(raw_text) if raw_text else None
         log.info("gemini_json_fallback_done", model=gemini_model,
-                 output_tokens=usage_meta.get("candidatesTokenCount", 0),
+                 output_tokens=_billed_output(usage_meta),
                  parsed=bool(tool_use))
         return {
             "content":       raw_text,
             "tool_use":      tool_use,
             "input_tokens":  usage_meta.get("promptTokenCount", 0),
-            "output_tokens": usage_meta.get("candidatesTokenCount", 0),
+            "output_tokens": _billed_output(usage_meta),
             "model":         gemini_model,
         }
 

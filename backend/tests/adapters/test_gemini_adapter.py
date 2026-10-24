@@ -196,3 +196,12 @@ class TestMalformedFunctionCallFallbackChain:
             )
 
         assert result["tool_use"] == {"reply": "Recovered via fallback."}
+
+
+def test_billed_output_counts_thinking_tokens():
+    """gemini-3.6-flash thinks before answering and Google bills those tokens as output; leaving them out undercounted
+    every usage_events cost estimate (live, 24 Oct 2026: ~1-3k thinking tokens a call)."""
+    from app.adapters.llm.gemini import _billed_output
+    assert _billed_output({"candidatesTokenCount": 400, "thoughtsTokenCount": 1200}) == 1600
+    assert _billed_output({"candidatesTokenCount": 400}) == 400
+    assert _billed_output({}) == 0
