@@ -253,3 +253,15 @@ def test_the_revenue_report_is_missing_from_the_catalog_of_roles_without_revenue
     assert "revenue" in ids("owner") and "revenue" in ids("manager")
     assert "revenue" not in ids("compliance")           # compliance runs most reports but holds no revenue capability
     assert "calls" in ids("compliance")                  # ...and keeps the rest
+
+
+def test_the_legacy_guest_timeline_shows_a_stay_amount_only_with_bookings_read(client, world):
+    """QA 25 Oct 2026: /guests/{id}/timeline returned every stay's amount to every role."""
+    path = f"/api/v1/guests/{world['stay'].guest_id}/timeline"
+    for role, (_, headers) in world["users"].items():
+        r = client.get(path, headers=headers)
+        assert r.status_code == 200, f"timeline as {role}"
+        stay = next(e for e in r.json()["events"] if e["type"] == "stay")
+        assert stay["data"]["amount"] == (48500.0 if role in BOOKINGS_READ else None), f"timeline as {role}"
+        if role not in BOOKINGS_READ:
+            assert "48500" not in r.text
