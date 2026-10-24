@@ -14,7 +14,7 @@ import { HealthChecks } from "@/components/analyst/HealthChecks";
 import { DemandMoney, ReasonsPanels, TeamTable, WorkingPanels } from "@/components/analyst/BriefPanels";
 import { Recommendations } from "@/components/analyst/Recommendations";
 import { ChangesBoard } from "@/components/analyst/ChangesBoard";
-import { KIND_LABEL, STATUS_TONE, periodText, type Kind, type Report, type ReportSummary } from "@/components/analyst/types";
+import { KIND_LABEL, STATUS_TONE, periodText, FOLLOWUP_FAILURE, type Kind, type Report, type ReportSummary } from "@/components/analyst/types";
 
 const KINDS: Kind[] = ["daily_pulse", "weekly_brief", "monthly_review"];
 const input = "min-h-[44px] w-full rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] text-[var(--haip-fg)] outline-none focus-visible:ring-2 focus-visible:ring-primary sm:text-sm";
@@ -40,7 +40,7 @@ function AskBox({ report }: { report: Report }) {
           {report.followups.map(f => (
             <li key={f.id} className="rounded-xl bg-[var(--haip-surface)] p-3 text-sm">
               <p className="font-semibold text-[var(--haip-fg)]">{f.question}</p>
-              <p className="mt-1 text-[var(--haip-fg-muted)]">{f.status === "queued" ? "Thinking…" : f.status === "failed" ? "Couldn't answer. Ask again." : f.answer}</p>
+              <p className="mt-1 text-[var(--haip-fg-muted)]">{f.status === "queued" ? "Thinking…" : f.status === "failed" ? (f.reason && FOLLOWUP_FAILURE[f.reason]) || "Couldn't answer. Ask again." : f.answer}</p>
             </li>
           ))}
         </ul>
