@@ -27,6 +27,7 @@ from datetime import date, datetime
 from statistics import median
 from typing import Optional
 
+import structlog
 from sqlalchemy.orm import Session
 
 from app.models.guest import Guest
@@ -36,6 +37,8 @@ from app.models.lead_workflow import LeadJourney
 from app.models.pipeline_stage import PipelineStage
 from app.services import kpi_metrics, lead_metrics, lead_outcome_report
 from app.services.work_queue_service import SLA_MINUTES
+
+log = structlog.get_logger()
 
 STEPS = ("enquiries", "with_phone", "qualified", "contacted", "quote_sent", "booked")
 
@@ -53,6 +56,17 @@ def _med(values: list) -> Optional[int]:
 
 def _rate(x: int, n: int) -> Optional[float]:
     return round(x / n, 4) if n else None
+
+
+def safe_build(db: Session, tenant, d_from: date, d_to: date, lo: datetime, hi: datetime) -> dict:
+    """build(), or {"unavailable": True} when it fails: context for the brief / follow-up, never a reason to fail them."""
+    try:
+        with db.begin_nested():     # a savepoint: a failed query must not poison (or roll back) the caller's transaction
+            return build(db, tenant, d_from, d_to, lo, hi)
+    except Exception as exc:  # noqa: BLE001
+        log.error("analyst_conversion_failed", tenant_id=getattr(tenant, "id", None), period_from=d_from.isoformat(),
+                  error=type(exc).__name__, detail=str(exc)[:200])
+        return {"unavailable": True}
 
 
 def build(db: Session, tenant, d_from: date, d_to: date, lo: datetime, hi: datetime) -> dict:

@@ -182,3 +182,18 @@ def test_why_question_on_an_older_report_uses_conversion_computed_on_demand(db):
     assert got["status"] == "answered" and got["dropped"] == 1 and "37" not in got["answer"]
     assert got["answer"].startswith("Of 4 enquiries only 1 was contacted") and got["prompt_version"] == "analyst-followup-v2"
     assert "conversion" not in r.facts           # the stored facts are not rewritten
+
+
+def test_conversion_failure_never_fails_the_report_or_the_followup(db):
+    """work_queue_service.counts (or anything in the block) raising: the report is still written with conversion marked
+    unavailable, and a follow-up is still answered (the block retried, still unavailable, the model told so)."""
+    _audit_table(db)
+    w = world(db)
+    with patch("app.services.work_queue_service.counts", side_effect=RuntimeError("boom")):
+        r = _report(db, w)
+        assert r.status == "ready" and r.facts["conversion"] == {"unavailable": True}
+        llm = _Seq(json.dumps({"answer": "2 new leads came in; conversion data is unavailable for this report."}))
+        got = _ask(db, w, r, "Why are leads not converting?", llm)
+    assert got["status"] == "answered" and "unavailable" in got["answer"]
+    assert json.loads(llm.calls[0]["user_message"])["facts"]["conversion"] == {"unavailable": True}
+    assert "unavailable" in llm.calls[0]["system_prompt"]

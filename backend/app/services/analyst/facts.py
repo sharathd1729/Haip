@@ -55,7 +55,7 @@ def build(db: Session, tenant, kind: str, today: date, *, lessons: Optional[list
         "findings": detected["findings"][:10], "watch": detected["watch"], "steady": [f["metric"] for f in detected["steady"]],
         "lessons": lessons or [],
         "last_week_followup": last_followup or {},
-        "conversion": conversion.build(db, tenant, cur_w.d_from, cur_w.d_to, lo, hi),
+        "conversion": conversion.safe_build(db, tenant, cur_w.d_from, cur_w.d_to, lo, hi),
     }
     facts["health"] = health.build(db, tenant.id, lo, hi, facts)
     return _strip(facts)
