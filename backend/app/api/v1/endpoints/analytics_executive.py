@@ -153,7 +153,7 @@ def executive_dashboard(
         # Vobiz for Ratha) must stay out of every calls-derived executive
         # number, matching dashboard.py/widget_service.py's same filter.
         if tenant and tenant.ivr_provider:
-            q = q.filter(Call.ivr_provider == tenant.ivr_provider)
+            q = q.filter(Call.shown_for(tenant.ivr_provider))
         if prop_ids:
             q = q.filter(Call.property_id.in_(prop_ids))
         return round(float(q.scalar() or 0), 1)

@@ -389,7 +389,7 @@ def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, unti
     # see the matching comment in _totals() for the full rationale.
     tenant = db.query(Tenant).filter_by(id=tenant_id).first()
     if tenant and tenant.ivr_provider:
-        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
+        q = q.filter(Call.shown_for(tenant.ivr_provider))
     # started_at is a String column -- ISO string comparison, never a cast.
     if since is not None:
         q = q.filter(Call.started_at >= _iso(since))
@@ -510,7 +510,7 @@ def _totals(
     # automatically for Jade (acefone) and any future provider migration.
     tenant = db.query(Tenant).filter_by(id=tenant_id).first()
     if tenant and tenant.ivr_provider:
-        missed_q = missed_q.filter(Call.ivr_provider == tenant.ivr_provider)
+        missed_q = missed_q.filter(Call.shown_for(tenant.ivr_provider))
     if since is not None:
         dms_q = dms_q.filter(Message.created_at >= since)
         missed_q = missed_q.filter(Call.started_at >= _iso(since))

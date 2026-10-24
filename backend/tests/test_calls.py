@@ -75,10 +75,10 @@ def test_get_call_not_found(client, tenant_and_user):
     assert res.status_code == 404
 
 
-def _make_call(db, tenant_id):
+def _make_call(db, tenant_id, provider="callerdesk"):
     from app.models.call import Call, CallDirection
     call = Call(
-        id=str(uuid.uuid4()), tenant_id=tenant_id, ivr_provider="callerdesk",
+        id=str(uuid.uuid4()), tenant_id=tenant_id, ivr_provider=provider,
         ivr_call_id=f"cd-{uuid.uuid4().hex[:8]}", direction=CallDirection.INBOUND,
         from_number="+918012345678", to_number="+919876543210", duration_seconds=120,
     )
@@ -131,3 +131,24 @@ def test_disposition_cannot_touch_another_tenants_call(client, tenant_and_user, 
     assert res.status_code == 404
     db.refresh(call)
     assert call.human_disposition is None
+
+
+def test_uploaded_and_hand_logged_calls_stay_visible_next_to_the_active_ivr(client, tenant_and_user, db):
+    """QA 25 Oct 2026: a recording uploaded on the Calls page (ivr_provider "manual") was hidden from the list AND 404'd on
+    its own page for any tenant with an active IVR, because only that IVR's calls were shown. HAIP's own calls (manual,
+    upload) now show; a disconnected IVR's history stays hidden; another tenant's call is still a 404."""
+    from app.models.tenant import Tenant
+    tenant = tenant_and_user["tenant"]
+    tenant.ivr_provider = "vobiz"
+    db.commit()
+    auth = {"Authorization": f"Bearer {tenant_and_user['access_token']}"}
+    ivr, manual, upload, old = (_make_call(db, tenant.id, p) for p in ("vobiz", "manual", "upload", "mcube"))
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"other-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)
+    db.flush()
+    foreign = _make_call(db, other.id, "manual")
+
+    listed = {c["id"] for c in client.get("/api/v1/calls", headers=auth).json()["items"]}
+    assert listed == {ivr.id, manual.id, upload.id}
+    for call, code in ((manual, 200), (upload, 200), (old, 404), (foreign, 404)):
+        assert client.get(f"/api/v1/calls/{call.id}", headers=auth).status_code == code

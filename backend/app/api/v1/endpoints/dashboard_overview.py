@@ -148,7 +148,7 @@ def dashboard_overview(
         # naturally excluded -- no cast, no crash.
         call_q = db.query(Call).filter(Call.tenant_id == tid, Call.started_at >= rs, Call.started_at <= re_)
         if tenant and tenant.ivr_provider:
-            call_q = call_q.filter(Call.ivr_provider == tenant.ivr_provider)
+            call_q = call_q.filter(Call.shown_for(tenant.ivr_provider))
         if scope_user_id:
             call_q = call_q.filter(Call.agent_id == scope_user_id)
         if property_id:
@@ -198,7 +198,7 @@ def dashboard_overview(
     # comparison is KPI-row-only in V1, matching the plan's scope).
     call_q = db.query(Call).filter(Call.tenant_id == tid, Call.started_at >= range_start, Call.started_at <= range_end)
     if tenant and tenant.ivr_provider:
-        call_q = call_q.filter(Call.ivr_provider == tenant.ivr_provider)
+        call_q = call_q.filter(Call.shown_for(tenant.ivr_provider))
     if scope_user_id:
         call_q = call_q.filter(Call.agent_id == scope_user_id)
     if property_id:

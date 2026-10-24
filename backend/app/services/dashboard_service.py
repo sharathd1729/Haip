@@ -141,7 +141,7 @@ def daily_series(db: Session, tenant, scope_user_id: Optional[str], d_from: str,
 
     call_q = db.query(Call).filter(Call.tenant_id == tid, Call.created_at >= start, Call.created_at <= end)
     if tenant.ivr_provider:
-        call_q = call_q.filter(Call.ivr_provider == tenant.ivr_provider)
+        call_q = call_q.filter(Call.shown_for(tenant.ivr_provider))
     if scope_user_id:
         call_q = call_q.filter(Call.agent_id == scope_user_id)
     inbound, answered = defaultdict(int), defaultdict(int)
