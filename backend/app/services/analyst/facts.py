@@ -1,5 +1,5 @@
 """Build the FACTS for one report: every number the brief may use, computed in code (metrics_funnel, metrics_ops), compared
-(findings) and checked (health). The model only ever sees this JSON; the number-grounding check (grounding.py) reads it too.
+(findings) and checked (health), plus where the period's enquiries went (conversion). The model only ever sees this JSON; the number-grounding check (grounding.py) reads it too.
 
 Keys starting with "_" are working data (record ids for evidence, raw amounts) and are removed before the facts are stored.
 """
@@ -10,7 +10,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.services.analyst import findings, health, metrics_funnel, metrics_ops
+from app.services.analyst import conversion, findings, health, metrics_funnel, metrics_ops
 from app.services.analyst.periods import Window, windows
 
 KIND_LABELS = {"daily_pulse": "Daily pulse", "weekly_brief": "Weekly brief", "monthly_review": "Monthly review"}
@@ -55,6 +55,7 @@ def build(db: Session, tenant, kind: str, today: date, *, lessons: Optional[list
         "findings": detected["findings"][:10], "watch": detected["watch"], "steady": [f["metric"] for f in detected["steady"]],
         "lessons": lessons or [],
         "last_week_followup": last_followup or {},
+        "conversion": conversion.safe_build(db, tenant, cur_w.d_from, cur_w.d_to, lo, hi),
     }
     facts["health"] = health.build(db, tenant.id, lo, hi, facts)
     return _strip(facts)

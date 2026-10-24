@@ -22,6 +22,13 @@ back automatically if worse; proven lessons are remembered and fed back. Master 
    the first message, group size. Team per person, AI scorecard, demand (routes asked, unavailable asks such as Goa / Kerala,
    check-in coverage) and pricing signals (`metrics_ops.py`). Existing KPI definitions are reused, never restated (catalogue
    section 17 lists the new ones).
+   Conversion (`conversion.py`, `facts.conversion`): ONE cohort, the period's guest enquiries -> with phone -> qualified ->
+   contacted by a person -> quote sent -> booked (each step counted on its own), by source; open leaks (nobody contacted,
+   never quoted, quoted with no follow-up) and the stage they sit in; median minutes to first contact / quote and the share
+   contacted within the new-lead SLA; won / lost reasons of leads closed in the period, confirmed apart from AI-proposed;
+   open quote value; people waiting on us now. Every step reuses lead_metrics / lead_journeys / lead_outcome_report /
+   work_queue_service. "Ask a follow-up" (`ask.py`, route `analyst_followup`, prompt `analyst-followup-v2`) computes it on
+   demand for reports written before it existed and is told to answer "why" questions from it.
 2. **Change detection** (`findings.py`, `stats.py`) - see section 3.
 3. **Six health checks** (`health.py`): pricing, routes and packages, communication, response time, team activity, follow-ups.
    Thresholds live in ONE dict (`THRESHOLDS`); each check is green / amber / red / no data (below its minimum base it is never

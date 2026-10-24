@@ -152,8 +152,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     "assessment_narrative": "assessment-narrative-v1",
     # AI business analyst (services/analyst/brief.py): the brief from computed facts only; every number re-checked in code.
     "analyst_brief": "analyst-brief-v1",
-    # "Ask a follow-up" on a report (services/analyst/ask.py): answered from the report facts via the Ask HAIP summary route.
-    "analyst_followup": "analyst-followup-v1",
+    # "Ask a follow-up" on a report (services/analyst/ask.py): answered from the report facts (route analyst_followup).
+    # v2: own route (analyst_followup, Gemini fallback), trimmed facts + the conversion block, "why" guidance.
+    "analyst_followup": "analyst-followup-v2",
     # Lead workflows follow-up draft (lead_followup_draft.py): one short follow-up a person approves; never a price.
     # v2 (2026-10-22): the owner's follow-up style from the sales playbook is added to the user message when set.
     "lead_followup_draft": "lead-followup-draft-v2",

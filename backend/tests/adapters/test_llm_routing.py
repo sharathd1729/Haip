@@ -117,3 +117,20 @@ def test_analyst_brief_routes_to_the_structured_output_tier_with_gemini_fallback
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     adapter = get_llm("analyst_brief")
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
+
+
+def test_analyst_followup_has_its_own_route_with_gemini_fallback(monkeypatch):
+    """"Ask a follow-up" timed out in production on ask_haip_freeform_summary (no fallback, 60 s). It now has its own route:
+    gpt-oss-20b on NVIDIA for 40 s, then Gemini. The Ask HAIP summary route itself stays without a fallback (raw rows)."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+    from app.core.prompt_versions import get_version
+
+    assert _TASK_ROUTES["analyst_followup"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["analyst_followup"] == 40
+    assert "ask_haip_freeform_summary" not in _GEMINI_FALLBACK_TASKS
+    assert get_version("analyst_followup") == "analyst-followup-v2"
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("analyst_followup")
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"

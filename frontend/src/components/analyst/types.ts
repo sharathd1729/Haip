@@ -43,7 +43,14 @@ export interface Facts {
   demand: { routes_asked: { label: string; count: number }[]; unavailable_asks: { label: string; count: number }[] };
   health: HealthCheck[];
 }
-export interface Followup { id: string; question: string; status: "queued" | "answered" | "failed"; answer: string | null }
+export type FollowupFailure = "timeout" | "provider_error" | "bad_output";
+export interface Followup { id: string; question: string; status: "queued" | "answered" | "failed"; answer: string | null; reason?: FollowupFailure | null }
+/** Why a follow-up failed, in words (older rows have no reason). */
+export const FOLLOWUP_FAILURE: Record<FollowupFailure, string> = {
+  timeout: "The AI service timed out. Try again.",
+  provider_error: "The AI service is unavailable right now. Try again in a minute.",
+  bad_output: "The AI gave an unusable answer. Try again or rephrase.",
+};
 export interface ReportSummary {
   id: string; kind: Kind; period: { from: string; to: string }; headline: string | null; source: "llm" | "deterministic";
   created_at: string | null; health: { key: string; label: string; status: HealthStatus }[];

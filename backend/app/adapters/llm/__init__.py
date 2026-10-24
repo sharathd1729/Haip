@@ -159,6 +159,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # AI business analyst (services/analyst/brief.py): a structured brief from computed facts (JSON). Internal, not
     # guest-facing; every number is re-checked against the facts and a deterministic brief stands in on any failure.
     "analyst_brief": ("nvidia", "openai/gpt-oss-20b"),
+    # "Ask a follow-up" on a report (services/analyst/ask.py): a short answer over a trimmed copy of the same facts. Its own
+    # route (it used ask_haip_freeform_summary, which has no Gemini fallback and timed out in production at 60 s); the Ask
+    # HAIP summary route stays without one because it reads raw query rows.
+    "analyst_followup": ("nvidia", "openai/gpt-oss-20b"),
     # Marketing Studio: audit reading, plan + calendar, one content piece. Structured output via one tool, so the
     # reliable tool-calling tier; every result is re-validated and reviewed by a person before anything leaves HAIP.
     "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
@@ -205,6 +209,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "lead_followup_draft":         40,
     "outcome_reason":              45,
     "analyst_brief":               90,
+    "analyst_followup":            40,
     "marketing_audit":             60,
     "marketing_plan":              90,
     "marketing_content":           60,
