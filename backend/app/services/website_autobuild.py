@@ -54,11 +54,11 @@ def spec_for(db: Session, tenant: Tenant, site_block: Optional[dict] = None) -> 
     headline = (prof.get("tagline") or base["site"]["tagline"] or name).strip()[:90]
     hero = {"id": "hero", "type": "hero", "variant": "fullbleed-image",
             "slots": {"eyebrow": str(prof.get("city") or "")[:60], "headline": headline,
-                      "subhead": str(prof.get("description") or "")[:240], "cta_label": "Check dates on WhatsApp"}}
+                      "subhead": str(prof.get("description") or "")[:240], "cta_label": "Check dates"}}
     tail = [
         {"id": "cta", "type": "booking-cta", "variant": "banner",
          "slots": {"heading": "Tell us your dates", "text": "Send your dates and group size on WhatsApp. We reply with what's free.",
-                   "cta_label": "Check dates on WhatsApp"}},
+                   "cta_label": "Check dates"}},
         {"id": "contact", "type": "contact", "variant": "split", "slots": {"heading": "Find us"}},
     ]
     spec = {**base, "tokens": {"palette": "forest-amber", "display": "bricolage", "body": "figtree", "radius": "soft", "motion": "calm"},
