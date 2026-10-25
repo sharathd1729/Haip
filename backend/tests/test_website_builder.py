@@ -150,7 +150,7 @@ def test_custom_domain_rules(client, db, wsite):
     d = next(x for x in r.json()["domains"] if x["kind"] == "custom")
     assert d["hostname"] == "www.coffee-villas.in" and d["status"] == "pending" and d["verify_token"]
     assert client.post(f"{BASE}/domains", json={"hostname": "www.coffee-villas.in"}, headers=wsite["owner_h"]).status_code == 409
-    assert client.post(f"{BASE}/domains", json={"hostname": "x.genhaip.site"}, headers=wsite["owner_h"]).status_code == 422
+    assert client.post(f"{BASE}/domains", json={"hostname": "x.sites.genhaip.com"}, headers=wsite["owner_h"]).status_code == 422
     assert client.post(f"{BASE}/domains", json={"hostname": "evil.example.in"}, headers=wsite["mkt_h"]).status_code == 403
     sub = next(x for x in r.json()["domains"] if x["kind"] == "subdomain")
     assert client.delete(f"{BASE}/domains/{sub['id']}", headers=wsite["owner_h"]).status_code == 422

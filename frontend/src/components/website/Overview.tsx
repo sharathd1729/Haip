@@ -45,7 +45,24 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
   const isV2 = (doc as unknown as { spec_version?: number } | null)?.spec_version === 2;
   const blocking = draft.checks.filter(c => c.level === "block");
   const v = draft.version;
+  const host = site.url.replace("https://", "");
+  const next = site.live ? null
+    : !v ? "Create a first version with the art director."
+    : blocking.length ? `Fix ${blocking.length} ${blocking.length === 1 ? "item" : "items"} under "Ready to publish?", then publish v${v.number}.`
+    : role === "owner" ? `Publish v${v.number} below.` : canApprove ? `Publish v${v.number} below, or send it to the owner.` : `Send v${v.number} for approval below.`;
   return (
+    <div className="grid gap-4">
+      <Card>
+        <CardBody className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <StatusPill tone={site.status === "live" ? "success" : site.status === "paused" ? "neutral" : "warning"}>
+            {site.status === "live" ? "Live" : site.status === "paused" ? "Paused" : "Not live yet"}</StatusPill>
+          <p className="min-w-0 flex-1 text-sm">
+            {site.live ? <>Guests see v{site.live.number} at <a className="font-semibold underline underline-offset-4" href={site.url} target="_blank" rel="noopener noreferrer">{host}</a>.</>
+              : <>Nobody can see the site yet. Once published it opens at <b className="font-semibold">{host}</b>.</>}
+            {next && <span className="block text-[var(--haip-fg-muted)]">Next: {next}</span>}
+          </p>
+        </CardBody>
+      </Card>
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
       <div className="grid content-start gap-4">
         <Card>
@@ -72,11 +89,12 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
               onRetry={() => versions.refetch()} empty={{ title: "No versions yet" }} columns={[
                 { key: "n", header: "Version", cell: r => <b>v{r.number}</b> },
                 { key: "s", header: "Status", cell: r => <StatusPill tone={VERSION_TONE[r.status] || "neutral"}>{r.status.replace("_", " ")}</StatusPill> },
-                { key: "o", header: "Made by", hideBelow: "md", cell: r => <span className="text-sm">{r.origin === "ai" ? "AI developer" : r.origin === "seed" ? "HAIP (first draft)" : r.origin === "restore" ? "Restore" : "Team"}{r.note ? <span className="block text-xs text-[var(--haip-fg-subtle)]">{r.note}</span> : null}</span> },
+                { key: "o", header: "Made by", hideBelow: "md", cell: r => <span className="text-sm">{r.note?.startsWith("Art director") ? "Art director" : r.origin === "ai" ? "AI developer" : r.origin === "seed" ? "HAIP (first draft)" : r.origin === "restore" ? "Restore" : "Team"}{r.note ? <span className="block text-xs text-[var(--haip-fg-subtle)]">{r.note.replace(/^Art director: /, "Look: ")}</span> : null}</span> },
                 { key: "a", header: "", align: "right", cell: r => (
                   <div className="flex justify-end gap-1.5">
                     {r.status === "in_review" && canApprove && <><button className={btnPrimary} onClick={() => publish.mutate(r.id)} disabled={publish.isPending}>Approve &amp; publish</button>
                       <button className={btn} onClick={() => reject.mutate(r.id)}>Send back</button></>}
+                    {r.status === "draft" && r.id === v?.id && blocking.length > 0 && <span className="self-center text-xs text-[var(--haip-fg-muted)]">Fix {blocking.length} first</span>}
                     {r.status === "draft" && r.id === v?.id && (role === "owner" ? <button className={btnPrimary} onClick={() => publish.mutate(r.id)} disabled={publish.isPending || blocking.length > 0}>Publish</button>
                       : <button className={btn} onClick={() => submit.mutate(r.id)} disabled={blocking.length > 0}>Send for approval</button>)}
                     {["superseded", "rejected", "withdrawn"].includes(r.status) && <button className={btn} onClick={() => restore.mutate(r.id)}>Restore</button>}
@@ -106,12 +124,13 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
             ? <Link className={btn} href="/dashboard/marketing/website/builder">Change the look with the art director</Link>
             : <ThemePicker doc={doc} update={draft.update} />}</CardBody>
         </Card>
-        <BookingSettings site={site} canEdit={canApprove} />
+        <BookingSettings site={site} canEdit={canApprove} isV2={isV2} />
         <Domains site={site} canEdit={canApprove} />
         {canApprove && site.live && <Card><CardBody className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm">{site.status === "paused" ? "The website is paused: visitors see a not-available page." : "Need to take the site offline for a while?"}</span>
           <button className={btn} onClick={() => pause.mutate(site.status !== "paused")}>{site.status === "paused" ? "Bring back online" : "Pause website"}</button></CardBody></Card>}
       </div>
+    </div>
     </div>
   );
 }
@@ -136,7 +155,10 @@ function Results({ analytics, loading, error }: { analytics?: import("@/lib/webs
   );
 }
 
-function BookingSettings({ site, canEdit }: { site: SiteOut; canEdit: boolean }) {
+// The new builder (v2) can't take payments until it has a policies page, and shows prices by the workspace price rule.
+const V2_LOCKED: SiteSettings["booking_mode"][] = ["instant", "deposit"];
+
+function BookingSettings({ site, canEdit, isV2 }: { site: SiteOut; canEdit: boolean; isV2: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [s, setS] = useState<SiteSettings>(site.settings);
@@ -149,15 +171,19 @@ function BookingSettings({ site, canEdit }: { site: SiteOut; canEdit: boolean })
       <CardBody className="grid gap-3">
         <fieldset className="grid gap-2" disabled={!canEdit}>
           <legend className="sr-only">Booking mode</legend>
-          {(Object.keys(MODE) as SiteSettings["booking_mode"][]).map(k => (
-            <label key={k} className={`grid cursor-pointer grid-cols-[auto_1fr] gap-2.5 rounded-xl border p-3 ${s.booking_mode === k ? "border-[var(--primary)] bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)]"}`}>
-              <input type="radio" name="mode" className="mt-1 h-4 w-4 accent-[var(--primary)]" checked={s.booking_mode === k} onChange={() => setS({ ...s, booking_mode: k })} />
-              <span><b className="text-sm">{MODE[k][0]}</b><span className="block text-[13px] text-[var(--haip-fg-muted)]">{MODE[k][1]}</span></span>
-            </label>
-          ))}
+          {(Object.keys(MODE) as SiteSettings["booking_mode"][]).map(k => {
+            const locked = isV2 && V2_LOCKED.includes(k);
+            return (
+              <label key={k} className={`grid grid-cols-[auto_1fr] gap-2.5 rounded-xl border p-3 ${locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${s.booking_mode === k ? "border-[var(--primary)] bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)]"}`}>
+                <input type="radio" name="mode" className="mt-1 h-4 w-4 accent-[var(--primary)]" checked={s.booking_mode === k} disabled={locked} onChange={() => setS({ ...s, booking_mode: k })} />
+                <span><b className="text-sm">{MODE[k][0]}</b><span className="block text-[13px] text-[var(--haip-fg-muted)]">{locked ? "Not available yet on the new builder: it needs the policies page, coming soon." : MODE[k][1]}</span></span>
+              </label>
+            );
+          })}
           {s.booking_mode === "deposit" && <label className="grid gap-1"><span className="text-[13px] font-semibold">Deposit (% of the total)</span>
             <input type="number" min={10} max={100} className={inputCls} value={s.deposit_percent} onChange={e => setS({ ...s, deposit_percent: Number(e.target.value) })} /></label>}
-          <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="h-5 w-5 accent-[var(--primary)]" checked={s.show_prices} onChange={e => setS({ ...s, show_prices: e.target.checked })} />Show prices on the site</label>
+          {isV2 ? <p className="text-[13px] text-[var(--haip-fg-muted)]">Prices follow your workspace price rule. If the AI may not quote prices, the site shows &ldquo;Get the price on WhatsApp&rdquo; instead of a figure.</p>
+            : <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="h-5 w-5 accent-[var(--primary)]" checked={s.show_prices} onChange={e => setS({ ...s, show_prices: e.target.checked })} />Show prices on the site</label>}
           <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="h-5 w-5 accent-[var(--primary)]" checked={s.prices_include_gst} onChange={e => setS({ ...s, prices_include_gst: e.target.checked })} />My rates already include GST</label>
         </fieldset>
         {canEdit && <button className={btnPrimary} disabled={!changed || save.isPending} onClick={() => save.mutate()}>{save.isPending ? "Saving…" : "Save booking settings"}</button>}

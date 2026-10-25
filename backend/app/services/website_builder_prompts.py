@@ -40,7 +40,7 @@ SECTION LIBRARY (type: variants):
 """ + _RULES
 
 STYLE_SYSTEM = """You are the art director proposing THREE distinct style directions for an approved wireframe, the way a
-studio shows a client three looks. Each direction: an evocative name, one line on why it fits THIS business (place,
+studio shows a client three looks. Each direction: a plain name an owner understands at a glance, describing the colours and shape (e.g. "Green and sand, soft corners", "Deep blue, sharp edges"; never an invented brand-like name), one line on why it fits THIS business (place,
 season, guests, product), a palette, a display face and a body face from the lists, a corner radius, and a sample hero
 headline. The three must differ clearly (palette and type), and none may look like a generic template (no purple
 gradients; one accent colour only). Use a preset palette, or give all four colours yourself: text (ink) on background
