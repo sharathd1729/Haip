@@ -182,7 +182,9 @@ class Settings(BaseSettings):
     # CNAME to SITES_CNAME_TARGET. The renderer (sites/ app) is told to refresh a site after a publish via
     # SITES_RENDERER_URL + SITES_REVALIDATE_SECRET. Cloudflare for SaaS is used for custom-domain TLS only when both
     # CLOUDFLARE_* values are set; otherwise domains are verified by DNS and TLS is handled at the proxy.
-    SITES_BASE_DOMAIN: str = "genhaip.site"
+    # genhaip.site was never registered (Oct 2026), so sites live under the domain HAIP owns. DNS: *.sites.genhaip.com and
+    # sites.genhaip.com -> the VPS (docs/website-builder/DEPLOY.md). Moving existing sites: scripts/move_site_subdomains.py.
+    SITES_BASE_DOMAIN: str = "sites.genhaip.com"
     SITES_CNAME_TARGET: str = ""
     SITES_RENDERER_URL: str = ""
     SITES_REVALIDATE_SECRET: str = ""

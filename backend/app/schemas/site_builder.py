@@ -109,7 +109,7 @@ class Wireframe(_Strict):
 # ─── step 3: three style directions ─────────────────────────────────────────────────────────────────────
 
 class StyleDirection(_Strict):
-    name: str = Field(min_length=2, max_length=40, description="Evocative two-to-four word name")
+    name: str = Field(min_length=2, max_length=40, description="Plain name for the colours and shape, e.g. 'Green and sand, soft corners'")
     mood: str = Field(min_length=3, max_length=220, description="One line: why this look fits this business")
     palette_preset: Optional[str] = Field(None, description="A preset name, OR leave empty and give all four colours")
     ink: Optional[str] = Field(None, description="#RRGGBB text colour")

@@ -182,7 +182,7 @@ def site_out(db: Session, site: Site) -> dict:
         "live": {"id": live.id, "number": live.number, "published_at": live.published_at.isoformat() if live.published_at else None} if live else None,
         "domains": [{"id": d.id, "hostname": d.hostname, "kind": d.kind, "status": d.status, "error": d.error,
                      "verify_token": d.verify_token if d.kind == "custom" else None,
-                     "cname_target": app_settings.SITES_CNAME_TARGET or f"sites.{app_settings.SITES_BASE_DOMAIN}"}
+                     "cname_target": app_settings.SITES_CNAME_TARGET or app_settings.SITES_BASE_DOMAIN}
                     for d in domains(db, site)],
         "spec_version": wb.spec()["version"],
     }

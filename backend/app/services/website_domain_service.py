@@ -34,7 +34,7 @@ def _now() -> datetime:
 
 
 def cname_target() -> str:
-    return app_settings.SITES_CNAME_TARGET or f"sites.{app_settings.SITES_BASE_DOMAIN}"
+    return app_settings.SITES_CNAME_TARGET or app_settings.SITES_BASE_DOMAIN
 
 
 def add(db: Session, site: Site, hostname: str, *, actor_id: str) -> SiteDomain:
