@@ -31,6 +31,10 @@ class CaravanDetails(_Strict):
     start_odometer: Optional[int] = Field(default=None, gt=0)
     end_odometer: Optional[int] = Field(default=None, gt=0)
     extra_km_addon_id: Optional[str] = None                            # the stay_addons row billing the extra distance
+    # Start odometer read from the driver's photo before Dispatch: pre-fills the manager's tap, never dispatches by itself.
+    start_odometer_photo_km: Optional[int] = Field(default=None, gt=0)
+    start_odometer_photo_key: Optional[str] = None
+    end_odometer_photo_key: Optional[str] = None
 
 
 class AcceptIn(_Strict):

@@ -239,8 +239,30 @@ def _handle_staff_message(db, tenant: Tenant, staff, msg: dict, msg_type: str) -
     dedup_key = f"haip:ops:inbound:{msg.get('id', '')}"
     if msg.get("id") and get_cached(dedup_key):      # Meta redelivers webhooks; a staff tap is handled once
         return
+    # A photo from crew (odometer, bill, checklist) is read by AI in its own task (ops_photo_intake): never here.
+    media = msg.get("image") if msg_type == "image" else (
+        msg.get("document") if msg_type == "document" and str((msg.get("document") or {}).get("mime_type", "")).startswith("image/")
+        else None)
+    if media and media.get("id"):
+        from app.workers.tasks.ops_intake import process_staff_photo
+        process_staff_photo.delay(str(tenant.id), staff.id, media["id"], str(media.get("caption") or ""), msg.get("id", ""))
+        if msg.get("id"):
+            set_cached(dedup_key, "1", ttl=86400)
+        log.info("wa_staff_photo_queued", staff_id=staff.id, type=msg_type)
+        return
     payload = _button_payload(msg, msg_type)
     text = msg.get("text", {}).get("body", "") if msg_type == "text" else _describe_other_message(msg_type, msg)
+    if msg_type == "text":
+        from app.services import lead_alert_sender, ops_photo_intake
+        out = ops_photo_intake.handle_text(db, str(tenant.id), staff, text)      # "issue ..." -> incident for the manager
+        if out is not None:
+            db.commit()
+            if msg.get("id"):
+                set_cached(dedup_key, "1", ttl=86400)
+            queue_delivery(str(tenant.id), out.send_ids)
+            lead_alert_sender.send_text(db, str(tenant.id), staff.phone_e164, out.reply)
+            log.info("wa_staff_issue_reported", staff_id=staff.id)
+            return
     send_ids = ops_escalation_service.handle_staff_inbound(db, str(tenant.id), staff, payload=payload, text=text)
     db.commit()
     if msg.get("id"):

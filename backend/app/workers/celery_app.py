@@ -74,6 +74,7 @@ celery_app = Celery(
         # Safety net: a guest message that never got an AI reply is handed to the concierge again
         "app.workers.tasks.reply_recovery",
         "app.workers.tasks.ops_escalation",
+        "app.workers.tasks.ops_intake",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -335,6 +336,7 @@ celery_app.conf.update(
         "ops.deliver_sends":                             {"queue": "whatsapp"},
         "ops.escalation_tick":                           {"queue": "whatsapp"},
         "ops.escalation_tick_tenant":                    {"queue": "whatsapp"},
+        "ops.process_staff_photo":                       {"queue": "ai_scoring"},   # vision reads a staff photo
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
         "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
