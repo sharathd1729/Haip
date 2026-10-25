@@ -302,13 +302,14 @@ def _migration_tables(filename):
     return list(module._TABLES)
 
 
-OPS_TABLES = _migration_tables("178_ops_foundations.py")
+OPS_TABLES = _migration_tables("178_ops_foundations.py") + _migration_tables("179_ops_files.py")
 
 
-def test_ops_table_list_is_the_nine_planned_tables():
+def test_ops_table_list_is_the_planned_tables():
     assert sorted(OPS_TABLES) == sorted([
         "staff_profiles", "staff_duties", "shift_patterns", "shift_overrides", "escalation_chains",
         "ops_settings", "ops_items", "ops_escalation_events", "ops_alert_sends",
+        "ops_files", "ops_file_events", "ops_checklist_templates", "ops_jobs", "ops_job_items", "ops_expenses", "ops_extras",
     ])
 
 

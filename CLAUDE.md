@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 25 Oct 2026 (Alembic head `178`)
+**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 25 Oct 2026 (Alembic head `179`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -7,16 +7,12 @@ module, migration, endpoint, Celery task, integration, LLM route, env var, test 
 rule, update the matching section here **in the same commit**. Bump the `Updated` date and the Alembic head. If this file and the code disagree, the code wins and this file is a bug.
 Keep it under 500 lines: compress old incident notes rather than dropping new facts.
 
----
-
 ## PRODUCT IN ONE LINE
 HAIP is the AI intelligence and communication layer for Indian luxury hospitality — pre-call prep, post-call analysis, AI-drafted WhatsApp replies, unified lead record across every touchpoint.
 
 ## WHAT HAIP IS NOT
 - Not a PMS (Hostaway/eZee remain source of truth) · not a softphone (agents take calls on personal mobile via IVR)
 - Not a channel manager (we sync via Hostaway) · not a booking engine
-
----
 
 ## CURRENT MILESTONE
 **M4 — COMPLETE** ✓ Leads360 (unified sales pipeline, progressive identity, async AI summaries)
@@ -83,8 +79,6 @@ Active clients:
 - Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved CallerDesk → Mcube → Vobiz-only; Mcube's Integration row is disconnected, not deleted)
 - Jade (pool villas, Bangalore) — Acefone IVR, onboarding
 
----
-
 ## TECH STACK — LOCKED, DO NOT SUGGEST ALTERNATIVES
 
 | Layer | Decision |
@@ -100,8 +94,6 @@ Active clients:
 | IVR | Vobiz (Ratha) + Acefone (Jade) — CallerDesk/Mcube adapters still exist in code (historical Ratha providers, not currently active for any tenant) |
 | WhatsApp | Meta Cloud API via client's own WABA credentials |
 | Region | AWS Mumbai ap-south-1 |
-
----
 
 ## LLM ROUTING TABLE — ALWAYS USE ROUTER, NEVER IMPORT DIRECTLY
 
@@ -157,8 +149,6 @@ Per-tenant override: `tenants.llm_provider_override` (cached 300s) is NOT applie
 All AI calls go through `backend/app/adapters/llm/` router.
 Never import provider clients directly in services.
 
----
-
 ## IDENTITY ARCHITECTURE — CRITICAL
 
 **GID (HAIP Guest ID) is the canonical identity — a system-generated UUID.**
@@ -182,8 +172,6 @@ booking_id 0.95 · phone 0.90 · WA 0.85 · ota_guest_id 0.85 · channel_thread_
 
 See: `architecture-delta.md` → MODIFICATION 1
 
----
-
 ## CORE DATA THREAD — NEVER BREAK
 
 ```
@@ -193,16 +181,12 @@ Inquiry → Conversation → Booking → Stay → Revenue
 Every entity must trace back through this thread.
 Every table must have tenant_id.
 
----
-
 ## MULTI-TENANCY — NON-NEGOTIABLE
 
 - Every table has tenant_id
 - RLS policy on every tenant-scoped table
 - Every new table needs: migration + RLS + tenant_id column
 - Weekly cross-tenant breach simulation test; per-tenant KMS encryption for credentials
-
----
 
 ## ACTIVE MODULES (BUILD THESE)
 
@@ -246,15 +230,16 @@ Every table must have tenant_id.
   Supabase `EMAXCONNSESSION`; prod uses `create_all` at startup, so migrations must be idempotent
   (`IF NOT EXISTS`, guarded RLS policy).
 
-## OPERATIONS MODULE (Oct 2026 — foundations [178], written as 131 on `feat/ops-foundations`)
+## OPERATIONS MODULE (Oct 2026 — foundations [178], written as 131 on `feat/ops-foundations`; ops files [179])
 
 - Tables (tenant_id + forced RLS): `staff_profiles` (phone unique per tenant, `whatsapp_opt_in_at`), `staff_duties`, `shift_patterns` (weekly, minutes; end < start crosses midnight), `shift_overrides` (leave|swap|extra), `escalation_chains` (JSON steps), `ops_settings` (SLA, quiet hours, template names), `ops_items` (severity, duty, ack/resolve due, step), `ops_escalation_events`, `ops_alert_sends` (wamid, status, nonce, response).
 - **Staff numbers never become guests.** Cloud API inbound from an active staff profile's phone goes to `whatsapp.py::_handle_staff_message` (button taps / free text) and skips identity, leads, inbox, push and concierge; the personal bridge mirrors a staff chat but never makes it a lead (`staff_service.find_active_staff_by_phone`).
 - **`roster_service` is the only place that picks alert recipients** (`on_duty`, chains; empty step -> next step; owner always last, receives everything while a roster is empty). Nothing else chooses who is alerted.
 - `ops_escalation_service`: SLA per severity (critical 5/60 min ... low 4/72 h), quiet hours hold low/normal only, "Can't take it" = next step now, a failed send escalates once nobody in the step can still be reached (logged, never silent), resolve breach re-escalates. Button payload `ops:<ack|decline>:<send_id>:<nonce>` (compare_digest; the tapper must be the alerted staff). Meta status callbacks for ops sends land in `ops_alert_sender.apply_status_callback`.
-- Templates: `ops_templates.PACK` (`ops_alert_v1`, `ops_escalation_v1`; UTILITY, 5 body vars, Acknowledge / Can't take it). `POST /ops/templates/install` makes drafts; submit with the template editor; new wording = new `_vN`.
-- Celery `ops.deliver_sends`, `ops.escalation_tick`, `ops.escalation_tick_tenant` (queue `whatsapp`); beat `ops-escalation-tick-1min` every minute.
-- API `/api/v1/ops/*` (`endpoints/ops.py`): staff, shifts, shift-overrides, on-duty, escalation-chains, settings, templates/install, items (+ acknowledge/resolve/cancel). Caps `ops.read` (owner, manager, reservations, concierge, foh), `ops.write` (owner, manager, concierge, foh), `ops.manage` (owner, manager); 178 grants them to provisioned tenants. No UI yet (build plan Task 2).
+- Templates: `ops_templates.PACK` (`ops_alert_v1`, `ops_escalation_v1`; UTILITY, 5 body vars, Acknowledge / Can't take it). `POST /ops/templates/install` makes drafts; submit with the template editor; new wording = new `_vN`. Celery `ops.deliver_sends`, `ops.escalation_tick`, `ops.escalation_tick_tenant` (queue `whatsapp`); beat `ops-escalation-tick-1min` every minute.
+- API `/api/v1/ops/*` (`endpoints/ops.py`): staff, shifts, shift-overrides, on-duty, escalation-chains, settings, templates/install, items (+ acknowledge/resolve/cancel). Caps `ops.read` (owner, manager, reservations, concierge, foh), `ops.write` (owner, manager, concierge, foh), `ops.manage` (owner, manager); 178 grants them to provisioned tenants. No UI yet.
+- WhatsApp inbound: an ops staff profile's message goes to `_handle_staff_message` unless it is a lead-alert tap (`la:`), then `_staff_reply` (lead alerts); status callbacks try `lead_alert_sender` then `ops_alert_sender`.
+- **Ops files [179]** (plan + chosen screens 25 Oct: direction A "Needs you" + unit cards on top for <= 6 units; packs per category, caravan first, then villas): ONE `ops_files` row per stay (unique `stay_id`), pack from `tenants.business_type` via `ops_pack_catalog` (caravan -> `caravan_rv`; other categories = no file yet), typed `details` (`schemas/ops_files.py::CaravanDetails`), timeline `ops_file_events`, checklists `ops_checklist_templates` (seeded from the pack: the 12-point gate) -> `ops_jobs` + `ops_job_items`, `ops_expenses` (unique `bill_key` vendor|date|amount = duplicate bill 409), `ops_extras` (approve = a `stay_addons` row). `ops_trip_service` = the prototype's workflow: handed_over -> accept (route + km included) -> crew (no overlapping trips) -> readiness -> dispatch_ready (all critical green; `payment` is a system item: nothing owed + deposit held) -> dispatch (`ops.manage`, start odometer >= the vehicle's last reading, audited) -> return (end odometer; extra distance written as ONE `stay_addons` "Extra distance" line) -> close (balance, held deposit, return check, report, no undecided extra; audited); cancelled booking before dispatch = `cancelled`. **Rate card (owner 25 Oct)** = HAIP's published package data as frozen in the booking's quote (`ops_rates.for_stay`: quote `snapshot.km` -> the package record version in `record_refs` -> the manager types it on Accept; the manager's value wins). Money (`ops_money.account`) = booking total + add-ons, paid from `booking_service.financials_for`, expenses by category, net (Saleem report shape; test reproduces it). API `/ops/files` (`endpoints/ops_files.py`, no guest contact returned). Not built yet: WhatsApp photo intake + vision, close-out PDF, sync beat, screens.
 
 ## FUTURE MODULES — ARCHITECT FOR, DO NOT BUILD
 
@@ -269,8 +254,6 @@ Every table must have tenant_id.
 - Travel agent portal
 - Channel manager (direct, beyond Hostaway sync)
 
----
-
 ## FILE CREATION ORDER — ALWAYS FOLLOW THIS SEQUENCE
 
 1. Pydantic schema → `backend/app/schemas/`
@@ -282,8 +265,6 @@ Every table must have tenant_id.
 7. Tests
 8. Frontend types → hand-written next to the page/component (there is no `gen:api` script or OpenAPI generator)
 9. Frontend page/component
-
----
 
 ## KEY SERVICES — LEADS360 (M4)
 
@@ -361,15 +342,11 @@ wholesale by migration `049` — do not write new code against it.
 - Timeline capped at **50 entries** for V1; return `timeline_capped: true` in metadata
 - AI summary reads from `inquiries.ai_summary` (DB) in all list and detail endpoints — no LLM calls
 
----
-
 ## TESTING REQUIREMENTS — EVERY PR
 
 - New service function: 1 happy path + 1 tenant-isolation test
 - New endpoint: 1 happy path + 1 forbidden (wrong role) + 1 cross-tenant
 - New adapter: webhook signature verification + payload fixture test
-
----
 
 ## DEFINITION OF DONE — EVERY PR
 
@@ -379,8 +356,6 @@ wholesale by migration `049` — do not write new code against it.
 - [ ] Audit event written if destructive or permission-sensitive
 - [ ] Prompt version bumped if prompt content changed
 - [ ] No new dependency without 1-line justification
-
----
 
 ## SECURITY — NON-NEGOTIABLE
 
@@ -392,8 +367,6 @@ wholesale by migration `049` — do not write new code against it.
 - PII never logged in plaintext — hash phone numbers in logs (`_phone_token()`)
 - WhatsApp verify token uses `secrets.compare_digest` not `==`
 - **Agent-added phone/email signals**: auto-write `Consent` row with `consent_source="agent_manual"`, `collected_by=user_id`, `collected_at=now`, `signal_type=type` (handled in `identity_service.add_signal()`)
-
----
 
 ## AUTH & IAM — PHASE 0 (July 2026)
 
@@ -419,7 +392,7 @@ commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `c
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py` (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
 `calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 adds the lead columns on `guests` + `guest_merge_events`; 123 adds
-`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 adds quote snapshot columns; 126 adds the `organic_call` source value; 127 merges 125 and 126 (no schema change); 128 adds `ical_event_bookings.locked` when missing (prod's table pre-dated it, so 121's CREATE IF NOT EXISTS skipped it and every booking page 503'd: **a `CREATE TABLE IF NOT EXISTS` migration never repairs an existing table**); 140 (follows 128 because 129-139 belong to unmerged branches) adds `inquiry_quotes.option_rank/option_group_id` and the quote-builder capability cells (never edits an existing cell); 141 (on 140 since the quote-builder and payments branches merged) adds invoices/invoice_sequences, flags duplicate Razorpay payments then the partial unique index, and quote-owned payment links; 142 adds `sales_actions` (+RLS); 143 (on 142) adds `knowledge_entries.source_published_at/content_flags`; 144 (on 143) adds `lead_autopilot_events` (+RLS), `inquiries.autopilot_paused_at/by`, `calls.ai_insights`; 146 (on 144) adds `impact_baselines` + `impact_profiles` (+RLS). 145 (on 146) adds `platform_leads` (documented platform-level exception, no tenant_id/RLS) + `roi_benchmarks`; 150 (on 148; 147/149 left for other branches) adds `stays.gst_percent`; 152 adds `tasks.kind/playbook_run_id`; 151 adds `lead_journeys`, `lead_views`, `playbook_runs`, `playbook_actions` (+RLS), `messages.sender_kind`, `inquiry_quotes.shared_message_id`, `users.whatsapp_alerts_opt_in_at`; 148 (on 145; 147 is reserved by another branch) adds `inquiry_quotes.shared_via/shared_at/approved_by/approved_at`. 153-157 were 129-133 on the Marketing Studio branch, renumbered onto 152 when it merged: 153 adds the Marketing Studio tables + module/capability rows; 154 `marketing_image_jobs`; 155 `marketing_tasks` + `instagram_post_metrics_daily`; 156 competitors/snapshots/posts/research briefs; 157 `marketing_publish_attempts`; 158 adds the website builder tables + `website_host_lookup()`; 159 adds `marketing_reviews`; 160 adds `media_assets` tag + people consent columns; 161 adds `marketing_creative_jobs`; 162 adds `marketing_content.targets`, attempt `channel` (unique per channel) + `marketing_guest_reviews`; 163 adds newsletters + recipients; 164 adds `marketing_reviews.scores` + `media_assets.duration_ms`; 165 adds the ads tables; 166 adds `inquiries.heard_about` + note; 167 adds creators, deals, OTA copy + review consent columns; 168 adds `agent_consults` (+RLS); 169 (on 167) adds `inquiries.lead_type` + the validation columns + `ix_inquiries_tenant_id_lead_type`; 170 merges 168 and 169 (no schema change); 171 (on 170) adds `lead_evidence_imports` (+RLS), `inquiries.guest_location` and the outcome columns (`outcome_reason/_note/_source`, `outcome_decided_by/at`, `outcome_proposal`); 172 (on 170) adds `analyst_reports`, `agent_experiments` (partial unique: one running per control), `agent_experiment_assignments`, `agent_lessons` (+RLS); 173 merges 171 and 172 (no schema change); 174 = Studio plan phases 0-1 (`marketing_image_jobs.content_id`, `ad_metrics` watch curve `video_thruplays/video_p25..p100/video_avg_watch_s/link_ctr`, `instagram_post_metrics_daily.media_product_type/views/avg_watch_ms/skip_rate`, `marketing_creative_tags` +RLS); 175 = phase 2 (`marketing_signals` +RLS, `marketing_swipe_items` +RLS, collector columns on `marketing_competitor_posts`); 176 = phase 3 `marketing_strategy_docs` +RLS; 177 = phase 5 `marketing_capi_events.inquiry_id` + `stay_id` nullable + unique (tenant, inquiry, event); 178 (head) = operations module foundations (9 ops tables + `ops.*` grants; 131 on `feat/ops-foundations`, renumbered when it merged). 118 is reserved for the proposed RLS file (re-parent on the head when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 adds quote snapshot columns; 126 adds the `organic_call` source value; 127 merges 125 and 126 (no schema change); 128 adds `ical_event_bookings.locked` when missing (prod's table pre-dated it, so 121's CREATE IF NOT EXISTS skipped it and every booking page 503'd: **a `CREATE TABLE IF NOT EXISTS` migration never repairs an existing table**); 140 (follows 128 because 129-139 belong to unmerged branches) adds `inquiry_quotes.option_rank/option_group_id` and the quote-builder capability cells (never edits an existing cell); 141 (on 140 since the quote-builder and payments branches merged) adds invoices/invoice_sequences, flags duplicate Razorpay payments then the partial unique index, and quote-owned payment links; 142 adds `sales_actions` (+RLS); 143 (on 142) adds `knowledge_entries.source_published_at/content_flags`; 144 (on 143) adds `lead_autopilot_events` (+RLS), `inquiries.autopilot_paused_at/by`, `calls.ai_insights`; 146 (on 144) adds `impact_baselines` + `impact_profiles` (+RLS). 145 (on 146) adds `platform_leads` (documented platform-level exception, no tenant_id/RLS) + `roi_benchmarks`; 150 (on 148; 147/149 left for other branches) adds `stays.gst_percent`; 152 adds `tasks.kind/playbook_run_id`; 151 adds `lead_journeys`, `lead_views`, `playbook_runs`, `playbook_actions` (+RLS), `messages.sender_kind`, `inquiry_quotes.shared_message_id`, `users.whatsapp_alerts_opt_in_at`; 148 (on 145; 147 is reserved by another branch) adds `inquiry_quotes.shared_via/shared_at/approved_by/approved_at`. 153-157 were 129-133 on the Marketing Studio branch, renumbered onto 152 when it merged: 153 adds the Marketing Studio tables + module/capability rows; 154 `marketing_image_jobs`; 155 `marketing_tasks` + `instagram_post_metrics_daily`; 156 competitors/snapshots/posts/research briefs; 157 `marketing_publish_attempts`; 158 adds the website builder tables + `website_host_lookup()`; 159 adds `marketing_reviews`; 160 adds `media_assets` tag + people consent columns; 161 adds `marketing_creative_jobs`; 162 adds `marketing_content.targets`, attempt `channel` (unique per channel) + `marketing_guest_reviews`; 163 adds newsletters + recipients; 164 adds `marketing_reviews.scores` + `media_assets.duration_ms`; 165 adds the ads tables; 166 adds `inquiries.heard_about` + note; 167 adds creators, deals, OTA copy + review consent columns; 168 adds `agent_consults` (+RLS); 169 (on 167) adds `inquiries.lead_type` + the validation columns + `ix_inquiries_tenant_id_lead_type`; 170 merges 168 and 169 (no schema change); 171 (on 170) adds `lead_evidence_imports` (+RLS), `inquiries.guest_location` and the outcome columns (`outcome_reason/_note/_source`, `outcome_decided_by/at`, `outcome_proposal`); 172 (on 170) adds `analyst_reports`, `agent_experiments` (partial unique: one running per control), `agent_experiment_assignments`, `agent_lessons` (+RLS); 173 merges 171 and 172 (no schema change); 174 = Studio plan phases 0-1 (`marketing_image_jobs.content_id`, `ad_metrics` watch curve `video_thruplays/video_p25..p100/video_avg_watch_s/link_ctr`, `instagram_post_metrics_daily.media_product_type/views/avg_watch_ms/skip_rate`, `marketing_creative_tags` +RLS); 175 = phase 2 (`marketing_signals` +RLS, `marketing_swipe_items` +RLS, collector columns on `marketing_competitor_posts`); 176 = phase 3 `marketing_strategy_docs` +RLS; 177 = phase 5 `marketing_capi_events.inquiry_id` + `stay_id` nullable + unique (tenant, inquiry, event); 178 = operations module foundations (9 ops tables + `ops.*` grants; 131 on `feat/ops-foundations`, renumbered when it merged); 179 (head) = ops files, events, checklist templates, jobs, job items, expenses, extras (+RLS). 118 is reserved for the proposed RLS file (re-parent on the head when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`, `approve`, `reject`, `ai-draft` and both AI-rewrite POSTs use `require_capability`. `approve`/`reject` are one guarded UPDATE (only a pending AI draft, text unchanged since read; 409 otherwise; audited `ai_draft.approved|rejected`). A new default grant only reaches NEW tenants; existing ones need a data migration.
 **AI-rewrite tasks are bounded** (`rewrite_draft.py`): one request <= 30 s (`asyncio.wait_for`), a timeout is never retried, the draft task retries a
 provider error once, the composer never retries; a rewrite that changes a number is rejected. Embedding calls: 8 s query / 30 s indexing, SDK retries off.
@@ -427,8 +400,6 @@ provider error once, the composer never retries; a rewrite that changes a number
 needs `shell: bash` + `set -eo pipefail`, and `! grep` is ignored by `set -e` (use `if grep ...; then exit 1; fi`).
 ⚠️ **Don't write a failure off as drift before checking for a latent bug.** Thirteen "pre-existing" failures were stdlib `logging` called
 with structlog kwargs (`TypeError` at INFO, how production runs); Phase 0 found an audit-chain fork, dead inbox tasks, a Hostaway sync that never worked, a `varchar(20)` bug and a CI step that passed on failing tests.
-
----
 
 ## DOGRAH VOICE AI INTEGRATION (M5-Parallel)
 
@@ -467,8 +438,6 @@ with structlog kwargs (`TypeError` at INFO, how production runs); Phase 0 found 
 
 **SSRF protection required on ALL recording URL fetches** — validate scheme (`https`) and domain before any HTTP call.
 
----
-
 ## UI RULES — HOSPITALITY HYBRID (Oct 2026)
 
 Direction: `docs/DESIGN.md` §7, **Greens + terracotta** (22 Oct): green carries the colour (forest nav #0B2B26, mint canvas #EEF7F0, white cards with #D5E7DA borders, sea green `--primary` #235347 = brand/links/focus), ONE accent terracotta `--haip-accent` #B05033 for primary buttons (`--haip-action`, via the `bg-primary`+white-text rule in `globals.css`; `.haip-btn-primary/-secondary` for new code), counts, today, money due; no pink/coral/yellow/orange. Figtree + Bricolage Grotesque, 12/16px radii, pills. Kit: `PageHeader` icon tile (`layout/PageIcon.tsx`), `CardHeader` band (`tone` band/olive/plain), `Stat` `icon` + `variant` (dark/olive/accent = money due only), green `Tabs`. Decisions log: `docs/design/decisions.md`.
@@ -492,8 +461,6 @@ Direction: `docs/DESIGN.md` §7, **Greens + terracotta** (22 Oct): green carries
 - Synchronous blocking operations in webhook handlers
 - Building UI before backend contract
 - Expanding scope on bug fix PRs
-
----
 
 ## PRICING (for reference)
 
