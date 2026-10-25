@@ -100,9 +100,16 @@ def guest_timeline(
 
     Superseded by /journey below, which reads the guest_events ledger and
     therefore also includes messages and stage changes. Kept unchanged because
-    existing clients depend on this response shape.
+    existing clients depend on this response shape. A stay's amount is money: null without bookings.read
+    (same rule as the booking list/detail), never a leaked figure.
     """
-    return get_timeline(db, current_user.tenant_id, guest_id)
+    from app.services.authz_service import get_capabilities
+    timeline = get_timeline(db, current_user.tenant_id, guest_id)
+    if "bookings.read" not in get_capabilities(db, current_user):
+        for e in timeline["events"]:
+            if e["type"] == "stay":
+                e["data"]["amount"] = None
+    return timeline
 
 
 @router.get("/{guest_id}/journey", response_model=GuestJourneyResponse)

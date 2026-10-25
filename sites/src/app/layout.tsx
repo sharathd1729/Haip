@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { FONTS_HREF } from "@/site-blocks/packs";
 import "@/site-blocks/site.css";
+import "@/site-blocks/v2/site-v2.css";
 
 export const viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 

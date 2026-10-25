@@ -98,6 +98,9 @@ interface Draft {
   sources?: Record<string, number>;
 }
 
+// The model often ends a trait with its own full stop; add one only when it did not ("escapes.." on screen, 24 Oct).
+export const sentence = (t: string) => (/[.!?]$/.test(t.trim()) ? t.trim() : `${t.trim()}.`);
+
 const SOURCE_LABELS: [string, string, string][] = [["captions", "Instagram caption", "Instagram captions"],
   ["properties", "property description", "property descriptions"], ["knowledge", "knowledge base answer", "knowledge base answers"],
   ["packages", "package", "packages"], ["destinations", "destination", "destinations"], ["itineraries", "itinerary", "itineraries"],
@@ -138,7 +141,7 @@ export function BrandDraftPanel({ onApply }: { onApply: (d: NonNullable<Draft["d
         <div className="space-y-2 text-sm">
           {d.draft.tone && <p><span className="font-semibold">Tone:</span> {d.draft.tone}</p>}
           {d.draft.voice.length > 0 && <ul className="space-y-1">{d.draft.voice.map((v, i) => (
-            <li key={i}><span className="font-semibold">{v.trait}:</span> {v.we_are}. <span className="text-[var(--haip-fg-subtle)]">Not: {v.we_are_not}.</span></li>))}</ul>}
+            <li key={i}><span className="font-semibold">{v.trait}:</span> {sentence(v.we_are)} <span className="text-[var(--haip-fg-subtle)]">Not: {sentence(v.we_are_not)}</span></li>))}</ul>}
           {d.draft.claims.length > 0 && <p className="text-xs text-[var(--haip-fg-subtle)]">{d.draft.claims.length} fact{d.draft.claims.length === 1 ? "" : "s"} found in your own text. Check each before saving: saved facts count as approved.</p>}
           {d.sources && sourcesRead(d.sources) && <p className="text-xs text-[var(--haip-fg-subtle)]">Read: {sourcesRead(d.sources)}.</p>}
           {d.draft.gaps.length > 0 && <p className="text-xs text-[var(--haip-fg-subtle)]">Your sources don't say: {d.draft.gaps.join(" · ")}</p>}

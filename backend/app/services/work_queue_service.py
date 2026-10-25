@@ -364,7 +364,7 @@ def _callbacks(db: Session, tenant: Tenant) -> list[QueueItem]:
         )
     )
     if tenant.ivr_provider:
-        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
+        q = q.filter(Call.shown_for(tenant.ivr_provider))
     items: list[QueueItem] = []
     seen: set[str] = set()
     for call in q.order_by(Call.created_at.asc()).limit(MAX_PER_KIND).all():

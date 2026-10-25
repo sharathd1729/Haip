@@ -99,7 +99,7 @@ def list_calls(
     # Ratha) stay in the DB untouched but drop out of the dashboard --
     # nothing here deletes or mutates Call rows.
     if tenant and tenant.ivr_provider:
-        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
+        q = q.filter(Call.shown_for(tenant.ivr_provider))
 
     if direction:
         q = q.filter(Call.direction == direction)
@@ -237,7 +237,7 @@ def calls_summary(
     tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
     base = db.query(Call).filter(Call.tenant_id == current_user.tenant_id)
     if tenant and tenant.ivr_provider:
-        base = base.filter(Call.ivr_provider == tenant.ivr_provider)
+        base = base.filter(Call.shown_for(tenant.ivr_provider))
 
     calls = base.filter(Call.created_at >= start, Call.created_at <= end).all()
     inbound = [c for c in calls if _dir(c) == "inbound"]
@@ -280,7 +280,7 @@ def get_call(call_id: str, db: Session = Depends(get_db), current_user: User = D
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
-    if tenant and tenant.ivr_provider and call.ivr_provider != tenant.ivr_provider:
+    if tenant and tenant.ivr_provider and call.ivr_provider not in (tenant.ivr_provider, *Call.OWN_PROVIDERS):
         # Same as list_calls: a call from a disconnected provider stays in
         # the DB but is hidden from the dashboard -- 404, not a data error.
         raise HTTPException(status_code=404, detail="Call not found")

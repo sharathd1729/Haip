@@ -224,6 +224,10 @@ def run_job(db: Session, tenant_id: str, job_id: str) -> SiteAiJob:
     site = db.query(Site).filter_by(id=job.site_id, tenant_id=tenant_id).one()
     job.status, job.prompt_version = "running", get_version("website_generate" if job.kind == "generate" else "website_edit")
     head = vs.head(db, site)
+    from app.services.website_spec_service import is_v2
+    if is_v2(head.doc):           # the copy editor speaks v1 block docs only; never let it rewrite a v2 spec
+        job.status, job.error = "failed", "The AI developer edits classic sites only."
+        return job
     system = (GENERATE_SYSTEM if job.kind == "generate" else EDIT_SYSTEM).format(price_rule=rules_for(price_mode(tenant)))
     user = (f"BUSINESS FACTS:\n{json.dumps(facts(db, tenant), ensure_ascii=False, default=str)}\n\n"
             f"SECTION SPEC:\n{json.dumps(spec_summary(), ensure_ascii=False)}\n\n"
@@ -239,6 +243,9 @@ def run_job(db: Session, tenant_id: str, job_id: str) -> SiteAiJob:
     job.model = raw.get("model")
     db.refresh(site)
     head = vs.head(db, site)          # apply to the latest draft: the owner may have kept editing while the AI worked
+    if is_v2(head.doc):
+        job.status, job.error = "failed", "The draft moved to the new builder while the AI worked; nothing was changed."
+        return job
     new_doc, changes, refused, touched = apply_ops(head.doc, [o.model_dump() for o in result.ops])
     refused = list(dict.fromkeys(refused + [r for r in result.refused if r]))[:12]
     version_id = None

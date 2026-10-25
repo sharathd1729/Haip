@@ -434,8 +434,12 @@ def run() -> None:
             print("Skipping demo clips: ffmpeg/ffprobe not on PATH.")
         db.commit()
 
+    import _demo_site   # the website, built with the v2 builder (SiteSpec); binds to the photos above
+    site_host = _demo_site.seed(db, tenant, owner)
+
     print(f"\nDemo tenant '{D.BRAND}' ({D.SLUG}) ready: {len(plan)} leads, {counts['messages']} messages, "
           f"{len(D.TRANSCRIPTS) + 2} calls, {n_stays} bookings, {n_pay} payments, {photos} photos, {clips} clips.")
+    print(f"Website (v2 builder, published): {site_host}  (sites app: DEV_SITE_HOST={site_host})")
     print("Sign in at http://localhost:3000 with owner@wanderwheel.example / manager@wanderwheel.example / agent@wanderwheel.example")
     print(f"Password (shown once): {password}")
     db.close()

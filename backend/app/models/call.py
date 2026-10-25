@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, JSON, ForeignKey, Text, Integer, Numeric, Enum as SAEnum
+from sqlalchemy import or_, Column, String, Boolean, DateTime, JSON, ForeignKey, Text, Integer, Numeric, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -43,6 +43,15 @@ class RecordingStatus(str, enum.Enum):
 
 class Call(Base, TimestampMixin, TenantMixin):
     __tablename__ = "calls"
+
+    # Calls HAIP records itself (a recording uploaded on the Calls page or a lead, a call logged by hand) come from no
+    # IVR, so they stay visible whichever IVR is the tenant's active one. Only a disconnected IVR's history is hidden.
+    OWN_PROVIDERS = ("manual", "upload")
+
+    @classmethod
+    def shown_for(cls, active_provider: str):
+        """Filter for the calls a tenant whose active IVR is `active_provider` sees (dashboards, Calls page)."""
+        return or_(cls.ivr_provider == active_provider, cls.ivr_provider.in_(cls.OWN_PROVIDERS))
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)

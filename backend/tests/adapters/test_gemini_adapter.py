@@ -71,6 +71,56 @@ class TestAnthropicToolToGemini:
         assert params["properties"]["reason_needs_human"] == {"type": "STRING", "nullable": True}
 
 
+class TestFitGeminiSchema:
+    """Live 400 (24 Oct 2026): bounds on arrays of objects (the plan's calendar, maxItems 62) made Gemini reject
+    the whole request. They move into the description; scalar arrays keep theirs."""
+
+    def _params(self, schema):
+        return _anthropic_tool_to_gemini({"name": "t", "input_schema": schema})["function_declarations"][0]["parameters"]
+
+    def test_object_array_bounds_move_to_description(self):
+        p = self._params({"type": "object", "properties": {
+            "calendar": {"type": "array", "maxItems": 62, "items": {"type": "object", "properties": {"d": {"type": "string"}}}},
+            "hooks": {"type": "array", "minItems": 5, "maxItems": 5, "description": "Hooks.",
+                      "items": {"type": "object", "properties": {"t": {"type": "string", "maxLength": 80}}}},
+            "tags": {"type": "array", "maxItems": 6, "items": {"type": "string"}},
+        }})
+        cal, hooks, tags = (p["properties"][k] for k in ("calendar", "hooks", "tags"))
+        assert "maxItems" not in cal and cal["description"] == "(at most 62 items)"
+        assert "minItems" not in hooks and hooks["description"] == "Hooks. (exactly 5 items)"
+        assert hooks["items"]["properties"]["t"]["maxLength"] == 80     # scalar constraints are kept
+        assert tags["maxItems"] == 6
+
+    def test_unsupported_keys_dropped_and_const_becomes_enum(self):
+        p = self._params({"type": "object", "additionalProperties": False, "properties": {
+            "kind": {"type": "string", "const": "post"},
+            "additionalProperties": {"type": "string"},   # a property with that NAME is kept
+            "n": {"type": "integer", "exclusiveMinimum": 0},
+        }})
+        assert "additionalProperties" not in {k for k in p if k != "properties"}
+        assert p["properties"]["kind"] == {"type": "STRING", "enum": ["post"]}
+        assert p["properties"]["additionalProperties"] == {"type": "STRING"}
+        assert p["properties"]["n"] == {"type": "INTEGER"}
+
+    def test_every_marketing_tool_has_no_bounded_object_array(self):
+        from app.services import marketing_prompts as P
+        from app.services.marketing_strategy import brief_tool, deck_tool
+
+        def walk(n):
+            if isinstance(n, dict):
+                if n.get("type") == "ARRAY" and (n.get("items") or {}).get("type") == "OBJECT":
+                    assert "maxItems" not in n and "minItems" not in n
+                for v in n.values():
+                    walk(v)
+            elif isinstance(n, list):
+                for v in n:
+                    walk(v)
+        tools = [P.AUDIT_TOOL, P.PLAN_TOOL, P.RESEARCH_TOOL, P.REVIEW_TOOL, brief_tool(), deck_tool(),
+                 *(P.content_tool(k) for k in P.CONTENT_MODELS)]
+        for t in tools:
+            walk(_anthropic_tool_to_gemini(t))
+
+
 def _candidate_response(finish_reason: str, text: str = "", output_tokens: int = 10):
     resp = MagicMock()
     resp.status_code = 200
@@ -146,3 +196,12 @@ class TestMalformedFunctionCallFallbackChain:
             )
 
         assert result["tool_use"] == {"reply": "Recovered via fallback."}
+
+
+def test_billed_output_counts_thinking_tokens():
+    """gemini-3.6-flash thinks before answering and Google bills those tokens as output; leaving them out undercounted
+    every usage_events cost estimate (live, 24 Oct 2026: ~1-3k thinking tokens a call)."""
+    from app.adapters.llm.gemini import _billed_output
+    assert _billed_output({"candidatesTokenCount": 400, "thoughtsTokenCount": 1200}) == 1600
+    assert _billed_output({"candidatesTokenCount": 400}) == 400
+    assert _billed_output({}) == 0

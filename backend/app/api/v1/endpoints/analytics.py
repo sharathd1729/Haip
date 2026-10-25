@@ -81,7 +81,7 @@ def _calls_week_series(db: Session, tid: str, start: datetime, end: datetime,
     from app.models.tenant import Tenant
     tenant = db.query(Tenant.ivr_provider).filter(Tenant.id == tid).first()
     if tenant and tenant.ivr_provider:
-        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
+        q = q.filter(Call.shown_for(tenant.ivr_provider))
     if property_ids:
         q = q.filter(Call.property_id.in_(property_ids))
     rows = q.group_by("d").order_by("d").all()
@@ -474,7 +474,7 @@ def agent_leaderboard(
 
     user_ids = [r.user_id for r in rows]
     users = {
-        str(u.id): u.full_name
+        str(u.id): u.name
         for u in db.query(UserModel).filter(UserModel.id.in_(user_ids)).all()
     }
 

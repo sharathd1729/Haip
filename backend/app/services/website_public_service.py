@@ -155,9 +155,10 @@ def _legal(tenant: Tenant) -> dict:
     return {"legal_name": p.legal_name or tenant.name, "gstin": p.gstin, "address": p.address}
 
 
-def asset_urls(db: Session, tenant_id: str, doc: dict) -> dict:
-    """asset id -> a path the renderer proxies (/_haip/media/<id>); real storage URLs are signed per request."""
-    ids = wb.asset_ids(doc)
+def asset_urls(db: Session, tenant_id: str, doc: dict, extra: Optional[set] = None) -> dict:
+    """asset id -> a path the renderer proxies (/_haip/media/<id>); real storage URLs are signed per request.
+    `extra` = photos a v2 page binds from the library (hero, gallery) on top of the ones the doc names."""
+    ids = wb.asset_ids(doc) | set(extra or ())
     if not ids:
         return {}
     rows = db.query(MediaAsset).filter(MediaAsset.tenant_id == tenant_id, MediaAsset.id.in_(list(ids)),
@@ -166,7 +167,10 @@ def asset_urls(db: Session, tenant_id: str, doc: dict) -> dict:
 
 
 def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False) -> dict:
+    from app.services import website_spec_service as wspec
     from app.services.business_data_service import tenant_today
+    if wspec.is_v2(version.doc):
+        return wspec.bootstrap(db, tenant, site, version, preview=preview)
     cfg = site_settings(site)
     today = tenant_today(db, tenant.id)
     props = bookable_properties(db, tenant.id, cfg.property_ids or None)
@@ -194,8 +198,12 @@ def stay_detail(db: Session, tenant: Tenant, site: Site, slug: str) -> dict:
 
 
 def media_url(db: Session, tenant_id: str, doc: dict, asset_id: str) -> str:
+    from app.services import website_spec_service as wspec
     from app.services.media_storage import get_presigned_media_url
-    if asset_id not in wb.asset_ids(doc):
+    allowed = wb.asset_ids(doc)
+    if asset_id not in allowed and wspec.is_v2(doc):
+        allowed = allowed | wspec.media_ids(db, db.get(Tenant, tenant_id), doc)
+    if asset_id not in allowed:
         raise WebsiteError(404, "not_found", "Not found")
     a = db.query(MediaAsset).filter_by(id=asset_id, tenant_id=tenant_id, status="active").first()
     url = get_presigned_media_url(a.storage_key, expires_in=3600) if a else None

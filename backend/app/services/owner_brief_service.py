@@ -54,7 +54,7 @@ def _missed_calls(db: Session, tenant: Tenant, start: datetime, end: datetime) -
     q = db.query(func.count(Call.id)).filter(Call.tenant_id == tenant.id, Call.created_at >= start, Call.created_at <= end,
                                              call_status_service.missed_call_sql_filter())
     if tenant.ivr_provider:                     # history from a disconnected provider must not count (catalogue: calls)
-        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
+        q = q.filter(Call.shown_for(tenant.ivr_provider))
     return int(q.scalar() or 0)
 
 

@@ -3,7 +3,7 @@ against services/website_blocks.json (mirrored in frontend/src/site-blocks/block
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 BOOKING_MODES = ("instant", "deposit", "request", "enquiry")
 
@@ -23,6 +23,18 @@ class SiteSettings(_Strict):
     property_ids: list[str] = Field(default_factory=list)   # empty = every active, bookable property
     min_nights: int = Field(1, ge=1, le=30)
     max_advance_days: int = Field(365, ge=7, le=730)
+
+
+class SpecDraftIn(_Strict):
+    """A v2 draft from a hand-written SiteSpec (validated by schemas/site_spec.py) or a seeded starter plan."""
+    spec: Optional[dict] = None
+    seed: Optional[Literal["starter"]] = None
+
+    @model_validator(mode="after")
+    def _one(self):
+        if (self.seed is None) == (self.spec is None):
+            raise ValueError("send either a spec or seed='starter'")
+        return self
 
 
 class SiteCreate(_Strict):

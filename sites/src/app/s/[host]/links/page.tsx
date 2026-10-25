@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { PageView } from "@/components/PageView";
 import { apiRoot, getLive } from "@/lib/haip";
 import { pack, packVars } from "@/site-blocks/packs";
+import { isV2, kVars } from "@/site-blocks/v2/types";
 
 type Params = { host: string };
 interface Pkg { key: string; name: string; summary: string; length: string; days: string[]; price: string | null; whatsapp_url: string | null }
@@ -32,9 +33,11 @@ export default async function LinksPage({ params }: { params: Promise<Params> })
   const [live, links] = await Promise.all([getLive(host), getLinks(host)]);
   if (!live || !links) notFound();
   const doc = live.doc;
-  const p = pack(doc.theme.pack);
+  const v2 = isV2(live) ? live : null;       // a v2 site keeps its own palette and faces here too
+  const style = isV2(live) ? { ...packVars(pack(undefined)), ...kVars(live) } : packVars(pack(live.doc.theme.pack));
   return (
-    <div className={`hs p-${doc.theme.personality}`} style={packVars(p) as CSSProperties}>
+    <div className={`hs p-${isV2(live) ? "calm" : live.doc.theme.personality}`} style={style as CSSProperties}>
+      {v2 && <link rel="stylesheet" href={v2.theme.fonts_href} precedence="default" />}
       <main className="k-wrap" style={{ maxWidth: 520, padding: "40px 20px 64px", display: "grid", gap: 14 }}>
         <h1 className="k-h">{links.name}</h1>
         {doc.site.tagline && <p className="k-p">{doc.site.tagline}</p>}

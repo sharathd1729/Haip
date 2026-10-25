@@ -20,6 +20,9 @@ const MODE: Record<SiteSettings["booking_mode"], [string, string]> = {
   enquiry: ["Enquiries only", "No booking form; guests send an enquiry that lands in Leads."],
 };
 
+// A new-builder (v2) draft names pages by slug instead of id/path.
+const slugOf = (p: Page) => (p as unknown as { slug?: string }).slug || "";
+
 function seoReady(p: Page) { return p.seo.title.length > 0 && p.seo.description.length >= 50 && p.seo.description.length <= 160; }
 
 export function Overview({ site, role }: { site: SiteOut; role: string }) {
@@ -45,11 +48,12 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
       <div className="grid content-start gap-4">
         <Card>
           <CardHeader title="Pages" description={`${doc?.pages.length ?? 0} pages · stay pages are filled from Properties`}
-            actions={<Link className={btnPrimary} href="/dashboard/marketing/website/edit">Open editor</Link>} />
+            actions={<>{(role === "owner" || role === "manager") && <Link className={btn} href="/dashboard/marketing/website/builder">Design with the art director</Link>}
+              <Link className={btnPrimary} href="/dashboard/marketing/website/edit">Open editor</Link></>} />
           <CardBody>
             {!doc ? <p className="text-sm text-[var(--haip-fg-muted)]">Loading…</p> : (
-              <DataTable rows={doc.pages} rowKey={p => p.id} columns={[
-                { key: "t", header: "Page", cell: p => <div><b>{p.title}</b><div className="text-xs text-[var(--haip-fg-subtle)]">{p.path}</div></div> },
+              <DataTable rows={doc.pages} rowKey={p => p.id || slugOf(p)} columns={[
+                { key: "t", header: "Page", cell: p => <div><b>{p.title}</b><div className="text-xs text-[var(--haip-fg-subtle)]">{p.path || slugOf(p)}</div></div> },
                 { key: "k", header: "Type", hideBelow: "sm", cell: p => SPEC.system_pages[p.key]?.system ? <StatusPill tone="neutral">Built by HAIP</StatusPill>
                   : p.key === "stay" ? <StatusPill tone="info">Template</StatusPill> : SPEC.system_pages[p.key]?.required ? <StatusPill tone="neutral">Required</StatusPill> : <StatusPill tone="success">Page</StatusPill> },
                 { key: "s", header: "Search preview", cell: p => (["stay", "book", "manage"].includes(p.key) ? <span className="text-xs text-[var(--haip-fg-subtle)]">Automatic</span>

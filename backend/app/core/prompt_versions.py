@@ -175,6 +175,11 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
     "website_generate": "website-generate-v1",
     "website_edit": "website-edit-v1",
+    # Website art director (services/website_builder_prompts.py, W2).
+    "website_sitemap": "website-sitemap-v1",
+    "website_wireframe": "website-wireframe-v1",
+    "website_style": "website-style-v1",
+    "website_copy": "website-copy-v1",
     # v3: the copywriter also gets the plan, the week's other posts, recent openings, reviewer notes and the photo
     # library's descriptions; it describes each slot's photo for the picker and may choose the text design.
     # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
@@ -193,7 +198,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Studio plan phase 1: creative tags from a post's / ad's own text (marketing_tagging) and the weekly Insights
     # report's plain-English lines over code-computed facts (marketing_insights_report).
     "marketing_tagging": "marketing-tagging-v1",
-    "marketing_insights": "marketing-insights-v1",
+    "marketing_insights": "marketing-insights-v2",
     # Studio plan phase 2: what a Reel does (hook, shots, text, CTA) read by the vision model into the swipe file.
     "marketing_video_read": "marketing-video-read-v1",
     # Studio plan phase 3: shoot & collab brief, monthly strategy deck (marketing_strategy).

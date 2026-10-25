@@ -290,6 +290,7 @@ celery_app.conf.update(
         "marketing_publish.dispatch":                {"queue": "default"},
         "marketing_publish.publish_one":             {"queue": "default"},
         "website.ai_job":                            {"queue": "default"},
+        "website.builder_step":                      {"queue": "default"},
         "website.after_booking":                     {"queue": "whatsapp"},
         "website.expire_holds":                      {"queue": "default"},
         "website.verify_domains":                    {"queue": "default"},

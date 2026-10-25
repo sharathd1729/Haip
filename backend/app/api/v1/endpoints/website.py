@@ -16,12 +16,22 @@ from app.models.media_asset import MediaAsset
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.website import BookingHold, SiteAiJob
-from app.schemas.website import AiGenerate, AiRequest, DomainAdd, DraftSave, SiteCreate, SiteSettings, VersionAction
+from app.schemas.website import (
+    AiGenerate,
+    AiRequest,
+    DomainAdd,
+    DraftSave,
+    SiteCreate,
+    SiteSettings,
+    SpecDraftIn,
+    VersionAction,
+)
 from app.services import media_library_service as media
 from app.services import website_ai_service as ai
 from app.services import website_domain_service as dom
 from app.services import website_public_service as pub
 from app.services import website_service as svc
+from app.services import website_spec_service as wspec
 from app.services import website_version_service as vs
 from app.services.authz_service import require_capability
 from app.services.media_storage import get_presigned_media_url
@@ -120,6 +130,23 @@ def save_draft(body: DraftSave, user: User = Depends(get_current_user), db: Sess
     site = _site(db, user)
     try:
         v, problems = vs.save_draft(db, site, body.doc, body.base_sha256, actor_id=user.id)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+    db.commit()
+    return _draft_out(db, site, v, problems)
+
+
+@router.post("/draft/v2", status_code=201)
+def create_v2_draft(body: SpecDraftIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                    _m=_module, _c=_approve):
+    """A new draft version in the v2 builder format (SiteSpec), from a hand-written spec or the starter plan. The live site
+    is untouched until this draft is approved and published like any other version."""
+    site = _site(db, user)
+    tenant = db.get(Tenant, user.tenant_id)
+    head_doc = vs.head(db, site).doc if site.draft_version_id else {}
+    spec = body.spec if body.spec is not None else wspec.starter(tenant, (head_doc or {}).get("site"))
+    try:
+        v, problems = wspec.create_draft(db, site, spec, actor_id=user.id, origin="seed" if body.seed else "human")
     except svc.WebsiteError as exc:
         _fail(exc)
     db.commit()
@@ -260,6 +287,9 @@ def _queue_job(db: Session, user: User, site, kind: str, text: Optional[str]) ->
     recent = db.query(func.count(SiteAiJob.id)).filter(SiteAiJob.tenant_id == user.tenant_id, SiteAiJob.created_at >= since).scalar()
     if (recent or 0) >= AI_JOBS_PER_HOUR:
         raise HTTPException(status_code=429, detail={"code": "ai_busy", "message": "That's a lot of requests this hour. Try again shortly.", "problems": []})
+    if site.draft_version_id and wspec.is_v2(vs.head(db, site).doc):
+        raise HTTPException(status_code=409, detail={"code": "ai_classic_only", "message": "The AI developer edits classic "
+                            "sites. The new builder's AI arrives in a later phase.", "problems": []})
     running = db.query(SiteAiJob.id).filter(SiteAiJob.site_id == site.id, SiteAiJob.status.in_(("pending", "running")),
                                             SiteAiJob.created_at >= datetime.now(timezone.utc) - timedelta(minutes=10)).first()
     if running:
@@ -294,6 +324,7 @@ def ai_generate(body: AiGenerate, user: User = Depends(get_current_user), db: Se
 def ai_jobs(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
     site = _site(db, user)
     rows = (db.query(SiteAiJob).filter_by(tenant_id=user.tenant_id, site_id=site.id)
+            .filter(SiteAiJob.kind.in_(("generate", "edit")))       # art director steps have their own API
             .order_by(SiteAiJob.created_at.desc()).limit(30).all())
     return [ai.job_out(j) for j in rows]
 

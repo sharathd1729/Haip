@@ -57,7 +57,8 @@ def describe(model: VisionModel, jpeg: bytes, prompt: str, *, client: httpx.Clie
     if not isinstance(answer, dict):
         raise VisionError("Gemini's answer was not a JSON object.", transient=False)
     usage = data.get("usageMetadata") or {}
-    tokens_in, tokens_out = usage.get("promptTokenCount") or 0, usage.get("candidatesTokenCount") or 0
+    tokens_in = usage.get("promptTokenCount") or 0
+    tokens_out = (usage.get("candidatesTokenCount") or 0) + (usage.get("thoughtsTokenCount") or 0)   # thinking is billed as output
     secs = round(time.monotonic() - started, 1)
     log.info("gemini_vision_described", model=model.key, secs=secs, tokens_in=tokens_in)
     return answer, {"provider": "gemini", "model": model.key, "secs": secs, "input_tokens": tokens_in,

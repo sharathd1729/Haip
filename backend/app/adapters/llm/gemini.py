@@ -28,7 +28,7 @@ log = structlog.get_logger()
 # issue -- Google's own error, not a guess). gemini-3.6-flash confirmed
 # reachable and present in this key's /v1beta/models listing.
 GEMINI_FLASH      = "gemini-3.6-flash"       # default — current, works on new-project keys
-GEMINI_FLASH_LITE = "gemini-2.5-flash-lite"  # lighter / faster for classify
+GEMINI_FLASH_LITE = "gemini-3.1-flash-lite"  # cheap fallback for small/internal tasks (2.5-flash-lite: 404 on this key)
 GEMINI_FLASH_PRO  = "gemini-3.6-flash"       # re-judge (same model, higher quality prompt)
 GEMINI_PRO        = "gemini-3.6-flash"       # alias kept for compat
 GEMINI_FLASH_8B   = GEMINI_FLASH_LITE        # legacy alias
@@ -66,7 +66,7 @@ def _anthropic_tool_to_gemini(tool: dict) -> dict:
 
     Gemini requires property types to be uppercase ("STRING", "NUMBER", "BOOLEAN", "ARRAY", "OBJECT").
     """
-    schema = _upcase_schema_types(tool.get("input_schema", {"type": "OBJECT", "properties": {}}))
+    schema = _fit_gemini_schema(_upcase_schema_types(tool.get("input_schema", {"type": "OBJECT", "properties": {}})))
     return {
         "function_declarations": [
             {
@@ -76,6 +76,44 @@ def _anthropic_tool_to_gemini(tool: dict) -> dict:
             }
         ]
     }
+
+
+# JSON-Schema keys Gemini's Schema proto does not have (it answers 400 to them); `const` becomes a one-value enum.
+_GEMINI_UNSUPPORTED = {"additionalProperties", "$schema", "$defs", "$id", "exclusiveMinimum", "exclusiveMaximum",
+                       "uniqueItems", "multipleOf", "examples"}
+
+
+def _fit_gemini_schema(node):
+    """Reduce an (already upcased) schema to what Gemini function declarations accept.
+
+    Confirmed live (24 Oct 2026, Marketing Studio weekly plan): Gemini answers a bare 400 "Request contains an
+    invalid argument." when an array of OBJECTS carries minItems/maxItems -- the plan's calendar (maxItems 62) and
+    the shoot brief (shots 3-20, hooks 5, posting_plan 2-16) failed, maxItems <= 20 passed, the same schema without
+    the bounds passed. Each bound multiplies the decoder's states. So those bounds move into the description (the
+    model still sees them) and the caller's Pydantic model enforces them on the result. Arrays of scalars keep theirs.
+    """
+    if isinstance(node, list):
+        return [_fit_gemini_schema(x) for x in node]
+    if not isinstance(node, dict):
+        return node
+    out = {}
+    for k, v in node.items():
+        if k in _GEMINI_UNSUPPORTED:
+            continue
+        if k == "const":
+            out["enum"] = [v]
+        elif k == "properties" and isinstance(v, dict):
+            out[k] = {name: _fit_gemini_schema(sub) for name, sub in v.items()}
+        else:
+            out[k] = _fit_gemini_schema(v)
+    items = out.get("items")
+    if out.get("type") == "ARRAY" and isinstance(items, dict) and items.get("type") == "OBJECT":
+        lo, hi = out.pop("minItems", None), out.pop("maxItems", None)
+        if lo is not None or hi is not None:
+            bound = (f"exactly {lo}" if lo == hi else f"{lo} to {hi}" if lo is not None and hi is not None
+                     else f"at least {lo}" if lo is not None else f"at most {hi}")
+            out["description"] = (out.get("description", "") + f" ({bound} items)").strip()
+    return out
 
 
 def _upcase_schema_types(schema: dict) -> dict:
@@ -111,6 +149,12 @@ def _upcase_schema_types(schema: dict) -> dict:
         else:
             result[k] = v
     return result
+
+
+def _billed_output(usage: dict) -> int:
+    """Output tokens Google bills: the answer plus the model's thinking. candidatesTokenCount alone left out the
+    thinking, often 1-3k tokens a call on gemini-3.6-flash (live, 24 Oct 2026), so usage_events undercounted cost."""
+    return (usage.get("candidatesTokenCount") or 0) + (usage.get("thoughtsTokenCount") or 0)
 
 
 def _extract_json(text: str) -> dict:
@@ -213,8 +257,10 @@ class GeminiAdapter(LLMAdapter):
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(url, json=payload, headers=_auth_headers())
             if resp.status_code != 200:
+                # 2,000 chars so Google's `details` / `fieldViolations` (when it sends them) are not cut off.
                 log.error("gemini_api_error",
-                          status=resp.status_code, body=resp.text[:500], model=gemini_model)
+                          status=resp.status_code, body=resp.text[:2000], model=gemini_model,
+                          tools=[t.get("name") for t in tools or []])
                 resp.raise_for_status()
             data = resp.json()
 
@@ -276,7 +322,7 @@ class GeminiAdapter(LLMAdapter):
                     return {
                         "content": raw_retry, "tool_use": tool_use_retry,
                         "input_tokens": usage_meta2.get("promptTokenCount", 0),
-                        "output_tokens": usage_meta2.get("candidatesTokenCount", 0),
+                        "output_tokens": _billed_output(usage_meta2),
                         "model": retry_model,
                     }
             # Retry 2: plain text JSON fallback (no FC, no JSON mode)
@@ -304,7 +350,7 @@ class GeminiAdapter(LLMAdapter):
         # Usage metadata
         usage_meta = data.get("usageMetadata", {})
         input_tokens  = usage_meta.get("promptTokenCount", 0)
-        output_tokens = usage_meta.get("candidatesTokenCount", 0)
+        output_tokens = _billed_output(usage_meta)
 
         cost_usd = 0.0
         log.info("gemini_call_completed",
@@ -368,13 +414,13 @@ class GeminiAdapter(LLMAdapter):
         usage_meta = data.get("usageMetadata", {})
         tool_use = _extract_json(raw_text) if raw_text else None
         log.info("gemini_json_fallback_done", model=gemini_model,
-                 output_tokens=usage_meta.get("candidatesTokenCount", 0),
+                 output_tokens=_billed_output(usage_meta),
                  parsed=bool(tool_use))
         return {
             "content":       raw_text,
             "tool_use":      tool_use,
             "input_tokens":  usage_meta.get("promptTokenCount", 0),
-            "output_tokens": usage_meta.get("candidatesTokenCount", 0),
+            "output_tokens": _billed_output(usage_meta),
             "model":         gemini_model,
         }
 
@@ -406,4 +452,6 @@ def _map_model(model_alias: str) -> str:
         "gemini-1.5-flash-8b":        GEMINI_FLASH_LITE,
         "gemini-1.5-pro":             GEMINI_FLASH_PRO,
     }
-    return _MAP.get(model_alias, GEMINI_FLASH)
+    # A real Gemini model name passes through. Only Claude aliases / unknown names fall back to GEMINI_FLASH: the old
+    # catch-all silently ran gemini-3.6-flash for every newer name (e.g. gemini-3.1-flash-lite), live 25 Oct 2026.
+    return _MAP.get(model_alias) or (model_alias if model_alias.startswith("gemini-") else GEMINI_FLASH)
