@@ -180,7 +180,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     "website_wireframe": "website-wireframe-v1",
     "website_style": "website-style-v2",
     "website_copy": "website-copy-v1",
-    "website_change": "website-change-v1",
+    "website_change": "website-change-v2",
     # v3: the copywriter also gets the plan, the week's other posts, recent openings, reviewer notes and the photo
     # library's descriptions; it describes each slot's photo for the picker and may choose the text design.
     # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.

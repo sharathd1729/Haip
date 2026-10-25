@@ -25,20 +25,22 @@ from app.services.website_service import WebsiteError
 
 TASK, RETRY_TASK, MODULE = "website_change", "website_plan", "website"
 MAX_OPS = 12
-TEXT_SLOTS = ("eyebrow", "heading", "headline", "subhead", "intro", "text", "cta_label")
+TEXT_SLOTS = ("eyebrow", "heading", "headline", "subhead", "intro", "text", "body", "cta_label")
 CONTACT_FIELDS = ("phone", "whatsapp", "email", "address")
 
 SYSTEM = """You change a small business's website for its owner, who is not technical. Read the owner's request and answer
 with the smallest set of edits that does exactly what they asked, through the tool.
 
 Edits you can make (ops):
-- set_text: change one text (field = eyebrow, heading, headline, subhead, intro, text or cta_label) of one section.
+- set_text: change one text (field = eyebrow, heading, headline, subhead, intro, text, body or cta_label) of one section.
 - add_section: add a section (section_type + variant from the CATALOGUE) at a position. Sections show the business's own
-  data from HAIP (stays, trips, photos, reviews, FAQs); you never type that data.
+  data from HAIP (stays, trips, photos, reviews, FAQs); you never type that data. The one exception is a "text" section
+  ("Your own text": eyebrow, heading, body): for something the owner wants to say in their own words (house rules, their
+  story, how to reach them). Add it, then set_text its heading and body with the owner's words, never invented facts.
 - remove_section, move_section (position = new 0-based place on the page), set_layout (variant from the CATALOGUE).
 - set_contact: field = phone, whatsapp, email or address, value = the new value exactly as the owner gave it.
 - set_look: palette and/or display (heading font) and/or radius, only names from the lists.
-- set_photo: value = a photo id from PHOTOS for the hero section (use the photo whose description fits the request).
+- set_photo: value = a photo id from PHOTOS for the hero section, or for a "text" section (its with-photo layout shows it).
 
 Rules: change only what was asked. Never invent facts, awards, prices, ratings or offers; never type a price (prices only
 come from HAIP's price rules). If the request can't be done with these edits (e.g. "take payments", "add a blog"), make no
@@ -143,8 +145,8 @@ def apply_ops(doc: dict, ops: list[ChangeOp], photo_ids: set[str]) -> dict:
                 t["radius"] = op.radius
         elif op.op == "set_photo":
             s = _find(out, op.section_id or "hero")
-            if s["type"] != "hero" or op.value not in photo_ids:
-                raise ValueError("set_photo needs the hero section and a photo id from PHOTOS")
+            if s["type"] not in ("hero", "text") or op.value not in photo_ids:
+                raise ValueError("set_photo needs the hero or a text section and a photo id from PHOTOS")
             s["slots"]["media"] = f"asset:{op.value}"
     return wspec.validate(out)
 

@@ -28,13 +28,20 @@ export interface MediaItem { id: string; ref: string; url: string | null; alt_te
 export interface Analytics { days: number; views: { total: number; by_day: [string, number][]; top_pages: [string, number][]; sources: [string, number][] };
   website_leads: number; bookings: Record<string, { count: number; value?: string }>; money_restricted: boolean }
 
+export interface Missing {
+  items: { section: string; title: string; how: string; href: string }[];
+  drafts: { id: string; kind: "destination" | "package" | "itinerary"; key: string; name: string }[];
+}
+
 export const webApi = {
   site: () => api.get<SiteOut>(`${WEB}/site`).then(r => r.data),
   create: () => api.post<SiteOut>(`${WEB}/site`, {}).then(r => r.data),
   /** "Make my website": builds a full draft from HAIP data (creates the site if there is none). */
   make: () => api.post<{ site: SiteOut }>(`${WEB}/make`, {}).then(r => r.data.site),
-  /** Sections left out because HAIP has no data for them yet, with what to add and where. */
-  missing: () => api.get<{ items: { section: string; title: string; how: string; href: string }[] }>(`${WEB}/missing`).then(r => r.data.items),
+  /** Sections left out because HAIP has no data for them yet (with what to add and where), and trips saved only as drafts. */
+  missing: () => api.get<Missing>(`${WEB}/missing`).then(r => r.data),
+  /** Publish one draft trip / route / destination (the business-data publish path: owner/manager, audited). */
+  publishRecord: (id: string) => api.post(`/business-data/records/${id}/publish`, {}).then(r => r.data),
   settings: (s: SiteSettings) => api.put<SiteOut>(`${WEB}/site/settings`, s).then(r => r.data),
   pause: (on: boolean) => api.post<SiteOut>(`${WEB}/site/${on ? "pause" : "resume"}`).then(r => r.data),
   draft: () => api.get<DraftOut>(`${WEB}/draft`).then(r => r.data),
@@ -71,6 +78,12 @@ export function webError(e: unknown, fallback: string): string {
     return [o.message, ...(o.problems || [])].filter(Boolean).join(" ") || fallback;
   }
   return fallback;
+}
+
+/** The server's list of problems (e.g. why a draft or colours were refused), empty when there is none. */
+export function errorProblems(e: unknown): string[] {
+  const d = (e as { response?: { data?: { detail?: { problems?: unknown } } } })?.response?.data?.detail;
+  return Array.isArray(d?.problems) ? d.problems.map(String) : [];
 }
 
 export function errorCode(e: unknown): string | undefined {

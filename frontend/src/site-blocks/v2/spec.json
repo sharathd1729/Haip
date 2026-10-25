@@ -10,7 +10,8 @@
     "reviews": {"label": "Reviews", "variants": ["quote-carousel", "grid", "rating-strip"], "source": "reviews:approved"},
     "faq": {"label": "FAQ", "variants": ["accordion", "two-column", "compact"], "source": "knowledge:faq"},
     "contact": {"label": "Contact and map", "variants": ["split", "card", "minimal"], "source": "site:contact"},
-    "booking-cta": {"label": "Booking call to action", "variants": ["sticky-bar", "banner", "inline-form"], "source": "site:contact"}
+    "booking-cta": {"label": "Booking call to action", "variants": ["sticky-bar", "banner", "inline-form"], "source": "site:contact"},
+    "text": {"label": "Your own text", "variants": ["plain", "with-photo"], "source": "site:text"}
   },
   "palettes": {
     "forest-amber": {"label": "Forest and amber", "ink": "#1B2420", "surface": "#F5F1E8", "primary": "#2F5D46", "accent": "#A8641C"},

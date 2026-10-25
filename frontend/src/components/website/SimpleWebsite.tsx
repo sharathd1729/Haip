@@ -4,16 +4,17 @@
 // classic editor) lives behind "More options".
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheck, ExternalLink, MessageSquareText, Monitor, Phone, Rocket, Smartphone, Sparkles } from "lucide-react";
+import { CalendarCheck, ExternalLink, Image as ImageIcon, LayoutList, MessageSquareText, Monitor, Palette, Phone, Rocket, Smartphone, Sparkles, Type } from "lucide-react";
 import { Card, CardBody, Drawer, StatusPill } from "@/components/ui/kit";
 import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { webApi, webError, type SiteOut, type SiteSettings } from "@/lib/website";
 import { ChangeSheet } from "./ChangeSheet";
+import { LookSheet, PhotosSheet, SectionsSheet, WordsSheet } from "./DirectEditors";
 import { useDraft } from "./useDraft";
 
 type Contact = { phone: string; whatsapp: string; email: string; address: string };
-type Sheet = null | "change" | "contact" | "booking" | "publish";
+type Sheet = null | "change" | "contact" | "booking" | "publish" | "photos" | "look" | "sections" | "words";
 
 export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: string; onMore: () => void }) {
   const qc = useQueryClient();
@@ -21,12 +22,13 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
   const draft = useDraft();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [phone, setPhone] = useState(true);
+  const [wordsFor, setWordsFor] = useState<string | null>(null);
   const canApprove = role === "owner" || role === "manager";
   const doc = draft.doc as unknown as { spec_version?: number; site: { contact: Contact } } | null;
   const isNew = doc?.spec_version === 2;
   const v = draft.version;
   const preview = useQuery({ queryKey: ["web-preview", v?.sha256], queryFn: webApi.preview, enabled: !!v, staleTime: 60 * 60 * 1000 });
-  const missing = useQuery({ queryKey: ["web-missing", v?.sha256], queryFn: webApi.missing, enabled: canApprove && isNew });
+  const missing = useQuery({ queryKey: ["web-missing", v?.sha256], queryFn: webApi.missing, enabled: canApprove && isNew, staleTime: 0 });   // trips drafted elsewhere show at once
   const fail = (title: string) => (e: unknown) => toast({ variant: "error", title, description: webError(e, "Try again.") });
   const refresh = (s?: SiteOut) => { if (s) qc.setQueryData(["web-site"], s); qc.invalidateQueries({ queryKey: ["web-versions"] }); draft.load(); };
   const make = useMutation({ mutationFn: webApi.make, onSuccess: s => { refresh(s); toast({ variant: "success", title: "Your website is ready to look at" }); },
@@ -34,8 +36,16 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
   const publish = useMutation({ mutationFn: (id: string) => (role === "owner" ? webApi.publish(id) : webApi.submit(id)),
     onSuccess: s => { refresh(s); setSheet(null); toast({ variant: "success", title: role === "owner" ? "Your website is live" : "Sent to the owner to publish" }); },
     onError: fail("Not published") });
+  // Trips saved only as drafts never show on the site: publish them in order (destination, package, itinerary).
+  const publishDrafts = useMutation({
+    mutationFn: async () => { for (const d of missing.data?.drafts || []) await webApi.publishRecord(d.id); },
+    onSuccess: () => toast({ variant: "success", title: "Published", description: "Now tap “Make it again from my HAIP data” to add them to your website." }),
+    onError: fail("Not all of them were published"),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["web-missing"] }) });
+  const own = !canApprove || !isNew;   // the direct editors change the new (v2) website only
 
   const host = site.url.replace("https://", "");
+  const trips = (missing.data?.drafts || []).filter(d => d.kind !== "destination");
   const blocking = draft.checks.filter(c => c.level === "block");
   const unpublished = !!v && v.status === "draft" && v.id !== site.live?.id;
 
@@ -83,6 +93,12 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
         <div className="grid content-start gap-3">
           <BigButton icon={<MessageSquareText size={22} />} title="Change something" text="Tell HAIP in your own words." onClick={() => setSheet("change")}
             disabled={!canApprove || !isNew} />
+          <div className="grid grid-cols-2 gap-3">
+            <Tile icon={<ImageIcon size={20} />} title="Photo" onClick={() => setSheet("photos")} disabled={own} />
+            <Tile icon={<Palette size={20} />} title="Colours & font" onClick={() => setSheet("look")} disabled={own} />
+            <Tile icon={<LayoutList size={20} />} title="Sections" onClick={() => setSheet("sections")} disabled={own} />
+            <Tile icon={<Type size={20} />} title="Words" onClick={() => { setWordsFor(null); setSheet("words"); }} disabled={own} />
+          </div>
           <BigButton icon={<Phone size={22} />} title="My phone & WhatsApp" text="The numbers guests use to reach you." onClick={() => setSheet("contact")} disabled={!canApprove || !draft.doc} />
           <BigButton icon={<CalendarCheck size={22} />} title="Bookings" text={MODE_TEXT[site.settings.booking_mode] || ""} onClick={() => setSheet("booking")} disabled={!canApprove} />
           <BigButton icon={<Rocket size={22} />} title={site.live && !unpublished ? "Published" : "Publish"} primary
@@ -92,10 +108,17 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
             {canApprove && isNew && <button className="flex min-h-11 items-center gap-1.5 underline underline-offset-4" disabled={make.isPending} onClick={() => make.mutate()}><Sparkles size={15} aria-hidden="true" />{make.isPending ? "Making…" : "Make it again from my HAIP data"}</button>}
             <button className="min-h-11 text-[var(--haip-fg-muted)] underline underline-offset-4" onClick={onMore}>More options</button>
           </div>
-          {(missing.data?.length ?? 0) > 0 && (
+          {trips.length > 0 && (
+            <Card><CardBody className="grid gap-2">
+              <p className="text-sm font-semibold">{trips.length === 1 ? "1 trip is" : `${trips.length} trips are`} saved as a draft, so guests can&apos;t see {trips.length === 1 ? "it" : "them"}</p>
+              <p className="text-sm text-[var(--haip-fg-muted)]">{trips.map(d => d.name).join(", ")}</p>
+              <button className={btnPrimary} disabled={publishDrafts.isPending} onClick={() => publishDrafts.mutate()}>{publishDrafts.isPending ? "Publishing…" : "Publish them"}</button>
+            </CardBody></Card>
+          )}
+          {(missing.data?.items.length ?? 0) > 0 && (
             <Card><CardBody className="grid gap-2">
               <p className="text-sm font-semibold">Add these and your website shows more</p>
-              <ul className="grid gap-2">{missing.data!.map(m => (
+              <ul className="grid gap-2">{missing.data!.items.map(m => (
                 <li key={m.section} className="text-sm"><a href={m.href} className="font-semibold underline underline-offset-4">{m.title}</a>
                   <span className="block text-[var(--haip-fg-muted)]">{m.how}</span></li>))}</ul>
               <p className="text-xs text-[var(--haip-fg-muted)]">Then tap &ldquo;Make it again from my HAIP data&rdquo;.</p>
@@ -106,6 +129,10 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
 
       {doc && <ContactSheet open={sheet === "contact"} onClose={() => setSheet(null)} contact={doc.site.contact}
         onSave={async c => { draft.update(d => { (d as unknown as { site: { contact: Contact } }).site.contact = c; }); await draft.flush(); setSheet(null); toast({ variant: "success", title: "Saved. Publish to show it to guests." }); }} />}
+      <PhotosSheet open={sheet === "photos"} onClose={() => setSheet(null)} draft={draft} />
+      <LookSheet open={sheet === "look"} onClose={() => setSheet(null)} draft={draft} />
+      <SectionsSheet open={sheet === "sections"} onClose={() => setSheet(null)} draft={draft} onWrite={id => { setWordsFor(id); setSheet("words"); }} />
+      <WordsSheet open={sheet === "words"} onClose={() => setSheet(null)} draft={draft} sectionId={wordsFor} />
       <ChangeSheet open={sheet === "change"} onClose={() => setSheet(null)} onChanged={() => refresh()} />
       <BookingSheet open={sheet === "booking"} onClose={() => setSheet(null)} site={site} onSaved={s => { qc.setQueryData(["web-site"], s); setSheet(null); }} />
       <Drawer open={sheet === "publish"} onOpenChange={o => !o && setSheet(null)} title="Publish your website"
@@ -134,6 +161,15 @@ function BigButton({ icon, title, text, onClick, disabled, primary }: { icon: Re
       className={`grid min-h-[76px] grid-cols-[auto_1fr] items-center gap-3 rounded-2xl border p-4 text-left transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${primary ? "border-primary bg-primary text-primary-foreground" : "border-[var(--haip-border)] bg-[var(--haip-card)]"}`}>
       <span aria-hidden="true">{icon}</span>
       <span><b className="block text-base font-semibold">{title}</b><span className={`block text-sm ${primary ? "opacity-90" : "text-[var(--haip-fg-muted)]"}`}>{text}</span></span>
+    </button>
+  );
+}
+
+function Tile({ icon, title, onClick, disabled }: { icon: ReactNode; title: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className="grid min-h-[76px] content-center justify-items-start gap-1.5 rounded-2xl border border-[var(--haip-border)] bg-[var(--haip-card)] p-3 text-left transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60">
+      <span aria-hidden="true" className="text-[var(--primary)]">{icon}</span><b className="text-[15px] font-semibold leading-tight">{title}</b>
     </button>
   );
 }

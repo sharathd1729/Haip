@@ -152,9 +152,11 @@ def make_website(user: User = Depends(get_current_user), db: Session = Depends(g
 
 @router.get("/missing")
 def what_is_missing(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
-    """Sections "Make my website" leaves out because HAIP has no data for them yet, with what to add and where."""
+    """Sections "Make my website" leaves out because HAIP has no data for them yet, with what to add and where, and the trips
+    and routes saved only as drafts (`drafts`, in publish order: POST /business-data/records/{id}/publish, then "Make it again")."""
     from app.services import website_autobuild
-    return {"items": website_autobuild.missing(db, db.get(Tenant, user.tenant_id))}
+    tenant = db.get(Tenant, user.tenant_id)
+    return {"items": website_autobuild.missing(db, tenant), "drafts": website_autobuild.drafts(db, tenant)}
 
 
 @router.post("/draft/v2", status_code=201)
@@ -369,7 +371,8 @@ def _asset_out(a: MediaAsset) -> dict:
 
 @router.get("/media")
 def list_media(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
-    rows = (db.query(MediaAsset).filter(MediaAsset.tenant_id == user.tenant_id, MediaAsset.status == "active")
+    rows = (db.query(MediaAsset).filter(MediaAsset.tenant_id == user.tenant_id, MediaAsset.status == "active",
+                                        MediaAsset.mime_type.like("image/%"))      # pages show photos; Reel clips stay in the Studio
             .order_by(MediaAsset.created_at.desc()).limit(300).all())
     return [_asset_out(a) for a in rows]
 

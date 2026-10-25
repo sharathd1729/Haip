@@ -84,3 +84,20 @@ def test_change_needs_website_approve_and_stays_in_its_workspace(client, db, wsi
     db.add(stranger)
     db.commit()
     assert client.post(f"{B}/change/{stranger.id}/undo", headers=wsite["owner_h"]).status_code == 404
+
+
+def test_owner_text_can_be_added_written_and_given_a_photo():
+    import uuid
+    from app.schemas.site_builder import ChangeOp
+    from app.services import website_change as wc
+    from tests.test_website_spec_v2 import spec
+    from app.services import website_spec_service as wspec
+    photo = str(uuid.uuid4())
+    doc = wspec.validate(spec())
+    out = wc.apply_ops(doc, [ChangeOp(op="add_section", section_type="text", variant="with-photo"),
+                             ChangeOp(op="set_text", section_id="text", field="heading", value="House rules"),
+                             ChangeOp(op="set_text", section_id="text", field="body", value="Pets welcome. " * 60),
+                             ChangeOp(op="set_photo", section_id="text", value=photo)], {photo})
+    sec = next(s for s in out["pages"][0]["sections"] if s["type"] == "text")
+    assert out["pages"][0]["sections"][-1]["type"] == "contact"           # added before contact, never after it
+    assert sec["slots"]["heading"] == "House rules" and sec["slots"]["media"] == f"asset:{photo}" and len(sec["slots"]["body"]) > 300

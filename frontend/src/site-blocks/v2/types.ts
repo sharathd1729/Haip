@@ -4,7 +4,7 @@
 import catalogue from "./spec.json";
 import type { LiveData } from "../types";
 
-export type SectionType = "hero" | "stays" | "booking" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta";
+export type SectionType = "hero" | "stays" | "booking" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta" | "text";
 
 export const CATALOGUE = catalogue as unknown as {
   spec_version: 2;

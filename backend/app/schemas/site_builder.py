@@ -141,8 +141,8 @@ class ChangeOp(_Strict):
     op: Literal["set_text", "add_section", "remove_section", "move_section", "set_layout", "set_contact", "set_look", "set_photo"]
     section_id: str = Field("", max_length=40, description="Which section (its id), for every op except set_contact and set_look")
     field: str = Field("", max_length=40, description="set_text: the text slot (eyebrow, heading, headline, subhead, intro, text, "
-                                                      "cta_label). set_contact: phone, whatsapp, email or address")
-    value: str = Field("", max_length=300, description="The new text, contact value, or for set_photo the photo id")
+                                                      "body, cta_label). set_contact: phone, whatsapp, email or address")
+    value: str = Field("", max_length=1200, description="The new text, contact value, or for set_photo the photo id")
     section_type: str = Field("", max_length=20, description="add_section: the section type to add")
     variant: str = Field("", max_length=30, description="add_section / set_layout: the layout (variant) name")
     position: int = Field(-1, ge=-1, le=30, description="add_section / move_section: 0-based place on the page; -1 = before the "

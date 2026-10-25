@@ -259,11 +259,24 @@ class BookingCtaSlots(_Strict):
     cta_label: str = Field("Plan my trip on WhatsApp", min_length=1, max_length=40)
 
 
+class TextSlots(_Strict):
+    """"Your own text": anything the owner wants to say that HAIP has no data for (house rules, the story, directions)."""
+    eyebrow: Short = ""
+    heading: str = Field("", max_length=90)
+    body: str = Field("", max_length=1200)                   # blank lines = new paragraphs
+    media: Optional[str] = None                              # the "with-photo" layout's photo; empty = no photo
+
+    @field_validator("media", mode="before")
+    @classmethod
+    def _media(cls, v):
+        return _asset(v)
+
+
 SLOTS: dict[str, type[_Strict]] = {
     "hero": HeroSlots, "stays": StaysSlots, "booking": BookingSlots, "packages": PackagesSlots, "itinerary": ItinerarySlots, "gallery": GallerySlots,
-    "reviews": ReviewsSlots, "faq": FaqSlots, "contact": ContactSlots, "booking-cta": BookingCtaSlots,
+    "reviews": ReviewsSlots, "faq": FaqSlots, "contact": ContactSlots, "booking-cta": BookingCtaSlots, "text": TextSlots,
 }
-SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta"]
+SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta", "text"]
 
 
 def _typed_price(obj) -> Optional[str]:

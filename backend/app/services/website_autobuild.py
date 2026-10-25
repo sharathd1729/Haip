@@ -98,6 +98,25 @@ def missing(db: Session, tenant: Tenant) -> list[dict]:
     return [{"section": t, "title": title, "how": how, "href": href} for t, (title, how, href) in _MISSING.items() if t not in have]
 
 
+def drafts(db: Session, tenant: Tenant) -> list[dict]:
+    """Trips (packages) and day-by-day routes (itineraries) saved as DRAFTS: the website never shows a draft, so they are
+    listed for the owner to publish. A destination draft comes along only when one of them needs it, and the list is in
+    the order they must be published (destination, then package, then itinerary: business_data_service.validate_record)."""
+    from app.models.business_record import BusinessRecord
+    from app.services import business_data_service as bds
+    rows = (db.query(BusinessRecord)
+            .filter(BusinessRecord.tenant_id == tenant.id, BusinessRecord.status == "draft",
+                    BusinessRecord.kind.in_(("destination", "package", "itinerary")))
+            .order_by(BusinessRecord.created_at).all())
+    trips = [r for r in rows if r.kind != "destination" and not (r.kind == "package" and (r.data or {}).get("audience") == "b2b")]
+    needed = {k for r in trips for k in ((r.data or {}).get("destination_keys") or [(r.data or {}).get("destination_key")]) if k}
+    needed = {k for k in needed if not bds.get_effective(db, tenant.id, "destination", k)}
+    keep = [r for r in rows if r.kind == "destination" and r.key in needed] + trips
+    order = {"destination": 0, "package": 1, "itinerary": 2}
+    return [{"id": r.id, "kind": r.kind, "key": r.key, "name": str((r.data or {}).get("name") or r.key)[:80]}
+            for r in sorted(keep, key=lambda r: order[r.kind])]
+
+
 def make(db: Session, tenant: Tenant, actor_id: Optional[str]) -> tuple[Site, object, list[str]]:
     """Create the site if there is none, then a new draft built from HAIP data. Returns (site, version, problems)."""
     from app.services import website_service as svc

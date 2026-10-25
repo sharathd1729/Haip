@@ -293,6 +293,11 @@
 .sv .sv-contact-min { display: grid; gap: 8px; }
 .sv .sv-contact-min .sv-head { margin-bottom: 8px; }
 
+/* your own text */
+.sv .sv-own { display: grid; gap: 1em; max-width: 64ch; font-size: 1.0625rem; line-height: 1.65; white-space: pre-line; }
+.sv .sv-own__split { align-items: center; }
+.sv .sv-own__photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--v-r-media); }
+
 /* booking call to action */
 .sv .sv-inverse { background: var(--v-primary); color: var(--v-on-primary); }
 .sv .sv-inverse :is(.sv-eyebrow, .sv-lede) { color: inherit; opacity: .9; }

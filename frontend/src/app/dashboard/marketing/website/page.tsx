@@ -28,9 +28,7 @@ export default function WebsitePage() {
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="mx-auto max-w-[1280px] space-y-5 px-4 py-5 sm:px-6">
         <PageHeader title="Website" subtitle="Your website, made and hosted by HAIP"
-          actions={s && more && <div className="flex flex-wrap items-center gap-2">
-            <button className={btn} onClick={() => setMore(false)}>Back to simple view</button>
-            <a className={btnPrimary} href="/dashboard/marketing/website/edit">Open editor</a></div>} />
+          actions={s && more && <button className={btn} onClick={() => setMore(false)}>Back to simple view</button>} />
         {!mounted || site.isLoading ? <Skeleton className="h-48 w-full" /> : site.isError ? (
           code === "no_site" ? <NoSite canCreate={role === "owner" || role === "manager"} /> : (
             <Card><EmptyState

@@ -8,8 +8,8 @@ import { btnPrimary } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { webApi, webError, type MediaItem } from "@/lib/website";
 
-export function PhotoPicker({ open, onClose, media, onPick, loading }: {
-  open: boolean; onClose: () => void; media: MediaItem[]; onPick: (ref: string) => void; loading?: boolean;
+export function PhotoPicker({ open, onClose, media, onPick, loading, title = "Choose a photo", selected }: {
+  open: boolean; onClose: () => void; media: MediaItem[]; onPick: (ref: string) => void; loading?: boolean; title?: string; selected?: string | null;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -29,7 +29,7 @@ export function PhotoPicker({ open, onClose, media, onPick, loading }: {
     } finally { setBusy(false); }
   };
   return (
-    <Drawer open={open} onOpenChange={o => !o && onClose()} title="Choose a photo" description="Your photo library, shared with Marketing Studio" wide
+    <Drawer open={open} onOpenChange={o => !o && onClose()} title={title} description="Your photo library, shared with Marketing Studio" wide
       footer={<>
         <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={e => upload(e.target.files)} />
         <button type="button" className={btnPrimary} disabled={busy} onClick={() => input.current?.click()}>{busy ? "Uploading…" : "Upload photos"}</button>
@@ -39,11 +39,12 @@ export function PhotoPicker({ open, onClose, media, onPick, loading }: {
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {media.map(m => (
-            <button key={m.id} type="button" className="group overflow-hidden rounded-xl border border-[var(--haip-border)] text-left focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            <button key={m.id} type="button" aria-pressed={selected === m.ref}
+              className={`group overflow-hidden rounded-xl border text-left focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${selected === m.ref ? "border-[var(--primary)] ring-2 ring-[var(--primary)]" : "border-[var(--haip-border)]"}`}
               onClick={() => { onPick(m.ref); onClose(); }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {m.url ? <img src={m.url} alt={m.alt_text || ""} className="aspect-[4/3] w-full object-cover transition group-hover:opacity-90" /> : <div className="aspect-[4/3] bg-[var(--haip-surface)]" />}
-              <span className="block truncate px-2 py-1.5 text-xs text-[var(--haip-fg-muted)]">{m.alt_text || (m.source === "ai" ? "AI image" : "Photo")}</span>
+              <span className="block truncate px-2 py-1.5 text-xs text-[var(--haip-fg-muted)]">{selected === m.ref ? "In use now" : m.alt_text || (m.source === "ai" ? "AI image" : "Photo")}</span>
             </button>
           ))}
         </div>

@@ -91,6 +91,18 @@ describe("v2 site renderer", () => {
     expect(out).toContain("live quote");
   });
 
+  it("draws the owner's own text as paragraphs, with the photo only in the with-photo layout", () => {
+    const l = live(false);
+    const page = l.doc.pages[0];
+    page.sections = [page.sections[0], ...["plain", "with-photo"].map(v => ({ id: `own-${v}`, type: "text" as const, variant: v, source: "site:text",
+      slots: { eyebrow: "", heading: "House rules", body: "No loud music after 10 pm.\n\nPets welcome.", media: PHOTO } }))];
+    const out = html(l);
+    expect(out).toContain("<p>No loud music after 10 pm.</p><p>Pets welcome.</p>");
+    expect(out.match(/sv-own__photo/g)?.length).toBe(1);
+    page.sections = [page.sections[0], { ...page.sections[1], slots: { heading: "", body: "" } }];
+    expect(html(l)).not.toContain('data-section="text"');
+  });
+
   it("hides a section HAIP has no data for and keeps one h1", () => {
     const out = html(live(false, { packages: { items: [] }, faq: { items: [] }, itinerary: { itinerary: null }, gallery: { media: [] },
       reviews: { items: [], average: null, count: 0 } }));

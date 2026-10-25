@@ -43,10 +43,11 @@ export function useDraft() {
 
   useEffect(() => { load(); }, [load]);
 
-  const flush = useCallback(async () => {
+  /** Saves now. Resolves to null when saved, else the error (the screen can show the server's problems and undo). */
+  const flush = useCallback(async (): Promise<unknown> => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     const current = latest.current;
-    if (!current || !base.current) return;
+    if (!current || !base.current) return null;
     const myRev = rev.current;
     setState("saving");
     try {
@@ -55,9 +56,11 @@ export function useDraft() {
       adopt(d, rev.current !== myRev);
       setState("saved");
       setError("");
+      return null;
     } catch (e) {
       if (errorCode(e) === "version_changed") setState("conflict");
       else { setState("error"); setError(webError(e, "Couldn't save. Your changes are kept here; we'll retry.")); }
+      return e;
     }
   }, [adopt]);
 

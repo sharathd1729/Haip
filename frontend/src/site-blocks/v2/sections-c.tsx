@@ -103,3 +103,21 @@ export function Stays(s: SectionV2, ctx: Ctx) {
     </Section>
   );
 }
+
+/** "Your own text": the owner's own words (house rules, their story, how to reach them), with an optional photo. */
+export function TextSection(s: SectionV2, ctx: Ctx) {
+  const body = txt(s.slots.body).split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (!txt(s.slots.heading) && !body.length) return null;
+  const words = (
+    <div className="sv-rise">
+      <Head ctx={ctx} s={s} />
+      <div className="sv-own">{body.map((p, i) => <p key={i}>{p}</p>)}</div>
+    </div>
+  );
+  const photo = s.variant === "with-photo" && s.slots.media ? <div className="sv-own__photo"><Img ref_={s.slots.media} ctx={ctx} sizes="(min-width: 860px) 50vw, 100vw" /></div> : null;
+  return (
+    <Section s={s}>
+      {photo ? <div className="sv-wrap sv-split sv-own__split">{words}{photo}</div> : <div className="sv-wrap sv-narrow">{words}</div>}
+    </Section>
+  );
+}
