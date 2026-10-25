@@ -345,4 +345,8 @@ def stage(db: Session, f: OpsFile) -> dict:
     open_ = next((x for x in tasks if not x["done"]), None)
     nxt = ("" if f.state in ("closed", "cancelled") else open_["label"] if open_
            else "Close the trip" if f.state == "returned" else "Waiting on the checklist")
-    return {"step": step + 1, "step_name": names[step], "step_names": list(names), "tasks": tasks, "next": nxt}
+    # next_key names the screen action for the "Next step" button (close = the Close tap, wait = nothing to tap yet)
+    key = (None if f.state in ("closed", "cancelled") else open_["key"] if open_
+           else "close" if f.state == "returned" else "wait")
+    return {"step": step + 1, "step_name": names[step], "step_names": list(names), "tasks": tasks, "next": nxt,
+            "next_key": key}

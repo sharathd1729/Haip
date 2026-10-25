@@ -1,6 +1,6 @@
 """Ops files API (migration 179): one file per booking, caravan pack first. Capabilities from 178.
 
-Files       GET /ops/files?state= · POST /ops/files/sync · GET /ops/files/by-stay/{stay_id} · GET /ops/files/{id}
+Files       GET /ops/files?state= · GET /ops/files/today · POST /ops/files/sync · GET /ops/files/by-stay/{stay_id} · GET /ops/files/{id}
 Steps       POST /ops/files/{id}/accept | /crew | /dispatch | /return | /settle | /close
 Checklist   PUT /ops/files/{id}/checklist/{key}
 Money       POST /ops/files/{id}/expenses · POST /ops/files/{id}/extras · POST /ops/files/{id}/extras/{extra_id}/approve|remove
@@ -19,7 +19,7 @@ from app.models.ops_files import OpsExpense, OpsExtra, OpsFile, OpsFileEvent
 from app.models.property import Property, Stay
 from app.models.user import User
 from app.schemas.ops_files import AcceptIn, CrewIn, ExpenseIn, ExtraIn, ItemSetIn, OdometerIn, SettleIn
-from app.services import booking_agenda_service
+from app.services import booking_agenda_service, ops_today_service
 from app.services import ops_money as money
 from app.services import ops_trip_service as trips
 from app.services.authz_service import require_capability
@@ -89,6 +89,14 @@ def list_files(state: Optional[str] = Query(None, max_length=200), user: User = 
     else:
         q = q.filter(OpsFile.state.notin_(("closed", "cancelled")))
     return [_card(db, f) for f in q.order_by(Stay.check_in, OpsFile.id).limit(200)]
+
+
+@router.get("/today")
+def today(user: User = Depends(_read), db: Session = Depends(get_db)):
+    """The Ops Today screen in one read (ops_today_service): unit cards, what needs a person, today and tomorrow."""
+    out = ops_today_service.build(db, user.tenant_id)
+    db.commit()                                     # files opened for new bookings by the built-in sync
+    return out
 
 
 @router.post("/sync")
