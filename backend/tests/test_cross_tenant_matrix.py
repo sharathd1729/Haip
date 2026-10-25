@@ -1,7 +1,7 @@
 """Cross-tenant matrix (Phase 0, workstream C).
 
 One tenant owns real records (a lead, a conversation with a message, a call with a recording, a
-booking). A second tenant, with a valid login of its own, then tries to reach every one of them
+booking, an ops staff member and an ops item). A second tenant, with a valid login of its own, then tries to reach every one of them
 through the API, the report export and the background tasks. Each check also runs the same request
 as the owning tenant first: without that positive control a 404 could just mean the fixture is broken.
 
@@ -21,6 +21,7 @@ from app.models.call import Call, CallDirection
 from app.models.conversation import ChannelType, Conversation, Message, MessageDirection
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource, InquiryStage
+from app.models.ops import OpsItem, StaffProfile
 from app.models.property import Property, Stay
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
@@ -74,9 +75,17 @@ def world(db, tmp_path):
     stay = Stay(id=str(uuid.uuid4()), tenant_id=a.id, guest_id=guest.id, property_id=prop.id,
                 check_in=date(2026, 12, 20), check_out=date(2026, 12, 23), status="confirmed", total_amount=42000)
     db.add(stay)
+    db.flush()   # ops_items.stay_id has no ORM relationship to order the inserts by; PostgreSQL checks the foreign key
+    # Operations module: a staff member and an open item at the property (names carry the secret markers).
+    staff = StaffProfile(id=str(uuid.uuid4()), tenant_id=a.id, name=f"{SECRET_NAME} Caretaker", phone_e164="+917700000099",
+                         active=True)
+    ops_item = OpsItem(id=str(uuid.uuid4()), tenant_id=a.id, kind="incident", title="Lake Villa AC not working",
+                       severity="high", duty="maintenance", status="open", source="staff", property_id=prop.id,
+                       stay_id=stay.id)
+    db.add_all([staff, ops_item])
     db.commit()
     return {"a": a, "b": b, "ha": headers_a, "hb": headers_b, "guest": guest, "inquiry": inquiry,
-            "conv": conv, "message": message, "call": call, "stay": stay}
+            "conv": conv, "message": message, "call": call, "stay": stay, "ops_item": ops_item}
 
 
 def _assert_no_secret(response):
@@ -94,9 +103,11 @@ def _assert_no_secret(response):
     "/api/v1/calls/{call}/recording",
     "/api/v1/leads/{inquiry}",
     "/api/v1/bookings/{stay}",
+    "/api/v1/ops/items/{ops_item}",
 ])
 def test_single_record_is_not_readable_by_another_tenant(client, world, path):
-    url = path.format(conv=world["conv"].id, call=world["call"].id, inquiry=world["inquiry"].id, stay=world["stay"].id)
+    url = path.format(conv=world["conv"].id, call=world["call"].id, inquiry=world["inquiry"].id, stay=world["stay"].id,
+                      ops_item=world["ops_item"].id)
 
     owner = client.get(url, headers=world["ha"])
     assert owner.status_code == 200, f"positive control failed for {url}: {owner.status_code} {owner.text[:200]}"
@@ -123,6 +134,8 @@ def _items(payload):
     "/api/v1/conversations",
     "/api/v1/bookings",
     "/api/v1/guests",
+    "/api/v1/ops/items",
+    "/api/v1/ops/staff",
 ])
 def test_lists_do_not_include_another_tenants_records(client, world, path):
     owner = client.get(path, headers=world["ha"])

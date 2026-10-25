@@ -71,6 +71,10 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "website.read": {"owner", "manager", "marketing"},
     "website.edit": {"owner", "manager", "marketing"},
     "website.approve": {"owner", "manager"},
+    # Operations module (migration 178 grants these to existing tenants).
+    "ops.read": {"owner", "manager", "reservations", "concierge", "foh"},
+    "ops.write": {"owner", "manager", "concierge", "foh"},
+    "ops.manage": {"owner", "manager"},
 }
 
 
