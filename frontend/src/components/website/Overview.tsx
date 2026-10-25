@@ -38,6 +38,7 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
   const reject = useMutation({ mutationFn: (id: string) => webApi.reject(id, window.prompt("What should change? (optional)") || undefined), onSuccess: s => done(s, "Sent back"), onError: fail("Not sent back") });
   const submit = useMutation({ mutationFn: (id: string) => webApi.submit(id), onSuccess: s => done(s, "Sent for approval"), onError: fail("Not sent") });
   const restore = useMutation({ mutationFn: (id: string) => webApi.restore(id), onSuccess: () => { draft.load(); qc.invalidateQueries({ queryKey: ["web-versions"] }); toast({ variant: "success", title: "Restored as a new draft" }); }, onError: fail("Not restored") });
+  const make = useMutation({ mutationFn: webApi.make, onSuccess: s => done(s, "New version made from your HAIP data"), onError: fail("Couldn't make the website") });
   const pause = useMutation({ mutationFn: (on: boolean) => webApi.pause(on), onSuccess: s => done(s, s.status === "paused" ? "Website paused" : "Website back online"), onError: fail("Not changed") });
 
   const doc = draft.doc;
@@ -61,6 +62,7 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
               : <>Nobody can see the site yet. Once published it opens at <b className="font-semibold">{host}</b>.</>}
             {next && <span className="block text-[var(--haip-fg-muted)]">Next: {next}</span>}
           </p>
+          {canApprove && <button className={btnPrimary} disabled={make.isPending} onClick={() => make.mutate()}>{make.isPending ? "Making your website…" : "Make my website from my HAIP data"}</button>}
         </CardBody>
       </Card>
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
@@ -233,12 +235,12 @@ function Domains({ site, canEdit }: { site: SiteOut; canEdit: boolean }) {
 export function NoSite({ canCreate }: { canCreate: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const create = useMutation({ mutationFn: webApi.create, onSuccess: s => { qc.setQueryData(["web-site"], s); toast({ variant: "success", title: "Your website draft is ready" }); },
+  const create = useMutation({ mutationFn: webApi.make, onSuccess: s => { qc.setQueryData(["web-site"], s); toast({ variant: "success", title: "Your website is ready to look at" }); },
     onError: e => toast({ variant: "error", title: "Couldn't create the website", description: webError(e, "Try again.") }) });
   return (
-    <Card><EmptyState title="Create your website"
-      hint="HAIP builds a complete first draft from your business details and properties: home, stays, a stay page for each property, booking, contact and policies. Nothing goes live until it's published."
-      action={canCreate ? <button className={btnPrimary} disabled={create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Building…" : "Create my website"}</button>
+    <Card><EmptyState title="Make your website in one tap"
+      hint="HAIP builds it for you from what it already knows: your stays, photos, trips, reviews, questions and contact details. Nobody sees it until you publish."
+      action={canCreate ? <button className={btnPrimary} disabled={create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Making your website…" : "Make my website"}</button>
         : <span className="text-sm">Ask an owner or manager to create it.</span>} /></Card>
   );
 }

@@ -1,6 +1,8 @@
 """SiteSpec v2 data bindings: what each section shows, read from HAIP at render time (never typed into the spec).
 
   packages / itinerary  business_data_service.list_effective (PUBLISHED records in effect today only; b2b packages never)
+  stays                 bookable properties (website_service.bookable_properties): name, summary, sleeps, amenities and a
+                        photo (an approved library photo tagged to the property, else the property's own https photo)
   hero / gallery        approved library photos (marketing_photos.library: active, not AI-pending, no unconsented people)
   reviews               marketing_guest_reviews the owner recorded consent for (consent_at set), 4 stars and up
   faq                   knowledge_entries: category faq, active, approved, not stale, workspace-wide
@@ -97,9 +99,12 @@ class _Ctx:
     def destinations(self) -> dict:
         return self.once("destinations", lambda: {r.key: bds.parse(r) for r in bds.list_effective(self.db, self.tenant.id, "destination")})
 
-    def photos(self) -> list[str]:
+    def library(self) -> list:
         from app.services.marketing_photos import library
-        return self.once("photos", lambda: [a.id for a in library(self.db, self.tenant.id)])
+        return self.once("library", lambda: library(self.db, self.tenant.id))
+
+    def photos(self) -> list[str]:
+        return [a.id for a in self.library()]
 
 
 def _price(ctx: _Ctx, key: str, pkg) -> Optional[dict]:
@@ -179,6 +184,23 @@ def _gallery(ctx: _Ctx, s: dict) -> dict:
     return {"media": media[: s["slots"].get("limit") or 9]}
 
 
+def _stays(ctx: _Ctx, s: dict) -> dict:
+    from app.services.website_public_service import _photos
+    from app.services.website_service import bookable_properties
+    tagged: dict[str, str] = {}
+    for a in ctx.library():
+        if a.property_id and a.property_id not in tagged:
+            tagged[a.property_id] = f"asset:{a.id}"
+    items = []
+    for p in bookable_properties(ctx.db, ctx.tenant.id)[: s["slots"].get("limit") or 6]:
+        own = _photos(p)
+        items.append({"id": p.id, "name": (p.name or "")[:80], "summary": _clean((p.description or "").strip()[:280]),
+                      "sleeps": int(p.max_adults or 0) + int(p.max_children or 0), "bedrooms": p.bedrooms,
+                      "amenities": [str(a)[:40] for a in (p.amenities or []) if isinstance(a, str)][:6],
+                      "photo": tagged.get(p.id) or (own[0] if own else None)})
+    return {"items": items}
+
+
 def _first_name(raw: Optional[str]) -> str:
     return ((raw or "").strip().split() or ["Guest"])[0][:30]
 
@@ -224,14 +246,15 @@ def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] =
                 continue
             code = ref_code(prefix, slug, s["id"])
             t = s["type"]
-            data = (_hero(ctx, s) if t == "hero" else _packages(ctx, s, number, code) if t == "packages"
+            data = (_hero(ctx, s) if t == "hero" else _stays(ctx, s) if t == "stays" else _packages(ctx, s, number, code) if t == "packages"
                     else _itinerary(ctx, s) if t == "itinerary" else _gallery(ctx, s) if t == "gallery"
                     else _reviews(ctx, s) if t == "reviews" else _faq(ctx, s) if t == "faq" else {})
             data["wa"] = wa_link(number, code)
             bound[s["id"]] = data
     ids: set[str] = set()
     for data in bound.values():
-        for ref in ([data.get("media")] if isinstance(data.get("media"), str) else data.get("media") or []):
+        refs = [i.get("photo") for i in data.get("items") or [] if isinstance(i, dict)]   # stay photos
+        for ref in refs + ([data.get("media")] if isinstance(data.get("media"), str) else data.get("media") or []):
             if isinstance(ref, str) and ref.startswith("asset:"):
                 ids.add(ref.split(":", 1)[1])
     return {"bound": bound, "page_wa": page_wa, "price_mode": "grounded" if ctx.grounded else "handoff", "asset_ids": ids}

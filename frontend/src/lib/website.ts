@@ -31,6 +31,8 @@ export interface Analytics { days: number; views: { total: number; by_day: [stri
 export const webApi = {
   site: () => api.get<SiteOut>(`${WEB}/site`).then(r => r.data),
   create: () => api.post<SiteOut>(`${WEB}/site`, {}).then(r => r.data),
+  /** "Make my website": builds a full draft from HAIP data (creates the site if there is none). */
+  make: () => api.post<{ site: SiteOut }>(`${WEB}/make`, {}).then(r => r.data.site),
   settings: (s: SiteSettings) => api.put<SiteOut>(`${WEB}/site/settings`, s).then(r => r.data),
   pause: (on: boolean) => api.post<SiteOut>(`${WEB}/site/${on ? "pause" : "resume"}`).then(r => r.data),
   draft: () => api.get<DraftOut>(`${WEB}/draft`).then(r => r.data),

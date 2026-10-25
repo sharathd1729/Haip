@@ -4,7 +4,7 @@
 import catalogue from "./spec.json";
 import type { LiveData } from "../types";
 
-export type SectionType = "hero" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta";
+export type SectionType = "hero" | "stays" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta";
 
 export const CATALOGUE = catalogue as unknown as {
   spec_version: 2;
@@ -30,6 +30,8 @@ export interface PackageItem {
   key: string; name: string; summary: string; length: string; inclusions: string[]; days: string[]; destinations: string[];
   max_guests: number; price: { amount: string; label: string } | null; price_label: string | null; wa: WaLink | null;
 }
+/** One bookable property (caravan, villa, room). `photo` is "asset:<id>" (approved library photo) or an https URL. */
+export interface StayItem { id: string; name: string; summary: string; sleeps: number; bedrooms: number | null; amenities: string[]; photo: string | null }
 export interface ItineraryDay { day: number; title: string; stops: string[]; overnight: string; notes: string }
 export interface Itinerary { name: string; nights: number; destination: string; about: string; packages: string[]; days: ItineraryDay[] }
 export interface Review { quote: string; name: string; rating: number | null; source: string; date: string }

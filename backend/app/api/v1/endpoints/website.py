@@ -136,6 +136,20 @@ def save_draft(body: DraftSave, user: User = Depends(get_current_user), db: Sess
     return _draft_out(db, site, v, problems)
 
 
+@router.post("/make", status_code=201)
+def make_website(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_approve):
+    """One tap ("Make my website"): creates the site if needed, then a new draft built from everything HAIP knows (stays, packages,
+    photos, reviews, FAQs, contact), leaving out sections with nothing to show. Nothing goes public until it is published."""
+    from app.services import website_autobuild
+    tenant = db.get(Tenant, user.tenant_id)
+    try:
+        site, v, problems = website_autobuild.make(db, tenant, user.id)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+    db.commit()
+    return {"site": svc.site_out(db, site), **_draft_out(db, site, v, problems)}
+
+
 @router.post("/draft/v2", status_code=201)
 def create_v2_draft(body: SpecDraftIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
                     _m=_module, _c=_approve):

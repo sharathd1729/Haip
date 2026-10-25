@@ -12,6 +12,9 @@ function boundFor(t: SectionType, id: string, grounded: boolean): Bound {
   const base = { wa: wa(`WW-HOME-${id.replace(/[^a-z0-9]/gi, "").toUpperCase()}`) };
   switch (t) {
     case "hero": return { ...base, media: PHOTO };
+    case "stays": return { ...base, items: [
+      { id: "p1", name: "Ratha 1", summary: "Sleeps four with an ensuite.", sleeps: 4, bedrooms: 1, amenities: ["Ensuite", "Kitchenette"], photo: PHOTO },
+      { id: "p2", name: "Ratha 2", summary: "", sleeps: 4, bedrooms: null, amenities: [], photo: "https://cdn.example.com/r2.jpg" }] };
     case "packages": return { ...base, items: [
       { key: "weekend", name: "Weekend Escape", summary: "Two nights in the hills.", length: "2 nights / 3 days", inclusions: ["Driver-host", "Breakfast"],
         days: ["Into the hills", "Estate walk", "Home"], destinations: ["Misty Hills"], max_guests: 4,

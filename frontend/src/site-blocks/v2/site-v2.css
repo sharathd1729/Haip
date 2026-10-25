@@ -123,6 +123,21 @@
 .sv .sv-band .sv-card { background: var(--v-surface); }
 .sv .sv-card__foot { display: grid; gap: 14px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--v-line); }
 .sv .sv-ticks { display: grid; gap: 8px; }
+/* Stays (caravans, villas, rooms) */
+.sv .sv-stay { display: flex; flex-direction: column; overflow: hidden; background: var(--v-surface); border: 1px solid var(--v-line);
+  border-radius: var(--v-r-card); }
+.sv .sv-stay__media { aspect-ratio: 4 / 3; overflow: hidden; background: var(--v-surface-alt); }
+.sv .sv-stay__media img, .sv .sv-stay__ph { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sv .sv-stay__body { display: grid; gap: 12px; padding: clamp(18px, 3cqi, 26px); align-content: start; }
+.sv .sv-stay__facts { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--v-muted); font-size: .95rem; }
+.sv .sv-stay__facts span { display: inline-flex; align-items: center; gap: 6px; }
+.sv .sv-stay-rows { display: grid; gap: var(--sv-gap); }
+@container sv (min-width: 760px) {
+  .sv .sv-stay--row { display: grid; grid-template-columns: 1.1fr 1fr; }
+  .sv .sv-stay--row .sv-stay__media { aspect-ratio: auto; min-height: 320px; }
+  .sv .sv-stay-rows .sv-stay--row:nth-child(even) .sv-stay__media { order: 2; }
+  .sv .sv-stay--big { margin-bottom: var(--sv-gap); }
+}
 .sv .sv-ticks li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; font-size: .975rem; }
 .sv .sv-ticks svg { color: var(--v-accent); margin-top: 4px; }
 .sv .sv-price { display: grid; gap: 2px; }
