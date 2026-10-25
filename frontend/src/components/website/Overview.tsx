@@ -41,6 +41,8 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
   const pause = useMutation({ mutationFn: (on: boolean) => webApi.pause(on), onSuccess: s => done(s, s.status === "paused" ? "Website paused" : "Website back online"), onError: fail("Not changed") });
 
   const doc = draft.doc;
+  // A new-builder (v2) draft has `tokens`, not the classic `theme`; the classic theme picker and page editor can't open it.
+  const isV2 = (doc as unknown as { spec_version?: number } | null)?.spec_version === 2;
   const blocking = draft.checks.filter(c => c.level === "block");
   const v = draft.version;
   return (
@@ -58,7 +60,7 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
                   : p.key === "stay" ? <StatusPill tone="info">Template</StatusPill> : SPEC.system_pages[p.key]?.required ? <StatusPill tone="neutral">Required</StatusPill> : <StatusPill tone="success">Page</StatusPill> },
                 { key: "s", header: "Search preview", cell: p => (["stay", "book", "manage"].includes(p.key) ? <span className="text-xs text-[var(--haip-fg-subtle)]">Automatic</span>
                   : seoReady(p) ? <StatusPill tone="success">Ready</StatusPill> : <StatusPill tone="warning">Needs a description</StatusPill>) },
-                { key: "e", header: "", align: "right", cell: p => <Link className={btn} href={`/dashboard/marketing/website/edit?page=${p.id}`}>Edit</Link> },
+                { key: "e", header: "", align: "right", cell: p => <Link className={btn} href={isV2 ? "/dashboard/marketing/website/builder" : `/dashboard/marketing/website/edit?page=${p.id}`}>Edit</Link> },
               ]} />
             )}
           </CardBody>
@@ -99,8 +101,10 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Look and feel" description="A regional theme pack sets colours, fonts and the border pattern; personality sets shape and tone." />
-          <CardBody>{doc ? <ThemePicker doc={doc} update={draft.update} /> : null}</CardBody>
+          <CardHeader title="Look and feel" description={isV2 ? "Set by the look you picked with the art director." : "A regional theme pack sets colours, fonts and the border pattern; personality sets shape and tone."} />
+          <CardBody>{!doc ? null : isV2
+            ? <Link className={btn} href="/dashboard/marketing/website/builder">Change the look with the art director</Link>
+            : <ThemePicker doc={doc} update={draft.update} />}</CardBody>
         </Card>
         <BookingSettings site={site} canEdit={canApprove} />
         <Domains site={site} canEdit={canApprove} />
