@@ -51,6 +51,7 @@ def test_a_staff_flag_shows_as_a_need_that_can_be_resolved(db):
     out = today_svc.build(db, w.t.id)
     item = next(n for n in out["needs"] if n["action"] == "resolve_item")
     assert item["file_id"] == f.id and item["level"] == "red" and "AC making noise" in item["detail"]
+    assert item["title"] == "Crew reported a problem"                # unit shown apart, sentence starts with a capital
     assert out["needs"][0]["level"] == "red"                       # red first
 
 

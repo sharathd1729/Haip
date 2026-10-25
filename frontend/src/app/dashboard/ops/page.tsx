@@ -34,7 +34,7 @@ export default function OpsTodayPage() {
     `${data.needs.length} thing${data.needs.length === 1 ? "" : "s"} need${data.needs.length === 1 ? "s" : ""} you${red ? `, ${red} now` : ""}`;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 p-4 sm:p-6">
       <PageHeader title="Ops today" subtitle={subtitle} />
 
       {!hydrated || isPending ? (

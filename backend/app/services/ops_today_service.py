@@ -99,7 +99,8 @@ def build(db: Session, tenant_id: str, *, now: Optional[datetime] = None) -> dic
                .order_by(OpsItem.created_at.desc()).limit(50)):
         f = by_stay.get(it.stay_id) if it.stay_id else None
         lvl = "red" if it.severity in _RED_SEVERITY else "amber"
-        n = _need(lvl, names.get(it.property_id, "Ops"), it.title.split(": ", 1)[-1], it.summary or "", f.id if f else None,
+        title = it.title.split(": ", 1)[-1]                       # the unit is shown apart; "Ratha 1: crew ..." -> "Crew ..."
+        n = _need(lvl, names.get(it.property_id, "Ops"), title[:1].upper() + title[1:], it.summary or "", f.id if f else None,
                   action="resolve_item", item_id=it.id, key=f"item:{it.id}")
         needs.append(n)
         if f is not None:

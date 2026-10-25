@@ -72,12 +72,12 @@ export function TripFile({ id }: { id: string }) {
   };
 
   if (!hydrated || isPending) {
-    return <div className="mx-auto flex w-full max-w-3xl flex-col gap-3" aria-busy="true"><Skeleton className="h-20" /><Skeleton className="h-32" /><Skeleton className="h-64" /></div>;
+    return <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4 sm:p-6" aria-busy="true"><Skeleton className="h-20" /><Skeleton className="h-32" /><Skeleton className="h-64" /></div>;
   }
   if (isError || !f) {
     const status = (error as { response?: { status?: number } })?.response?.status;
     return (
-      <Card className="mx-auto w-full max-w-3xl">
+      <Card className="mx-auto mt-4 w-[calc(100%-2rem)] max-w-3xl sm:mt-6">
         <EmptyState title={status === 404 ? "Trip not found" : status === 403 ? "You don't have access to Ops" : "Couldn't load this trip"}
           hint={status === 404 || status === 403 ? undefined : "Check your connection, then try again."}
           action={status === 404 || status === 403
@@ -106,7 +106,7 @@ export function TripFile({ id }: { id: string }) {
   const waiting = f.extras.filter(x => x.status === "proposed");
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-6">
       <Link href="/dashboard/ops" className="text-[14px] font-semibold text-primary">← Ops today</Link>
       <div className="flex flex-col gap-1">
         <StatusPill tone="brand" className="self-start">{s.property_name ?? "Trip"}</StatusPill>

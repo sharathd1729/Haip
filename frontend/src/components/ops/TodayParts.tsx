@@ -32,7 +32,7 @@ export function ReadyBar({ pct, label }: { pct: number; label: string }) {
 
 export function UnitCards({ units }: { units: OpsUnit[] }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
       {units.map(u => {
         const body = (
           <>
