@@ -1,6 +1,6 @@
 """Ops files API (migration 179): one file per booking, caravan pack first. Capabilities from 178.
 
-Files       GET /ops/files?state= · GET /ops/files/today · POST /ops/files/sync · GET /ops/files/by-stay/{stay_id} · GET /ops/files/{id}
+Files       GET /ops/files?state= · GET /ops/files/today · GET /ops/files/{id}/report.pdf · POST /ops/files/sync · GET /ops/files/by-stay/{stay_id} · GET /ops/files/{id}
 Steps       POST /ops/files/{id}/accept | /crew | /dispatch | /return | /settle | /close
 Checklist   PUT /ops/files/{id}/checklist/{key}
 Money       POST /ops/files/{id}/expenses · POST /ops/files/{id}/extras · POST /ops/files/{id}/extras/{extra_id}/approve|remove
@@ -10,7 +10,7 @@ tap), approving or removing an extra, settle, close, sync. Guest contact details
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -19,7 +19,7 @@ from app.models.ops_files import OpsExpense, OpsExtra, OpsFile, OpsFileEvent
 from app.models.property import Property, Stay
 from app.models.user import User
 from app.schemas.ops_files import AcceptIn, CrewIn, ExpenseIn, ExtraIn, ItemSetIn, OdometerIn, SettleIn
-from app.services import booking_agenda_service, ops_today_service
+from app.services import booking_agenda_service, ops_today_service, ops_trip_report
 from app.services import ops_money as money
 from app.services import ops_trip_service as trips
 from app.services.authz_service import require_capability
@@ -120,6 +120,16 @@ def by_stay(stay_id: str, user: User = Depends(_read), db: Session = Depends(get
 @router.get("/{file_id}")
 def get_file(file_id: str, user: User = Depends(_read), db: Session = Depends(get_db)):
     return _full(db, _file(db, user, file_id))
+
+
+@router.get("/{file_id}/report.pdf")
+def trip_report(file_id: str, user: User = Depends(_manage), db: Session = Depends(get_db)):
+    """The Trip Account Report (Saleem shape). Money for the business, so owner/manager only; "DRAFT" until approved."""
+    f = _file(db, user, file_id)
+    pdf = ops_trip_report.render(ops_trip_report.build(db, f))
+    stay = money.stay_of(db, f)
+    name = f"trip-account-{stay.check_in.isoformat()}-{f.id[:8]}.pdf"
+    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @router.post("/{file_id}/accept")

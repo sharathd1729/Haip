@@ -75,6 +75,7 @@ celery_app = Celery(
         "app.workers.tasks.reply_recovery",
         "app.workers.tasks.ops_escalation",
         "app.workers.tasks.ops_intake",
+        "app.workers.tasks.ops_files",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -337,6 +338,8 @@ celery_app.conf.update(
         "ops.escalation_tick":                           {"queue": "whatsapp"},
         "ops.escalation_tick_tenant":                    {"queue": "whatsapp"},
         "ops.process_staff_photo":                       {"queue": "ai_scoring"},   # vision reads a staff photo
+        "ops.sync_files_all":                            {"queue": "default"},
+        "ops.sync_files_tenant":                         {"queue": "default"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
         "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
@@ -429,6 +432,12 @@ celery_app.conf.beat_schedule = {
     "ops-escalation-tick-1min": {
         "task": "ops.escalation_tick",
         "schedule": crontab(minute="*"),
+    },
+    # Ops files: open a file for every new live booking (ops_files.py). Daily 06:10 IST, before the day starts; Ops today
+    # also syncs when it is read.
+    "ops-sync-files-daily": {
+        "task": "ops.sync_files_all",
+        "schedule": crontab(hour=6, minute=10),
     },
     # Safety net for guest replies: a message with no AI draft and no reply after 4 minutes is queued for the concierge again (see
     # reply_recovery.py). Minutes 3/13/23/...: clear of the :00/:05/:10/:20/:30/:40 jobs.

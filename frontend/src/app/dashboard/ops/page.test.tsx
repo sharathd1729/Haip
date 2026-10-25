@@ -106,12 +106,22 @@ describe("Trip file", () => {
     expect(await screen.findByText("On the bill")).toBeTruthy();
   });
 
+  it("lets a manager download the trip account report", async () => {
+    get.mockImplementation((url: string) => url.endsWith("report.pdf")
+      ? Promise.resolve({ data: new Blob(["%PDF-"]), headers: { "content-type": "application/pdf" } })
+      : Promise.resolve({ data: file() }));
+    wrap(<TripFile id="f1" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Trip account report (PDF)" }));
+    expect(get).toHaveBeenCalledWith("/ops/files/f1/report.pdf", expect.objectContaining({ responseType: "blob" }));
+  });
+
   it("keeps Dispatch for managers", async () => {
     session.role = "foh";
     get.mockResolvedValue({ data: file({ state: "dispatch_ready", stage: { ...file().stage, next: "Enter the start odometer and dispatch", next_key: "start" } }) });
     wrap(<TripFile id="f1" />);
     expect(await screen.findByText("A manager does this step.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Dispatch" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Trip account report (PDF)" })).toBeNull();
   });
 
   it("says not found plainly", async () => {

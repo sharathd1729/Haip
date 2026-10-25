@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/bookingAgenda";
+import { DOWNLOAD_TIMEOUT_MS, downloadErrorMessage, saveBlob, toBlob } from "@/lib/download";
 import { canManageOps, canWriteOps, EXPENSE_LABELS, nextAction, rupees, type ChecklistItem, type OpsFileFull } from "@/lib/ops";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +53,18 @@ export function TripFile({ id }: { id: string }) {
     mutationFn: ({ path, body, method }: { path: string; body?: object; method?: "post" | "put" }) =>
       (method === "put" ? api.put(path, body ?? {}) : api.post(path, body ?? {})).then(r => r.data as OpsFileFull),
     onSuccess: data => { qc.setQueryData(["ops-file", id], data); qc.invalidateQueries({ queryKey: ["ops-today"] }); },
+  });
+  const report = useMutation({
+    // Trip Account Report (Saleem shape), owner/manager only; "DRAFT" on the page until the report is approved.
+    mutationFn: async () => {
+      try {
+        const res = await api.get(`/ops/files/${id}/report.pdf`, { responseType: "blob", timeout: DOWNLOAD_TIMEOUT_MS });
+        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "application/pdf")), `trip-account-${id.slice(0, 8)}.pdf`);
+      } catch (e) {
+        throw new Error(await downloadErrorMessage(e, "The report could not be made. Please try again."));
+      }
+    },
+    onError: e => toast({ title: "No report", description: (e as Error).message, variant: "error" }),
   });
   const submit = async (path: string, body?: object, method?: "post" | "put") => {
     try { await act.mutateAsync({ path, body, method }); toast({ title: "Saved", variant: "success" }); return true; }
@@ -193,6 +206,11 @@ export function TripFile({ id }: { id: string }) {
           <Row label="Net after expenses" value={rupees(a.net_cash)} />
           {f.state === "on_trip" && (
             <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" onClick={() => setSheet("return")}>Vehicle is back: enter odometer</button>
+          )}
+          {manage && (
+            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" disabled={report.isPending} onClick={() => report.mutate()}>
+              {report.isPending ? "Making the report…" : "Trip account report (PDF)"}
+            </button>
           )}
         </CardBody>
       </Card>
