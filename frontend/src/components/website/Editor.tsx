@@ -85,13 +85,10 @@ export function Editor({ site, role, initialPage }: { site: SiteOut; role: strin
   if (isSpecV2) {
     return (
       <div className="mx-auto grid max-w-[640px] gap-3 p-6 text-sm">
-        <p className="font-semibold">This draft uses the new website builder.</p>
-        <p className="text-[var(--haip-fg-muted)]">Change its pages, text or look with the art director, or open the preview to see it as guests will.
-          To go back to the classic editor, restore an older version from the Versions list on the Website page.</p>
+        <p className="font-semibold">This website is changed on the Website page.</p>
+        <p className="text-[var(--haip-fg-muted)]">Use Photos, Colours &amp; font, Sections and Words there, or tell HAIP what to change in your own words.</p>
         <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard/marketing/website/builder" className={btnPrimary}>Open the art director</Link>
-          <button type="button" className={btn} onClick={preview}>Open preview</button>
-          <Link href="/dashboard/marketing/website" className={btn}>Back to Website</Link>
+          <Link href="/dashboard/marketing/website" className={btnPrimary}>Go to the Website page</Link>
         </div>
       </div>
     );

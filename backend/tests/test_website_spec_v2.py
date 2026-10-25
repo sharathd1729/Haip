@@ -59,7 +59,7 @@ def test_valid_spec_normalises_once_and_fills_defaults():
     assert out["tokens"]["palette"]["primary"] == "#2F5D46" and out["tokens"]["motion"] == "calm"
     pk = next(s for p in out["pages"] for s in p["sections"] if s["type"] == "packages")
     assert pk["source"] == "business_data:packages" and pk["slots"]["keys"] == []
-    assert sum(len(p["sections"]) for p in out["pages"]) == 28          # 9 types x 3 variants + booking (1 variant)
+    assert sum(len(p["sections"]) for p in out["pages"]) == 30          # 9 types x 3 variants + booking (1) + text (2)
 
 
 def test_every_preset_palette_passes_wcag_aa():
@@ -87,6 +87,48 @@ def test_bad_specs_are_rejected_not_repaired(mutate, needle):
         wspec.validate(s)
     assert e.value.code == "spec_invalid"
     assert any(needle.lower() in p.lower() for p in e.value.problems), e.value.problems
+
+
+def test_own_text_section_validates_and_keeps_its_words():
+    photo = f"asset:{uuid.uuid4()}"
+    s = spec()
+    body = "Pets welcome.\n\nQuiet after 10 at night."
+    s["pages"][0]["sections"].insert(1, {"type": "text", "variant": "with-photo", "slots": {"heading": "House rules", "body": body, "media": photo}})
+    sec = wspec.validate(s)["pages"][0]["sections"][1]
+    assert sec["id"] == "text" and sec["source"] == "site:text"
+    assert sec["slots"] == {"eyebrow": "", "heading": "House rules", "body": body, "media": photo}
+
+
+@pytest.mark.parametrize("slots, needle", [
+    ({"body": "x" * 1201}, "1200"),
+    ({"body": "Stay two nights for only ₹9,999"}, "price"),
+    ({"media": "https://example.com/a.jpg"}, "asset"),
+    ({"html": "<b>"}, "Extra inputs"),
+])
+def test_own_text_section_rejects_long_priced_or_foreign_content(slots, needle):
+    s = spec()
+    s["pages"][0]["sections"].insert(1, {"type": "text", "variant": "plain", "slots": slots})
+    with pytest.raises(WebsiteError) as e:
+        wspec.validate(s)
+    assert any(needle.lower() in p.lower() for p in e.value.problems), e.value.problems
+
+
+def _v2_draft(client, wsite) -> dict:
+    return client.post(f"{BASE}/draft/v2", json={"spec": spec()}, headers=wsite["owner_h"]).json()
+
+
+def test_custom_colours_save_when_readable_and_are_refused_in_plain_words_when_not(client, wsite):
+    d = _v2_draft(client, wsite)
+    doc = d["doc"]
+    doc["tokens"]["palette"] = {"name": "custom", "ink": "#101820", "surface": "#FFFDF8", "primary": "#7A2E12", "accent": "#9C5B12"}
+    ok = client.put(f"{BASE}/draft", json={"doc": doc, "base_sha256": d["version"]["sha256"]}, headers=wsite["owner_h"])
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["doc"]["tokens"]["palette"]["name"] == "custom"
+    bad = ok.json()["doc"]
+    bad["tokens"]["palette"] = {**bad["tokens"]["palette"], "ink": "#BBBBBB"}          # light grey text on cream
+    r = client.put(f"{BASE}/draft", json={"doc": bad, "base_sha256": ok.json()["version"]["sha256"]}, headers=wsite["owner_h"])
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "spec_invalid"
+    assert any("ink on surface" in p for p in r.json()["detail"]["problems"])
 
 
 def test_ref_codes_are_deterministic_and_parseable():
@@ -305,3 +347,12 @@ def test_demo_seed_builds_and_publishes_the_v2_site(client, db, tenant_and_user)
     assert len(boot["bound"]["faq"]["items"]) == 6 and len(boot["bound"]["words"]["items"]) == 3
     assert boot["bound"]["hero"]["wa"]["code"] == "WW-HOME-HERO"
     assert not PRICE_RE.search(json.dumps(boot["bound"], ensure_ascii=False))
+
+
+def test_photo_list_offers_photos_only_never_video_clips(client, db, wsite):
+    photo = _photo(db, wsite["tenant"].id)
+    clip = _photo(db, wsite["tenant"].id)
+    clip.mime_type = "video/mp4"
+    db.commit()
+    ids = [m["id"] for m in client.get(f"{BASE}/media", headers=wsite["owner_h"]).json()]
+    assert photo.id in ids and clip.id not in ids

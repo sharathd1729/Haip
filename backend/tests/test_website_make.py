@@ -64,3 +64,47 @@ def test_make_needs_website_approve(client, wsite):  # noqa: F811
     assert client.post(f"{BASE}/make", headers=wsite["foh_h"]).status_code == 403
     assert client.post(f"{BASE}/make", headers=wsite["mkt_h"]).status_code == 403
     assert client.post(f"{BASE}/make", headers=wsite["manager_h"]).status_code == 201
+
+
+def test_draft_trips_are_listed_in_publish_order_then_show_after_publishing(client, db, wsite):  # noqa: F811
+    from app.services import business_data_service as bds
+    from tests.test_business_data import coorg, package
+    tid = wsite["tenant"].id
+    dest = bds.create_draft(db, tid, "destination", "coorg", coorg(), None)
+    bds.create_draft(db, tid, "destination", "goa", {**coorg(), "name": "Goa"}, None)          # no trip needs it: not listed
+    pkg = bds.create_draft(db, tid, "package", "coorg-signature", package(destination_keys=["coorg"]), None)
+    bds.create_draft(db, tid, "package", "trade-rate", package(name="Trade rate", audience="b2b"), None)   # never on a site
+    db.commit()
+    r = client.get(f"{BASE}/missing", headers=wsite["owner_h"])
+    assert r.status_code == 200, r.text
+    assert [(d["kind"], d["id"]) for d in r.json()["drafts"]] == [("destination", dest.id), ("package", pkg.id)]
+    assert r.json()["drafts"][1]["name"] == "Signature Caravan - Coorg"
+    assert "packages" not in _types(client.post(f"{BASE}/make", headers=wsite["owner_h"]).json()["doc"])   # drafts never show
+    for d in r.json()["drafts"]:                                                     # "Publish them" on the Website screen
+        p = client.post(f"/api/v1/business-data/records/{d['id']}/publish", json={}, headers=wsite["owner_h"])
+        assert p.status_code == 200, p.text
+    assert client.get(f"{BASE}/missing", headers=wsite["owner_h"]).json()["drafts"] == []
+    assert "packages" in _types(client.post(f"{BASE}/make", headers=wsite["owner_h"]).json()["doc"])
+
+
+def test_draft_trips_need_website_read_and_publishing_needs_an_approver(client, db, wsite):  # noqa: F811
+    from app.services import business_data_service as bds
+    from tests.test_business_data import package
+    pkg = bds.create_draft(db, wsite["tenant"].id, "package", "solo", package(), None)
+    db.commit()
+    assert client.get(f"{BASE}/missing", headers=wsite["foh_h"]).status_code == 403
+    assert client.post(f"/api/v1/business-data/records/{pkg.id}/publish", json={}, headers=wsite["mkt_h"]).status_code == 403
+
+
+def test_draft_trips_of_another_workspace_are_never_listed(client, db, wsite):  # noqa: F811
+    from app.models.user import UserRole
+    from app.services import business_data_service as bds
+    from tests.test_business_data import package
+    from tests.test_marketing_studio_content import make_user
+    bds.create_draft(db, wsite["tenant"].id, "package", "mine", package(), None)
+    other = make_tenant(db, "Elsewhere")
+    _, oh = make_user(db, other.id, UserRole.OWNER)
+    db.commit()
+    r = client.get(f"{BASE}/missing", headers=oh)
+    assert r.status_code == 200, r.text
+    assert r.json()["drafts"] == []

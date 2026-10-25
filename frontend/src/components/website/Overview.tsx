@@ -48,7 +48,7 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
   const v = draft.version;
   const host = site.url.replace("https://", "");
   const next = site.live ? null
-    : !v ? "Create a first version with the art director."
+    : !v ? "Tap \"Make my website\" to create a first version."
     : blocking.length ? `Fix ${blocking.length} ${blocking.length === 1 ? "item" : "items"} under "Ready to publish?", then publish v${v.number}.`
     : role === "owner" ? `Publish v${v.number} below.` : canApprove ? `Publish v${v.number} below, or send it to the owner.` : `Send v${v.number} for approval below.`;
   return (
@@ -69,8 +69,7 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
       <div className="grid content-start gap-4">
         <Card>
           <CardHeader title="Pages" description={`${doc?.pages.length ?? 0} pages · stay pages are filled from Properties`}
-            actions={<>{(role === "owner" || role === "manager") && <Link className={btn} href="/dashboard/marketing/website/builder">Design with the art director</Link>}
-              <Link className={btnPrimary} href="/dashboard/marketing/website/edit">Open editor</Link></>} />
+            actions={!isV2 && <Link className={btnPrimary} href="/dashboard/marketing/website/edit">Open editor</Link>} />
           <CardBody>
             {!doc ? <p className="text-sm text-[var(--haip-fg-muted)]">Loading…</p> : (
               <DataTable rows={doc.pages} rowKey={p => p.id || slugOf(p)} columns={[
@@ -79,7 +78,7 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
                   : p.key === "stay" ? <StatusPill tone="info">Template</StatusPill> : SPEC.system_pages[p.key]?.required ? <StatusPill tone="neutral">Required</StatusPill> : <StatusPill tone="success">Page</StatusPill> },
                 { key: "s", header: "Search preview", cell: p => (["stay", "book", "manage"].includes(p.key) ? <span className="text-xs text-[var(--haip-fg-subtle)]">Automatic</span>
                   : seoReady(p) ? <StatusPill tone="success">Ready</StatusPill> : <StatusPill tone="warning">Needs a description</StatusPill>) },
-                { key: "e", header: "", align: "right", cell: p => <Link className={btn} href={isV2 ? "/dashboard/marketing/website/builder" : `/dashboard/marketing/website/edit?page=${p.id}`}>Edit</Link> },
+                { key: "e", header: "", align: "right", cell: p => (isV2 ? null : <Link className={btn} href={`/dashboard/marketing/website/edit?page=${p.id}`}>Edit</Link>) },
               ]} />
             )}
           </CardBody>
@@ -121,9 +120,9 @@ export function Overview({ site, role }: { site: SiteOut; role: string }) {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Look and feel" description={isV2 ? "Set by the look you picked with the art director." : "A regional theme pack sets colours, fonts and the border pattern; personality sets shape and tone."} />
+          <CardHeader title="Look and feel" description={isV2 ? "Change colours and fonts with \"Colours & font\" in the simple view." : "A regional theme pack sets colours, fonts and the border pattern; personality sets shape and tone."} />
           <CardBody>{!doc ? null : isV2
-            ? <Link className={btn} href="/dashboard/marketing/website/builder">Change the look with the art director</Link>
+            ? null
             : <ThemePicker doc={doc} update={draft.update} />}</CardBody>
         </Card>
         <BookingSettings site={site} canEdit={canApprove} isV2={isV2} />
