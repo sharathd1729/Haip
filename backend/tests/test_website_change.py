@@ -79,8 +79,10 @@ def test_change_needs_website_approve_and_stays_in_its_workspace(client, db, wsi
     _made(client, wsite)
     assert client.post(f"{B}/change", json={"text": "make it blue"}, headers=wsite["foh_h"]).status_code == 403
     assert client.post(f"{B}/change", json={"text": "make it blue"}, headers=wsite["mkt_h"]).status_code == 403
+    from app.services.website_service import create_site
     other = make_tenant(db, "Elsewhere")
-    stranger = SiteAiJob(tenant_id=other.id, site_id="x", kind="change", status="ready", request="x", result={"before": {"a": 1}})
+    other_site = create_site(db, other, actor_id=None)          # a real site: PostgreSQL enforces site_ai_jobs.site_id
+    stranger = SiteAiJob(tenant_id=other.id, site_id=other_site.id, kind="change", status="ready", request="x", result={"before": {"a": 1}})
     db.add(stranger)
     db.commit()
     assert client.post(f"{B}/change/{stranger.id}/undo", headers=wsite["owner_h"]).status_code == 404
