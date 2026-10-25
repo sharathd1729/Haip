@@ -60,7 +60,7 @@ export function Editor({ site, role, initialPage }: { site: SiteOut; role: strin
   const env = useMemo<SiteEnv>(() => ({
     mode: "editor", base: "", apiBase: null, query: {},
     assets: Object.fromEntries(mediaList.filter(m => m.url).map(m => [m.id, { src: m.url as string, alt: m.alt_text || "" }])),
-    stay: live.data?.stays[0] ?? null,
+    stay: live.data?.stays?.[0] ?? null,   // a new-builder (v2) site has no stays list
   }), [mediaList, live.data]);
   const liveData = useMemo<LiveData | null>(() => (live.data && doc ? { ...live.data, doc } : null), [live.data, doc]);
   const pickPhoto = useCallback((cb: (ref: string) => void) => setPicker(() => cb), []);
@@ -86,10 +86,12 @@ export function Editor({ site, role, initialPage }: { site: SiteOut; role: strin
     return (
       <div className="mx-auto grid max-w-[640px] gap-3 p-6 text-sm">
         <p className="font-semibold">This draft uses the new website builder.</p>
-        <p className="text-[var(--haip-fg-muted)]">Editing it here arrives in a later phase. Open the preview to see it as guests will.</p>
-        <div className="flex gap-2">
+        <p className="text-[var(--haip-fg-muted)]">Change its pages, text or look with the art director, or open the preview to see it as guests will.
+          To go back to the classic editor, restore an older version from the Versions list on the Website page.</p>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/marketing/website/builder" className={btnPrimary}>Open the art director</Link>
+          <button type="button" className={btn} onClick={preview}>Open preview</button>
           <Link href="/dashboard/marketing/website" className={btn}>Back to Website</Link>
-          <button type="button" className={btnPrimary} onClick={preview}>Open preview</button>
         </div>
       </div>
     );
