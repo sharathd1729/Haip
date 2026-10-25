@@ -155,4 +155,5 @@ def test_website_art_director_plans_on_flash_and_polishes_copy_on_flash_lite():
     from app.services.marketing_ai_service import MAX_TOKENS
     assert _TASK_ROUTES["website_plan"] == ("gemini", "gemini-3.6-flash")
     assert _TASK_ROUTES["website_copy"] == ("gemini", "gemini-3.1-flash-lite")
+    assert _TASK_ROUTES["website_change"] == ("gemini", "gemini-3.1-flash-lite")      # small task, low model
     assert MAX_TOKENS["website_plan"] >= 24000 and MAX_TOKENS["website_copy"] >= 4000

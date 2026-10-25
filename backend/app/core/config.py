@@ -186,6 +186,8 @@ class Settings(BaseSettings):
     # sites.genhaip.com -> the VPS (docs/website-builder/DEPLOY.md). Moving existing sites: scripts/move_site_subdomains.py.
     SITES_BASE_DOMAIN: str = "sites.genhaip.com"
     SITES_CNAME_TARGET: str = ""
+    # Local copy only: preview links open on this origin (e.g. http://localhost:3040) instead of https://<site host>.
+    SITES_PREVIEW_ORIGIN: str = ""
     SITES_RENDERER_URL: str = ""
     SITES_REVALIDATE_SECRET: str = ""
     CLOUDFLARE_API_TOKEN: str = ""

@@ -140,7 +140,7 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
 
 
 def _is_empty(stype: str, data: dict) -> bool:
-    if stype in ("packages", "reviews", "faq"):
+    if stype in ("stays", "booking", "packages", "reviews", "faq"):
         return not data.get("items")
     if stype == "itinerary":
         return not data.get("itinerary")
@@ -174,5 +174,5 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
 
 
 def media_ids(db: Session, tenant: Tenant, doc: dict) -> set[str]:
-    """Photos a v2 page may show: the ones the spec names plus the ones bound to its hero and gallery sections."""
-    return website_bindings.resolve(db, tenant, doc, types={"hero", "gallery"})["asset_ids"]
+    """Photos a v2 page may show: the ones the spec names plus the ones bound to its hero, gallery and stays sections."""
+    return website_bindings.resolve(db, tenant, doc, types={"hero", "gallery", "stays"})["asset_ids"]

@@ -59,7 +59,7 @@ def test_valid_spec_normalises_once_and_fills_defaults():
     assert out["tokens"]["palette"]["primary"] == "#2F5D46" and out["tokens"]["motion"] == "calm"
     pk = next(s for p in out["pages"] for s in p["sections"] if s["type"] == "packages")
     assert pk["source"] == "business_data:packages" and pk["slots"]["keys"] == []
-    assert sum(len(p["sections"]) for p in out["pages"]) == 24          # 8 types x 3 variants
+    assert sum(len(p["sections"]) for p in out["pages"]) == 28          # 9 types x 3 variants + booking (1 variant)
 
 
 def test_every_preset_palette_passes_wcag_aa():

@@ -8,7 +8,7 @@ from app.api.v1.deps import get_current_user, require_module
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.schemas.site_builder import ApproveIn, BriefIn, CopyIn, PickIn, RunIn
+from app.schemas.site_builder import ApproveIn, BriefIn, ChangeIn, CopyIn, PickIn, RunIn
 from app.services import website_builder_service as wbs
 from app.services import website_service as svc
 from app.services.authz_service import require_capability
@@ -108,6 +108,33 @@ def polish_copy(body: CopyIn, user: User = Depends(get_current_user), db: Sessio
     db.commit()
     _enqueue(db, user, job)
     return wbs.job_out(job)
+
+
+@router.post("/change", status_code=202)
+def change_something(body: ChangeIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                     _m=_module, _c=_approve):
+    """'Change something': the owner's request in plain words; the edits are made by the queued AI job (poll /jobs/{id})."""
+    from app.services import website_change
+    site = _site(db, user)
+    try:
+        job = website_change.request(db, site, user, body.text)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+    db.commit()
+    _enqueue(db, user, job)
+    return wbs.job_out(job)
+
+
+@router.post("/change/{job_id}/undo")
+def undo_change(job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_approve):
+    from app.services import website_change
+    site = _site(db, user)
+    try:
+        website_change.undo(db, site, job_id, user)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/jobs/{job_id}")

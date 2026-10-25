@@ -8,6 +8,7 @@ import { Card, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { btn, btnPrimary } from "@/components/marketing/studio/types";
 import { NoSite, Overview } from "@/components/website/Overview";
+import { SimpleWebsite } from "@/components/website/SimpleWebsite";
 import api from "@/lib/api";
 import { errorCode, statusOf, webApi, webError } from "@/lib/website";
 
@@ -15,6 +16,7 @@ export default function WebsitePage() {
   const { data: session } = useSession();
   const role = String(session?.user?.role || "");
   const [mounted, setMounted] = useState(false);
+  const [more, setMore] = useState(false);       // "More options": the classic pages / versions / editor view
   useEffect(() => setMounted(true), []);
   const site = useQuery({ queryKey: ["web-site"], queryFn: webApi.site, retry: false });
   const code = errorCode(site.error), status = statusOf(site.error);
@@ -25,10 +27,9 @@ export default function WebsitePage() {
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="mx-auto max-w-[1280px] space-y-5 px-4 py-5 sm:px-6">
-        <PageHeader title="Website" subtitle={s ? s.url.replace("https://", "") : "Your bookable website, built and hosted by HAIP"}
-          actions={s && <div className="flex flex-wrap items-center gap-2">
-            <StatusPill tone={s.status === "live" ? "success" : s.status === "paused" ? "neutral" : "warning"}>{s.status === "live" ? `Live · v${s.live?.number}` : s.status === "paused" ? "Paused" : "Not published yet"}</StatusPill>
-            {s.status === "live" && <a className={btn} href={s.url} target="_blank" rel="noopener noreferrer">Visit site</a>}
+        <PageHeader title="Website" subtitle="Your website, made and hosted by HAIP"
+          actions={s && more && <div className="flex flex-wrap items-center gap-2">
+            <button className={btn} onClick={() => setMore(false)}>Back to simple view</button>
             <a className={btnPrimary} href="/dashboard/marketing/website/edit">Open editor</a></div>} />
         {!mounted || site.isLoading ? <Skeleton className="h-48 w-full" /> : site.isError ? (
           code === "no_site" ? <NoSite canCreate={role === "owner" || role === "manager"} /> : (
@@ -38,7 +39,7 @@ export default function WebsitePage() {
               action={moduleOff && role === "owner" ? <button type="button" className={btnPrimary} disabled={activate.isPending || activate.isSuccess} onClick={() => activate.mutate()}>
                 {activate.isSuccess ? "Switching on…" : "Switch on Website"}</button> : !moduleOff && status !== 403 ? <button className={btn} onClick={() => site.refetch()}>Try again</button> : null} /></Card>
           )
-        ) : s ? <Overview site={s} role={role} /> : null}
+        ) : s ? (more ? <Overview site={s} role={role} /> : <SimpleWebsite site={s} role={role} onMore={() => setMore(true)} />) : null}
       </div>
     </div>
   );

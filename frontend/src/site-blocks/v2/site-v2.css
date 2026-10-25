@@ -123,6 +123,51 @@
 .sv .sv-band .sv-card { background: var(--v-surface); }
 .sv .sv-card__foot { display: grid; gap: 14px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--v-line); }
 .sv .sv-ticks { display: grid; gap: 8px; }
+/* Check dates (booking section) */
+.sv .sv-book { display: grid; gap: var(--sv-gap); padding: clamp(18px, 3cqi, 32px); background: var(--v-surface); border: 1px solid var(--v-line);
+  border-radius: var(--v-r-card); }
+.sv .sv-book__stays { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv .sv-book__cal { display: grid; gap: 12px; align-content: start; }
+.sv .sv-book__month { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sv .sv-book__form { display: grid; gap: 14px; align-content: start; }
+.sv .sv-chip { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0 14px;
+  border: 1px solid var(--v-line); border-radius: 999px; background: var(--v-surface); color: var(--v-ink); font: 500 .95rem/1.2 var(--v-body); cursor: pointer; }
+.sv .sv-chip.is-on { background: var(--v-primary); border-color: var(--v-primary); color: var(--v-on-primary); }
+.sv .sv-chip:disabled { opacity: .4; cursor: default; }
+.sv .sv-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.sv .sv-cal__dow { text-align: center; font-size: .8rem; color: var(--v-muted); padding: 4px 0; }
+.sv .sv-cal__day { aspect-ratio: 1; min-height: 40px; border: 0; border-radius: 10px; background: var(--v-surface-alt); color: var(--v-ink);
+  font: 500 .95rem/1 var(--v-body); cursor: pointer; }
+.sv .sv-cal__day:disabled { cursor: default; opacity: .35; }
+.sv .sv-cal__day.is-taken { text-decoration: line-through; opacity: .45; }
+.sv .sv-cal__day.is-in { background: color-mix(in srgb, var(--v-primary) 18%, var(--v-surface)); }
+.sv .sv-cal__day.is-edge { background: var(--v-primary); color: var(--v-on-primary); }
+.sv .sv-field { display: grid; gap: 6px; font-size: .95rem; }
+.sv .sv-field > span:first-child { font-weight: 600; }
+.sv .sv-field input { min-height: 48px; padding: 0 14px; border: 1px solid var(--v-line); border-radius: var(--v-r-btn); background: var(--v-surface);
+  color: var(--v-ink); font: 16px var(--v-body); }
+.sv .sv-stepper { display: inline-flex; align-items: center; gap: 14px; }
+.sv .sv-stepper b { min-width: 2ch; text-align: center; font-size: 1.1rem; }
+.sv .sv-err { color: var(--v-accent); font-weight: 600; }
+.sv .sv-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.sv .sv-book__done { display: grid; gap: 8px; padding: clamp(18px, 3cqi, 32px); background: var(--v-surface); border: 1px solid var(--v-line);
+  border-radius: var(--v-r-card); }
+@container sv (min-width: 860px) { .sv .sv-book { grid-template-columns: 1.15fr 1fr; } .sv .sv-book__stays { grid-column: 1 / -1; } }
+/* Stays (caravans, villas, rooms) */
+.sv .sv-stay { display: flex; flex-direction: column; overflow: hidden; background: var(--v-surface); border: 1px solid var(--v-line);
+  border-radius: var(--v-r-card); }
+.sv .sv-stay__media { aspect-ratio: 4 / 3; overflow: hidden; background: var(--v-surface-alt); }
+.sv .sv-stay__media img, .sv .sv-stay__ph { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sv .sv-stay__body { display: grid; gap: 12px; padding: clamp(18px, 3cqi, 26px); align-content: start; }
+.sv .sv-stay__facts { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--v-muted); font-size: .95rem; }
+.sv .sv-stay__facts span { display: inline-flex; align-items: center; gap: 6px; }
+.sv .sv-stay-rows { display: grid; gap: var(--sv-gap); }
+@container sv (min-width: 760px) {
+  .sv .sv-stay--row { display: grid; grid-template-columns: 1.1fr 1fr; }
+  .sv .sv-stay--row .sv-stay__media { aspect-ratio: auto; min-height: 320px; }
+  .sv .sv-stay-rows .sv-stay--row:nth-child(even) .sv-stay__media { order: 2; }
+  .sv .sv-stay--big { margin-bottom: var(--sv-gap); }
+}
 .sv .sv-ticks li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; font-size: .975rem; }
 .sv .sv-ticks svg { color: var(--v-accent); margin-top: 4px; }
 .sv .sv-price { display: grid; gap: 2px; }

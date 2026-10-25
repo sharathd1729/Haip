@@ -157,6 +157,9 @@ def run(db: Session, tenant_id: str, job_id: str) -> SiteAiJob:
     try:
         if job.kind == "copy":
             return _run_copy(db, tenant_id, job, site)
+        if job.kind == "change":
+            from app.services import website_change
+            return website_change.run(db, tenant_id, job, site)
         c = wbs.chain(db, site)
         prereq = c["brief"] if job.kind == "sitemap" else c[wbs.PREREQ[job.kind]]["approved"]
         if not prereq or prereq.id != wbs.based_on(job):
