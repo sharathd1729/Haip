@@ -1,8 +1,23 @@
 // v2 sections, part 3: the business's own stays (caravans, villas, rooms) from HAIP Properties. Returns null when there
 // are none, like every other section.
 import { BedDouble, Check, Users } from "lucide-react";
+import { BookingForm, type BookStay } from "./booking-v2";
 import { bound, Head, Img, Section, WaButton, type Ctx } from "./parts";
-import type { SectionV2, StayItem } from "./types";
+import { txt, type SectionV2, type StayItem } from "./types";
+
+/** "Check dates": hidden when the owner chose "Guests just message you" (booking mode enquiry) or there's nothing to book. */
+export function Booking(s: SectionV2, ctx: Ctx) {
+  const stays = (bound(ctx, s).items || []) as BookStay[];
+  if (!stays.length || ctx.live.site.booking_mode === "enquiry") return null;
+  return (
+    <Section s={s} band>
+      <div className="sv-wrap">
+        <Head ctx={ctx} s={s} />
+        <BookingForm env={ctx.env} stays={stays} today={ctx.live.site.today} cta={txt(s.slots.cta_label) || "Send my dates"} path={ctx.page.slug} />
+      </div>
+    </Section>
+  );
+}
 
 /** An approved library photo ("asset:<id>") or the property's own https photo. */
 function StayPhoto({ item, ctx, eager }: { item: StayItem; ctx: Ctx; eager?: boolean }) {

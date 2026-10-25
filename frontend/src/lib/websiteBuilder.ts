@@ -29,7 +29,7 @@ export interface Direction { name: string; mood: string; sample_headline: string
   tokens: { palette: { name: string; ink: string; surface: string; primary: string; accent: string }; display: string; body: string; radius: "soft" | "sharp" | "pill"; motion: "calm" } }
 export interface StyleArt { note: string; directions: Direction[] }
 
-export interface Job { id: string; kind: StepKey | "copy"; status: JobStatus; feedback: string | null; error: string | null;
+export interface Job { id: string; kind: StepKey | "copy" | "change"; status: JobStatus; feedback: string | null; error: string | null;
   artifact: unknown; picked: number | null; attempts: number | null; version_id: string | null; model: string | null; created_at: string | null }
 export interface BuilderState {
   brief: { facts: BriefFacts; owner: BriefOwner } | null; brief_id: string | null;
@@ -45,7 +45,14 @@ export const builderApi = {
   approve: (step: StepKey, job_id: string) => api.post<BuilderState>(`${B}/steps/${step}/approve`, { job_id }).then(r => r.data),
   pick: (job_id: string, index: number) =>
     api.post<BuilderState & { version: { id: string; number: number } }>(`${B}/style/pick`, { job_id, index }).then(r => r.data),
+  /** "Change something": queue a plain-words change; poll job() until ready or failed. */
+  change: (text: string) => api.post<Job>(`${B}/change`, { text }).then(r => r.data),
+  job: (id: string) => api.get<Job>(`${B}/jobs/${id}`).then(r => r.data),
+  undo: (id: string) => api.post<{ ok: boolean }>(`${B}/change/${id}/undo`, {}).then(r => r.data),
 };
+
+/** What a finished "Change something" job tells the owner. */
+export interface ChangeArtifact { reply: string; edits: number; can_undo: boolean; undone?: boolean }
 
 export const SECTION_LABEL: Record<string, string> = {
   hero: "Hero", packages: "Packages", itinerary: "Itinerary", gallery: "Gallery", reviews: "Reviews", faq: "FAQ",

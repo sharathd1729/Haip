@@ -15,7 +15,7 @@ def test_make_builds_a_full_draft_with_only_sections_that_have_data(client, db, 
     doc = body["doc"]
     assert doc["spec_version"] == 2 and body["version"]["note"] == "Made by HAIP from your data"
     # the fixture has one property and a profile, but no packages, itineraries, photos, reviews or FAQs
-    assert _types(doc) == ["hero", "stays", "booking-cta", "contact"]
+    assert _types(doc) == ["hero", "stays", "booking", "booking-cta", "contact"]
     assert doc["pages"][0]["sections"][0]["slots"]["headline"] == "Quiet villas in the coffee hills"
     assert doc["site"]["contact"]["whatsapp"] == "+919876543210"
     assert 50 <= len(doc["pages"][0]["seo"]["description"]) <= 160
@@ -50,6 +50,14 @@ def test_make_creates_the_site_when_there_is_none(client, db, tenant_and_user):
     r = client.post(f"{BASE}/make", headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"})
     assert r.status_code == 201, r.text
     assert r.json()["site"]["url"].startswith("https://")
+
+
+def test_missing_names_each_left_out_section_with_where_to_fix_it(client, wsite):  # noqa: F811
+    r = client.get(f"{BASE}/missing", headers=wsite["owner_h"])
+    assert r.status_code == 200, r.text
+    items = {m["section"]: m for m in r.json()["items"]}
+    assert set(items) == {"packages", "itinerary", "gallery", "reviews", "faq"}      # it has a stay, so stays/booking show
+    assert items["gallery"]["href"].startswith("/dashboard/") and "photos" in items["gallery"]["how"]
 
 
 def test_make_needs_website_approve(client, wsite):  # noqa: F811

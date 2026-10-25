@@ -150,6 +150,13 @@ def make_website(user: User = Depends(get_current_user), db: Session = Depends(g
     return {"site": svc.site_out(db, site), **_draft_out(db, site, v, problems)}
 
 
+@router.get("/missing")
+def what_is_missing(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    """Sections "Make my website" leaves out because HAIP has no data for them yet, with what to add and where."""
+    from app.services import website_autobuild
+    return {"items": website_autobuild.missing(db, db.get(Tenant, user.tenant_id))}
+
+
 @router.post("/draft/v2", status_code=201)
 def create_v2_draft(body: SpecDraftIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
                     _m=_module, _c=_approve):
@@ -252,7 +259,9 @@ def restore(version_id: str, user: User = Depends(get_current_user), db: Session
 def preview_link(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
     site = _site(db, user)
     token = pub.preview_token(site, vs.head(db, site))
-    return {"url": f"https://{svc.primary_host(db, site)}/_haip/preview/{token}", "expires_in_hours": 24}
+    from app.core.config import settings as app_settings
+    origin = app_settings.SITES_PREVIEW_ORIGIN.rstrip("/") or f"https://{svc.primary_host(db, site)}"
+    return {"url": f"{origin}/_haip/preview/{token}", "expires_in_hours": 24}
 
 
 # ─── domains ────────────────────────────────────────────────────────────────────────────────────────────

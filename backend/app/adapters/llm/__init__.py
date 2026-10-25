@@ -194,6 +194,9 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # validated as a SiteSpec. Planning = the studio's Gemini tier; a one-slot copy polish is a small task on Flash-Lite.
     "website_plan": ("gemini", "gemini-3.6-flash"),
     "website_copy": ("gemini", "gemini-3.1-flash-lite"),
+    # "Change something" on the Website screen (website_change.py): a short list of edits for one plain-words request. Small
+    # task, low model; a retry after failed checks runs on website_plan.
+    "website_change": ("gemini", "gemini-3.1-flash-lite"),
 }
 
 

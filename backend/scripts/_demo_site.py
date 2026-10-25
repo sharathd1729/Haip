@@ -23,6 +23,8 @@ WANDERWHEEL_SPEC = {
                         "subhead": "Your own room on wheels, a driver-host who knows the back roads, and mornings with nobody else around.",
                         "cta_label": "Plan my trip on WhatsApp"}},
              {"id": "fleet", "type": "stays", "variant": "cards", "slots": {"eyebrow": "The caravans", "heading": "Your room on wheels"}},
+             {"id": "book", "type": "booking", "variant": "calendar",
+              "slots": {"eyebrow": "Book", "heading": "Check dates", "intro": "Pick your dates and send them. We confirm on WhatsApp."}},
              {"id": "packages", "type": "packages", "variant": "cards-3",
               "slots": {"eyebrow": "Journeys", "heading": "Pick the pace", "intro": "Every journey includes the caravan, the driver-host and breakfast."}},
              {"id": "route", "type": "itinerary", "variant": "timeline", "slots": {"eyebrow": "Day by day", "key": "misty-hills-2n"}},

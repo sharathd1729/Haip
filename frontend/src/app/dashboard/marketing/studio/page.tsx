@@ -26,6 +26,7 @@ import { BrandKitPanel } from "@/components/marketing/studio/BrandKitPanel";
 import { AdsTab } from "@/components/marketing/studio/AdsTab";
 import { ResultsTab } from "@/components/marketing/studio/ResultsTab";
 import { PartnersTab } from "@/components/marketing/studio/PartnersTab";
+import { SimpleStudio } from "@/components/marketing/studio/SimpleStudio";
 import { STUDIO, btn, btnPrimary, studioError } from "@/components/marketing/studio/types";
 
 /** Six sections, each grouping the older tabs (nothing removed). The first leaf opens when a section is picked. */

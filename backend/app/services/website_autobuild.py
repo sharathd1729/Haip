@@ -20,6 +20,8 @@ from app.services import website_spec_service as wspec
 # Sections shown only when HAIP has data for them, in page order (hero first; booking call to action and contact last).
 _OPTIONAL = [
     {"id": "stays", "type": "stays", "variant": "cards", "slots": {"eyebrow": "Stay with us", "heading": "Our stays"}},
+    {"id": "book", "type": "booking", "variant": "calendar",
+     "slots": {"eyebrow": "Book", "heading": "Check dates", "intro": "Pick your dates and send them. We confirm on WhatsApp."}},
     {"id": "packages", "type": "packages", "variant": "cards-3", "slots": {"eyebrow": "Trips", "heading": "Pick your trip"}},
     {"id": "itinerary", "type": "itinerary", "variant": "timeline", "slots": {"eyebrow": "Day by day", "heading": "How a trip unfolds"}},
     {"id": "gallery", "type": "gallery", "variant": "masonry", "slots": {"eyebrow": "Photos", "heading": "Take a look"}},
@@ -76,6 +78,24 @@ def spec_for(db: Session, tenant: Tenant, site_block: Optional[dict] = None) -> 
         keep.append(s)
     spec["pages"][0]["sections"] = keep
     return wspec.validate(spec)
+
+
+# What to add in HAIP so a section can appear, in plain words, with where to do it (a dashboard path).
+_MISSING = {
+    "stays": ("Your stays", "Add your caravans, villas or rooms in Properties.", "/dashboard/properties"),
+    "booking": ("Check dates", "Appears once you have at least one stay in Properties.", "/dashboard/properties"),
+    "packages": ("Trips and packages", "Publish your packages in Knowledge base › Structured business data.", "/dashboard/settings/knowledge"),
+    "itinerary": ("Day-by-day route", "Publish an itinerary in Knowledge base › Structured business data.", "/dashboard/settings/knowledge"),
+    "gallery": ("Photos", f"Add at least {MIN_GALLERY} photos in Marketing › Studio › Library and approve them.", "/dashboard/marketing/studio"),
+    "reviews": ("Guest reviews", "Mark the Google reviews guests agreed to share in Marketing › Studio.", "/dashboard/marketing/studio"),
+    "faq": ("Questions and answers", "Approve some questions and answers in the Knowledge base.", "/dashboard/settings/knowledge"),
+}
+
+
+def missing(db: Session, tenant: Tenant) -> list[dict]:
+    """Sections HAIP left out because it has no data for them yet, each with what to add and where."""
+    have = {s["type"] for s in spec_for(db, tenant)["pages"][0]["sections"]}
+    return [{"section": t, "title": title, "how": how, "href": href} for t, (title, how, href) in _MISSING.items() if t not in have]
 
 
 def make(db: Session, tenant: Tenant, actor_id: Optional[str]) -> tuple[Site, object, list[str]]:

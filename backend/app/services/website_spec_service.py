@@ -140,7 +140,7 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
 
 
 def _is_empty(stype: str, data: dict) -> bool:
-    if stype in ("stays", "packages", "reviews", "faq"):
+    if stype in ("stays", "booking", "packages", "reviews", "faq"):
         return not data.get("items")
     if stype == "itinerary":
         return not data.get("itinerary")

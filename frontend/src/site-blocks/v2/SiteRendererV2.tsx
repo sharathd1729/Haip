@@ -6,11 +6,11 @@ import { hrefOf, type SiteEnv } from "../types";
 import { type Ctx, WaButton } from "./parts";
 import { Gallery, Hero, ItinerarySection, Packages } from "./sections-a";
 import { BookingCta, ContactSection, Faq, Reviews } from "./sections-b";
-import { Stays } from "./sections-c";
+import { Booking, Stays } from "./sections-c";
 import type { LiveDataV2, PageV2, SectionType, SectionV2 } from "./types";
 
 const SECTIONS: Record<SectionType, (s: SectionV2, ctx: Ctx) => ReactNode> = {
-  hero: Hero, stays: Stays, packages: Packages, itinerary: ItinerarySection, gallery: Gallery,
+  hero: Hero, stays: Stays, booking: Booking, packages: Packages, itinerary: ItinerarySection, gallery: Gallery,
   reviews: Reviews, faq: Faq, contact: ContactSection, "booking-cta": BookingCta,
 };
 

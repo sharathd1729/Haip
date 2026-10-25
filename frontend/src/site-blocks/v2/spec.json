@@ -3,6 +3,7 @@
   "sections": {
     "hero": {"label": "Hero", "variants": ["fullbleed-image", "split", "centered-minimal"], "source": "media:approved"},
     "stays": {"label": "Our stays", "variants": ["cards", "rows", "feature"], "source": "properties:bookable"},
+    "booking": {"label": "Check dates", "variants": ["calendar"], "source": "booking:availability"},
     "packages": {"label": "Packages", "variants": ["cards-3", "comparison", "feature"], "source": "business_data:packages"},
     "itinerary": {"label": "Itinerary", "variants": ["timeline", "accordion", "day-cards"], "source": "business_data:itineraries"},
     "gallery": {"label": "Gallery", "variants": ["masonry", "filmstrip", "grid"], "source": "media:approved"},

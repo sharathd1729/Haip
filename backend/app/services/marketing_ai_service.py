@@ -152,7 +152,7 @@ def _is_transient(exc: Exception) -> bool:
 # Output budgets per task. Gemini and gpt-oss both "think" before answering and the thinking counts against this
 # budget: at 3,000 the brand-voice draft came back with finish_reason MAX_TOKENS and no output at all (24 Oct 2026).
 # A two-week calendar also overran 3,000 earlier (18 Oct). Only tokens actually used are billed.
-MAX_TOKENS = {"marketing_audit": 12000, "marketing_plan": 24000, "marketing_content": 12000, "marketing_content_premium": 12000, "marketing_review": 8000, "marketing_brand_dna": 12000, "marketing_review_reply": 4000, "marketing_ota_copy": 12000, "marketing_tagging": 6000, "marketing_insights": 12000, "marketing_brief": 24000, "marketing_deck": 16000, "website_plan": 32000, "website_copy": 4000}
+MAX_TOKENS = {"marketing_audit": 12000, "marketing_plan": 24000, "marketing_content": 12000, "marketing_content_premium": 12000, "marketing_review": 8000, "marketing_brand_dna": 12000, "marketing_review_reply": 4000, "marketing_ota_copy": 12000, "marketing_tagging": 6000, "marketing_insights": 12000, "marketing_brief": 24000, "marketing_deck": 16000, "website_plan": 32000, "website_copy": 4000, "website_change": 6000}
 
 
 def _complete(adapter, task: str, system: str, user: str, tool: dict) -> dict:

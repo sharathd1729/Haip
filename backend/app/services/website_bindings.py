@@ -1,6 +1,7 @@
 """SiteSpec v2 data bindings: what each section shows, read from HAIP at render time (never typed into the spec).
 
   packages / itinerary  business_data_service.list_effective (PUBLISHED records in effect today only; b2b packages never)
+  booking               the bookable properties to pick dates for (free nights come live from GET /availability)
   stays                 bookable properties (website_service.bookable_properties): name, summary, sleeps, amenities and a
                         photo (an approved library photo tagged to the property, else the property's own https photo)
   hero / gallery        approved library photos (marketing_photos.library: active, not AI-pending, no unconsented people)
@@ -201,6 +202,15 @@ def _stays(ctx: _Ctx, s: dict) -> dict:
     return {"items": items}
 
 
+def _booking(ctx: _Ctx, s: dict) -> dict:
+    """The stays a guest can pick dates for. Free nights are fetched live by the page (GET /availability), and the request
+    goes to POST /enquiries (a lead with dates; the team confirms and quotes), so no price is needed here."""
+    from app.services.website_service import bookable_properties
+    props = ctx.once("bookable", lambda: bookable_properties(ctx.db, ctx.tenant.id))
+    return {"items": [{"id": p.id, "name": (p.name or "")[:80], "sleeps": int(p.max_adults or 0) + int(p.max_children or 0)}
+                      for p in props[:12]]}
+
+
 def _first_name(raw: Optional[str]) -> str:
     return ((raw or "").strip().split() or ["Guest"])[0][:30]
 
@@ -246,7 +256,8 @@ def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] =
                 continue
             code = ref_code(prefix, slug, s["id"])
             t = s["type"]
-            data = (_hero(ctx, s) if t == "hero" else _stays(ctx, s) if t == "stays" else _packages(ctx, s, number, code) if t == "packages"
+            data = (_hero(ctx, s) if t == "hero" else _stays(ctx, s) if t == "stays" else _booking(ctx, s) if t == "booking"
+                    else _packages(ctx, s, number, code) if t == "packages"
                     else _itinerary(ctx, s) if t == "itinerary" else _gallery(ctx, s) if t == "gallery"
                     else _reviews(ctx, s) if t == "reviews" else _faq(ctx, s) if t == "faq" else {})
             data["wa"] = wa_link(number, code)

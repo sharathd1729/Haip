@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
     return [{
+      // The draft preview is shown inside HAIP's Website screen; CSP frame-ancestors overrides X-Frame-Options here.
+      source: "/_haip/preview/:path*",
+      headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'self' https://genhaip.com https://*.genhaip.com http://localhost:3000" }],
+    }, {
       source: "/:path*",
       headers: [
         { key: "X-Content-Type-Options", value: "nosniff" },

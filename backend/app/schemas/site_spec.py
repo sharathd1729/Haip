@@ -194,6 +194,13 @@ class StaysSlots(_Strict):
     limit: int = Field(6, ge=1, le=12)
 
 
+class BookingSlots(_Strict):
+    eyebrow: Short = ""
+    heading: str = Field("", max_length=90)
+    intro: str = Field("", max_length=280)
+    cta_label: str = Field("Send my dates", min_length=1, max_length=40)
+
+
 class PackagesSlots(_Strict):
     eyebrow: Short = ""
     heading: str = Field("", max_length=90)
@@ -253,10 +260,10 @@ class BookingCtaSlots(_Strict):
 
 
 SLOTS: dict[str, type[_Strict]] = {
-    "hero": HeroSlots, "stays": StaysSlots, "packages": PackagesSlots, "itinerary": ItinerarySlots, "gallery": GallerySlots,
+    "hero": HeroSlots, "stays": StaysSlots, "booking": BookingSlots, "packages": PackagesSlots, "itinerary": ItinerarySlots, "gallery": GallerySlots,
     "reviews": ReviewsSlots, "faq": FaqSlots, "contact": ContactSlots, "booking-cta": BookingCtaSlots,
 }
-SectionType = Literal["hero", "stays", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta"]
+SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta"]
 
 
 def _typed_price(obj) -> Optional[str]:
