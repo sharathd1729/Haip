@@ -5,7 +5,7 @@
 import type { ComponentType } from "react";
 import { usePathname } from "next/navigation";
 import {
-  BarChart2, Calendar, CalendarCheck, Home, LayoutGrid, MessageSquare, Phone, Settings, Sparkles, Sun, Users,
+  BarChart2, Calendar, CalendarCheck, Home, LayoutGrid, MessageSquare, Phone, Settings, Sparkles, Sun, Truck, Users,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ export type RouteIcon = ComponentType<{ size?: number; className?: string; strok
 
 export const ROUTE_ICONS = {
   "/dashboard/my-day": Sun,
+  "/dashboard/ops": Truck,
   "/dashboard": Home,
   "/dashboard/operations": Home,
   "/dashboard/inbox": MessageSquare,

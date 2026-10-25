@@ -17,6 +17,8 @@ import { MobileMenuSheet } from "./MobileNav";
 const ROUTE_LABELS: Record<string, string> = {
   dashboard:    "Home",
   "my-day":     "My day",
+  ops:          "Ops today",
+  files:        "Trip",
   portfolio:    "Portfolio",
   calendar:     "Calendar",
   marketing:    "Marketing",
