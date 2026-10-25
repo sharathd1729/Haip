@@ -140,11 +140,14 @@ def add_expense(db: Session, f: OpsFile, body: ExpenseIn, *, source: str = "manu
                    amount=_r(body.amount), gst_amount=_r(body.gst_amount) if body.gst_amount is not None else None,
                    vendor=(body.vendor or "").strip() or None, bill_date=bd, note=body.note, source=source,
                    photo_key=photo_key, bill_key=bill_key(body.vendor, bd, body.amount), staff_id=staff_id, created_by=actor_id)
+    db.flush()      # anything else pending fails on its own, never reported as a duplicate bill
     try:
         with db.begin_nested():
             db.add(e)
             db.flush()
-    except IntegrityError:
+    except IntegrityError as exc:
+        if "uq_ops_expenses_bill" not in str(exc.orig) and "ops_expenses.tenant_id, ops_expenses.bill_key" not in str(exc.orig):
+            raise
         raise HTTPException(status_code=409, detail="This bill was already added (same shop, date and amount).")
     event(db, f, f"Expense {body.category} Rs {_r(body.amount):,}" + (f" ({e.vendor})" if e.vendor else ""),
           auto=source == "photo", actor_id=actor_id)

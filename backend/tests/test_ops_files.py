@@ -12,11 +12,12 @@ from fastapi import HTTPException
 
 from app.models.audit_event import AuditEvent
 from app.models.guest import Guest
+from app.models.inquiry import Inquiry, InquirySource, InquiryStage
 from app.models.inquiry_360 import InquiryQuote
 from app.models.ops_files import OpsFile, OpsJobItem
 from app.models.property import Stay
 from app.models.stay_finance import StayAddOn, StayDeposit, StayPayment
-from app.models.user import UserRole
+from app.models.user import User, UserRole
 from app.schemas.ops_files import AcceptIn, CrewIn, ExpenseIn, ExtraIn
 from app.services import ops_money as money
 from app.services import ops_trip_service as trips
@@ -48,6 +49,16 @@ def _stay(db, t, p, *, start=3, nights=3, total="126732", status="confirmed", in
 def _pay(db, stay, amount):
     db.add(StayPayment(tenant_id=stay.tenant_id, stay_id=stay.id, amount=Decimal(amount), method="upi", paid_on=TODAY))
     db.flush()
+
+
+@pytest.fixture(autouse=True)
+def _actor_u1(db):
+    """Service calls here act as user "u1". PostgreSQL checks audit actors against users (SQLite does not), so it exists."""
+    if db.get(User, "u1") is None:
+        t = tenant(db)
+        db.add(User(id="u1", tenant_id=t.id, name="Manager", email=f"u1-{uuid.uuid4().hex[:6]}@t.com", hashed_password="x",
+                    role=UserRole.MANAGER, is_active=True))
+        db.commit()
 
 
 @pytest.fixture()
@@ -91,7 +102,12 @@ def test_no_file_without_a_pack_or_for_a_cancelled_booking(db):
 
 
 def test_km_included_and_rate_come_from_the_booking_quote(db, w):
+    g = Guest(id=str(uuid.uuid4()), tenant_id=w.t.id, name="Quoted Guest", phone="+919900011122")
+    db.add(g)
+    db.flush()
     inq = str(uuid.uuid4())
+    db.add(Inquiry(id=inq, tenant_id=w.t.id, guest_id=g.id, source=InquirySource.WA_DIRECT, stage=InquiryStage.NEW))
+    db.flush()
     db.add(InquiryQuote(tenant_id=w.t.id, inquiry_id=inq, amount=Decimal("126732"), status="accepted", option_rank=1,
                         snapshot={"gst_percent": "18", "km": {"included_km": "700", "applied_rate": "60"}}))
     stay = _stay(db, w.t, w.p, start=20, inquiry_id=inq)
@@ -214,6 +230,16 @@ def test_the_same_bill_is_refused_twice(db, w):
     assert e.value.status_code == 409
     money.add_expense(db, f, ExpenseIn(category="toll", amount=Decimal("890")), actor_id="u1")   # no date: never a duplicate
     money.add_expense(db, f, ExpenseIn(category="toll", amount=Decimal("890")), actor_id="u1")
+
+
+def test_an_unrelated_database_error_is_not_called_a_duplicate_bill(db, w):
+    """Found on PostgreSQL: any IntegrityError inside add_expense used to be reported as "bill already added"."""
+    from sqlalchemy.exc import IntegrityError
+    f = trips.ensure_file(db, w.t.id, w.stay)
+    db.add(OpsFile(tenant_id=w.t.id, stay_id=w.stay.id, pack="caravan_rv", state="handed_over", details={}))   # 2nd file: unique break
+    with pytest.raises(IntegrityError):
+        money.add_expense(db, f, ExpenseIn(category="fuel", amount=Decimal("100")), actor_id="u1")
+    db.rollback()
 
 
 def test_extras_wait_for_a_decision_and_approval_bills_them(db, w):
