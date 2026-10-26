@@ -37,6 +37,15 @@ def _hours_until(d: date, hhmm: Optional[str], now: datetime, tz) -> float:
     return (datetime.combine(d, t, tzinfo=tz) - now).total_seconds() / 3600
 
 
+def leaves_text(hours: float) -> str:
+    """When the trip leaves, in plain words; a late departure says so instead of "0 h"."""
+    if hours >= 1:
+        return f"Leaves in {round(hours)} h"
+    if hours > -1:
+        return "Due to leave now"
+    return f"Was due to leave {round(-hours)} h ago"
+
+
 def _need(level, unit, title, detail, file_id=None, action="open_file", item_id=None, key=None) -> dict:
     return {"key": key or f"{action}:{file_id or item_id}:{title}", "level": level, "unit": unit, "title": title,
             "detail": detail, "file_id": file_id, "item_id": item_id, "action": action}
@@ -53,9 +62,9 @@ def _file_needs(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, t
         if g["blocking"] and hours < 72:
             n = len(g["blocking"])
             out.append(_need("red" if hours < 24 else "amber", unit, f"{n} check{'s' if n != 1 else ''} still open",
-                             f"Leaves in {max(0, round(hours))} h. Dispatch stays blocked until they are green.", f.id))
+                             f"{leaves_text(hours)}. Dispatch stays blocked until they are green.", f.id))
         if f.state == "dispatch_ready" and hours < 24:
-            out.append(_need("amber", unit, "Ready to dispatch", f"{who} leaves in {max(0, round(hours))} h. Tap Dispatch.", f.id))
+            out.append(_need("amber", unit, "Ready to dispatch", f"{who}: {leaves_text(hours).lower()}. Tap Dispatch.", f.id))
     a = money.account(db, f)
     if a["extras_waiting"]:
         n = a["extras_waiting"]

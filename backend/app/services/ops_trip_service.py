@@ -112,7 +112,11 @@ def readiness_items(db: Session, f: OpsFile) -> list[OpsJobItem]:
     job = db.query(OpsJob).filter_by(tenant_id=f.tenant_id, file_id=f.id, kind="readiness").order_by(OpsJob.created_at).first()
     if job is None:
         return []
-    return db.query(OpsJobItem).filter_by(tenant_id=f.tenant_id, job_id=job.id).order_by(OpsJobItem.created_at, OpsJobItem.key).all()
+    items = db.query(OpsJobItem).filter_by(tenant_id=f.tenant_id, job_id=job.id).all()
+    # The checklist's own order (tyres first ...): the items are created in one flush, so created_at cannot tell them apart.
+    t = db.get(OpsChecklistTemplate, job.template_id) if job.template_id else None
+    order = {it["key"]: n for n, it in enumerate(t.items or [])} if t is not None else {}
+    return sorted(items, key=lambda i: (order.get(i.key, len(order)), i.key))
 
 
 def gate(items: list[OpsJobItem]) -> dict:
@@ -122,9 +126,8 @@ def gate(items: list[OpsJobItem]) -> dict:
 
 
 def _set(i: OpsJobItem, status: str, note: Optional[str], user_id: Optional[str], staff_id: Optional[str] = None) -> None:
-    i.status, i.set_at, i.set_by_user_id, i.set_by_staff_id = status, _now(), user_id, staff_id
-    if note is not None:
-        i.note = note
+    # A new answer replaces the old note: a check marked fine must not keep its earlier "AI: not cooling" note.
+    i.status, i.set_at, i.set_by_user_id, i.set_by_staff_id, i.note = status, _now(), user_id, staff_id, note
 
 
 def refresh(db: Session, f: OpsFile) -> None:
@@ -308,6 +311,15 @@ def close(db: Session, f: OpsFile, actor_id: str) -> OpsFile:
 
 # ── What the manager sees ───────────────────────────────────────────────────
 
+# What to do next, said as an instruction (a task's label says what "done" looks like: "Driver and helper assigned").
+NEXT_WORDS = {
+    "route": "Set the route and km included", "crew": "Pick the driver and helper", "pay": "Collect the payment",
+    "extras": "Decide the extras the guest asked for", "gate": "Finish the vehicle checklist",
+    "end": "Enter the end odometer when the vehicle is back", "ret": "Check the vehicle against the handover photos",
+    "bal": "Collect the balance", "dep": "Refund the deposit", "rep": "Approve the trip account report",
+}
+
+
 def stage(db: Session, f: OpsFile) -> dict:
     """The step (1-6), its tasks and one line saying what to do next. Empty next = nothing left."""
     names = packs.get(f.pack)["step_names"]
@@ -343,7 +355,7 @@ def stage(db: Session, f: OpsFile) -> dict:
     else:
         tasks = []
     open_ = next((x for x in tasks if not x["done"]), None)
-    nxt = ("" if f.state in ("closed", "cancelled") else open_["label"] if open_
+    nxt = ("" if f.state in ("closed", "cancelled") else NEXT_WORDS.get(open_["key"], open_["label"]) if open_
            else "Close the trip" if f.state == "returned" else "Waiting on the checklist")
     # next_key names the screen action for the "Next step" button (close = the Close tap, wait = nothing to tap yet)
     key = (None if f.state in ("closed", "cancelled") else open_["key"] if open_

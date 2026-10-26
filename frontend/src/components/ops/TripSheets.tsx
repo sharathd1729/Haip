@@ -53,7 +53,7 @@ export function TripSheets({ file, kind, item, onClose, submit, busy }: {
     else if (kind === "return") setF({ km: "" });
     else if (kind === "expense") setF({ category: "fuel", amount: "", vendor: "" });
     else if (kind === "extra") setF({ kind: "upsell", label: "", amount: "" });
-    else if (kind === "item") setF({ note: item?.note ?? "" });
+    else if (kind === "item") setF({ note: "" });   // a new answer starts a new note (the old one is shown above)
     // Only when a sheet opens: a background refetch of the file must not wipe what the person is typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, item?.key, file.id]);
@@ -142,6 +142,7 @@ export function TripSheets({ file, kind, item, onClose, submit, busy }: {
                 Photo check: {item.ai_verdict.ok ? "looks fine" : item.ai_verdict.problems.join("; ") || "does not look right"}
               </p>
             )}
+            {item.note && <p className="text-[14px] text-[var(--haip-fg-muted)]">Last note: {item.note}</p>}
             <label className={label}>Note (optional)<input className={input} value={f.note ?? ""} onChange={set("note")} /></label>
             <button type="button" disabled={busy} className="haip-btn-primary min-h-12 text-[15px]"
               onClick={() => done(submit(`${base}/checklist/${item.key}`, { status: "green", note: f.note || undefined }, "put"))}>It&apos;s fine</button>

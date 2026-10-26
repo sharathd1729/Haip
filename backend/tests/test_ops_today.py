@@ -97,3 +97,9 @@ def test_api_today_roles_and_tenants(client, db):
     seed_capabilities(db, other.id)
     o = client.get("/api/v1/ops/files/today", headers=_h(_user(db, other.id, UserRole.MANAGER))).json()
     assert o["needs"] == [] and o["units"] == []
+
+
+def test_departure_wording_says_late_instead_of_zero_hours():
+    assert today_svc.leaves_text(30.4) == "Leaves in 30 h"
+    assert today_svc.leaves_text(0.4) == "Due to leave now"
+    assert today_svc.leaves_text(-3.2) == "Was due to leave 3 h ago"

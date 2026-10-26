@@ -313,3 +313,18 @@ def test_api_cross_tenant(client, db, w, api):
     assert client.get(f"/api/v1/ops/files/{fid}", headers=_h(om)).status_code == 404
     assert client.get(f"/api/v1/ops/files/by-stay/{w.stay.id}", headers=_h(om)).status_code == 404
     assert client.get("/api/v1/ops/files", headers=_h(om)).json() == []
+
+
+def test_checklist_keeps_its_own_order_and_a_new_answer_replaces_the_old_note(db, w):
+    f = trips.ensure_file(db, w.t.id, w.stay)
+    assert [i.key for i in trips.readiness_items(db, f)][:3] == ["tyres", "electrical", "ac"]
+    trips.set_item(db, f, "ac", "red", "AI: AC display shows 29C, not cooling", user_id="u1")
+    trips.set_item(db, f, "ac", "green", None, user_id="u1")
+    assert next(i for i in trips.readiness_items(db, f) if i.key == "ac").note is None
+
+
+def test_next_step_is_an_instruction(db, w):
+    f = trips.ensure_file(db, w.t.id, w.stay)
+    trips.accept(db, f, AcceptIn(route="Coorg", allowance_km=Decimal("700")), "u1")
+    st = trips.stage(db, f)
+    assert (st["next"], st["next_key"]) == ("Pick the driver and helper", "crew")
