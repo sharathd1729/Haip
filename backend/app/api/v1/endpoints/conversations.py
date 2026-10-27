@@ -503,6 +503,9 @@ def send_message(
     # decision to do so.
     # First agent to reach out owns an unowned lead (lead_assignment_service).
     if not body.is_internal:
+        from app.services import lead_reopen     # our message to a lead the system closed brings it back (lead_reopen)
+        lead_reopen.on_contact(db, current_user.tenant_id, conv.guest_id, trigger="team_message", by_guest=False,
+                               actor_user_id=current_user.id)
         from app.services.lead_assignment_service import claim_on_first_touch
         claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
@@ -629,6 +632,9 @@ def send_template_message(
     # See the send_message() comment above -- a manual send (a template
     # reopening the WA window included) no longer forces shadow mode.
     # First agent to reach out owns an unowned lead (lead_assignment_service).
+    from app.services import lead_reopen
+    lead_reopen.on_contact(db, current_user.tenant_id, conv.guest_id, trigger="team_message", by_guest=False,
+                           actor_user_id=current_user.id)
     from app.services.lead_assignment_service import claim_on_first_touch
     claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
@@ -1159,6 +1165,9 @@ def approve_ai_draft(
     )
     from app.services.lead_assignment_service import claim_on_first_touch
     if conversation:
+        from app.services import lead_reopen
+        lead_reopen.on_contact(db, tenant_id, conversation.guest_id, trigger="team_message", by_guest=False,
+                               actor_user_id=current_user.id)
         claim_on_first_touch(db, tenant_id, conversation.guest_id, current_user.id)
     db.commit()
     if conversation:

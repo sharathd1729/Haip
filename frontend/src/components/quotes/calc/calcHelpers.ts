@@ -32,6 +32,17 @@ export function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** The trip's end date as the server prices it: start + days (noon to noon); a same-day package ends the day it starts. */
+export function tripEnd(start: string, days: number, sameDay: boolean): string {
+  return sameDay ? start : addDays(start, days);
+}
+
+/** Days for an End date the agent picked: the gap from Start, at least 1 and at most 30 (End before Start = 1 day). */
+export function daysFromEnd(start: string, end: string): number {
+  const gap = Math.round((Date.parse(`${end.slice(0, 10)}T00:00:00Z`) - Date.parse(`${start.slice(0, 10)}T00:00:00Z`)) / 86_400_000);
+  return Number.isNaN(gap) ? 1 : Math.max(1, Math.min(30, gap));
+}
+
 /** Digits and one dot, as typed into a money field. */
 export function cleanNumber(v: string): string {
   const s = v.replace(/[^\d.]/g, "");

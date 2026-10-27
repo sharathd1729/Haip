@@ -2,7 +2,7 @@
 // Marketing Studio: setup + the AI agency (Home), insights, plan, create, publish (scheduling, posting to Instagram,
 // Facebook and Google, ads) and settings. Server-side gates: module marketing_studio + marketing.* capabilities; this
 // page only mirrors them. The section is the URL's ?tab= (a leaf such as "library"), so banners and the setup checklist
-// can deep-link to the exact place to fix something.
+// can deep-link to the exact place to fix something. Simple by default: four big buttons; ?view=full shows every section.
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -51,7 +51,10 @@ function Studio() {
   const asked = params.get("tab") ?? "home";
   const leaf = GROUPS.some(g => g.leaves.some(l => l.value === (ALIASES[asked] ?? asked))) ? (ALIASES[asked] ?? asked) : "home";
   const group = groupOf(leaf);
-  const go = (v: string) => router.replace(`${path}?tab=${encodeURIComponent(v)}`, { scroll: false });
+  const full = params.get("view") === "full";
+  const go = (v: string) => router.replace(`${path}?tab=${encodeURIComponent(v)}${full ? "&view=full" : ""}`, { scroll: false });
+  const setView = (f: boolean) => router.replace(`${path}${f ? "?view=full" : ""}`, { scroll: false });
+  const leafLabel = GROUPS.flatMap(g => g.leaves).find(l => l.value === leaf)?.label ?? "";
   const { data: session } = useSession();
   const isOwner = session?.user?.role === "owner";
   // The query cache is persisted to localStorage (lib/queryClient.ts), so the client can hold data the server render
@@ -81,8 +84,9 @@ function Studio() {
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="mx-auto max-w-[1280px] space-y-5 px-4 py-5 sm:px-6">
-        <PageHeader title="Marketing Studio" subtitle="Plan, create, approve and post your marketing"
-          actions={<Link href="/dashboard/marketing" className={btn}>Ads results</Link>} />
+        <PageHeader title="Marketing Studio" subtitle="Posts, ads and what's working, made simple"
+          actions={full ? <button className={btn} onClick={() => setView(false)}>Simple view</button>
+            : <Link href="/dashboard/marketing" className={btn}>Ads results</Link>} />
         {!mounted || gate.isLoading ? <Skeleton className="h-40 w-full" /> : gate.isError ? (
           <Card>
             <EmptyState
@@ -96,13 +100,18 @@ function Studio() {
                 </button>
               )} />
           </Card>
+        ) : !full && !params.get("tab") ? (
+          <SimpleStudio go={go} onMore={() => setView(true)} />
         ) : (
           <>
-            <Tabs label="Marketing Studio sections" value={group.value} onChange={v => go(GROUPS.find(g => g.value === v)!.leaves[0].value)}
+            {!full && <div className="flex flex-wrap items-center gap-3">
+              <button className={btn} onClick={() => router.replace(path, { scroll: false })}>← Back</button>
+              <span className="font-semibold">{leafLabel}</span></div>}
+            {full && <><Tabs label="Marketing Studio sections" value={group.value} onChange={v => go(GROUPS.find(g => g.value === v)!.leaves[0].value)}
               items={GROUPS.map(g => ({ value: g.value, label: g.label }))} />
             {group.leaves.length > 1 && (
               <Tabs label={`${group.label} sections`} value={leaf} onChange={go} items={group.leaves} className="-mt-2" />
-            )}
+            )}</>}
             {leaf === "home" && <HomeTab />}
             {leaf === "report" && <InsightsReport />}
             {leaf === "sources" && <SourcesPanel />}

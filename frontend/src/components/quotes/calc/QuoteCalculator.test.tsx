@@ -76,6 +76,21 @@ describe("QuoteCalculator", () => {
     expect(body).toMatchObject({ action: "send", inquiry_id: "i1", package_key: "coorg-48", days: 2, guests: 5 });
   });
 
+  it("shows the End date: Start + Days; picking an End sets Days, changing Days or Start moves End", async () => {
+    post.mockResolvedValue({ data: priced() });
+    show({ conversationId: "c1", from: "inbox", name: "Kiran Reddy" });
+    const end = () => screen.getByLabelText("End") as HTMLInputElement;
+    await waitFor(() => expect(end().value).toBe("2026-11-01"));                  // prefilled 30 Oct + 2 days
+    fireEvent.change(end(), { target: { value: "2026-11-03" } });
+    expect((screen.getByLabelText("Days") as HTMLInputElement).value).toBe("4");
+    expect(screen.getByTestId("calc-when").textContent).toMatch(/noon to .*3 Nov noon/);
+    fireEvent.change(screen.getByLabelText("Days"), { target: { value: "1" } });
+    expect(end().value).toBe("2026-10-31");
+    fireEvent.change(screen.getByLabelText("Start"), { target: { value: "2026-11-05" } });
+    expect(end().value).toBe("2026-11-06");
+    await waitFor(() => expect(post.mock.calls.at(-1)![1]).toMatchObject({ start_date: "2026-11-05", days: 1 }));
+  });
+
   it("a price more than the limit below the suggested one becomes Send for owner OK and cannot be copied", async () => {
     post.mockResolvedValue({ data: priced({ override: { price: "60000", below_percent: "14.3", reason: null, show_usual: true }, total: "60000.00",
       approval: { needed: true, reasons: ["14.3% below the suggested price"], required_for_you: true } }) });
