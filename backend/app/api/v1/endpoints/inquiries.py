@@ -11,7 +11,7 @@ from app.models.conversation import Conversation, Message
 from app.schemas.inquiry import InquiryOut, InquiryCreateRequest, InquiryUpdateRequest
 from app.services import inquiry_service
 from app.services import lead_outcome
-from app.services.inquiry_service import get_or_create, update_stage, update_stage_by_id, InvalidStageTransition
+from app.services.inquiry_service import get_or_create, update_stage, update_stage_by_id, InvalidStageTransition, ReopenNotAllowed
 from pydantic import BaseModel
 
 class NoteRequest(BaseModel):
@@ -158,6 +158,8 @@ def update_inquiry(
                 outcome=outcome,
                 by_person=True,
             )
+        except ReopenNotAllowed as e:   # moving a Lost lead back = a reopen: owner/manager only
+            raise HTTPException(status_code=403, detail=e.detail)
         except InvalidStageTransition as e:
             raise HTTPException(status_code=422, detail=e.detail)
         except ValueError as e:
@@ -180,6 +182,8 @@ def update_inquiry(
                 outcome=outcome,
                 by_person=True,
             )
+        except ReopenNotAllowed as e:   # moving a Lost lead back = a reopen: owner/manager only
+            raise HTTPException(status_code=403, detail=e.detail)
         except InvalidStageTransition as e:
             raise HTTPException(status_code=422, detail=e.detail)
         except ValueError as e:

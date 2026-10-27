@@ -9,14 +9,12 @@ import { Check, Flag, Loader2 } from "@/lib/icons";
 import { Drawer } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { OutcomeSheet } from "./OutcomeSheet";
+import { reasonNeeded, stageErrorText } from "@/lib/stageMove";
 import type { LeadActionKey, PipelineStage } from "./types";
 
 export type SheetKey = "stage" | "lost" | "won" | "owner" | "task" | "more" | null;
 
-function errText(e: unknown, fallback: string) {
-  const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-  return typeof d === "string" ? d : fallback;
-}
+const errText = stageErrorText;
 
 const opt = "flex min-h-[52px] w-full items-center justify-between gap-2 rounded-xl border bg-[var(--haip-card)] px-3 py-2 text-left text-[14.5px] text-[var(--haip-fg)]";
 const input = "min-h-11 w-full rounded-lg border border-[var(--haip-border-strong)] bg-[var(--haip-card)] px-3 text-[16px] text-[var(--haip-fg)]";
@@ -47,27 +45,32 @@ export function StageSheet({ open, onClose, inquiryId, stages, currentKey, canRe
   const current = stages.find(s => s.key === currentKey);
   const patch = useLeadPatch(inquiryId, () => { setBackTo(null); setReason(""); onClose(); },
     () => `Stage changed${backTo ? ` to ${backTo.label}` : ""} · logged`);
-  const terminal = !!current && (current.is_closed_lost || current.is_closed_won);
+  const sold = !!current?.is_closed_won;
+  const lost = !!current?.is_closed_lost;
+  // From Lost only an open stage can be picked: that is a reopen (owner/manager + a reason; the backend says no otherwise).
+  const locked = (s: PipelineStage) => sold || (lost && (s.is_closed_won || s.is_closed_lost));
   const pick = (s: PipelineStage) => {
     if (s.key === currentKey) return onClose();
     if (s.is_closed_lost) return onLost();
     if (s.is_closed_won && onWon) return onWon(s);
-    if (current && s.order < current.order && !s.is_closed_won) { setBackTo(s); return; }
+    if (reasonNeeded(current, s)) { setBackTo(s); return; }
     patch.mutate({ stage_id: s.id });
   };
   return (
     <Drawer open={open} onOpenChange={o => { if (!o) { setBackTo(null); onClose(); } }} title="Move stage"
-      description={terminal ? `${current!.label} is a closed stage. Only an owner or manager can reopen a lost lead, from the Leads list.` : "Every move is logged on the lead."}>
+      description={sold ? `${current!.label} is a booking and stays ${current!.label}. Cancel the booking instead.`
+        : lost ? `This lead is ${current!.label}. Pick an open stage to reopen it: an owner or manager, with a reason.`
+          : "Every move is logged on the lead."}>
       {backTo ? (
         <div className="grid gap-3">
-          <p className="text-[14px] text-[var(--haip-fg-2)]">Moving back to <strong>{backTo.label}</strong> needs a reason{canReverse ? "" : " and an owner or manager"}.</p>
+          <p className="text-[14px] text-[var(--haip-fg-2)]">{lost ? "Reopening this lost lead into " : "Moving back to "}<strong>{backTo.label}</strong> needs a reason{canReverse ? "" : " and an owner or manager"}.</p>
           <label className="grid gap-1 text-[12.5px] font-semibold text-[var(--haip-fg-2)]">Reason
             <input className={input} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. dates changed, back to qualifying" />
           </label>
           <div className="flex gap-2">
             <button type="button" className={primaryBtn} disabled={!reason.trim() || patch.isPending}
               onClick={() => patch.mutate({ stage_id: backTo.id, reason: reason.trim() })}>
-              {patch.isPending && <Loader2 size={14} className="animate-spin" aria-hidden />} Move back
+              {patch.isPending && <Loader2 size={14} className="animate-spin" aria-hidden />} {lost ? "Reopen lead" : "Move back"}
             </button>
             <button type="button" onClick={() => setBackTo(null)} className="min-h-11 rounded-xl px-4 text-[14px] font-semibold text-[var(--haip-fg-2)]">Cancel</button>
           </div>
@@ -75,7 +78,7 @@ export function StageSheet({ open, onClose, inquiryId, stages, currentKey, canRe
       ) : (
         <div className="grid gap-2" role="radiogroup" aria-label="Stage">
           {[...stages].sort((a, b) => a.order - b.order).map(s => (
-            <button key={s.id} type="button" role="radio" aria-checked={s.key === currentKey} disabled={terminal || patch.isPending}
+            <button key={s.id} type="button" role="radio" aria-checked={s.key === currentKey} disabled={locked(s) || patch.isPending}
               onClick={() => pick(s)} className={cn(opt, s.key === currentKey ? "border-primary ring-1 ring-primary" : "border-[var(--haip-border)]", "disabled:opacity-60")}>
               <span>{s.label}{s.category === "valid" && <span className="block text-[12.5px] text-[var(--haip-fg-subtle)]">Counts as a real lead</span>}</span>
               {s.key === currentKey && <Check size={16} className="text-primary" aria-hidden />}

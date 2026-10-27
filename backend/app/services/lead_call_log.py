@@ -72,6 +72,8 @@ def log_call(db: Session, user: User, inquiry_id: str, *, outcome: str, note: Op
     from app.services import lead_assignment_service, lead_task_closer
     lead_assignment_service.on_call_logged(db, inquiry, call)       # whoever rings an unowned lead owns it, as for IVR calls
     resolved = lead_task_closer.resolve_callbacks(db, tenant_id, call, actor_user_id=user.id)
+    from app.services import lead_reopen
+    lead_reopen.on_call(db, call)                                   # connected + closed by the system = Active again
 
     from app.core.audit import append_audit
     append_audit(db, tenant_id=tenant_id, action="call.logged_manually", actor_user_id=user.id, target_type="call",

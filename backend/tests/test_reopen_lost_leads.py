@@ -83,14 +83,18 @@ def test_reopen_guards(db):
     assert go(lost, role="manager").stage_id == st["active"].id
 
 
-def test_normal_move_out_of_lost_is_still_blocked(db):
-    """Reopening is a separate action: the ordinary stage move keeps treating Lost as final."""
+def test_a_persons_move_out_of_lost_is_a_reopen_and_automatic_moves_stay_blocked(db):
+    """28 Oct 2026: an owner/manager moving a Lost lead to an open stage reopens it (reopen_lost_inquiry); an automatic
+    caller (role "system") still can't move it through the ordinary path (lead_reopen has its own rule)."""
     t, st = _world(db)
     _, lost = _lead(db, t, st["lost"], "+919742077714")
     db.commit()
     with pytest.raises(InvalidStageTransition):
         inquiry_service.update_stage_by_id(db, tenant_id=t.id, inquiry_id=lost.id, new_stage_id=st["active"].id,
-                                           actor_user_id=None, actor_role="owner", reason="x")
+                                           actor_user_id=None, actor_role="system", reason="x")
+    inquiry_service.update_stage_by_id(db, tenant_id=t.id, inquiry_id=lost.id, new_stage_id=st["active"].id,
+                                       actor_user_id=None, actor_role="owner", reason="x")
+    assert lost.stage_id == st["active"].id
 
 
 def _run(db, *argv):

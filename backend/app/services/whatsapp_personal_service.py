@@ -379,6 +379,15 @@ def ingest_chat_message(
     log.info("wa_personal_message_stored", guest_token=_phone_token(from_phone or chat_jid or ""), conversation=conversation.id,
              session_id=session.id, direction=direction, group=is_group, history=history, media=bool(media_key))
 
+    # -- a Lost lead comes back on live contact (lead_reopen): the guest wrote, or the agent replied from their phone ----
+    if live_guest_message:
+        from app.services import lead_reopen
+        lead_reopen.on_contact(db, session.tenant_id, guest_id, trigger="personal_whatsapp_message", by_guest=True)
+    elif outbound and not history and not is_group:
+        from app.services import lead_reopen
+        lead_reopen.on_contact(db, session.tenant_id, guest_id, trigger="team_message", by_guest=False,
+                               actor_user_id=session.user_id)
+
     # -- lead, summary and push: only for a live guest message ------------------------
     if live_guest_message and (is_new_conversation or promoted) and text:
         try:

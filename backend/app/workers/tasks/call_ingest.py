@@ -290,6 +290,12 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 db.rollback()
                 log.warning("callbacks_resolve_failed", call_id=call.id, error=str(exc)[:200])
 
+            # A Lost lead comes back when the guest calls, or our call connects (lead_reopen; best-effort, savepoint).
+            # Before the playbooks, so a missed call from a reopened lead is handled like any open lead.
+            from app.services import lead_reopen
+            if lead_reopen.on_call(db, call):
+                db.commit()
+
             # Lead workflows: missed call / no answer -> WhatsApp the guest (lead_playbooks.py; off unless switched on).
             from app.services.lead_playbook_engine import playbook_for_call
             if playbook_for_call(call):

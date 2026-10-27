@@ -412,6 +412,11 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     # the first time this fires still guarantees it only ever creates one
     # (identity_service already dedupes the guest; this dedupes the
     # inquiry).
+    # A guest writing again to a Lost lead brings it back to Active (lead_reopen; before the lookup below so the lead is
+    # reused, never duplicated).
+    from app.services import lead_reopen
+    lead_reopen.on_contact(db, tenant.id, guest_id, trigger="whatsapp_message", by_guest=True)
+
     if not conversation.inquiry_id and body:
         try:
             from app.services.inquiry_service import get_or_create_from_chat

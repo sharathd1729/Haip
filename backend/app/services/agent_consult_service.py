@@ -314,6 +314,9 @@ def answer(db: Session, user: User, consult_id: str, mode: str, text: Optional[s
     append_audit(db, tenant_id=c.tenant_id, actor_user_id=user.id, action="agent_consult.answered", target_type="agent_consult",
                  target_id=c.id, payload={"mode": mode, "delivery": c.delivery, "body_sha256": _sha(body),
                                           "saved_to_kb": bool(save_to_kb), "message_id": c.answer_message_id})
+    if conv is not None and to_send is not None:
+        from app.services import lead_reopen
+        lead_reopen.on_contact(db, c.tenant_id, conv.guest_id, trigger="team_message", by_guest=False, actor_user_id=user.id)
     if conv is not None:
         from app.services.lead_assignment_service import claim_on_first_touch
         claim_on_first_touch(db, c.tenant_id, conv.guest_id, user.id)

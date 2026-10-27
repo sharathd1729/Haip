@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
 import { useToast } from "@/components/ui/toast";
+import { askReason, reasonNeeded, stageErrorText } from "@/lib/stageMove";
 import api from "@/lib/api";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { StayCard } from "./StayCard";
@@ -68,6 +69,9 @@ interface PipelineStage {
   id: string;
   key: string;
   label: string;
+  order: number;
+  is_closed_won: boolean;
+  is_closed_lost: boolean;
 }
 
 interface GuestSummary {
@@ -111,12 +115,17 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
   });
 
   const moveStage = useMutation({
-    mutationFn: (newStageId: string) =>
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       api.post("/automations/actions/execute", {
         action_type: "move_stage",
         entity_refs: { inquiry_id: inquiryId },
-        action_config: { new_stage_id: newStageId },
+        action_config: { new_stage_id: id, ...(reason ? { reason } : {}) },
         source: "inbox_guest_panel",
+      }).then(r => {
+        // A refused move comes back 200 "skipped — <why>" (automation_engine): show the why, never "updated".
+        const d = String(r.data?.detail ?? "");
+        if (d.startsWith("skipped")) throw new Error(d.replace(/^skipped\s*[—-]\s*/, ""));
+        return r;
       }),
     onSuccess: () => {
       toast({ title: "Lead stage updated" });
@@ -124,8 +133,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast({ variant: "error", title: "Could not update stage", description: typeof msg === "string" ? msg : "Please try again." });
+      toast({ variant: "error", title: "Could not update stage", description: stageErrorText(e, "Please try again.") });
     },
   });
 
@@ -445,7 +453,14 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                   <span style={{ color: "var(--haip-fg-subtle)" }}>Lead Stage</span>
                   <select
                     value={stages?.find(s => s.key === leadOwnerStage?.stage_key)?.id ?? ""}
-                    onChange={e => e.target.value && moveStage.mutate(e.target.value)}
+                    onChange={e => {
+                      const target = stages?.find(s => s.id === e.target.value);
+                      if (!target) return;
+                      const need = reasonNeeded(stages?.find(s => s.key === leadOwnerStage?.stage_key), target);
+                      const reason = need ? askReason(need, target.label) : null;
+                      if (need && !reason) return;
+                      moveStage.mutate({ id: target.id, reason: reason ?? undefined });
+                    }}
                     disabled={moveStage.isPending || !stages?.length}
                     className="font-semibold text-[11px] rounded-md px-1.5 py-0.5 border outline-none disabled:opacity-60"
                     style={{ borderColor: "var(--haip-border)", background: "var(--card)", color: "var(--primary)" }}
