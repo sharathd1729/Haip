@@ -124,6 +124,12 @@ class InvalidStageTransition(Exception):
         super().__init__(self.detail)
 
 
+class ReopenNotAllowed(InvalidStageTransition):
+    """Someone other than an owner/manager tried to move a lead out of Lost. API: 403 with the message."""
+    def __init__(self):
+        super().__init__("lost", "open", "Only an owner or manager can reopen a lost lead.")
+
+
 class OutcomeReasonRequired(InvalidStageTransition):
     """A PERSON moved a lead to a closed-won / closed-lost stage without saying why (lead_outcome). API: 422 with
     ``detail = {"code": "outcome_reason_required", "kind", "message", "reasons"}``."""
@@ -176,6 +182,13 @@ def get_or_create(db: Session, tenant_id: str, guest_id: str, source: str = "pho
     return inquiry
 
 
+def _newest_lost(db: Session, tenant_id: str, guest_id: str) -> Optional[Inquiry]:
+    """The guest's newest enquiry when it is in a Lost stage (lead_reopen.lost_lead), so activity joins it instead of
+    starting a duplicate lead. A newest Sold enquiry is a finished trip: a new one starts as before."""
+    from app.services.lead_reopen import lost_lead
+    return lost_lead(db, tenant_id, guest_id)[0]
+
+
 def get_or_create_from_chat(
     db: Session, tenant_id: str, guest_id: str, *, source: str, message_text: str,
 ) -> Inquiry:
@@ -200,6 +213,9 @@ def get_or_create_from_chat(
     )
     if inquiry:
         return inquiry
+    lost = _newest_lost(db, tenant_id, guest_id)   # a Lost lead the guest wrote to again is that lead, not a new one
+    if lost:
+        return lost
 
     try:
         src = InquirySource(source)
@@ -261,6 +277,9 @@ def get_or_create_from_call(
     )
     if inquiry:
         return inquiry
+    lost = _newest_lost(db, tenant_id, guest_id)   # the call belongs to the Lost lead (call_ingest then applies lead_reopen)
+    if lost:
+        return lost
 
     # An inbound call that starts a lead is an organic call: nothing in the call itself says an ad or a campaign sent it, and
     # a click-to-call from an ad would arrive through the attributed channel instead. Older call leads keep their source.
@@ -444,6 +463,13 @@ def update_stage(
     # No-op: already in target stage
     if current == new_stage:
         return inquiry
+
+    # ── A PERSON moving a Lost lead back into an open stage = a reopen (owner/manager + reason) ────────────────
+    if current in EXIT_STAGES and new_stage not in EXIT_STAGES and new_stage != InquiryStage.BOOKED and actor_role != "system":
+        target_id = _stage_id_for(db, tenant_id, new_stage)
+        if target_id:
+            return reopen_lost_inquiry(db, tenant_id=tenant_id, inquiry_id=inquiry_id, new_stage_id=target_id,
+                                       actor_user_id=actor_user_id, actor_role=actor_role, reason=reason or "")
 
     # ── Terminal stages block all further transitions ──────────────────────────
     if current in EXIT_STAGES:
@@ -735,10 +761,17 @@ def update_stage_by_id(
     if current.id == new_stage.id:
         return inquiry
 
+    # A PERSON moving a Lost lead into an open stage reopens it (owner/manager + reason, reopen_lost_inquiry). Automatic
+    # callers (role "system") never get here: their reopens go through lead_reopen, with its own rule.
+    if current.is_closed_lost and not (new_stage.is_closed_won or new_stage.is_closed_lost) and actor_role != "system":
+        return reopen_lost_inquiry(db, tenant_id=tenant_id, inquiry_id=inquiry_id, new_stage_id=new_stage.id,
+                                   actor_user_id=actor_user_id, actor_role=actor_role, reason=reason or "")
+
     if current.is_closed_won or current.is_closed_lost:
         raise InvalidStageTransition(
             current.key, new_stage.key,
-            f"Inquiry is in a terminal stage ('{current.label}') and cannot be moved further."
+            "A Sold lead is a booking and stays Sold. Cancel the booking instead." if current.is_closed_won
+            else f"Inquiry is in a terminal stage ('{current.label}') and cannot be moved further."
         )
 
     if new_stage.is_closed_won or new_stage.is_closed_lost:
@@ -791,7 +824,7 @@ def reopen_lost_inquiry(
     other move, and clears the lost reason/note so reports don't count it as lost.
     """
     if actor_role not in BACKWARD_ROLES and actor_role != "system":
-        raise InvalidStageTransition("lost", "open", "Only an owner or manager can reopen a lost lead.")
+        raise ReopenNotAllowed()
     if not reason or not reason.strip():
         raise InvalidStageTransition("lost", "open", "A reason is required to reopen a lost lead.")
 

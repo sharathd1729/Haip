@@ -307,6 +307,11 @@ def process_instagram_dm(self, payload: dict) -> dict:
         # retries on every subsequent message until one has real text, and
         # still only ever creates one (conversation.inquiry_id gets set
         # the first time this fires, so it never fires again after).
+        # A guest writing again to a Lost lead brings it back to Active (lead_reopen).
+        from app.services import lead_reopen
+        if lead_reopen.on_contact(db, tenant_id, guest_id, trigger="instagram_message", by_guest=True):
+            db.commit()
+
         if not conversation.inquiry_id and body and not body.startswith("["):
             try:
                 from app.services.inquiry_service import get_or_create_from_chat

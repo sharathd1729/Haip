@@ -11,6 +11,7 @@ import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useToast } from "@/components/ui/toast";
+import { askReason, reasonNeeded, stageErrorText } from "@/lib/stageMove";
 import api from "@/lib/api";
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 
@@ -223,16 +224,19 @@ function StageSelect({ lead }: { lead: LeadCard }) {
 
   async function handleChange(newStageId: string) {
     if (!newStageId || newStageId === current?.id) return;
+    const target = stages.find(s => s.id === newStageId);
+    const need = target ? reasonNeeded(current, target) : null;
+    const reason = need && target ? askReason(need, target.label) : null;
+    if (need && !reason) return;                       // a reopen / move back needs a reason; cancelled = nothing changes
     setSaving(true);
     try {
-      await api.patch(`/inquiries/${lead.inquiry_id}`, { stage_id: newStageId });
+      await api.patch(`/inquiries/${lead.inquiry_id}`, { stage_id: newStageId, ...(reason ? { reason } : {}) });
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Stage updated", variant: "success" });
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       toast({
         title: "Couldn't update stage",
-        description: typeof msg === "string" ? msg : "Backward moves may require a reason and manager approval.",
+        description: stageErrorText(e, "Backward moves may require a reason and manager approval."),
         variant: "error",
       });
     } finally {

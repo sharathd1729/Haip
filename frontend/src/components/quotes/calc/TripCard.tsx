@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card, CardBody, StatusPill } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
 import { Field, INPUT } from "../ui";
-import { cleanNumber, money } from "./calcHelpers";
+import { addDays, cleanNumber, dayLabel, daysFromEnd, money, tripEnd } from "./calcHelpers";
 import type { CalcForm, CalcSetup, PriceResult } from "./types";
 
 const SEG = "min-h-11 rounded-[9px] px-4 text-[13.5px] font-semibold transition-colors sm:min-h-10";
@@ -25,6 +25,8 @@ export function TripCard({ form, set, setup, result }: {
   const c = setup.custom;
   const avail = result?.availability ?? [];
   const pending = setup.unpublished + setup.unpriced;
+  const sameDay = pkg?.product === "same_day" && form.mode === "fixed";
+  const end = form.start ? tripEnd(form.start, form.days, sameDay) : "";
   return (
     <Card>
       <CardBody className="space-y-4">
@@ -85,13 +87,24 @@ export function TripCard({ form, set, setup, result }: {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
+        {/* End = Start + Days (noon to noon). Editing End sets Days; editing Start or Days moves End. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label="Start" htmlFor="calc-start">
             <input id="calc-start" type="date" className={INPUT} value={form.start} min={setup.today} onChange={e => set({ start: e.target.value })} />
           </Field>
-          <NumberStep id="calc-days" label={pkg?.product === "same_day" && form.mode === "fixed" ? "Days (same day)" : "Days"} value={form.days} min={1} max={30} onChange={v => set({ days: v })} />
+          <Field label={sameDay ? "End (same day)" : "End"} htmlFor="calc-end">
+            <input id="calc-end" type="date" className={cn(INPUT, "disabled:opacity-60")} value={end} disabled={!form.start || sameDay}
+              min={form.start ? addDays(form.start, 1) : undefined} max={form.start ? addDays(form.start, 30) : undefined}
+              onChange={e => e.target.value && set({ days: daysFromEnd(form.start, e.target.value) })} />
+          </Field>
+          <NumberStep id="calc-days" label={sameDay ? "Days (same day)" : "Days"} value={form.days} min={1} max={30} onChange={v => set({ days: v })} />
           <NumberStep id="calc-guests" label="Guests" value={form.guests} min={1} max={50} onChange={v => set({ guests: v })} />
         </div>
+        {form.start && (
+          <p className="-mt-2 text-[12.5px] text-[var(--haip-fg-subtle)]" data-testid="calc-when">
+            {sameDay ? `${dayLabel(form.start)}, same day` : `${dayLabel(form.start)} noon to ${dayLabel(end)} noon`}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-1.5" aria-live="polite">
           {avail.map(v => (

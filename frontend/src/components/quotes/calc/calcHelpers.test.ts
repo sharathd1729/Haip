@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { daysFromEnd, tripEnd } from "./calcHelpers";
 import { actionGate, applyTrip, defaultForm, fromLine, receiptSteps, stageNote, toPayload, withoutPayLine } from "./calcHelpers";
 import type { PriceResult, Receipt } from "./types";
 import { lead, setup } from "./testFixtures";
@@ -9,6 +10,14 @@ const ok = (patch: Partial<PriceResult> = {}): PriceResult => ({
 });
 
 describe("rate calculator helpers", () => {
+  it("keeps End and Days in step: End = Start + Days, End sets Days (1 to 30), same-day ends on the start day", () => {
+    expect(tripEnd("2026-10-30", 2, false)).toBe("2026-11-01");
+    expect(tripEnd("2026-10-30", 3, true)).toBe("2026-10-30");
+    expect(daysFromEnd("2026-10-30", "2026-11-03")).toBe(4);
+    expect(daysFromEnd("2026-10-30", "2026-10-28")).toBe(1);       // End before Start
+    expect(daysFromEnd("2026-10-30", "2027-01-30")).toBe(30);      // clamped
+  });
+
   it("starts from the tenant's defaults and the first package", () => {
     const f = defaultForm(setup);
     expect(f).toMatchObject({ mode: "fixed", packageKey: "coorg-48", slab: "18", inclusive: true, ratePerDay: "25000", kmRate: "100",

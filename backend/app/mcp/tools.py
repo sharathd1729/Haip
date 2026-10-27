@@ -784,12 +784,12 @@ TOOLS: list[dict] = [
     },
     {
         "name": "move_lead_stage",
-        "description": "Move a lead/inquiry to a different pipeline stage. This is a real action -- confirm with the user before calling. Moving backward requires a reason and owner/manager role. Requires confirm:true and idempotency_key.",
+        "description": "Move a lead/inquiry to a different pipeline stage. This is a real action -- confirm with the user before calling. Moving backward, or out of Lost into an open stage (a reopen), requires a reason and owner/manager role; a Sold lead stays Sold. Requires confirm:true and idempotency_key.",
         "inputSchema": _write_schema(
             {
                 "inquiry_id": {"type": "string"},
                 "new_stage_id": {"type": "string"},
-                "reason": {"type": "string", "description": "Required for backward moves"},
+                "reason": {"type": "string", "description": "Required for backward moves and for reopening a Lost lead"},
                 "outcome_reason": {"type": "string", "description": "Required when moving to a won/lost stage. Lost: price, dates_unavailable, location, no_response, chose_alternative, group_size, plans_cancelled, invalid_lead, other. Won: package_fit, price_value, occasion, referral_repeat, quick_response, other"},
                 "outcome_note": {"type": "string", "description": "Optional note on why"},
             },

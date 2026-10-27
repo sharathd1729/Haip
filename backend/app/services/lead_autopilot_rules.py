@@ -261,8 +261,12 @@ def evaluate(db: Session, tenant_id: str, inquiry, stages: StageMap, settings: d
         return _qualify(inquiry, stages, current, sig)
 
     # 2. Travel dates gone by, nothing booked.
+    # Not when the lead entered its stage AFTER that date (reopened because the guest wrote again, or a person moved it): the
+    # old date is stale, and closing it again would undo the reopen (lead_reopen, 28 Oct 2026).
     check_in = _parse_date(inquiry.check_in)
-    if check_in is not None and check_in < today:
+    moved_after = (inquiry.current_stage_entered_at is not None and check_in is not None
+                   and _aware(inquiry.current_stage_entered_at).astimezone(IST).date() > check_in)
+    if check_in is not None and check_in < today and not moved_after:
         return Decision(stages.lost, "dates_passed", f"The travel date ({check_in:%d %b}) passed without a booking",
                         lost_reason="dates",
                         evidence=[{"kind": "inquiry", "id": inquiry.id, "quote": f"Check-in {check_in.isoformat()}"}])
