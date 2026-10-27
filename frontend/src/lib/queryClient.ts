@@ -41,7 +41,8 @@ export const queryPersister = typeof window !== "undefined"
 // "today" or "this month" is yesterday's (or another tenant's, on a shared phone) figures under the same key, and on a resumed
 // phone it can sit on screen until the refetch lands -- which is how the phone could show zeros the laptop did not. These
 // queries always load fresh; everything else keeps the instant-paint behaviour above.
-export const NEVER_PERSIST = new Set(["business-overview", "dashboard-overview", "work-queue", "impact-since-haip", "portfolio-calendar"]);
+export const NEVER_PERSIST = new Set(["business-overview", "dashboard-overview", "work-queue", "impact-since-haip", "portfolio-calendar",
+  "ops-today", "ops-file"]);   // ops: live trip state; a restored snapshot would show a trip as not yet dispatched
 
 export function shouldPersistQuery(query: Query): boolean {
   const root = Array.isArray(query.queryKey) ? query.queryKey[0] : undefined;

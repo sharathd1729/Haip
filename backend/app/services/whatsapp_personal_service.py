@@ -270,6 +270,11 @@ def ingest_chat_message(
     is_group = chat_type == "group"
     # A lead needs a usable phone number: WhatsApp sometimes shows only an internal @lid id, and that chat is mirrored, not a lead.
     live_guest_message = (not outbound) and (not history) and (not is_group) and bool(from_phone)
+    if live_guest_message:
+        # Staff are not guests (docs/ops/OPS_MODULE_PLAN.md §0.1): a staff member's chat is still mirrored, but never becomes a lead.
+        from app.services.staff_service import find_active_staff_by_phone
+        if find_active_staff_by_phone(db, session.tenant_id, from_phone) is not None:
+            live_guest_message = False
     chat_jid = chat_jid or (f"{from_phone.lstrip('+')}@s.whatsapp.net" if from_phone else None)
     if not chat_jid and not from_phone:
         log.warning("wa_personal_message_without_chat", session_id=session.id)

@@ -185,6 +185,17 @@ def upload_lead_evidence(tenant_id: str, import_id: str, name: str, content: byt
     return s3_key
 
 
+def upload_ops_photo(tenant_id: str, file_id: str, message_id: str, content: bytes) -> str:
+    """Store a staff member's ops photo (odometer, bill, checklist; ops_photo_intake), already re-encoded as JPEG. One
+    object per WhatsApp message id, so a redelivered message overwrites itself. Read back with get_presigned_media_url."""
+    safe_file = "".join(c for c in file_id if c.isalnum() or c == "-")[:64] or "file"
+    safe_msg = "".join(c for c in message_id if c.isalnum() or c in "-_.=")[-120:].lstrip(".") or "photo"
+    s3_key = f"{tenant_id}/ops/{safe_file}/{safe_msg}.jpg"
+    _put(s3_key, content, "image/jpeg")
+    log.info("ops_photo_stored", tenant_id=tenant_id, file_id=file_id, bytes=len(content))
+    return s3_key
+
+
 def upload_invoice_pdf(tenant_id: str, invoice_id: str, content: bytes) -> str:
     """Store an issued invoice/receipt PDF, return the key. One object per invoice id: re-rendering the same issued
     document overwrites itself, a reissue is a new invoice id and so a new object."""

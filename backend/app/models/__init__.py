@@ -54,6 +54,11 @@ from app.models.roi_benchmark import RoiBenchmarkVersion
 from app.models.agent_consult import AgentConsult
 from app.models.lead_evidence import LeadEvidenceImport
 from app.models.analyst import AgentExperiment, AgentExperimentAssignment, AgentLesson, AnalystReport
+from app.models.ops import (
+    StaffProfile, StaffDuty, ShiftPattern, ShiftOverride, EscalationChain, OpsSettings, OpsItem, OpsEscalationEvent,
+    OpsAlertSend,
+)
+from app.models.ops_files import OpsChecklistTemplate, OpsExpense, OpsExtra, OpsFile, OpsFileEvent, OpsJob, OpsJobItem
 
 __all__ = [
     "BusinessRecord",
@@ -81,4 +86,7 @@ __all__ = [
     "AgentConsult",
     "LeadEvidenceImport",
     "AnalystReport", "AgentExperiment", "AgentExperimentAssignment", "AgentLesson",
+    "StaffProfile", "StaffDuty", "ShiftPattern", "ShiftOverride", "EscalationChain", "OpsSettings", "OpsItem",
+    "OpsEscalationEvent", "OpsAlertSend",
+    "OpsFile", "OpsFileEvent", "OpsChecklistTemplate", "OpsJob", "OpsJobItem", "OpsExpense", "OpsExtra",
 ]
