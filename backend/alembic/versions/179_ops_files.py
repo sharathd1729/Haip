@@ -7,6 +7,7 @@ create_all at startup. Uses the ops.read / ops.write / ops.manage capabilities f
 Revision ID: 179
 Revises: 178
 """
+
 from alembic import op
 
 revision = "179"

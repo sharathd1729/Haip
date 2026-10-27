@@ -16,10 +16,12 @@ Numbering: written as 131 on feat/ops-foundations (on 128) and renumbered 178 on
 Revision ID: 178
 Revises: 177
 """
+
 import logging
 import uuid
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "178"
@@ -180,14 +182,38 @@ _INDEXES = [
 
 CAPABILITIES = [
     # key, label, is_write, risk, roles granted by default
-    ("ops.read", "View operations items, roster and who is on duty", False, "low",
-     ("owner", "manager", "reservations", "concierge", "foh")),
-    ("ops.write", "Raise, acknowledge and resolve operations items", True, "medium",
-     ("owner", "manager", "concierge", "foh")),
-    ("ops.manage", "Manage staff, shift roster, escalation chains and ops settings", True, "high",
-     ("owner", "manager")),
+    (
+        "ops.read",
+        "View operations items, roster and who is on duty",
+        False,
+        "low",
+        ("owner", "manager", "reservations", "concierge", "foh"),
+    ),
+    (
+        "ops.write",
+        "Raise, acknowledge and resolve operations items",
+        True,
+        "medium",
+        ("owner", "manager", "concierge", "foh"),
+    ),
+    (
+        "ops.manage",
+        "Manage staff, shift roster, escalation chains and ops settings",
+        True,
+        "high",
+        ("owner", "manager"),
+    ),
 ]
-ROLES = ("owner", "manager", "reservations", "concierge", "foh", "marketing", "compliance", "read_only")
+ROLES = (
+    "owner",
+    "manager",
+    "reservations",
+    "concierge",
+    "foh",
+    "marketing",
+    "compliance",
+    "read_only",
+)
 
 
 def grant_capabilities(bind) -> dict:
@@ -196,8 +222,10 @@ def grant_capabilities(bind) -> dict:
     for key, label, is_write, risk, _ in CAPABILITIES:
         if bind.execute(sa.text("SELECT 1 FROM capabilities WHERE key = :k"), {"k": key}).first() is None:
             bind.execute(
-                sa.text("INSERT INTO capabilities (key, label, category, is_write, module_code, risk) "
-                        "VALUES (:k, :l, 'ops', :w, NULL, :r)"),
+                sa.text(
+                    "INSERT INTO capabilities (key, label, category, is_write, module_code, risk) "
+                    "VALUES (:k, :l, 'ops', :w, NULL, :r)"
+                ),
                 {"k": key, "l": label, "w": is_write, "r": risk},
             )
             result["catalogue_added"] += 1
@@ -205,8 +233,11 @@ def grant_capabilities(bind) -> dict:
     tenants = [t for (t,) in bind.execute(sa.text("SELECT DISTINCT tenant_id FROM role_capabilities")).all()]
     for tenant_id in tenants:
         existing = {
-            (r, k) for r, k in bind.execute(
-                sa.text("SELECT role, capability_key FROM role_capabilities WHERE tenant_id = :t AND capability_key LIKE 'ops.%'"),
+            (r, k)
+            for r, k in bind.execute(
+                sa.text(
+                    "SELECT role, capability_key FROM role_capabilities WHERE tenant_id = :t AND capability_key LIKE 'ops.%'"
+                ),
                 {"t": tenant_id},
             ).all()
         }
@@ -215,9 +246,17 @@ def grant_capabilities(bind) -> dict:
                 if (role, key) in existing:
                     continue
                 bind.execute(
-                    sa.text("INSERT INTO role_capabilities (id, tenant_id, role, capability_key, allowed, created_at, updated_at) "
-                            "VALUES (:id, :t, :r, :k, :a, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"),
-                    {"id": str(uuid.uuid4()), "t": tenant_id, "r": role, "k": key, "a": role in granted},
+                    sa.text(
+                        "INSERT INTO role_capabilities (id, tenant_id, role, capability_key, allowed, created_at, updated_at) "
+                        "VALUES (:id, :t, :r, :k, :a, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    {
+                        "id": str(uuid.uuid4()),
+                        "t": tenant_id,
+                        "r": role,
+                        "k": key,
+                        "a": role in granted,
+                    },
                 )
                 result["rows_inserted"] += 1
     return result
@@ -257,5 +296,7 @@ def downgrade():
     for table in reversed(list(_TABLES)):
         op.execute(f"DROP TABLE IF EXISTS {table}")
     bind = op.get_bind()
-    bind.execute(sa.text("DELETE FROM role_capabilities WHERE capability_key IN ('ops.read', 'ops.write', 'ops.manage')"))
+    bind.execute(
+        sa.text("DELETE FROM role_capabilities WHERE capability_key IN ('ops.read', 'ops.write', 'ops.manage')")
+    )
     bind.execute(sa.text("DELETE FROM capabilities WHERE key IN ('ops.read', 'ops.write', 'ops.manage')"))

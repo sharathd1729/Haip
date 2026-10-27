@@ -4,6 +4,7 @@ ops.process_staff_photo  download the photo from Meta, read it, apply it to the 
                          manager on a flag. A redelivered message is handled once (Redis key per message id). A provider
                          outage is retried twice; anything else gets a "please resend" reply, never a silent drop.
 """
+
 import asyncio
 
 import structlog
@@ -18,6 +19,7 @@ MAX_RETRIES = 2
 
 def _fetch(token: str, media_id: str) -> tuple[bytes, str]:
     from app.adapters.whatsapp.meta_cloud import MetaCloudAdapter
+
     loop = asyncio.new_event_loop()
     try:
         return loop.run_until_complete(MetaCloudAdapter(phone_number_id="", access_token=token).fetch_media(media_id))
@@ -57,13 +59,23 @@ def process_staff_photo(self, tenant_id: str, staff_id: str, media_id: str, capt
         except VisionError as exc:
             db.rollback()
             if exc.transient and self.request.retries < MAX_RETRIES:
-                raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
-            log.warning("ops_photo_vision_failed", tenant_id=tenant_id, staff_id=staff_id, error=str(exc)[:200])
+                raise self.retry(exc=exc, countdown=30 * (2**self.request.retries)) from exc
+            log.warning(
+                "ops_photo_vision_failed",
+                tenant_id=tenant_id,
+                staff_id=staff_id,
+                error=str(exc)[:200],
+            )
         except VisionModelBlocked as exc:
             db.rollback()
             log.error("ops_photo_vision_blocked", tenant_id=tenant_id, error=str(exc)[:200])
         except Exception as exc:  # noqa: BLE001 -- the sender is always answered; the error is logged loudly
             db.rollback()
-            log.error("ops_photo_failed", tenant_id=tenant_id, staff_id=staff_id, error=str(exc)[:300])
+            log.error(
+                "ops_photo_failed",
+                tenant_id=tenant_id,
+                staff_id=staff_id,
+                error=str(exc)[:300],
+            )
         queue_delivery(tenant_id, sends)
         lead_alert_sender.send_text(db, tenant_id, staff.phone_e164, reply)

@@ -1,0 +1,11 @@
+# Lint rules (owner decision, 28 Oct 2026; .github/workflows/lint.yml).
+# CI checks ALL backend code with the "this code is broken" set only (E9,F63,F7,F82: syntax errors, bad comparisons,
+# misplaced statements, undefined names). The rules below, plus `ruff format` and mypy, apply to files a branch ADDS,
+# so new code is clean without reformatting the ~660 older files. Ruff is pinned in CI: its default rule set grows
+# between releases, which is what kept this job red.
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+ignore = ["B008"]   # FastAPI's Depends()/Query() in argument defaults is the framework's own idiom

@@ -4,6 +4,7 @@ ops.deliver_sends          deliver queued ops_alert_sends for one tenant; follow
 ops.escalation_tick        beat, every minute: fan out to tenants with live ops items
 ops.escalation_tick_tenant dispatch held items, escalate overdue acks, flag resolve breaches, re-offer stale queued sends
 """
+
 import structlog
 from celery import shared_task
 
@@ -26,7 +27,12 @@ def deliver_now(db, tenant_id: str, send_ids: list[str]) -> int:
             db.commit()
         except Exception as exc:
             db.rollback()
-            log.error("ops_deliver_failed", tenant_id=tenant_id, send_id=send_id, error=str(exc))
+            log.error(
+                "ops_deliver_failed",
+                tenant_id=tenant_id,
+                send_id=send_id,
+                error=str(exc),
+            )
         done += 1
     if pending:
         log.error("ops_deliver_follow_up_cap", tenant_id=tenant_id, remaining=len(pending))
@@ -80,8 +86,15 @@ def escalation_tick() -> dict:
         live = []
         for tid in tenant_ids:
             set_tenant_context(db, tid)
-            if db.query(OpsItem.id).filter(OpsItem.tenant_id == tid,
-                                           OpsItem.status.in_(("open", "acknowledged"))).first() is not None:
+            if (
+                db.query(OpsItem.id)
+                .filter(
+                    OpsItem.tenant_id == tid,
+                    OpsItem.status.in_(("open", "acknowledged")),
+                )
+                .first()
+                is not None
+            ):
                 live.append(tid)
     finally:
         db.close()

@@ -4,7 +4,6 @@ sets that category.
 
 Only caravan_rv is built (phase 1). Other packs are added here when their first client starts; nothing else in Ops changes.
 """
-from typing import Optional
 
 STEPS = ("get_ready", "hand_over", "during", "take_back", "settle", "done")
 
@@ -30,18 +29,39 @@ PACKS: dict[str, dict] = {
         "label": "Caravan / RV",
         "unit_word": "vehicle",
         "file_word": "trip",
-        "step_names": ("Set up", "Prepare", "Dispatch", "On the road", "Return & bill", "Done"),
+        "step_names": (
+            "Set up",
+            "Prepare",
+            "Dispatch",
+            "On the road",
+            "Return & bill",
+            "Done",
+        ),
         # state -> step index (0-based into STEPS); cancelled shows as done
         "states": {
-            "handed_over": 0, "crew_assigned": 1, "readiness": 1, "dispatch_ready": 2, "on_trip": 3, "returned": 4,
-            "closed": 5, "cancelled": 5,
+            "handed_over": 0,
+            "crew_assigned": 1,
+            "readiness": 1,
+            "dispatch_ready": 2,
+            "on_trip": 3,
+            "returned": 4,
+            "closed": 5,
+            "cancelled": 5,
         },
         "first_state": "handed_over",
         "checklists": {
             "readiness": {
                 "name": "Ready to leave",
-                "items": [{"key": k, "label": label, "critical": crit, "source": src, "photo": photo}
-                          for k, label, crit, src, photo in _CARAVAN_READINESS],
+                "items": [
+                    {
+                        "key": k,
+                        "label": label,
+                        "critical": crit,
+                        "source": src,
+                        "photo": photo,
+                    }
+                    for k, label, crit, src, photo in _CARAVAN_READINESS
+                ],
             },
         },
     },
@@ -51,7 +71,7 @@ PACKS: dict[str, dict] = {
 _BY_BUSINESS_TYPE = {"caravan": "caravan_rv", "caravan_rv": "caravan_rv"}
 
 
-def pack_for_business_type(business_type: Optional[str]) -> Optional[str]:
+def pack_for_business_type(business_type: str | None) -> str | None:
     """The pack a business runs, or None when its category has no pack built yet."""
     return _BY_BUSINESS_TYPE.get((business_type or "").strip().lower())
 

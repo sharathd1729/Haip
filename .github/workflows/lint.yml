@@ -14,8 +14,12 @@ jobs:
       run:
         working-directory: backend
 
+    # Owner decision 28 Oct 2026 (backend/ruff.toml): all code is checked for broken code only; style, formatting and
+    # types apply to files a branch ADDS. The old steps linted every file with unpinned ruff/mypy and never passed.
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -24,16 +28,41 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt ruff mypy
+        run: pip install -r requirements.txt ruff==0.17.1 mypy==1.15.0
 
-      - name: Ruff lint
-        run: ruff check app/ --output-format=github
+      - name: Files this branch adds
+        id: new
+        shell: bash
+        run: |
+          set -eo pipefail
+          git fetch --no-tags origin master
+          files=$(git diff --relative --name-only --diff-filter=A origin/master...HEAD -- app | { grep '\.py$' || true; } | tr '\n' ' ')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "New backend files: ${files:-none}"
 
-      - name: Ruff format check
-        run: ruff format app/ --check
+      - name: Ruff — broken code (all files)
+        run: ruff check app/ --select E9,F63,F7,F82 --output-format=github
 
-      - name: mypy type check
-        run: mypy app/ --ignore-missing-imports --no-strict-optional
+      - name: Ruff — lint new files
+        if: steps.new.outputs.files != ''
+        env:
+          NEW_FILES: ${{ steps.new.outputs.files }}
+        run: ruff check $NEW_FILES --output-format=github
+
+      - name: Ruff — format new files
+        if: steps.new.outputs.files != ''
+        env:
+          NEW_FILES: ${{ steps.new.outputs.files }}
+        run: ruff format --check $NEW_FILES
+
+      # Report only: the models use untyped Column(...), so mypy flags model-layer types in any file that touches them
+      # (backend/mypy.ini). Make this blocking once the models carry Mapped[...] annotations.
+      - name: mypy — new files (report only)
+        if: steps.new.outputs.files != ''
+        continue-on-error: true
+        env:
+          NEW_FILES: ${{ steps.new.outputs.files }}
+        run: mypy $NEW_FILES --follow-imports=silent
 
   frontend-lint:
     name: Frontend — ESLint + TypeScript
@@ -55,8 +84,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: ESLint
-        run: npm run lint
-
+      # No ESLint step: `npm run lint` is `next lint`, which Next.js 16 removed, and the repo has no eslint.config.*.
+      # Add one back together with an ESLint config. The job keeps its name in case it is a required check.
       - name: TypeScript type check
         run: npx tsc --noEmit

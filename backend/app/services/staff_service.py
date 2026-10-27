@@ -1,8 +1,8 @@
 """Staff profiles (operations module). Staff are not guests: see find_active_staff_by_phone and workers/tasks/whatsapp.py."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -21,14 +21,18 @@ def normalize_phone(db: Session, tenant_id: str, raw: str) -> str:
     return phone
 
 
-def find_active_staff_by_phone(db: Session, tenant_id: str, phone: Optional[str]) -> Optional[StaffProfile]:
+def find_active_staff_by_phone(db: Session, tenant_id: str, phone: str | None) -> StaffProfile | None:
     """The active staff profile for this number in this tenant, or None. Used on every inbound WhatsApp message."""
     if not phone:
         return None
     normalized = phone_identity.normalize(phone) or phone
     return (
         db.query(StaffProfile)
-        .filter(StaffProfile.tenant_id == tenant_id, StaffProfile.phone_e164 == normalized, StaffProfile.active.is_(True))
+        .filter(
+            StaffProfile.tenant_id == tenant_id,
+            StaffProfile.phone_e164 == normalized,
+            StaffProfile.active.is_(True),
+        )
         .first()
     )
 
@@ -42,13 +46,19 @@ def duties_of(db: Session, tenant_id: str, staff_ids: list[str]) -> dict[str, li
     return out
 
 
-def to_out(db: Session, staff: StaffProfile, duties: Optional[list[DutyAssignment]] = None) -> dict:
+def to_out(db: Session, staff: StaffProfile, duties: list[DutyAssignment] | None = None) -> dict:
     if duties is None:
         duties = duties_of(db, staff.tenant_id, [staff.id]).get(staff.id, [])
     return {
-        "id": staff.id, "name": staff.name, "phone_e164": staff.phone_e164, "user_id": staff.user_id,
-        "languages": staff.languages or [], "whatsapp_opt_in_at": staff.whatsapp_opt_in_at, "active": staff.active,
-        "notes": staff.notes, "duties": duties,
+        "id": staff.id,
+        "name": staff.name,
+        "phone_e164": staff.phone_e164,
+        "user_id": staff.user_id,
+        "languages": staff.languages or [],
+        "whatsapp_opt_in_at": staff.whatsapp_opt_in_at,
+        "active": staff.active,
+        "notes": staff.notes,
+        "duties": duties,
     }
 
 
@@ -68,12 +78,15 @@ def get_staff(db: Session, tenant_id: str, staff_id: str) -> StaffProfile:
     return staff
 
 
-def _check_refs(db: Session, tenant_id: str, user_id: Optional[str], duties: list[DutyAssignment]) -> None:
+def _check_refs(db: Session, tenant_id: str, user_id: str | None, duties: list[DutyAssignment]) -> None:
     if user_id and db.query(User.id).filter_by(id=user_id, tenant_id=tenant_id).first() is None:
         raise HTTPException(status_code=422, detail="user_id is not a user in this workspace")
     for d in duties:
         if d.property_id and db.query(Property.id).filter_by(id=d.property_id, tenant_id=tenant_id).first() is None:
-            raise HTTPException(status_code=422, detail="property_id is not a property in this workspace")
+            raise HTTPException(
+                status_code=422,
+                detail="property_id is not a property in this workspace",
+            )
 
 
 def _replace_duties(db: Session, tenant_id: str, staff_id: str, duties: list[DutyAssignment]) -> None:
@@ -84,10 +97,17 @@ def _replace_duties(db: Session, tenant_id: str, staff_id: str, duties: list[Dut
         if key in seen:
             continue
         seen.add(key)
-        db.add(StaffDuty(tenant_id=tenant_id, staff_id=staff_id, duty=d.duty, property_id=d.property_id))
+        db.add(
+            StaffDuty(
+                tenant_id=tenant_id,
+                staff_id=staff_id,
+                duty=d.duty,
+                property_id=d.property_id,
+            )
+        )
 
 
-def _phone_taken(db: Session, tenant_id: str, phone: str, except_id: Optional[str] = None) -> bool:
+def _phone_taken(db: Session, tenant_id: str, phone: str, except_id: str | None = None) -> bool:
     q = db.query(StaffProfile.id).filter(StaffProfile.tenant_id == tenant_id, StaffProfile.phone_e164 == phone)
     if except_id:
         q = q.filter(StaffProfile.id != except_id)
@@ -97,12 +117,20 @@ def _phone_taken(db: Session, tenant_id: str, phone: str, except_id: Optional[st
 def create_staff(db: Session, tenant_id: str, body: StaffCreate) -> StaffProfile:
     phone = normalize_phone(db, tenant_id, body.phone)
     if _phone_taken(db, tenant_id, phone):
-        raise HTTPException(status_code=409, detail="A staff member with this phone number already exists")
+        raise HTTPException(
+            status_code=409,
+            detail="A staff member with this phone number already exists",
+        )
     _check_refs(db, tenant_id, body.user_id, body.duties)
     staff = StaffProfile(
-        tenant_id=tenant_id, user_id=body.user_id, name=body.name.strip(), phone_e164=phone,
-        languages=body.languages, notes=body.notes, active=True,
-        whatsapp_opt_in_at=datetime.now(timezone.utc) if body.whatsapp_opt_in else None,
+        tenant_id=tenant_id,
+        user_id=body.user_id,
+        name=body.name.strip(),
+        phone_e164=phone,
+        languages=body.languages,
+        notes=body.notes,
+        active=True,
+        whatsapp_opt_in_at=datetime.now(UTC) if body.whatsapp_opt_in else None,
     )
     db.add(staff)
     db.flush()
@@ -114,10 +142,13 @@ def create_staff(db: Session, tenant_id: str, body: StaffCreate) -> StaffProfile
 def update_staff(db: Session, tenant_id: str, staff_id: str, body: StaffUpdate) -> StaffProfile:
     staff = get_staff(db, tenant_id, staff_id)
     data = body.model_dump(exclude_unset=True)
-    if "phone" in data and data["phone"]:
+    if data.get("phone"):
         phone = normalize_phone(db, tenant_id, data["phone"])
         if _phone_taken(db, tenant_id, phone, except_id=staff.id):
-            raise HTTPException(status_code=409, detail="A staff member with this phone number already exists")
+            raise HTTPException(
+                status_code=409,
+                detail="A staff member with this phone number already exists",
+            )
         staff.phone_e164 = phone
     if "user_id" in data or "duties" in data:
         _check_refs(db, tenant_id, data.get("user_id"), body.duties or [])
@@ -126,7 +157,7 @@ def update_staff(db: Session, tenant_id: str, staff_id: str, body: StaffUpdate) 
             setattr(staff, field, data[field].strip() if field == "name" else data[field])
     if "whatsapp_opt_in" in data:
         if data["whatsapp_opt_in"] and not staff.whatsapp_opt_in_at:
-            staff.whatsapp_opt_in_at = datetime.now(timezone.utc)
+            staff.whatsapp_opt_in_at = datetime.now(UTC)
         elif not data["whatsapp_opt_in"]:
             staff.whatsapp_opt_in_at = None
     if body.duties is not None:
