@@ -1,4 +1,5 @@
 """Escalation engine: alert, acknowledge, decline, escalate, quiet hours, exhaustion, resolve breach (ops_escalation_service)."""
+
 from datetime import timedelta
 
 from app.models.ops import OpsAlertSend, OpsEscalationEvent, OpsItem, OpsSettings
@@ -12,7 +13,10 @@ NOON = ist(2026, 10, 19, 12)
 
 def _events(db, item):
     db.flush()
-    return [e.event for e in db.query(OpsEscalationEvent).filter_by(item_id=item.id).order_by(OpsEscalationEvent.created_at).all()]
+    return [
+        e.event
+        for e in db.query(OpsEscalationEvent).filter_by(item_id=item.id).order_by(OpsEscalationEvent.created_at).all()
+    ]
 
 
 def _sends(db, item, step=None):
@@ -46,8 +50,16 @@ def _team(db):
 
 
 def _new(db, t, p, severity="high", now=NOON):
-    item, ids = esc.create_item(db, t.id, title="AC not working", severity=severity, duty="maintenance",
-                                property_id=p.id, summary="Guest says AC stopped", now=now)
+    item, ids = esc.create_item(
+        db,
+        t.id,
+        title="AC not working",
+        severity=severity,
+        duty="maintenance",
+        property_id=p.id,
+        summary="Guest says AC stopped",
+        now=now,
+    )
     db.commit()
     return item, ids
 
@@ -77,7 +89,7 @@ def test_button_with_wrong_nonce_or_wrong_staff_is_ignored(db):
     item, _ = _new(db, t, p)
     send = _sends(db, item)[0]
     esc.handle_staff_inbound(db, t.id, tech, payload=f"ops:ack:{send.id}:forged")
-    esc.handle_staff_inbound(db, t.id, boss, payload=esc.button_payload(send, "ack"))   # not boss's alert
+    esc.handle_staff_inbound(db, t.id, boss, payload=esc.button_payload(send, "ack"))  # not boss's alert
     assert item.status == "open"
 
 
@@ -85,7 +97,7 @@ def test_unacknowledged_item_escalates_to_next_step_on_tick(db):
     t, p, _, boss, _ = _team(db)
     item, _ = _new(db, t, p)
     _delivered(db)
-    assert esc.tick(db, t.id, NOON + timedelta(minutes=10)) == []                       # still inside the window
+    assert esc.tick(db, t.id, NOON + timedelta(minutes=10)) == []  # still inside the window
     ids = esc.tick(db, t.id, NOON + timedelta(minutes=16))
     step1 = _sends(db, item, step=1)
     assert item.current_step == 1 and [s.staff_id for s in step1] == [boss.id]
@@ -96,7 +108,13 @@ def test_unacknowledged_item_escalates_to_next_step_on_tick(db):
 def test_sole_recipient_decline_escalates_at_once(db):
     t, p, tech, boss, _ = _team(db)
     item, _ = _new(db, t, p)
-    ids = esc.handle_staff_inbound(db, t.id, tech, payload=esc.button_payload(_sends(db, item)[0], "decline"), now=NOON)
+    ids = esc.handle_staff_inbound(
+        db,
+        t.id,
+        tech,
+        payload=esc.button_payload(_sends(db, item)[0], "decline"),
+        now=NOON,
+    )
     assert item.current_step == 1 and ids and _sends(db, item, step=1)[0].staff_id == boss.id
     assert "declined" in _events(db, item)
 
@@ -105,10 +123,18 @@ def test_empty_steps_are_roster_gaps_and_owner_gets_it(db):
     t = tenant(db)
     p = prop(db, t.id)
     owner = user(db, t.id, UserRole.OWNER, phone_number="+919845011111")
-    item, ids = esc.create_item(db, t.id, title="No water", severity="critical", duty="maintenance", property_id=p.id, now=NOON)
+    item, ids = esc.create_item(
+        db,
+        t.id,
+        title="No water",
+        severity="critical",
+        duty="maintenance",
+        property_id=p.id,
+        now=NOON,
+    )
     db.commit()
     events = _events(db, item)
-    assert events.count("roster_gap") == 3 and events[-1] == "escalated"                 # steps 0,1,2 empty (no manager either)
+    assert events.count("roster_gap") == 3 and events[-1] == "escalated"  # steps 0,1,2 empty (no manager either)
     sends = _sends(db, item)
     assert {s.channel for s in sends} == {"whatsapp", "push"} and all(s.user_id == owner.id for s in sends)
     assert len(ids) == 2
@@ -146,7 +172,7 @@ def test_resolve_breach_alerts_managers_once(db):
     breach = _sends(db, item, step=esc.RESOLVE_BREACH_STEP)
     assert ids and item.resolve_breached_at is not None and {s.user_id for s in breach if s.user_id} == {owner.id}
     _delivered(db)
-    assert esc.tick(db, t.id, NOON + timedelta(minutes=300)) == []                       # only once
+    assert esc.tick(db, t.id, NOON + timedelta(minutes=300)) == []  # only once
 
 
 def test_resolve_and_cancel_are_final(db):
@@ -165,7 +191,7 @@ def test_tenant_sla_override_and_alerts_off(db):
     item, ids = _new(db, t, p)
     assert _a(item.ack_due_at) == NOON + timedelta(minutes=3)
     sends = _sends(db, item, step=0)
-    assert sends[0].status == "skipped" and "off" in sends[0].error              # tech has no login: no push either
+    assert sends[0].status == "skipped" and "off" in sends[0].error  # tech has no login: no push either
     assert "undeliverable" in _events(db, item)
 
 

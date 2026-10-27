@@ -2,21 +2,40 @@
 
 Constants here are the single definition of duties, severities, item kinds and default SLAs; services and endpoints import them.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-DUTIES = ("housekeeping", "maintenance", "front_desk", "caretaker", "driver", "fnb", "ops_manager")
+DUTIES = (
+    "housekeeping",
+    "maintenance",
+    "front_desk",
+    "caretaker",
+    "driver",
+    "fnb",
+    "ops_manager",
+)
 SEVERITIES = ("low", "normal", "high", "critical")
 ITEM_KINDS = ("incident", "balance_due", "checklist_overdue", "manual")
 ITEM_STATUSES = ("open", "acknowledged", "resolved", "cancelled")
 OVERRIDE_KINDS = ("leave", "extra", "swap")
 INCIDENT_CATEGORIES = (
-    "ac", "plumbing", "power", "wifi", "housekeeping", "amenity_missing", "food", "safety", "noise",
-    "vehicle", "payment", "other",
+    "ac",
+    "plumbing",
+    "power",
+    "wifi",
+    "housekeeping",
+    "amenity_missing",
+    "food",
+    "safety",
+    "noise",
+    "vehicle",
+    "payment",
+    "other",
 )
 
 # (ack within, resolve within) in minutes, per severity. Tenants override in ops_settings.sla.
@@ -55,9 +74,10 @@ def _hhmm_to_minute(value: str) -> int:
 
 # ── Staff ──────────────────────────────────────────────────────────────────
 
+
 class DutyAssignment(BaseModel):
     duty: str
-    property_id: Optional[str] = None   # None = every property
+    property_id: str | None = None  # None = every property
 
     @field_validator("duty")
     @classmethod
@@ -70,22 +90,22 @@ class DutyAssignment(BaseModel):
 class StaffCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     phone: str = Field(min_length=6, max_length=30)
-    user_id: Optional[str] = None
+    user_id: str | None = None
     languages: list[str] = Field(default_factory=list)
-    whatsapp_opt_in: bool = False       # the staff member agreed to receive ops alerts on WhatsApp
+    whatsapp_opt_in: bool = False  # the staff member agreed to receive ops alerts on WhatsApp
     duties: list[DutyAssignment] = Field(default_factory=list)
-    notes: Optional[str] = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class StaffUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
-    phone: Optional[str] = Field(default=None, min_length=6, max_length=30)
-    user_id: Optional[str] = None
-    languages: Optional[list[str]] = None
-    whatsapp_opt_in: Optional[bool] = None
-    duties: Optional[list[DutyAssignment]] = None
-    active: Optional[bool] = None
-    notes: Optional[str] = Field(default=None, max_length=500)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    phone: str | None = Field(default=None, min_length=6, max_length=30)
+    user_id: str | None = None
+    languages: list[str] | None = None
+    whatsapp_opt_in: bool | None = None
+    duties: list[DutyAssignment] | None = None
+    active: bool | None = None
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class StaffOut(BaseModel):
@@ -93,23 +113,24 @@ class StaffOut(BaseModel):
     id: str
     name: str
     phone_e164: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     languages: list[str] = Field(default_factory=list)
-    whatsapp_opt_in_at: Optional[datetime] = None
+    whatsapp_opt_in_at: datetime | None = None
     active: bool
-    notes: Optional[str] = None
+    notes: str | None = None
     duties: list[DutyAssignment] = Field(default_factory=list)
 
 
 # ── Roster ─────────────────────────────────────────────────────────────────
 
+
 class ShiftPatternCreate(BaseModel):
     staff_id: str
     duty: str
-    property_id: Optional[str] = None
-    weekdays: list[int] = Field(min_length=1)    # 0 = Monday … 6 = Sunday
-    start: str = Field(pattern=r"^\d{2}:\d{2}$")   # local time, workspace timezone
-    end: str = Field(pattern=r"^\d{2}:\d{2}$")     # end <= start means the shift crosses midnight
+    property_id: str | None = None
+    weekdays: list[int] = Field(min_length=1)  # 0 = Monday … 6 = Sunday
+    start: str = Field(pattern=r"^\d{2}:\d{2}$")  # local time, workspace timezone
+    end: str = Field(pattern=r"^\d{2}:\d{2}$")  # end <= start means the shift crosses midnight
 
     @field_validator("duty")
     @classmethod
@@ -137,7 +158,7 @@ class ShiftPatternOut(BaseModel):
     id: str
     staff_id: str
     duty: str
-    property_id: Optional[str] = None
+    property_id: str | None = None
     weekday: int
     start_minute: int
     end_minute: int
@@ -149,10 +170,10 @@ class ShiftOverrideCreate(BaseModel):
     kind: str
     starts_at: datetime
     ends_at: datetime
-    duty: Optional[str] = None                   # required for "extra"
-    property_id: Optional[str] = None
-    replacement_staff_id: Optional[str] = None   # required for "swap"
-    note: Optional[str] = Field(default=None, max_length=300)
+    duty: str | None = None  # required for "extra"
+    property_id: str | None = None
+    replacement_staff_id: str | None = None  # required for "swap"
+    note: str | None = Field(default=None, max_length=300)
 
     @field_validator("kind")
     @classmethod
@@ -169,17 +190,17 @@ class ShiftOverrideOut(BaseModel):
     kind: str
     starts_at: datetime
     ends_at: datetime
-    duty: Optional[str] = None
-    property_id: Optional[str] = None
-    replacement_staff_id: Optional[str] = None
-    note: Optional[str] = None
+    duty: str | None = None
+    property_id: str | None = None
+    replacement_staff_id: str | None = None
+    note: str | None = None
 
 
 class ChainStep(BaseModel):
     type: str
-    duty: Optional[str] = None
-    role: Optional[str] = None
-    staff_id: Optional[str] = None
+    duty: str | None = None
+    role: str | None = None
+    staff_id: str | None = None
 
     @field_validator("type")
     @classmethod
@@ -191,16 +212,16 @@ class ChainStep(BaseModel):
 
 class EscalationChainPut(BaseModel):
     duty: str
-    property_id: Optional[str] = None
+    property_id: str | None = None
     steps: list[ChainStep] = Field(min_length=1, max_length=8)
 
 
 class OpsSettingsPut(BaseModel):
-    alerts_enabled: Optional[bool] = None
-    sla: Optional[dict[str, list[int]]] = None          # {"high": [15, 240], ...}
-    quiet_hours: Optional[dict[str, str]] = None        # {"start": "22:00", "end": "07:00"}
-    templates: Optional[dict[str, str]] = None          # {"alert": "...", "escalation": "..."}
-    template_language: Optional[str] = Field(default=None, max_length=10)
+    alerts_enabled: bool | None = None
+    sla: dict[str, list[int]] | None = None  # {"high": [15, 240], ...}
+    quiet_hours: dict[str, str] | None = None  # {"start": "22:00", "end": "07:00"}
+    templates: dict[str, str] | None = None  # {"alert": "...", "escalation": "..."}
+    template_language: str | None = Field(default=None, max_length=10)
 
     @field_validator("sla")
     @classmethod
@@ -226,15 +247,16 @@ class OpsSettingsPut(BaseModel):
 
 # ── Ops items ──────────────────────────────────────────────────────────────
 
+
 class OpsItemCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    summary: Optional[str] = Field(default=None, max_length=1000)
+    summary: str | None = Field(default=None, max_length=1000)
     kind: Literal["incident", "manual"] = "incident"
     category: str = "other"
     severity: str = "normal"
     duty: str = "maintenance"
-    property_id: Optional[str] = None
-    stay_id: Optional[str] = None
+    property_id: str | None = None
+    stay_id: str | None = None
 
     @field_validator("category")
     @classmethod
@@ -259,7 +281,7 @@ class OpsItemCreate(BaseModel):
 
 
 class OpsItemAction(BaseModel):
-    note: Optional[str] = Field(default=None, max_length=1000)
+    note: str | None = Field(default=None, max_length=1000)
 
 
 class OpsItemOut(BaseModel):
@@ -267,22 +289,22 @@ class OpsItemOut(BaseModel):
     id: str
     kind: str
     title: str
-    summary: Optional[str] = None
-    category: Optional[str] = None
+    summary: str | None = None
+    category: str | None = None
     severity: str
     duty: str
     status: str
     source: str
-    property_id: Optional[str] = None
-    stay_id: Optional[str] = None
+    property_id: str | None = None
+    stay_id: str | None = None
     current_step: int
-    ack_due_at: Optional[datetime] = None
-    resolve_due_at: Optional[datetime] = None
-    dispatch_after: Optional[datetime] = None
-    acknowledged_at: Optional[datetime] = None
-    acknowledged_by_staff_id: Optional[str] = None
-    resolved_at: Optional[datetime] = None
-    resolution_note: Optional[str] = None
+    ack_due_at: datetime | None = None
+    resolve_due_at: datetime | None = None
+    dispatch_after: datetime | None = None
+    acknowledged_at: datetime | None = None
+    acknowledged_by_staff_id: str | None = None
+    resolved_at: datetime | None = None
+    resolution_note: str | None = None
     escalation_exhausted: bool = False
     created_at: datetime
 
@@ -291,10 +313,10 @@ class OpsEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     event: str
-    step: Optional[int] = None
-    actor_staff_id: Optional[str] = None
-    actor_user_id: Optional[str] = None
-    detail: Optional[dict[str, Any]] = None
+    step: int | None = None
+    actor_staff_id: str | None = None
+    actor_user_id: str | None = None
+    detail: dict[str, Any] | None = None
     created_at: datetime
 
 
@@ -302,10 +324,10 @@ class OpsAlertSendOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     step: int
-    staff_id: Optional[str] = None
-    user_id: Optional[str] = None
+    staff_id: str | None = None
+    user_id: str | None = None
     channel: str
-    template: Optional[str] = None
+    template: str | None = None
     status: str
-    error: Optional[str] = None
+    error: str | None = None
     created_at: datetime

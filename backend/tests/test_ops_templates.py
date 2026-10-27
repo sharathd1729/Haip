@@ -1,6 +1,7 @@
 """The ops WhatsApp template pack (app/services/ops_templates.py) is submitted to Meta for every tenant; a malformed template is
 rejected there and alerts fall back to push. These checks catch the mistakes Meta rejects (or that break the button payloads)
 before a tenant ever submits."""
+
 import re
 
 import pytest
@@ -45,5 +46,6 @@ def test_alert_and_escalation_share_one_variable_order():
     def slots(name):
         body = next(c for c in PACK[name]["components"] if c["type"] == "BODY")
         return len(re.findall(r"\{\{\d+\}\}", body["text"]))
+
     assert slots("ops_alert_v1") == slots("ops_escalation_v1") == 5
     assert ops_templates.__doc__ and "{{5}}" in ops_templates.__doc__

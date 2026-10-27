@@ -5,8 +5,19 @@ OpsJob with OpsJobItem rows (one per checklist line); staff fill them by WhatsAp
 Money the guest pays still lives on the booking (stays, stay_addons, stay_payments, stay_deposits): an approved OpsExtra and
 the extra distance become stay_addons rows, so invoices and the bookings page see them without a second ledger.
 """
+
 from sqlalchemy import (
-    JSON, Boolean, Column, Date, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint,
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
 )
 
 from app.core.database import Base
@@ -20,8 +31,8 @@ class OpsFile(Base, TimestampMixin, TenantMixin):
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     stay_id = Column(String, ForeignKey("stays.id", ondelete="CASCADE"), nullable=False)
     pack = Column(String(30), nullable=False)
-    state = Column(String(20), nullable=False)                 # pack state machine; caravan: handed_over .. closed, cancelled
-    details = Column(JSON, nullable=False, default=dict)       # typed per pack (schemas/ops_files.py)
+    state = Column(String(20), nullable=False)  # pack state machine; caravan: handed_over .. closed, cancelled
+    details = Column(JSON, nullable=False, default=dict)  # typed per pack (schemas/ops_files.py)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     accepted_by = Column(String, nullable=True)
     dispatched_at = Column(DateTime(timezone=True), nullable=True)
@@ -42,11 +53,17 @@ class OpsFile(Base, TimestampMixin, TenantMixin):
 
 class OpsFileEvent(Base, TenantMixin):
     """The file's timeline, append-only. auto = written by the system, not a person."""
+
     __tablename__ = "ops_file_events"
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
-    file_id = Column(String, ForeignKey("ops_files.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_id = Column(
+        String,
+        ForeignKey("ops_files.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     at = Column(DateTime(timezone=True), nullable=False)
     text = Column(Text, nullable=False)
     auto = Column(Boolean, nullable=False, default=False)
@@ -56,12 +73,13 @@ class OpsFileEvent(Base, TenantMixin):
 class OpsChecklistTemplate(Base, TimestampMixin, TenantMixin):
     """A business's own checklist for one pack + kind, seeded from the pack's defaults. items = [{key, label, critical,
     source (staff | system | manager), photo}]. Editing the words never changes jobs already opened."""
+
     __tablename__ = "ops_checklist_templates"
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     pack = Column(String(30), nullable=False)
-    kind = Column(String(20), nullable=False)                  # readiness | handover | return | turnover
+    kind = Column(String(20), nullable=False)  # readiness | handover | return | turnover
     name = Column(String(120), nullable=False)
     items = Column(JSON, nullable=False, default=list)
     active = Column(Boolean, nullable=False, default=True)
@@ -71,17 +89,23 @@ class OpsChecklistTemplate(Base, TimestampMixin, TenantMixin):
 
 class OpsJob(Base, TimestampMixin, TenantMixin):
     """One piece of work with a checklist. file_id is NULL for work between bookings (a turnover, a room job)."""
+
     __tablename__ = "ops_jobs"
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
-    file_id = Column(String, ForeignKey("ops_files.id", ondelete="CASCADE"), nullable=True, index=True)
+    file_id = Column(
+        String,
+        ForeignKey("ops_files.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     property_id = Column(String, ForeignKey("properties.id"), nullable=True)
     kind = Column(String(20), nullable=False)
     template_id = Column(String, nullable=True)
     staff_id = Column(String, ForeignKey("staff_profiles.id"), nullable=True)
     due_at = Column(DateTime(timezone=True), nullable=True)
-    status = Column(String(12), nullable=False, default="open")    # open | done | cancelled
+    status = Column(String(12), nullable=False, default="open")  # open | done | cancelled
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
@@ -90,16 +114,21 @@ class OpsJobItem(Base, TimestampMixin, TenantMixin):
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
-    job_id = Column(String, ForeignKey("ops_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(
+        String,
+        ForeignKey("ops_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     key = Column(String(40), nullable=False)
     label = Column(String(200), nullable=False)
     critical = Column(Boolean, nullable=False, default=False)
-    source = Column(String(10), nullable=False, default="staff")   # staff | system | manager
+    source = Column(String(10), nullable=False, default="staff")  # staff | system | manager
     photo_required = Column(Boolean, nullable=False, default=False)
-    status = Column(String(10), nullable=False, default="pending") # pending | green | red
+    status = Column(String(10), nullable=False, default="pending")  # pending | green | red
     note = Column(Text, nullable=True)
-    photo_key = Column(String, nullable=True)                      # R2 key of the staff photo
-    ai_verdict = Column(JSON, nullable=True)                       # {ok, reason, model} from the photo check
+    photo_key = Column(String, nullable=True)  # R2 key of the staff photo
+    ai_verdict = Column(JSON, nullable=True)  # {ok, reason, model} from the photo check
     set_by_user_id = Column(String, nullable=True)
     set_by_staff_id = Column(String, nullable=True)
     set_at = Column(DateTime(timezone=True), nullable=True)
@@ -110,14 +139,20 @@ class OpsJobItem(Base, TimestampMixin, TenantMixin):
 class OpsExpense(Base, TimestampMixin, TenantMixin):
     """Money spent on a booking or a unit. bill_key (vendor|date|amount) is unique per business so a bill sent twice is
     refused; typed expenses without a bill have no key."""
+
     __tablename__ = "ops_expenses"
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
-    file_id = Column(String, ForeignKey("ops_files.id", ondelete="CASCADE"), nullable=True, index=True)
+    file_id = Column(
+        String,
+        ForeignKey("ops_files.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     property_id = Column(String, ForeignKey("properties.id"), nullable=True)
     category = Column(String(20), nullable=False)
-    amount = Column(Numeric(12, 2), nullable=False)                # GST included
+    amount = Column(Numeric(12, 2), nullable=False)  # GST included
     gst_amount = Column(Numeric(12, 2), nullable=True)
     vendor = Column(String(120), nullable=True)
     bill_date = Column(Date, nullable=True)
@@ -133,14 +168,20 @@ class OpsExpense(Base, TimestampMixin, TenantMixin):
 
 class OpsExtra(Base, TimestampMixin, TenantMixin):
     """Something the guest asked for during the booking, waiting for a manager. Approval writes a stay_addons row."""
+
     __tablename__ = "ops_extras"
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
-    file_id = Column(String, ForeignKey("ops_files.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_id = Column(
+        String,
+        ForeignKey("ops_files.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     kind = Column(String(20), nullable=False)
     label = Column(String(200), nullable=False)
-    amount = Column(Numeric(12, 2), nullable=False)                # GST included
+    amount = Column(Numeric(12, 2), nullable=False)  # GST included
     status = Column(String(10), nullable=False, default="proposed")  # proposed | approved | removed
     stay_addon_id = Column(String, nullable=True)
     created_by = Column(String, nullable=True)

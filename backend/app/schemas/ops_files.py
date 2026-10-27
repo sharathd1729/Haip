@@ -3,12 +3,23 @@
 The caravan pack's details are what the prototype called the trip: route, stops, km included, extra-km rate, crew, odometer.
 Amounts are rupees. ``extra_km_rate`` is per km BEFORE GST unless ``rate_includes_gst`` (published Rathaa data: GST on top).
 """
+
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-EXPENSE_CATEGORIES = ("fuel", "toll", "parking", "driver", "helper", "repair", "consumables", "groceries", "other")
+EXPENSE_CATEGORIES = (
+    "fuel",
+    "toll",
+    "parking",
+    "driver",
+    "helper",
+    "repair",
+    "consumables",
+    "groceries",
+    "other",
+)
 EXTRA_KINDS = ("upsell", "extra_hours", "extra_route", "extra_guest", "damage", "other")
 ITEM_STATUSES = ("pending", "green", "red")
 SETTLE_STEPS = ("return_checked", "report_approved")
@@ -20,29 +31,30 @@ class _Strict(BaseModel):
 
 class CaravanDetails(_Strict):
     """Stored in ops_files.details for pack caravan_rv. Every field is optional until the step that needs it."""
-    route: Optional[str] = Field(default=None, max_length=200)
+
+    route: str | None = Field(default=None, max_length=200)
     stops: list[str] = Field(default_factory=list, max_length=20)
-    allowance_km: Optional[Decimal] = Field(default=None, gt=0)
-    extra_km_rate: Optional[Decimal] = Field(default=None, ge=0)
+    allowance_km: Decimal | None = Field(default=None, gt=0)
+    extra_km_rate: Decimal | None = Field(default=None, ge=0)
     rate_includes_gst: bool = False
-    rate_source: Optional[str] = Field(default=None, max_length=40)     # quote_km | package | manager
-    driver_staff_id: Optional[str] = None
-    helper_staff_id: Optional[str] = None
-    start_odometer: Optional[int] = Field(default=None, gt=0)
-    end_odometer: Optional[int] = Field(default=None, gt=0)
-    extra_km_addon_id: Optional[str] = None                            # the stay_addons row billing the extra distance
+    rate_source: str | None = Field(default=None, max_length=40)  # quote_km | package | manager
+    driver_staff_id: str | None = None
+    helper_staff_id: str | None = None
+    start_odometer: int | None = Field(default=None, gt=0)
+    end_odometer: int | None = Field(default=None, gt=0)
+    extra_km_addon_id: str | None = None  # the stay_addons row billing the extra distance
     # Start odometer read from the driver's photo before Dispatch: pre-fills the manager's tap, never dispatches by itself.
-    start_odometer_photo_km: Optional[int] = Field(default=None, gt=0)
-    start_odometer_photo_key: Optional[str] = None
-    end_odometer_photo_key: Optional[str] = None
+    start_odometer_photo_km: int | None = Field(default=None, gt=0)
+    start_odometer_photo_key: str | None = None
+    end_odometer_photo_key: str | None = None
 
 
 class AcceptIn(_Strict):
     route: str = Field(min_length=1, max_length=200)
     stops: list[str] = Field(default_factory=list, max_length=20)
-    allowance_km: Optional[Decimal] = Field(default=None, gt=0)          # empty = take it from the quote
-    extra_km_rate: Optional[Decimal] = Field(default=None, ge=0)
-    rate_includes_gst: Optional[bool] = None
+    allowance_km: Decimal | None = Field(default=None, gt=0)  # empty = take it from the quote
+    extra_km_rate: Decimal | None = Field(default=None, ge=0)
+    rate_includes_gst: bool | None = None
 
     @field_validator("stops")
     @classmethod
@@ -57,7 +69,7 @@ class CrewIn(_Strict):
 
 class ItemSetIn(_Strict):
     status: Literal["pending", "green", "red"]
-    note: Optional[str] = Field(default=None, max_length=500)
+    note: str | None = Field(default=None, max_length=500)
 
 
 class OdometerIn(_Strict):
@@ -65,18 +77,28 @@ class OdometerIn(_Strict):
 
 
 class ExpenseIn(_Strict):
-    category: Literal["fuel", "toll", "parking", "driver", "helper", "repair", "consumables", "groceries", "other"]
-    amount: Decimal = Field(gt=0, le=Decimal("10000000"))
-    gst_amount: Optional[Decimal] = Field(default=None, ge=0)
-    vendor: Optional[str] = Field(default=None, max_length=120)
-    bill_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
-    note: Optional[str] = Field(default=None, max_length=300)
+    category: Literal[
+        "fuel",
+        "toll",
+        "parking",
+        "driver",
+        "helper",
+        "repair",
+        "consumables",
+        "groceries",
+        "other",
+    ]
+    amount: Decimal = Field(gt=0, le=Decimal(10000000))
+    gst_amount: Decimal | None = Field(default=None, ge=0)
+    vendor: str | None = Field(default=None, max_length=120)
+    bill_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    note: str | None = Field(default=None, max_length=300)
 
 
 class ExtraIn(_Strict):
     kind: Literal["upsell", "extra_hours", "extra_route", "extra_guest", "damage", "other"]
     label: str = Field(min_length=1, max_length=200)
-    amount: Decimal = Field(gt=0, le=Decimal("10000000"))               # charged to the guest, GST included
+    amount: Decimal = Field(gt=0, le=Decimal(10000000))  # charged to the guest, GST included
 
 
 class SettleIn(_Strict):

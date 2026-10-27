@@ -4,6 +4,7 @@ ops.sync_files_all     beat, daily 06:10 IST: fan out to every business whose ca
 ops.sync_files_tenant  open a file for each live booking that has none; mark files of cancelled bookings (ops_trip_service.sync_files)
 Reading Ops today runs the same sync, so a booking confirmed mid-day appears as soon as someone looks.
 """
+
 import structlog
 from celery import shared_task
 
