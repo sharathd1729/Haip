@@ -2,10 +2,12 @@
 // Ops Today -- "what needs me right now?" (owner pick 25 Oct 2026: direction A "Needs you", unit cards on top for <= 6 units).
 // One read, GET /ops/files/today (ops_today_service), so every rule (what is a problem, how ready a vehicle is) is the server's.
 // A calm day shows a green "All on track" and the short day list; nothing else to read.
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useHydrated } from "@/lib/bookingAgenda";
-import { showUnitCards, type OpsToday } from "@/lib/ops";
+import { canManageOps, showUnitCards, type OpsToday } from "@/lib/ops";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, EmptyState, PageHeader } from "@/components/ui/kit";
@@ -15,6 +17,7 @@ export default function OpsTodayPage() {
   const hydrated = useHydrated();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { data: session } = useSession();
   const { data, isPending, isError, refetch } = useQuery<OpsToday>({
     queryKey: ["ops-today"],
     queryFn: () => api.get("/ops/files/today").then(r => r.data),
@@ -28,6 +31,12 @@ export default function OpsTodayPage() {
     onError: () => toast({ title: "Could not save", description: "Check your connection and try again.", variant: "error" }),
   });
 
+  const detour = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.post(`/ops/gps/alerts/${id}/approve-detour`, { reason }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ops-today"] }); toast({ title: "Detour approved and logged on the trip", variant: "success" }); },
+    onError: () => toast({ title: "Could not save", description: "Check your connection and try again.", variant: "error" }),
+  });
+
   const red = data?.needs.filter(n => n.level === "red").length ?? 0;
   const subtitle = !data ? "Trips, checks and problems" :
     data.needs.length === 0 ? "Nothing needs you right now" :
@@ -35,7 +44,8 @@ export default function OpsTodayPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 p-4 sm:p-6">
-      <PageHeader title="Ops today" subtitle={subtitle} />
+      <PageHeader title="Ops today" subtitle={subtitle}
+        actions={<Link href="/dashboard/ops/map" className="haip-btn-secondary min-h-11">Vehicle map</Link>} />
 
       {!hydrated || isPending ? (
         <div className="flex flex-col gap-3" aria-busy="true">
@@ -59,6 +69,7 @@ export default function OpsTodayPage() {
               </p>
             ) : data.needs.map(n => (
               <NeedCard key={n.key} need={n} onResolve={id => resolve.mutate(id)}
+                onDetour={canManageOps(session?.user?.role) ? (id, reason) => detour.mutate({ id, reason }) : undefined}
                 resolving={resolve.isPending && resolve.variables === n.item_id} />
             ))}
           </section>

@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { TripSheets, type SheetKind } from "./TripSheets";
+import { TripGps } from "./TripGps";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -214,6 +215,8 @@ export function TripFile({ id }: { id: string }) {
           )}
         </CardBody>
       </Card>
+
+      {!beforeRoad && f.state !== "cancelled" && <TripGps fileId={f.id} live={f.state === "on_trip"} />}
 
       <Card>
         <CardHeader title="Team" tone="plain"

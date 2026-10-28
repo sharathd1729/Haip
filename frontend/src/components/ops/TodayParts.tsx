@@ -1,6 +1,7 @@
 "use client";
 // Ops Today building blocks (direction A "Needs you", unit cards on top for <= 6 units; owner pick 25 Oct 2026).
 // Big tap targets, plain words, problems only. Colours come from the status tokens; the words carry the meaning.
+import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/ui/kit";
@@ -54,8 +55,12 @@ export function UnitCards({ units }: { units: OpsUnit[] }) {
   );
 }
 
-export function NeedCard({ need, onResolve, resolving }: { need: OpsNeed; onResolve?: (id: string) => void; resolving?: boolean }) {
+export function NeedCard({ need, onResolve, resolving, onDetour }: {
+  need: OpsNeed; onResolve?: (id: string) => void; resolving?: boolean; onDetour?: (id: string, reason: string) => void;
+}) {
   const red = need.level === "red";
+  const [reason, setReason] = useState<string | null>(null);
+  const canDetour = need.item_kind === "gps_off_route" && need.item_id && onDetour;
   return (
     <article className={cn("rounded-2xl border p-4",
       red ? "border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-bg)]"
@@ -78,7 +83,24 @@ export function NeedCard({ need, onResolve, resolving }: { need: OpsNeed; onReso
             {resolving ? "Saving…" : "Mark as sorted"}
           </button>
         )}
+        {canDetour && reason === null && (
+          <button type="button" onClick={() => setReason("")} className="haip-btn-secondary min-h-12 w-full text-[15px]">
+            Approved detour
+          </button>
+        )}
       </div>
+      {canDetour && reason !== null && (
+        <form className="mt-3 flex flex-col gap-2" onSubmit={e => { e.preventDefault(); if (reason.trim().length >= 2) onDetour!(need.item_id!, reason.trim()); }}>
+          <label className="text-[14px] font-semibold text-[var(--haip-fg)]" htmlFor={`detour-${need.item_id}`}>Why is the new road fine?</label>
+          <input id={`detour-${need.item_id}`} autoFocus value={reason} maxLength={300} onChange={e => setReason(e.target.value)}
+            placeholder="Road closed, guest asked for a stop…"
+            className="min-h-12 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] text-[var(--haip-fg)]" />
+          <div className="flex gap-2">
+            <button type="submit" disabled={reason.trim().length < 2} className="haip-btn-primary min-h-12 flex-1 text-[15px]">Save detour</button>
+            <button type="button" onClick={() => setReason(null)} className="haip-btn-secondary min-h-12 flex-1 text-[15px]">Cancel</button>
+          </div>
+        </form>
+      )}
     </article>
   );
 }
