@@ -195,6 +195,7 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
             item_id=it.id,
             key=f"item:{it.id}",
         )
+        n["item_kind"] = it.kind  # gps_off_route offers "Approved detour" on the card
         needs.append(n)
         if f is not None:
             file_needs.setdefault(f.id, []).append(n)

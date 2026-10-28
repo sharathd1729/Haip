@@ -34,6 +34,8 @@ from app.api.v1.endpoints import (
     learning,
     ops,
     ops_files,
+    ops_gps,
+    webhooks_gps,
     targets,
     work_queue,
     lead_activity,
@@ -99,6 +101,7 @@ api_router.include_router(marketing_channels.router)
 api_router.include_router(marketing_public.router)
 api_router.include_router(ops.router)
 api_router.include_router(ops_files.router)  # /ops/files/* (one ops file per booking)
+api_router.include_router(ops_gps.router)  # /ops/gps/* (trackers, live map, trip track, alerts)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)
@@ -180,6 +183,7 @@ api_router.include_router(webhooks_mcube.router)
 api_router.include_router(webhooks_whatsapp.router)
 api_router.include_router(webhooks_instagram.router)
 api_router.include_router(webhooks_dograh.router)
+api_router.include_router(webhooks_gps.router)  # /webhooks/gps/{slug} (signed GPS push)
 api_router.include_router(webhooks_vobiz.router)
 api_router.include_router(webhooks_whatsapp_personal.router)
 api_router.include_router(whatsapp_personal.router)
