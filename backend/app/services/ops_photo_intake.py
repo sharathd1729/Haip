@@ -398,6 +398,11 @@ def _check(db, f, staff, jpeg, key, ans, item_key) -> Outcome:
     trips.set_item(db, f, item.key, "green" if ok else "red", note, staff_id=staff.id)
     if ok:
         return Outcome(f"Got it. {item.label.split(',')[0]} looks fine. {_still_needed(db, f)}")
+    if item.critical:  # a critical item that looks wrong is a defect: the vehicle stays off sale until it is closed
+        from app.services.ops_fleet_service import defect_from_photo
+
+        defect_from_photo(db, f, item.key, f"{item.label.split(',')[0]}: {'; '.join(problems) or 'looks wrong'}",
+                          f"Photo from {staff.name} before the trip.")
     sends = _flag(
         db,
         f,
@@ -425,6 +430,12 @@ def handle_photo(
     store: Callable[[str, str, str, bytes], str] | None = None,
 ) -> Outcome:
     """One staff photo. Raises vision_adapter.VisionError (the task retries transient ones); everything else is a reply."""
+    if re.match(r"\s*return\b", caption or "", re.IGNORECASE):  # "return ac": compared with the handover photo
+        from app.services import ops_return_check
+
+        return ops_return_check.handle(
+            db, tenant_id, staff, raw=raw, caption=caption or "", message_id=message_id, describe=describe, store=store
+        )
     f = active_file(db, tenant_id, staff)
     if f is None:
         return Outcome("No trip found for your number right now. Please check with the manager.")

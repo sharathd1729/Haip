@@ -5,7 +5,7 @@ Constants here are the single definition of duties, severities, item kinds and d
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -95,6 +95,8 @@ class StaffCreate(BaseModel):
     whatsapp_opt_in: bool = False  # the staff member agreed to receive ops alerts on WhatsApp
     duties: list[DutyAssignment] = Field(default_factory=list)
     notes: str | None = Field(default=None, max_length=500)
+    licence_number: str | None = Field(default=None, max_length=60)  # drivers: the HMV licence (an ops paper, 180)
+    licence_expires_on: date | None = None
 
 
 class StaffUpdate(BaseModel):
@@ -106,6 +108,8 @@ class StaffUpdate(BaseModel):
     duties: list[DutyAssignment] | None = None
     active: bool | None = None
     notes: str | None = Field(default=None, max_length=500)
+    licence_number: str | None = Field(default=None, max_length=60)
+    licence_expires_on: date | None = None
 
 
 class StaffOut(BaseModel):
@@ -119,6 +123,8 @@ class StaffOut(BaseModel):
     active: bool
     notes: str | None = None
     duties: list[DutyAssignment] = Field(default_factory=list)
+    licence_number: str | None = None
+    licence_expires_on: date | None = None
 
 
 # ── Roster ─────────────────────────────────────────────────────────────────

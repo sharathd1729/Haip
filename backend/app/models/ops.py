@@ -37,6 +37,8 @@ class StaffProfile(Base, TimestampMixin, TenantMixin):
     whatsapp_opt_in_at = Column(DateTime(timezone=True), nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     notes = Column(Text, nullable=True)
+    # Their last WhatsApp message to us (migration 180): inside 24 hours a plain text can reach them, else a template.
+    last_inbound_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (UniqueConstraint("tenant_id", "phone_e164", name="uq_staff_profiles_phone"),)
 

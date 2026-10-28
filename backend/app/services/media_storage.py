@@ -196,6 +196,16 @@ def upload_ops_photo(tenant_id: str, file_id: str, message_id: str, content: byt
     return s3_key
 
 
+def upload_ops_paper(tenant_id: str, paper_id: str, content: bytes, content_type: str, extension: str) -> str:
+    """Store a scanned vehicle/staff paper (ops_fleet_service.attach_file, type and size already checked). One object per
+    paper id and extension: uploading again replaces it. Read back with get_presigned_media_url."""
+    safe = "".join(c for c in paper_id if c.isalnum() or c == "-")[:64] or "paper"
+    s3_key = f"{tenant_id}/ops/papers/{safe}.{extension}"
+    _put(s3_key, content, content_type)
+    log.info("ops_paper_stored", tenant_id=tenant_id, paper_id=paper_id, bytes=len(content))
+    return s3_key
+
+
 def upload_invoice_pdf(tenant_id: str, invoice_id: str, content: bytes) -> str:
     """Store an issued invoice/receipt PDF, return the key. One object per invoice id: re-rendering the same issued
     document overwrites itself, a reissue is a new invoice id and so a new object."""

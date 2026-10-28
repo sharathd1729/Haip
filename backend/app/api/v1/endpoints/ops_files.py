@@ -4,6 +4,7 @@ Files       GET /ops/files?state= · GET /ops/files/today · GET /ops/files/{id}
 Steps       POST /ops/files/{id}/accept | /crew | /dispatch | /return | /settle | /close
 Checklist   PUT /ops/files/{id}/checklist/{key}
 Money       POST /ops/files/{id}/expenses · POST /ops/files/{id}/extras · POST /ops/files/{id}/extras/{extra_id}/approve|remove
+Guest form  POST /ops/files/{id}/guest-form/link · POST /ops/files/{id}/guest-form/send (WhatsApp, 24 h window only)
 
 ops.write: checklist, accept, crew, return odometer, expenses, asking for an extra. ops.manage: dispatch (always a person's
 tap), approving or removing an extra, settle, close, sync. Guest contact details are never returned here.
@@ -26,7 +27,15 @@ from app.schemas.ops_files import (
     OdometerIn,
     SettleIn,
 )
-from app.services import booking_agenda_service, ops_today_service, ops_trip_report
+from app.models.ops_fleet import OpsAutoMessage
+from app.services import (
+    booking_agenda_service,
+    ops_fleet_service,
+    ops_guest_form,
+    ops_return_check,
+    ops_today_service,
+    ops_trip_report,
+)
 from app.services import ops_money as money
 from app.services import ops_trip_service as trips
 from app.services.authz_service import require_capability
@@ -133,6 +142,14 @@ def _full(db: Session, f: OpsFile) -> dict:
             for e in q(OpsFileEvent).order_by(OpsFileEvent.at, OpsFileEvent.id).limit(200)
         ],
         "close_blockers": trips.close_blockers(db, f) if f.state == "returned" else [],
+        "fleet_problems": ops_fleet_service.dispatch_problems(db, f) if f.state in trips.BEFORE_ROAD else [],
+        "guest_form": ops_guest_form.staff_view(db, f, with_link=False),
+        "return_check": ops_return_check.summary(db, f),
+        "messages": [
+            {"kind": m.kind, "recipient": m.recipient, "status": m.status, "via": m.via, "reason": m.reason,
+             "sent_at": m.sent_at.isoformat() if m.sent_at else None}
+            for m in q(OpsAutoMessage).order_by(OpsAutoMessage.created_at)
+        ],
     }
 
 
@@ -278,6 +295,23 @@ def settle(
 @router.post("/{file_id}/close")
 def close(file_id: str, user: User = Depends(_manage), db: Session = Depends(get_db)):
     return _done(db, trips.close(db, _file(db, user, file_id), user.id))
+
+
+@router.post("/{file_id}/guest-form/link")
+def guest_form_link(file_id: str, user: User = Depends(_write), db: Session = Depends(get_db)):
+    """The private link for the guest ID form (the same link every time, made on first use)."""
+    form = ops_guest_form.ensure_form(db, _file(db, user, file_id))
+    db.commit()
+    return {"url": ops_guest_form.link(form)}
+
+
+@router.post("/{file_id}/guest-form/send")
+def guest_form_send(file_id: str, user: User = Depends(_write), db: Session = Depends(get_db)):
+    """Send the link on WhatsApp. Only inside the guest's 24-hour window: otherwise 409 with the reason (copy the link)."""
+    out = ops_guest_form.send_link(db, _file(db, user, file_id), user.id)
+    if out["status"] not in ("queued", "duplicate"):
+        raise HTTPException(status_code=409, detail=f"Not sent: {out['reason']}. Copy the link and send it yourself.")
+    return out
 
 
 @router.post("/{file_id}/expenses", status_code=201)

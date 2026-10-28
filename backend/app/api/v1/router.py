@@ -34,6 +34,8 @@ from app.api.v1.endpoints import (
     learning,
     ops,
     ops_files,
+    ops_fleet,
+    ops_guest_form_public,
     targets,
     work_queue,
     lead_activity,
@@ -99,6 +101,8 @@ api_router.include_router(marketing_channels.router)
 api_router.include_router(marketing_public.router)
 api_router.include_router(ops.router)
 api_router.include_router(ops_files.router)  # /ops/files/* (one ops file per booking)
+api_router.include_router(ops_fleet.router)  # /ops/fleet/* (papers, defects, services, stock)
+api_router.include_router(ops_guest_form_public.router)  # /public/ops/guest-form/{token} (no login)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)

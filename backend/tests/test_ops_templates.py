@@ -32,7 +32,14 @@ def test_body_variables_are_sequential_and_match_the_example(name):
     assert all(isinstance(v, str) and v for v in examples[0])
 
 
-@pytest.mark.parametrize("name", sorted(PACK))
+ALERTS = sorted(n for n in PACK if any(c["type"] == "BUTTONS" for c in PACK[n]["components"]))
+
+
+def test_alert_templates_have_buttons_and_trip_templates_do_not():
+    assert ALERTS == ["ops_alert_v1", "ops_escalation_v1"]
+
+
+@pytest.mark.parametrize("name", ALERTS)
 def test_ack_and_decline_buttons_sit_where_the_sender_expects(name):
     buttons = next(c for c in PACK[name]["components"] if c["type"] == "BUTTONS")["buttons"]
     assert all(b["type"] == "QUICK_REPLY" for b in buttons)
