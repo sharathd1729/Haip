@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { TripSheets, type SheetKind } from "./TripSheets";
 import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
+import { StayFile } from "./StayFile";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -51,8 +52,9 @@ export function TripFile({ id }: { id: string }) {
     queryKey: ["ops-file", id], queryFn: () => api.get(`/ops/files/${id}`).then(r => r.data), staleTime: 10_000, refetchInterval: 60_000,
   });
   const act = useMutation({
-    mutationFn: ({ path, body, method }: { path: string; body?: object; method?: "post" | "put" }) =>
-      (method === "put" ? api.put(path, body ?? {}) : api.post(path, body ?? {})).then(r => r.data as OpsFileFull),
+    mutationFn: ({ path, body, method }: { path: string; body?: object; method?: "post" | "put" | "delete" }) =>
+      (method === "put" ? api.put(path, body ?? {}) : method === "delete" ? api.delete(path) : api.post(path, body ?? {}))
+        .then(r => r.data as OpsFileFull),
     onSuccess: data => { qc.setQueryData(["ops-file", id], data); qc.invalidateQueries({ queryKey: ["ops-today"] }); },
   });
   const report = useMutation({
@@ -60,14 +62,14 @@ export function TripFile({ id }: { id: string }) {
     mutationFn: async () => {
       try {
         const res = await api.get(`/ops/files/${id}/report.pdf`, { responseType: "blob", timeout: DOWNLOAD_TIMEOUT_MS });
-        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "application/pdf")), `trip-account-${id.slice(0, 8)}.pdf`);
+        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "application/pdf")), `${f?.pack === "villa" ? "stay" : "trip"}-account-${id.slice(0, 8)}.pdf`);
       } catch (e) {
         throw new Error(await downloadErrorMessage(e, "The report could not be made. Please try again."));
       }
     },
     onError: e => toast({ title: "No report", description: (e as Error).message, variant: "error" }),
   });
-  const submit = async (path: string, body?: object, method?: "post" | "put") => {
+  const submit = async (path: string, body?: object, method?: "post" | "put" | "delete") => {
     try { await act.mutateAsync({ path, body, method }); toast({ title: "Saved", variant: "success" }); return true; }
     catch (e) { toast({ title: "Not saved", description: errorText(e), variant: "error" }); return false; }
   };
@@ -89,6 +91,10 @@ export function TripFile({ id }: { id: string }) {
   }
 
   const write = canWriteOps(role), manage = canManageOps(role);
+  if (f.pack === "villa") {
+    return <StayFile f={f} submit={submit} busy={act.isPending} write={write} manage={manage}
+      onReport={() => report.mutate()} reportBusy={report.isPending} />;
+  }
   const s = f.stay, a = f.account;
   const na = nextAction(f.stage.next_key, manage);
   const beforeRoad = BEFORE_ROAD.includes(f.state);

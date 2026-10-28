@@ -38,8 +38,8 @@ export const NAV_SECTIONS: NavSection[] = [
   { title: "Today", links: [
     { label: "My day", href: "/dashboard/my-day", icon: I["/dashboard/my-day"], resource: "inbox" },
     { label: "Home", href: "/dashboard", icon: I["/dashboard"], resource: "dashboard" },
-    // Ops module: only the caravan pack is built so far (backend ops_pack_catalog); more business types join as packs land.
-    { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
+    // Ops module: caravan and villa packs are built (backend ops_pack_catalog); more business types join as packs land.
+    { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan", "villa", "villa_resort"] },
   ] },
   { title: "Conversations", links: [
     { label: "Inbox", href: "/dashboard/inbox", icon: I["/dashboard/inbox"], resource: "inbox" },

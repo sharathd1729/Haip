@@ -54,7 +54,9 @@ export function UnitCards({ units }: { units: OpsUnit[] }) {
   );
 }
 
-export function NeedCard({ need, onResolve, resolving }: { need: OpsNeed; onResolve?: (id: string) => void; resolving?: boolean }) {
+export function NeedCard({ need, onResolve, resolving, fileWord = "trip" }: {
+  need: OpsNeed; onResolve?: (id: string) => void; resolving?: boolean; fileWord?: string;
+}) {
   const red = need.level === "red";
   return (
     <article className={cn("rounded-2xl border p-4",
@@ -69,7 +71,7 @@ export function NeedCard({ need, onResolve, resolving }: { need: OpsNeed; onReso
       <div className="mt-3 flex flex-wrap gap-2">
         {need.file_id && (
           <Link href={`/dashboard/ops/files/${need.file_id}`} className="haip-btn-primary min-h-12 flex-1 text-[15px]">
-            Open trip
+            Open {fileWord}
           </Link>
         )}
         {(need.action === "open_fleet" || need.action === "open_staff") && (

@@ -60,7 +60,7 @@ export default function OpsTodayPage() {
                 All on track. Nothing needs you.
               </p>
             ) : data.needs.map(n => (
-              <NeedCard key={n.key} need={n} onResolve={id => resolve.mutate(id)}
+              <NeedCard key={n.key} need={n} fileWord={data.file_word} onResolve={id => resolve.mutate(id)}
                 resolving={resolve.isPending && resolve.variables === n.item_id} />
             ))}
           </section>

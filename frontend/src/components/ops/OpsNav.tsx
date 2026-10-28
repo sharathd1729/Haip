@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 
 const LINKS = [
   { href: "/dashboard/ops", label: "Today" },
@@ -13,9 +14,10 @@ const LINKS = [
 
 export function OpsNav() {
   const path = usePathname();
+  const villa = (useBusinessType() ?? "").startsWith("villa");  // Fleet = vehicle papers and services: caravan pack only
   return (
     <nav aria-label="Ops" className="flex gap-2">
-      {LINKS.map(l => {
+      {LINKS.filter(l => !(villa && l.href.endsWith("/fleet"))).map(l => {
         const on = path === l.href;
         return (
           <Link key={l.href} href={l.href} aria-current={on ? "page" : undefined}
