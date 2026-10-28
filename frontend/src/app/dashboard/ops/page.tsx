@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, EmptyState, PageHeader } from "@/components/ui/kit";
 import { DayList, NeedCard, UnitCards } from "@/components/ops/TodayParts";
+import { OpsNav } from "@/components/ops/OpsNav";
 
 export default function OpsTodayPage() {
   const hydrated = useHydrated();
@@ -36,6 +37,7 @@ export default function OpsTodayPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 p-4 sm:p-6">
       <PageHeader title="Ops today" subtitle={subtitle} />
+      <OpsNav />
 
       {!hydrated || isPending ? (
         <div className="flex flex-col gap-3" aria-busy="true">

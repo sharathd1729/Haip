@@ -21,7 +21,8 @@ from app.services import ops_photo_intake as intake
 from app.services import ops_trip_service as trips
 from app.workers.tasks import whatsapp as wa
 from tests.ops_helpers import prop, staff
-from tests.test_ops_files import (
+from tests.test_ops_files import (  # noqa: F401 -- _actor_u1: the audit actor "u1" must exist on PostgreSQL
+    _actor_u1,
     _green_all_critical,
     _pay,
     _ready_file,
