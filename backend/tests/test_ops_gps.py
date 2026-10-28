@@ -18,7 +18,7 @@ from app.models.ops_files import OpsFile, OpsFileEvent
 from app.models.property import Stay
 from app.schemas.gps import RouteIn
 from app.services import gps_alerts, gps_geo, gps_ingest, gps_service
-from tests.ops_helpers import ist, prop, tenant
+from tests.ops_helpers import ist, prop, tenant, user
 
 T0 = ist(2026, 10, 27, 10, 0)  # a Tuesday morning, IST
 ON = 77.60  # the planned road runs north along this longitude
@@ -331,7 +331,7 @@ def test_tracker_silent_with_ignition_off_is_parked_not_silent(db, w):
 def test_approved_detour_widens_the_corridor_and_logs_the_reason(db, w):
     _feed(db, w, *(P("IMEI1", m, lat=13.0 + m / 100, lng=OFF) for m in range(3)))
     item = _items(db, w, "gps_off_route")[0]
-    gps_alerts.approve_detour(db, w.t.id, item.id, "Road closed at Hosur, police diversion", "u1")
+    gps_alerts.approve_detour(db, w.t.id, item.id, "Road closed at Hosur, police diversion", user(db, w.t.id).id)
     db.commit()
     assert db.get(OpsItem, item.id).status == "resolved"
     f = db.get(OpsFile, w.f.id)
@@ -355,7 +355,7 @@ def test_approved_detour_widens_the_corridor_and_logs_the_reason(db, w):
 def test_only_off_route_alerts_can_be_a_detour(db, w):
     _feed(db, w, P("IMEI1", 0, speed=80), P("IMEI1", 2, speed=80))
     with pytest.raises(Exception) as e:
-        gps_alerts.approve_detour(db, w.t.id, _items(db, w, "gps_overspeed")[0].id, "ok", "u1")
+        gps_alerts.approve_detour(db, w.t.id, _items(db, w, "gps_overspeed")[0].id, "ok", user(db, w.t.id).id)
     assert getattr(e.value, "status_code", None) == 409
 
 
