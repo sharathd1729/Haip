@@ -59,6 +59,7 @@ from app.models.ops import (
     OpsAlertSend,
 )
 from app.models.ops_files import OpsChecklistTemplate, OpsExpense, OpsExtra, OpsFile, OpsFileEvent, OpsJob, OpsJobItem
+from app.models.ops_fleet import OpsAutoMessage, OpsDefect, OpsGuestForm, OpsInventoryItem, OpsPaper, OpsService
 
 __all__ = [
     "BusinessRecord",
@@ -89,4 +90,5 @@ __all__ = [
     "StaffProfile", "StaffDuty", "ShiftPattern", "ShiftOverride", "EscalationChain", "OpsSettings", "OpsItem",
     "OpsEscalationEvent", "OpsAlertSend",
     "OpsFile", "OpsFileEvent", "OpsChecklistTemplate", "OpsJob", "OpsJobItem", "OpsExpense", "OpsExtra",
+    "OpsPaper", "OpsDefect", "OpsService", "OpsInventoryItem", "OpsAutoMessage", "OpsGuestForm",
 ]

@@ -2,7 +2,7 @@
 (ops_photo_intake, which hands villa staff here and supplies the shared helpers: shrink, bills, flags).
 
   "pool", "bedroom", "garden", "ac", "gas", "towels" ...   a Ready to welcome check before arrival; after check-out the same
-                                    word is the inspection, compared side by side with the arrival photo (ops_photo_compare)
+                                    word is the inspection, compared side by side with the arrival photo (ops_return_check.compose)
   "chlorine" / "ph"                 the pool test kit: chlorine 1-3 ppm and pH 7.2-7.8, anything else is red + a flag
   "damage" / "missing"              inspection: what broke or went missing (red when the photo shows a problem)
   "clean" / "cleaned"               a mid-stay clean is done
@@ -18,8 +18,8 @@ from sqlalchemy.orm import Session
 from app.models.ops import StaffProfile
 from app.models.ops_files import OpsFile, OpsJobItem
 from app.services import ops_money as money
-from app.services import ops_photo_compare as compare
 from app.services import ops_photo_intake as intake
+from app.services import ops_return_check
 from app.services import ops_stay_service as stays
 from app.services import ops_trip_service as trips
 
@@ -37,6 +37,13 @@ PROMPTS = {
         'A villa caretaker is proving this item before guests arrive: "{label}". Look at the photo. Keys: "shows_item" '
         '(true if the photo really shows that item), "ok" (true if it looks clean, working and ready), "problems" (a list '
         'of short plain phrases, e.g. "leaves in the pool", "bed not made"), "confidence". ' + intake._COMMON
+    ),
+    # Check-out vs arrival: ONE side-by-side JPEG from ops_return_check.compose (shared with the caravan return check).
+    "compare": (
+        "Two photos of the same part of a rented villa, side by side. LEFT (HANDOVER) = when the guests arrived, RIGHT "
+        '(RETURN) = after they left. Area: "{label}". Keys: "shows_item" (true if both show that area), "ok" (true if '
+        'nothing is newly damaged, dirty or missing on the right; ignore light, angle and normal tidiness), "problems" (a '
+        'list of short plain phrases, e.g. "lamp missing", "stain on the sofa"), "confidence". ' + intake._COMMON
     ),
     "inspect": (
         'A villa caretaker is checking this after the guests left: "{label}". Keys: "shows_item" (true if the photo shows '
@@ -150,7 +157,7 @@ def _check(db, f, staff, jpeg, key, describe, fetch, item_key) -> intake.Outcome
         arrival = next((i for i in trips.readiness_items(db, f) if i.key == item_key and i.photo_key), None)
         if kind_ == "inspection" and arrival is not None:
             ans, _ = describe(
-                compare.side_by_side(fetch(arrival.photo_key), jpeg), compare.PROMPT.format(label=item.label)
+                ops_return_check.compose(fetch(arrival.photo_key), jpeg), PROMPTS["compare"].format(label=item.label)
             )
             extra = {"compared_with": arrival.photo_key}
         else:

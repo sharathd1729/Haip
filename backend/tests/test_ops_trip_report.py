@@ -16,7 +16,8 @@ from app.services import ops_trip_service as trips
 from tests.conftest import seed_capabilities
 from tests.ops_helpers import prop, staff
 from tests.test_increment1_defect_specs import _h, _user
-from tests.test_ops_files import (
+from tests.test_ops_files import (  # noqa: F401 -- _actor_u1: the audit actor "u1" must exist on PostgreSQL
+    _actor_u1,
     TODAY,
     _green_all_critical,
     _pay,

@@ -305,7 +305,7 @@ def test_inspection_photo_is_compared_with_the_arrival_photo(db, v):
         fetch=lambda key: fetched.append(key) or RAW,
     )
     insp = next(i for i in trips.readiness_items(db, f, "inspection") if i.key == "pool")
-    assert fetched == [arrival.photo_key] and "BEFORE" in m.prompts[0]
+    assert fetched == [arrival.photo_key] and "HANDOVER" in m.prompts[0]
     assert insp.status == "red" and insp.ai_verdict["compared_with"] == arrival.photo_key
     assert "manager has been told" in out.reply
     assert stays.stage(db, f)["next_key"] == "inspect"

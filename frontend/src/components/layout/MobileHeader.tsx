@@ -19,6 +19,8 @@ const ROUTE_LABELS: Record<string, string> = {
   "my-day":     "My day",
   ops:          "Ops today",
   files:        "Trip",
+  fleet:        "Fleet",
+  staff:        "Staff",
   portfolio:    "Portfolio",
   calendar:     "Calendar",
   marketing:    "Marketing",

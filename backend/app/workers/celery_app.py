@@ -340,6 +340,8 @@ celery_app.conf.update(
         "ops.process_staff_photo":                       {"queue": "ai_scoring"},   # vision reads a staff photo
         "ops.sync_files_all":                            {"queue": "default"},
         "ops.sync_files_tenant":                         {"queue": "default"},
+        "ops.auto_messages_all":                         {"queue": "whatsapp"},   # trip messages go out on WhatsApp
+        "ops.auto_messages_tenant":                      {"queue": "whatsapp"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
         "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
@@ -438,6 +440,11 @@ celery_app.conf.beat_schedule = {
     "ops-sync-files-daily": {
         "task": "ops.sync_files_all",
         "schedule": crontab(hour=6, minute=10),
+    },
+    # Ops trip messages (crew brief T-72 h, photo reminder + guest pre-trip T-24 h, deposit reminder) and defect blocks.
+    "ops-auto-messages-hourly": {
+        "task": "ops.auto_messages_all",
+        "schedule": crontab(minute=25),
     },
     # Safety net for guest replies: a message with no AI draft and no reply after 4 minutes is queued for the concierge again (see
     # reply_recovery.py). Minutes 3/13/23/...: clear of the :00/:05/:10/:20/:30/:40 jobs.

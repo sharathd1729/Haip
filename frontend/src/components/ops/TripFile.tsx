@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { TripSheets, type SheetKind } from "./TripSheets";
+import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -141,6 +142,9 @@ export function TripFile({ id }: { id: string }) {
             <p className="mt-2 text-[13.5px] opacity-80">A manager does this step.</p>
           ) : null}
           {f.close_blockers.length > 0 && <p className="mt-2 text-[13.5px] opacity-80">Still to do: {f.close_blockers.join(", ")}.</p>}
+          {f.fleet_problems.length > 0 && (
+            <p className="mt-2 text-[13.5px] font-semibold">Cannot leave yet: {f.fleet_problems.join("; ")}. Sort it on Ops → Fleet.</p>
+          )}
         </section>
       )}
 
@@ -222,8 +226,12 @@ export function TripFile({ id }: { id: string }) {
           <StatusPill tone="neutral">Driver: {f.crew.driver ?? "not set"}</StatusPill>
           <StatusPill tone="neutral">Helper: {f.crew.helper ?? "not set"}</StatusPill>
           {s.concierge_notes && <p className="w-full text-[14px] text-[var(--haip-fg-muted)]">Notes: {s.concierge_notes}</p>}
+          <MessagesList f={f} />
         </CardBody>
       </Card>
+
+      <GuestFormCard f={f} canWrite={write} onSent={() => qc.invalidateQueries({ queryKey: ["ops-file", id] })} />
+      {(f.state === "returned" || f.state === "closed") && <ReturnCheckCard f={f} />}
 
       <Card>
         <CardHeader title="What happened" tone="plain" />

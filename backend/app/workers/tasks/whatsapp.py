@@ -239,6 +239,8 @@ def _handle_staff_message(db, tenant: Tenant, staff, msg: dict, msg_type: str) -
     dedup_key = f"haip:ops:inbound:{msg.get('id', '')}"
     if msg.get("id") and get_cached(dedup_key):      # Meta redelivers webhooks; a staff tap is handled once
         return
+    staff.last_inbound_at = datetime.now(timezone.utc)   # their 24-hour window: ops trip messages can go as plain text
+    db.commit()
     # A photo from crew (odometer, bill, checklist) is read by AI in its own task (ops_photo_intake): never here.
     media = msg.get("image") if msg_type == "image" else (
         msg.get("document") if msg_type == "document" and str((msg.get("document") or {}).get("mime_type", "")).startswith("image/")

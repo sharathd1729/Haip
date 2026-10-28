@@ -98,6 +98,22 @@ PACKS: dict[str, dict] = {
                     for k, label, crit, src, photo in _CARAVAN_READINESS
                 ],
             },
+            # On return the helper photographs the same zones again ("return ac"); each is compared with its handover
+            # photo (ops_return_check). Not a gate: a difference is a manager flag about the deposit.
+            "return": {
+                "name": "Back from the trip",
+                "items": [
+                    {
+                        "key": k,
+                        "label": label,
+                        "critical": False,
+                        "source": "staff",
+                        "photo": True,
+                    }
+                    for k, label, _crit, src, photo in _CARAVAN_READINESS
+                    if photo and src == "staff"
+                ],
+            },
         },
     },
     "villa": {

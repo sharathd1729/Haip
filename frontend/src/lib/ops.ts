@@ -12,7 +12,7 @@ export interface OpsUnit {
 }
 export interface OpsNeed {
   key: string; level: Level; unit: string; title: string; detail: string;
-  file_id: string | null; item_id: string | null; action: "open_file" | "resolve_item";
+  file_id: string | null; item_id: string | null; action: "open_file" | "resolve_item" | "open_fleet" | "open_staff";
 }
 export interface OpsDayEntry {
   date: string; time: string | null; now: boolean; what: string; sub: string; file_id: string; tone: UnitTone;
@@ -54,6 +54,44 @@ export interface OpsFileFull {
   extras: { id: string; kind: string; label: string; amount: string; status: "proposed" | "approved" | "removed" }[];
   timeline: { at: string; text: string; auto: boolean }[];
   close_blockers: string[];
+  fleet_problems: string[];
+  guest_form: {
+    submitted_at: string | null; link: string | null; guests: { name: string; age: number | null; id: string }[];
+    emergency_name?: string; emergency_phone?: string; food?: string; requests?: string; signed_name?: string;
+  };
+  return_check: { words: string; damage: string[]; items: { key: string; label: string; status: "pending" | "green" | "red"; note: string | null; has_photo: boolean }[] };
+  messages: { kind: string; recipient: string; status: "sent" | "failed"; via: string | null; reason: string | null; sent_at: string | null }[];
+}
+
+// ── Fleet (GET /ops/fleet, ops_fleet_view) and staff (GET /ops/staff) ──────────────────────────────────────────────────
+export type FleetLevel = Level | null;
+export interface FleetPaper { id: string; kind: string; name: string; number: string | null; expires_on: string | null; level: FleetLevel; words: string; has_file: boolean }
+export interface FleetCardData {
+  property_id: string; name: string; km: number | null; tone: "red" | "amber" | "ok"; problems: string[];
+  papers: FleetPaper[]; missing_papers: string[];
+  defects: { id: string; title: string; detail: string | null; severity: "critical" | "normal"; source: "person" | "photo"; file_id: string | null; reported_at: string | null }[];
+  services: { id: string; name: string; due_on: string | null; due_km: number | null; status: "open" | "done"; level: FleetLevel; words: string }[];
+  inventory: { id: string; name: string; par: number; count: number | null; low: boolean; counted_at: string | null }[];
+}
+export interface OpsStaff {
+  id: string; name: string; phone_e164: string; active: boolean; whatsapp_opt_in_at: string | null; notes: string | null;
+  duties: { duty: string; property_id: string | null }[]; licence_number: string | null; licence_expires_on: string | null;
+}
+/** Paper kinds (backend schemas/ops_fleet.py PAPER_KINDS): vehicle papers first. */
+export const VEHICLE_PAPERS: Record<string, string> = {
+  insurance: "Insurance", permit: "Permit", fc: "Fitness certificate (FC)", puc: "Pollution certificate (PUC)",
+  ais140: "AIS-140 tracker certificate", other: "Other paper",
+};
+/** Duties (backend schemas/ops.py DUTIES), in the words the owner uses. */
+export const DUTY_LABELS: Record<string, string> = {
+  driver: "Driver", caretaker: "Helper / caretaker", housekeeping: "Housekeeping", maintenance: "Maintenance",
+  front_desk: "Front desk", fnb: "Food", ops_manager: "Ops manager",
+};
+/** A licence that ends within 30 days is amber, within 7 days (or gone) red: the same rule as the server's papers. */
+export function expiryLevel(iso: string | null, todayIso: string): FleetLevel {
+  if (!iso) return null;
+  const days = Math.round((new Date(`${iso}T00:00:00Z`).getTime() - new Date(`${todayIso}T00:00:00Z`).getTime()) / 86_400_000);
+  return days <= 7 ? "red" : days <= 30 ? "amber" : null;
 }
 
 /** Roles behind the ops capabilities (backend migration 178): ops.read, ops.write, ops.manage. */

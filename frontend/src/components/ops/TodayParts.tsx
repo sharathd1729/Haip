@@ -72,6 +72,12 @@ export function NeedCard({ need, onResolve, resolving }: { need: OpsNeed; onReso
             Open trip
           </Link>
         )}
+        {(need.action === "open_fleet" || need.action === "open_staff") && (
+          <Link href={need.action === "open_fleet" ? "/dashboard/ops/fleet" : "/dashboard/ops/staff"}
+            className="haip-btn-primary min-h-12 flex-1 text-[15px]">
+            {need.action === "open_fleet" ? "Open fleet" : "Open staff"}
+          </Link>
+        )}
         {need.action === "resolve_item" && need.item_id && onResolve && (
           <button type="button" disabled={resolving} onClick={() => onResolve(need.item_id!)}
             className={cn("min-h-12 flex-1 text-[15px]", need.file_id ? "haip-btn-secondary" : "haip-btn-primary")}>
