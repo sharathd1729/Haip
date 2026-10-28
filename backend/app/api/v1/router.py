@@ -34,6 +34,7 @@ from app.api.v1.endpoints import (
     learning,
     ops,
     ops_files,
+    ops_stays,
     targets,
     work_queue,
     lead_activity,
@@ -99,6 +100,7 @@ api_router.include_router(marketing_channels.router)
 api_router.include_router(marketing_public.router)
 api_router.include_router(ops.router)
 api_router.include_router(ops_files.router)  # /ops/files/* (one ops file per booking)
+api_router.include_router(ops_stays.router)  # /ops/files/* villa-only steps
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)

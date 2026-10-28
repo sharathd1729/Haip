@@ -247,17 +247,19 @@ def read_bill(ans: dict) -> tuple[dict | None, list[str], list[str]]:
 
 def active_file(db: Session, tenant_id: str, staff: StaffProfile) -> OpsFile | None:
     """The file this person is crew on now: a trip on the road first, else the next one getting ready."""
+    from app.services import ops_stay_service as stays
+
     files = [
         f
         for f in db.query(OpsFile).filter(
             OpsFile.tenant_id == tenant_id,
-            OpsFile.state.in_(trips.BEFORE_ROAD + ("on_trip",)),
+            OpsFile.state.in_(trips.BEFORE_ROAD + ("on_trip",) + stays.LIVE),
         )
-        if staff.id in (money.details(f).driver_staff_id, money.details(f).helper_staff_id)
+        if staff.id in money.crew_ids(f)
     ]
     if not files:
         return None
-    on_road = [f for f in files if f.state == "on_trip"]
+    on_road = [f for f in files if f.state in ("on_trip", "staying")]
     return on_road[0] if on_road else min(files, key=lambda f: money.stay_of(db, f).check_in)
 
 
@@ -375,7 +377,8 @@ def _bill(db, f, staff, jpeg, key, ans, hint) -> Outcome:
         )
     total = money.account(db, f)["total_expenses"]
     return Outcome(
-        f"Recorded {fields['category']} Rs {fields['amount']:,}. Trip expenses so far Rs {total:,}.",
+        f"Recorded {fields['category']} Rs {fields['amount']:,}. "
+        f"{'Stay' if f.pack == 'villa' else 'Trip'} expenses so far Rs {total:,}.",
         sends,
     )
 
@@ -428,6 +431,19 @@ def handle_photo(
     f = active_file(db, tenant_id, staff)
     if f is None:
         return Outcome("No trip found for your number right now. Please check with the manager.")
+    if f.pack == "villa":
+        from app.services import ops_stay_photos
+
+        return ops_stay_photos.handle(
+            db,
+            tenant_id,
+            staff,
+            raw=raw,
+            caption=caption,
+            message_id=message_id,
+            describe=describe or _default_describe,
+            store=store or _store,
+        )
     kind, detail = classify(caption, trips.readiness_items(db, f))
     if kind is None:
         return Outcome(
@@ -481,6 +497,11 @@ def _store(tenant_id: str, file_id: str, message_id: str, jpeg: bytes) -> str:
 def handle_text(db: Session, tenant_id: str, staff: StaffProfile, text: str) -> Outcome | None:
     """'issue <what happened>' from crew -> an incident for the manager. None = not an ops command (the foundations
     handler logs it on the person's latest alert as before)."""
+    from app.services import ops_stay_meals
+
+    reply = ops_stay_meals.cook_reply(db, tenant_id, staff, text)  # "OK" from a villa cook confirms the meal plan sent to them
+    if reply is not None:
+        return Outcome(reply)
     m = _ISSUE.match(text or "")
     if not m:
         return None
@@ -494,7 +515,7 @@ def handle_text(db: Session, tenant_id: str, staff: StaffProfile, text: str) -> 
         f,
         "crew reported a problem",
         f"{staff.name}: {body}",
-        "critical" if f.state == "on_trip" else "high",
+        "critical" if f.state in ("on_trip", "staying") else "high",
         "incident",
     )
     return Outcome(

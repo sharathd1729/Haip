@@ -92,7 +92,13 @@ def ensure_file(db: Session, tenant_id: str, stay: Stay, pack: str | None = None
     if pack is None:
         tenant = db.query(Tenant).filter_by(id=tenant_id).first()
         pack = packs.pack_for_business_type(tenant.business_type if tenant else None)
-    if pack != PACK or stay.status not in LIVE_STAY:
+    if stay.status not in LIVE_STAY:
+        return None
+    if pack == "villa":
+        from app.services import ops_stay_service
+
+        return ops_stay_service.create_file(db, tenant_id, stay)
+    if pack != PACK:
         return None
     r = ops_rates.for_stay(db, stay)
     d = CaravanDetails(
@@ -128,7 +134,7 @@ def sync_files(db: Session, tenant_id: str, today: date) -> dict:
         .join(Stay, Stay.id == OpsFile.stay_id)
         .filter(
             OpsFile.tenant_id == tenant_id,
-            OpsFile.state.in_(BEFORE_ROAD),
+            OpsFile.state.in_(packs.CANCELLABLE),
             Stay.status == "cancelled",
         )
     ):
@@ -148,10 +154,10 @@ def get_file(db: Session, tenant_id: str, file_id: str) -> OpsFile:
 # ── Readiness gate ──────────────────────────────────────────────────────────
 
 
-def readiness_items(db: Session, f: OpsFile) -> list[OpsJobItem]:
+def readiness_items(db: Session, f: OpsFile, kind: str = "readiness") -> list[OpsJobItem]:
     job = (
         db.query(OpsJob)
-        .filter_by(tenant_id=f.tenant_id, file_id=f.id, kind="readiness")
+        .filter_by(tenant_id=f.tenant_id, file_id=f.id, kind=kind)
         .order_by(OpsJob.created_at)
         .first()
     )
