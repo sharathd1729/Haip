@@ -28,7 +28,7 @@ export function StaySheets({ file, kind, onClose, submit, busy }: {
   // Fresh values each time a sheet opens; a background refetch must not wipe what the person is typing.
   useEffect(() => {
     if (kind === "people") setF({ caretaker: d.caretaker_staff_id ?? "", cook: d.cook_staff_id ?? "", cleaner: d.cleaner_staff_id ?? "" });
-    else if (kind === "checkin") setF({ keys: "yes", deposit: dep && dep.status !== "pending" ? "yes" : dep ? "yes" : "no", amount: "", note: "" });
+    else if (kind === "checkin") setF({ keys: "yes", deposit: dep ? "yes" : "no", amount: "", note: "" });
     else if (kind === "meal") setF({ date: s.check_in.slice(0, 10), meal: "dinner", guests: String(s.adults + s.children), food: "veg", notes: "" });
     else if (kind === "deposit") setF({ decision: "refund", amount: "", reason: "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
