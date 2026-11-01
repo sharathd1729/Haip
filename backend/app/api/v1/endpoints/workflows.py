@@ -122,6 +122,7 @@ def create_lead_pack(current_user: User = Depends(_MANAGERS), db: Session = Depe
 def get_activity(
     playbook: Optional[str] = Query(None, max_length=40),
     status_: Optional[str] = Query(None, alias="status", max_length=12),
+    action: Optional[str] = Query(None, max_length=80, description="comma-separated: wa_template,wa_text,task,push,staff_wa,draft"),
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(_MANAGERS),
     db: Session = Depends(get_db),
@@ -131,6 +132,8 @@ def get_activity(
         q = q.filter(PlaybookAction.playbook_key == playbook)
     if status_:
         q = q.filter(PlaybookAction.status == status_)
+    if action:
+        q = q.filter(PlaybookAction.action.in_([a.strip() for a in action.split(",") if a.strip()]))
     rows = q.order_by(PlaybookAction.created_at.desc()).limit(limit).all()
     names = {}
     gids = {r.guest_id for r in rows if r.guest_id}
