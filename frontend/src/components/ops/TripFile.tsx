@@ -17,6 +17,7 @@ import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "
 import { TripSheets, type SheetKind } from "./TripSheets";
 import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
 import { StayFile } from "./StayFile";
+import { TripGps } from "./TripGps";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -224,6 +225,8 @@ export function TripFile({ id }: { id: string }) {
           )}
         </CardBody>
       </Card>
+
+      {!beforeRoad && f.state !== "cancelled" && <TripGps fileId={f.id} live={f.state === "on_trip"} />}
 
       <Card>
         <CardHeader title="Team" tone="plain"

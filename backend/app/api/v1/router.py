@@ -37,6 +37,8 @@ from app.api.v1.endpoints import (
     ops_stays,
     ops_fleet,
     ops_guest_form_public,
+    ops_gps,
+    webhooks_gps,
     targets,
     work_queue,
     lead_activity,
@@ -105,6 +107,7 @@ api_router.include_router(ops_files.router)  # /ops/files/* (one ops file per bo
 api_router.include_router(ops_stays.router)  # /ops/files/* villa-only steps
 api_router.include_router(ops_fleet.router)  # /ops/fleet/* (papers, defects, services, stock)
 api_router.include_router(ops_guest_form_public.router)  # /public/ops/guest-form/{token} (no login)
+api_router.include_router(ops_gps.router)  # /ops/gps/* (trackers, live map, trip track, alerts)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)
@@ -186,6 +189,7 @@ api_router.include_router(webhooks_mcube.router)
 api_router.include_router(webhooks_whatsapp.router)
 api_router.include_router(webhooks_instagram.router)
 api_router.include_router(webhooks_dograh.router)
+api_router.include_router(webhooks_gps.router)  # /webhooks/gps/{slug} (signed GPS push)
 api_router.include_router(webhooks_vobiz.router)
 api_router.include_router(webhooks_whatsapp_personal.router)
 api_router.include_router(whatsapp_personal.router)

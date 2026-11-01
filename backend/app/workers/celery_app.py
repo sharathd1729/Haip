@@ -76,6 +76,7 @@ celery_app = Celery(
         "app.workers.tasks.ops_escalation",
         "app.workers.tasks.ops_intake",
         "app.workers.tasks.ops_files",
+        "app.workers.tasks.gps",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -342,6 +343,10 @@ celery_app.conf.update(
         "ops.sync_files_tenant":                         {"queue": "default"},
         "ops.auto_messages_all":                         {"queue": "whatsapp"},   # trip messages go out on WhatsApp
         "ops.auto_messages_tenant":                      {"queue": "whatsapp"},
+        "gps.ingest":                                    {"queue": "default"},
+        "gps.tick_all":                                  {"queue": "default"},
+        "gps.tick_tenant":                               {"queue": "default"},
+        "gps.purge_positions":                           {"queue": "default"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
         "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
@@ -445,6 +450,16 @@ celery_app.conf.beat_schedule = {
     "ops-auto-messages-hourly": {
         "task": "ops.auto_messages_all",
         "schedule": crontab(minute=25),
+    },
+    # Ops GPS (gps.py): poll Traccar-style providers and check "tracker silent" / long halts every minute; fixes older
+    # than 90 days deleted nightly.
+    "gps-tick-1min": {
+        "task": "gps.tick_all",
+        "schedule": crontab(minute="*"),
+    },
+    "gps-purge-positions-daily": {
+        "task": "gps.purge_positions",
+        "schedule": crontab(hour=3, minute=25),
     },
     # Safety net for guest replies: a message with no AI draft and no reply after 4 minutes is queued for the concierge again (see
     # reply_recovery.py). Minutes 3/13/23/...: clear of the :00/:05/:10/:20/:30/:40 jobs.

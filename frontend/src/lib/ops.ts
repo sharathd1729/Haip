@@ -13,6 +13,7 @@ export interface OpsUnit {
 export interface OpsNeed {
   key: string; level: Level; unit: string; title: string; detail: string;
   file_id: string | null; item_id: string | null; action: "open_file" | "resolve_item" | "open_fleet" | "open_staff";
+  item_kind?: string; // gps_off_route: the card offers "Approved detour" (backend gps_alerts.approve_detour)
 }
 export interface OpsDayEntry {
   date: string; time: string | null; now: boolean; what: string; sub: string; file_id: string; tone: UnitTone;

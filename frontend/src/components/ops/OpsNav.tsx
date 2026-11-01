@@ -1,6 +1,6 @@
 "use client";
-// The three Ops screens side by side: Today (what needs you), Fleet (each vehicle's papers, defects, services, stock) and
-// Staff (drivers and helpers; they never log in, they use WhatsApp). Pills, 44px tall, scrolls sideways never.
+// The Ops screens side by side: Today (what needs you), Fleet (each vehicle's papers, defects, services, stock), Map (live
+// GPS) and Staff (drivers and helpers; they never log in, they use WhatsApp). Pills, 44px tall, scrolls sideways never.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -9,15 +9,17 @@ import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 const LINKS = [
   { href: "/dashboard/ops", label: "Today" },
   { href: "/dashboard/ops/fleet", label: "Fleet" },
+  { href: "/dashboard/ops/map", label: "Map" },
   { href: "/dashboard/ops/staff", label: "Staff" },
 ];
+const VEHICLE_ONLY = ["/dashboard/ops/fleet", "/dashboard/ops/map"];
 
 export function OpsNav() {
   const path = usePathname();
-  const villa = (useBusinessType() ?? "").startsWith("villa");  // Fleet = vehicle papers and services: caravan pack only
+  const villa = (useBusinessType() ?? "").startsWith("villa");  // Fleet + Map = vehicles: caravan pack only
   return (
     <nav aria-label="Ops" className="flex gap-2">
-      {LINKS.filter(l => !(villa && l.href.endsWith("/fleet"))).map(l => {
+      {LINKS.filter(l => !(villa && VEHICLE_ONLY.includes(l.href))).map(l => {
         const on = path === l.href;
         return (
           <Link key={l.href} href={l.href} aria-current={on ? "page" : undefined}
