@@ -73,6 +73,8 @@ celery_app = Celery(
         "app.workers.tasks.call_recovery",
         # Safety net: a guest message that never got an AI reply is handed to the concierge again
         "app.workers.tasks.reply_recovery",
+        # Closes AI drafts nobody acted on ("expired"; see services/ai_draft_expiry.py)
+        "app.workers.tasks.draft_expiry",
         "app.workers.tasks.ops_escalation",
         "app.workers.tasks.ops_intake",
         "app.workers.tasks.ops_files",
@@ -334,6 +336,8 @@ celery_app.conf.update(
         # Same queue as concierge_draft itself ("whatsapp"): if that queue is not consumed, neither is the draft it would trigger.
         "concierge.recover_missed_replies":              {"queue": "whatsapp"},
         "concierge.recover_missed_replies_all_tenants":  {"queue": "whatsapp"},
+        "ai_drafts.expire_stale":                        {"queue": "whatsapp"},
+        "ai_drafts.expire_stale_all_tenants":            {"queue": "whatsapp"},
         # Ops alerts go out as WhatsApp templates: same queue as every other WhatsApp send.
         "ops.deliver_sends":                             {"queue": "whatsapp"},
         "ops.escalation_tick":                           {"queue": "whatsapp"},
@@ -466,6 +470,11 @@ celery_app.conf.beat_schedule = {
     "concierge-missed-reply-recovery-10min": {
         "task": "concierge.recover_missed_replies_all_tenants",
         "schedule": crontab(minute="3,13,23,33,43,53"),
+    },
+    # AI drafts older than 24 h, or with a later message sent in the thread, are closed as "expired" (ai_draft_expiry.py).
+    "ai-drafts-expire-stale-30min": {
+        "task": "ai_drafts.expire_stale_all_tenants",
+        "schedule": crontab(minute="17,47"),
     },
     # Re-dispatches AI call scoring that stalled or failed. The task and its
     # docstring ("Beat fires this every 30 minutes") existed since Aug 2026

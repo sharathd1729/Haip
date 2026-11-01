@@ -11,9 +11,9 @@ import {
 } from "./types";
 
 /** How long the guest has been waiting, when their last real message is unanswered. Internal notes and
- *  AI drafts nobody has approved are not replies, so they don't count. */
+ *  AI drafts that were never sent (pending, rejected, expired) are not replies, so they don't count. */
 function waitingSince(detail: ConversationDetail): string | null {
-  const real = detail.messages.filter(m => !m.is_internal && !(m.ai_drafted && m.direction === "outbound" && m.was_approved == null));
+  const real = detail.messages.filter(m => !m.is_internal && !(m.ai_drafted && m.direction === "outbound" && m.was_approved !== true));   // pending, rejected or expired: never sent
   const last = real[real.length - 1];
   return last && last.direction === "inbound" ? last.timestamp : null;
 }

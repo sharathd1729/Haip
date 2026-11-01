@@ -118,6 +118,8 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             wamid=wamid,
             to=_phone_token(guest.phone),       # never the number itself
         )
+        from app.services import ai_draft_expiry
+        ai_draft_expiry.after_send(db, message)     # older pending drafts of this thread are out of date now
 
     except Exception as exc:
         _fail_or_retry(self, db, message, exc, "send_whatsapp_failed", message_id)
@@ -201,6 +203,8 @@ def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name:
         db.commit()
 
         log.info("whatsapp_template_sent", message_id=message_id, wamid=wamid, template=template_name)
+        from app.services import ai_draft_expiry
+        ai_draft_expiry.after_send(db, message)     # older pending drafts of this thread are out of date now
 
     except Exception as exc:
         _fail_or_retry(self, db, message, exc, "send_whatsapp_template_failed", message_id)

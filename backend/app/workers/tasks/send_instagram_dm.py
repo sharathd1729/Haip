@@ -220,6 +220,8 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         message.delivery_state = MessageDeliveryState.SENT
         message.delivery_error = None
         db.commit()
+        from app.services import ai_draft_expiry
+        ai_draft_expiry.after_send(db, message)     # older pending drafts of this thread are out of date now
 
         # Notify SSE subscribers so the inbox updates the delivery tick without a page refresh
         try:
