@@ -9,6 +9,7 @@ Entry points:
   assign_new_lead()      -- a lead was just created (chat/call/manual paths)
   on_call_logged()       -- a call row exists; the answering agent may own it
   claim_on_first_touch() -- an agent replied/called an unowned lead
+  take_unowned()         -- "Take it" on My day: a person claims a lead nobody owns (audited)
   run_tick()             -- every few minutes: assign leads that waited for
                             working hours or for an available agent, and
                             pass on leads the owner never contacted
@@ -401,6 +402,34 @@ def claim_on_first_touch(db: Session, tenant_id: str, guest_id: Optional[str], u
             _set_owner(db, inquiry, user_id, "first_touch", notify=False)
     except Exception as exc:
         log.error("lead_claim_failed", tenant_id=tenant_id, error=str(exc))
+
+
+class AlreadyOwned(Exception):
+    """Someone owns this lead already (another person took it first)."""
+
+
+def take_unowned(db: Session, tenant_id: str, inquiry_id: str, user: User) -> Inquiry:
+    """My day's "Take it" (S10): the lead becomes this person's when NOBODY owns it. One guarded UPDATE, so two people
+    tapping at once cannot both win (the second gets AlreadyOwned). Audited ``lead.claimed``. Caller commits."""
+    from app.core.audit import append_audit
+
+    if user.role not in ASSIGNABLE_ROLES:
+        raise PermissionError("This role cannot own leads.")
+    inquiry = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
+    if inquiry is None:
+        raise LookupError("Lead not found")
+    won = (db.query(Inquiry).filter(Inquiry.id == inquiry_id, Inquiry.tenant_id == tenant_id, Inquiry.assigned_to.is_(None))
+           .update({Inquiry.assigned_to: user.id}, synchronize_session=False))
+    if not won:
+        db.refresh(inquiry)
+        if inquiry.assigned_to == user.id:
+            return inquiry
+        raise AlreadyOwned(inquiry.assigned_to)
+    db.refresh(inquiry)
+    _set_owner(db, inquiry, user.id, "claimed", notify=False)
+    append_audit(db, tenant_id=tenant_id, actor_user_id=user.id, action="lead.claimed", target_type="inquiry",
+                 target_id=inquiry.id, payload={"via": "my_day"})
+    return inquiry
 
 
 def run_tick(db: Session, tenant: Tenant, now: Optional[datetime] = None) -> dict:

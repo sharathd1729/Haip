@@ -137,10 +137,13 @@ def test_handled_item_closes_and_unowned_starts_with_managers(db, tenant_and_use
     tid = _tid(tenant_and_user)
     tenant = _setup(db, tid, cat.NEW_LEAD_ALERT, cat.SLA_ESCALATION)
     manager = _user(db, tid, UserRole.MANAGER, phone="+919800000003")
-    with _fakes() as (meta, _push):
+    with _fakes() as (meta, push):
         _tick(db, tenant, [_item(), _item(kind="reply", guest_id="g2")])
         out = _tick(db, tenant, [])
-    assert {t["to"] for t in meta.templates} == {"+919800000003"} and len(meta.templates) == 2
+    # one WhatsApp per person per 15 min: the second alert to the same manager goes as push only
+    assert {t["to"] for t in meta.templates} == {"+919800000003"} and len(meta.templates) == 1
+    assert push.call_count == 2
+    assert [a.status for a in _acts(db, tid, action="staff_wa")] == ["done", "skipped"]
     assert out["closed"] == 2
     assert {r.status for r in db.query(PlaybookRun).filter_by(tenant_id=tid).all()} == {"done"}
     assert manager.id in {a.recipient_user_id for a in _acts(db, tid, action="staff_wa")}
@@ -318,3 +321,44 @@ def test_real_queue_new_lead_reaches_its_owner(db, tenant_and_user):
         out = alerts.tick(db, tenant)
     assert out["fired"] == 1
     assert [t["to"] for t in meta.templates] == ["+919800000002"]
+
+
+# ── Batching per person and the Meta 131049 back-off (1 Nov 2026) ───────────
+
+def test_one_whatsapp_per_person_per_gap_every_level_still_fires_once(db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    tenant = _setup(db, tid, cat.SLA_ESCALATION)
+    manager = _user(db, tid, UserRole.MANAGER, phone="+919800000003")
+    items = [_item(kind="handover", guest_id="g1"), _item(kind="came_back", guest_id="g2")]
+    with _fakes() as (meta, push):
+        _tick(db, tenant, items)
+        _tick(db, tenant, items)                                        # same level again: nothing new at all
+    assert len(meta.templates) == 1 and push.call_count == 2
+    held = _acts(db, tid, action="staff_wa", status="skipped")
+    assert len(held) == 1 and held[0].recipient_user_id == manager.id and "one WhatsApp per 15 min" in held[0].reason
+    assert {r.step for r in db.query(PlaybookRun).filter_by(tenant_id=tid, playbook_key=cat.SLA_ESCALATION)} == {1}
+    body = meta.templates[0]["components"][0]["parameters"]
+    assert "bot handed over" in body[1]["text"] or "came back" in body[1]["text"]
+
+
+def test_meta_131049_backs_off_that_person_for_an_hour(db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    tenant = _setup(db, tid, cat.NEW_LEAD_ALERT)
+    manager = _user(db, tid, UserRole.MANAGER, phone="+919800000003")
+    other = _user(db, tid, UserRole.MANAGER, phone="+919800000004")
+    db.add(PlaybookAction(tenant_id=tid, playbook_key=cat.NEW_LEAD_ALERT, action="staff_wa", status="failed",
+                          recipient_user_id=manager.id, created_at=NOW - timedelta(minutes=40),
+                          reason="Meta 131049: This message was not delivered to maintain healthy ecosystem engagement."))
+    db.commit()
+    assert alerts.wa_hold(db, tenant, manager.id, NOW).startswith("WhatsApp paused")
+    assert alerts.wa_hold(db, tenant, manager.id, NOW + timedelta(minutes=30)) is None      # an hour after the failure
+    assert alerts.wa_hold(db, tenant, other.id, NOW) is None
+    with _fakes() as (meta, push):
+        _tick(db, tenant, [_item()])                                    # unowned: both managers
+    assert [t["to"] for t in meta.templates] == ["+919800000004"] and push.call_count == 2
+
+
+def test_gap_is_a_workspace_setting():
+    tenant = Tenant(id="t", name="T", slug="t", plan="growth", brand_config={"lead_playbooks": {"staff_whatsapp_gap_minutes": 0}})
+    assert pb_settings.get(tenant)["staff_whatsapp_gap_minutes"] == 0
+    assert pb_settings.get(Tenant(id="u", name="U", slug="u", plan="growth"))["staff_whatsapp_gap_minutes"] == 15

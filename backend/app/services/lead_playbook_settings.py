@@ -22,7 +22,7 @@ KEY = "lead_playbooks"
 # What an owner may set per playbook, and its bounds.
 _INT_FIELDS = {"delay_seconds": (15, 600), "callback_minutes": (5, 240)}
 _WORKSPACE_INT = {"guest_cap_hours": (1, 72), "daily_cap": (1, 2000), "bridge_quiet_minutes": (0, 1440),
-                  "quiet_start_hour": (0, 23), "quiet_end_hour": (0, 23)}
+                  "quiet_start_hour": (0, 23), "quiet_end_hour": (0, 23), "staff_whatsapp_gap_minutes": (0, 240)}
 _WORKSPACE_BOOL = ("enabled", "staff_whatsapp")
 
 

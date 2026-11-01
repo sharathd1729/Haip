@@ -23,8 +23,10 @@ import { ConsultsPanel } from "@/components/consults/ConsultsPanel";
 import { Flame, MessageCircle, Clock } from "@/lib/icons";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneMyDay } from "@/components/myday/PhoneMyDay";
+import { dialPayload as dialFor } from "@/components/myday/useDial";
+import { TakeIt } from "@/components/myday/TakeIt";
 
-type Kind = "consult" | "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
+type Kind = "consult" | "callback" | "came_back" | "campaign_reply" | "new_lead" | "reply" | "handover" | "no_reply" | "followup" | "clash";
 type Flag = "not_called" | "open_lead" | "at_risk";
 type Severity = "fresh" | "late" | "urgent" | "critical" | "stale";
 type Lane = "now" | "today" | "chase";
@@ -41,6 +43,8 @@ interface Item {
   priority?: number; lane?: Lane; reasons?: string[];
   /** Open tasks about this person, shown on their row instead of a second row (work_queue_signals.merge_tasks_into_people). */
   tasks?: { title: string; due: string | null; overdue: boolean }[];
+  /** A person's lead nobody owns: listed first, with "Take it" (S10). */
+  unowned?: boolean;
 }
 interface Queue {
   counts: Record<Kind, number>;
@@ -57,7 +61,10 @@ interface Queue {
 const KINDS: { id: Kind; label: string }[] = [
   { id: "new_lead", label: "New leads" },
   { id: "callback", label: "Missed calls" },
+  { id: "came_back", label: "Came back" },
+  { id: "campaign_reply", label: "Replied to campaign" },
   { id: "reply",    label: "Waiting for a reply" },
+  { id: "handover", label: "Bot handed over" },
   { id: "no_reply", label: "Not replying" },
   { id: "followup", label: "Follow-ups" },
   { id: "clash",    label: "Calendar clashes" },
@@ -65,6 +72,7 @@ const KINDS: { id: Kind; label: string }[] = [
 const KIND_LABEL: Record<Kind, string> = {
   consult: "The AI is asking you",
   new_lead: "New lead", callback: "Missed call", reply: "Waiting for a reply", no_reply: "Not replying to us", followup: "Follow-up",
+  came_back: "Came back", campaign_reply: "Replied to campaign", handover: "Bot handed over: call / quote needed",
   clash: "Calendar clash",
 };
 // The owner dashboard's cards deep-link with ?flag= so the list shows exactly the people the card counted.
@@ -116,10 +124,7 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
   // "Call" and "Call back" place the call -- the IVR rings your phone, then connects the guest (POST /calls/click-to-call) --
   // instead of opening a page and leaving you to dial by hand. A lead is named by its enquiry (the server holds the number);
   // a lead with no enquiry yet, or a missed call, carries its own number.
-  const dialPayload: { inquiry_id: string } | { guest_number: string } | null =
-    item.kind === "new_lead" && item.inquiry_id ? { inquiry_id: item.inquiry_id }
-      : (item.kind === "new_lead" || item.kind === "callback") && item.guest_phone ? { guest_number: item.guest_phone }
-        : null;
+  const dialPayload = dialFor(item);
   const dial = useMutation({
     mutationFn: () => api.post("/calls/click-to-call", dialPayload!),
     onSuccess: () => toast({
@@ -176,14 +181,14 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
             ))}
           </p>
         )}
-        {(item.facts.length > 0 || item.has_draft || item.guest_phone || item.owner_name || item.kind === "new_lead") && (
+        {(item.facts.length > 0 || item.has_draft || item.guest_phone || item.owner_name || item.unowned) && (
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-[var(--haip-fg-subtle)]">
             {item.facts.map(f => <span key={f} className="rounded bg-[var(--haip-surface)] px-1.5 py-0.5 font-medium text-[var(--haip-fg-2)]">{f}</span>)}
             {item.guest_phone && <span className="tabular-nums">{item.guest_phone}</span>}
             {item.has_draft && <span className="font-semibold text-[var(--haip-status-info-fg)]">AI reply ready to review</span>}
             {item.owner_name
               ? <span>· {item.owner_name}</span>
-              : item.kind === "new_lead" && <span className="font-semibold text-[var(--haip-status-warning-fg)]">· Nobody owns this yet</span>}
+              : item.unowned && <span className="font-semibold text-[var(--haip-status-warning-fg)]">· Nobody owns this yet</span>}
           </p>
         )}
       </div>
@@ -202,9 +207,12 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
   // "Quote": the rate calculator for this person, beside the row (a button can't sit inside a link). Same work-queue item;
   // the sheet resolves the lead (open lead, a new one after Sold/Lost, or "Add as new lead" for a number with none).
   const quote = (
-    <SendQuoteButton iconOnlyBelowSm label="Quote" className="mr-1"
-      args={{ inquiryId: item.inquiry_id, guestId: item.guest_id, phone: item.inquiry_id || item.guest_id ? null : item.guest_phone,
-        from: "my_day", name: item.title }} />
+    <>
+      {item.unowned && item.inquiry_id && <TakeIt inquiryId={item.inquiry_id} name={item.title} />}
+      <SendQuoteButton iconOnlyBelowSm label="Quote" className="mr-1"
+        args={{ inquiryId: item.inquiry_id, guestId: item.guest_id, phone: item.inquiry_id || item.guest_id ? null : item.guest_phone,
+          from: "my_day", name: item.title }} />
+    </>
   );
   // Everything else opens where it says: the whole row is one link.
   if (!dialPayload) {
@@ -291,16 +299,21 @@ function DesktopMyDay() {
   // Calendar clashes are about the calendar, not a person: their own section, outside the people lists and the J/K cursor.
   const clashes = filtered.filter(i => i.kind === "clash");
   const people = filtered.filter(i => i.kind !== "clash" && i.kind !== "consult");   // consults: ConsultsPanel above
-  // The server already sorts by lane, then score: each lane keeps that order.
+  // Leads nobody owns come first, for everyone, with "Take it" (S10); the rest by lane, in the server's order.
+  const unowned = people.filter(i => i.unowned && i.severity !== "stale");
   const byLane: Record<Lane, Item[]> = { now: [], today: [], chase: [] };
-  for (const i of people) byLane[laneOf(i)].push(i);
+  for (const i of people) if (!unowned.includes(i)) byLane[laneOf(i)].push(i);
   const visible: Record<Lane, Item[]> = {
     now: byLane.now, today: byLane.today, chase: showAllChase ? byLane.chase : byLane.chase.slice(0, CHASE_SHOWN),
   };
   // One flat order for the keyboard cursor: exactly what is on screen, top to bottom.
-  const shown = useMemo(() => [...visible.now, ...visible.today, ...visible.chase], [visible.now, visible.today, visible.chase]);
+  const shown = useMemo(() => [...unowned, ...visible.now, ...visible.today, ...visible.chase],
+    [unowned, visible.now, visible.today, visible.chase]);
   const at = Math.min(cursor, Math.max(0, shown.length - 1));
-  const offset: Record<Lane, number> = { now: 0, today: visible.now.length, chase: visible.now.length + visible.today.length };
+  const offset: Record<Lane, number> = {
+    now: unowned.length, today: unowned.length + visible.now.length,
+    chase: unowned.length + visible.now.length + visible.today.length,
+  };
   const firstName = (session?.user?.name || "").split(" ")[0];
 
   // The tab title carries the number, so a pinned tab works as an alert.
@@ -388,6 +401,11 @@ function DesktopMyDay() {
           ) : (
             <>
               <CalendarClashes items={clashes} />
+              {unowned.length > 0 && (
+                <Section icon={<Flame size={14} />} title="Nobody owns these yet" count={unowned.length} hint="take one and it's yours">
+                  {rows(unowned, 0)}
+                </Section>
+              )}
               {LANES.map(l => byLane[l.id].length > 0 && (
                 <Section key={l.id} icon={l.icon} title={l.title} count={byLane[l.id].length} hint={l.hint}>
                   {rows(visible[l.id], offset[l.id])}

@@ -1,24 +1,26 @@
-"""Bring a Lost lead back to Active when the person is in touch again (owner, 28 Oct 2026).
+"""Bring a lead back when the GUEST is in touch again (owner, 28 Oct 2026; tightened 1 Nov 2026).
 
 The rule, ONE place for it:
-  - a lead the SYSTEM closed as Lost (the stage log into Lost says ``changed_by == "system"``: autopilot "dates passed" /
-    "no response", the bulk reset) reopens on any new contact after the close: the guest writes or calls, a person on the
-    team messages them, or our call connects;
-  - a lead a PERSON marked Lost reopens only when the GUEST gets in touch again (a message, or a call to us); our own
-    outreach (a message, a call) leaves it Lost;
+  - a Lost lead reopens (to ``StageMap.qualified``, Active) only when the GUEST responds: they write (WhatsApp, Instagram,
+    a live message to the team's personal WhatsApp), they call us, or they pick up our call. Our own outreach (a message,
+    an unanswered call) leaves it Lost, whether a PERSON or the SYSTEM closed it (S1/S2);
+  - a reply to a WhatsApp campaign (``on_campaign_reply``, any days later) moves the guest's newest enquiry to Active from
+    Lost (on_contact, just before) and from a "not engaged yet" stage (General Enquiry, Unqualified, RNR: quote_calc_service._not_engaged); never
+    from Sold or a stage a person chose (S3);
   - Sold is never reopened; only the guest's NEWEST enquiry is reopened, and only while no other enquiry of theirs is open
-    (no duplicate lead);
-  - the target is the stage the autopilot qualifies leads into (``StageMap.qualified``, Active).
+    (no duplicate lead).
+Either way the enquiry is stamped ``returned_at`` / ``returned_via`` (came_back | campaign_reply), and the work queue lists
+it under that kind from the return time until a person contacts the guest (work_queue_returns).
 
 Live events only: history imports, backfills and uploaded evidence never call this. Every reopen goes through
 ``inquiry_service.reopen_lost_inquiry`` (stage log, ledger event, ``inquiry.stage_changed`` audit, lost reason cleared) and
 writes a ``lead.auto_reopened`` audit row naming the trigger. Best-effort: a failure is logged, never breaks the ingest.
-Callers: whatsapp.py / process_instagram_dm.py / whatsapp_personal_service.py (guest + agent's own live messages),
-conversations.py (team sends), agent_consult_service (consult answers), call_ingest.py + lead_call_log.py (calls),
-lead_playbook_engine.reopen_if_closed_by_system (P2). Caller commits.
+Callers: whatsapp.py (+ on_campaign_reply) / process_instagram_dm.py / whatsapp_personal_service.py (the guest's live
+messages), call_ingest.py + lead_call_log.py (calls). Caller commits.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
@@ -37,9 +39,8 @@ TRIGGERS = {
     "instagram_message": "the guest wrote on Instagram",
     "personal_whatsapp_message": "the guest wrote to the team's WhatsApp",
     "inbound_call": "the guest called",
-    "team_message": "a team member messaged the guest",
-    "outbound_call_connected": "our call to the guest connected",
-    "outbound_call": "an agent called this lead again",
+    "outbound_call_connected": "the guest picked up our call",
+    "campaign_reply": "the guest replied to a WhatsApp campaign",
 }
 
 
@@ -69,29 +70,34 @@ def closed_by_system(db: Session, inquiry: Inquiry, stage: PipelineStage) -> boo
     return last is not None and last.changed_by == "system"
 
 
+def mark_returned(inquiry: Inquiry, via: str, campaign_id: Optional[str] = None) -> None:
+    """Stamp the return, so the work queue lists the lead from now (not from its first arrival)."""
+    inquiry.returned_at, inquiry.returned_via, inquiry.returned_campaign_id = datetime.now(timezone.utc), via, campaign_id
+
+
 def reopen(db: Session, inquiry: Inquiry, stage: PipelineStage, *, trigger: str, by_guest: bool,
-           actor_user_id: Optional[str] = None) -> bool:
+           actor_user_id: Optional[str] = None, via: str = "came_back", campaign_id: Optional[str] = None) -> bool:
     """Apply the rule to one Lost lead. True when it was reopened."""
     from app.core.audit import append_audit
     from app.services import inquiry_service
     from app.services.lead_autopilot_rules import StageMap
 
-    if stage is None or not stage.is_closed_lost:
-        return False
-    system = closed_by_system(db, inquiry, stage)
-    if not (system or by_guest):
-        return False                                    # a person decided it was lost, and only we reached out
+    if stage is None or not stage.is_closed_lost or not by_guest:
+        return False                                    # only the guest responding brings a Lost lead back (S2)
     target = StageMap.load(db, inquiry.tenant_id).qualified
     if target is None:
         return False
+    system = closed_by_system(db, inquiry, stage)
     words = TRIGGERS.get(trigger, trigger)
     inquiry_service.reopen_lost_inquiry(
         db, tenant_id=inquiry.tenant_id, inquiry_id=inquiry.id, new_stage_id=target.id, actor_user_id=actor_user_id,
         actor_role="system", reason=f"Reopened automatically: {words}")
+    mark_returned(inquiry, via, campaign_id)
     append_audit(db, tenant_id=inquiry.tenant_id, action="lead.auto_reopened", actor_user_id=actor_user_id,
                  target_type="inquiry", target_id=inquiry.id,
                  payload={"trigger": trigger, "closed_by": "system" if system else "person", "from_stage": stage.key,
-                          "to_stage": target.key, **({} if actor_user_id else {"actor": "system"})})
+                          "to_stage": target.key, **({"campaign_id": campaign_id} if campaign_id else {}),
+                          **({} if actor_user_id else {"actor": "system"})})
     log.info("lead_auto_reopened", tenant_id=inquiry.tenant_id, inquiry_id=inquiry.id, trigger=trigger,
              closed_by="system" if system else "person")
     return True
@@ -99,13 +105,14 @@ def reopen(db: Session, inquiry: Inquiry, stage: PipelineStage, *, trigger: str,
 
 def on_call(db: Session, call) -> Optional[Inquiry]:
     """A call was just recorded (IVR ingest, a logged call). The guest calling us is the guest in touch (answered or
-    missed); our call counts only once it connected (lead_task_closer.connected: a conclusive signal, never duration)."""
+    missed); our call counts only once the guest picked up (lead_task_closer.connected: a conclusive signal, never
+    duration). An unanswered call of ours leaves the lead Lost."""
     from app.services.lead_task_closer import connected
     inbound = str(getattr(call.direction, "value", call.direction)).lower() == "inbound"
     if not inbound and not connected(call):
         return None
     return on_contact(db, call.tenant_id, call.guest_id, trigger="inbound_call" if inbound else "outbound_call_connected",
-                      by_guest=inbound, actor_user_id=None if inbound else call.agent_id)
+                      by_guest=True, actor_user_id=None if inbound else call.agent_id)
 
 
 def on_contact(db: Session, tenant_id: str, guest_id: Optional[str], *, trigger: str, by_guest: bool,
@@ -119,4 +126,77 @@ def on_contact(db: Session, tenant_id: str, guest_id: Optional[str], *, trigger:
             return inquiry if reopen(db, inquiry, stage, trigger=trigger, by_guest=by_guest, actor_user_id=actor_user_id) else None
     except Exception as exc:  # noqa: BLE001 -- best-effort: the message / call itself must still be stored
         log.warning("lead_auto_reopen_failed", tenant_id=tenant_id, trigger=trigger, error=str(exc)[:200])
+        return None
+
+
+# ── S3: a reply to a WhatsApp campaign ──────────────────────────────────────────────────────────────────────────────
+
+def campaign_replied_to(db: Session, tenant_id: str, guest_id: str, message) -> Optional[tuple[str, Optional[str]]]:
+    """(campaign_id, campaign name) when this inbound WhatsApp message is the guest's first since a campaign reached them,
+    else None. The campaign report's "Replied" matching (wa_campaign_delivery.replies: recipient phone = guest phone, an
+    inbound WhatsApp after the send) without its 7-day window: the owner counts a reply any days later."""
+    from sqlalchemy import func
+
+    from app.api.v1.endpoints.messaging import WACampaign
+    from app.models.conversation import ChannelType, Conversation, Message, MessageDirection
+    from app.models.guest import Guest
+    from app.models.wa_campaign_recipient import WACampaignRecipient as Recipient
+
+    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+    if guest is None or not guest.phone or message is None or message.created_at is None:
+        return None
+    sent = (db.query(Recipient.campaign_id, Recipient.sent_at)
+            .filter(Recipient.tenant_id == tenant_id, Recipient.phone == guest.phone, Recipient.sent_at.isnot(None),
+                    Recipient.sent_at <= message.created_at)
+            .order_by(Recipient.sent_at.desc()).first())
+    if sent is None:
+        return None
+    earlier = (db.query(func.count(Message.id)).join(Conversation, Conversation.id == Message.conversation_id)
+               .filter(Conversation.tenant_id == tenant_id, Conversation.guest_id == guest_id,
+                       Conversation.channel == ChannelType.WHATSAPP, Message.direction == MessageDirection.INBOUND,
+                       Message.id != message.id, Message.created_at >= sent.sent_at,
+                       Message.created_at <= message.created_at).scalar())
+    if earlier:
+        return None                                     # they already answered this campaign
+    campaign = db.query(WACampaign).filter_by(id=sent.campaign_id, tenant_id=tenant_id).first()
+    return sent.campaign_id, getattr(campaign, "name", None)
+
+
+def on_campaign_reply(db: Session, tenant_id: str, guest_id: Optional[str], message) -> Optional[Inquiry]:
+    """S3: this WhatsApp is the guest's reply to a campaign -> their newest enquiry goes to Active from a "not engaged yet"
+    stage and is stamped campaign_reply with the campaign; a stage a person chose keeps its stage (stamp only); Sold or Lost:
+    nothing. Call it AFTER on_contact (which already reopened a Lost lead) and after the chat's lead was created, so a
+    subscriber's first enquiry is stamped too. Best-effort, savepoint. Returns the enquiry it stamped, else None."""
+    from app.core.audit import append_audit
+    from app.services import inquiry_service
+    from app.services.lead_autopilot_rules import StageMap
+    from app.services.quote_calc_service import _not_engaged
+
+    if not guest_id:
+        return None
+    try:
+        with db.begin_nested():
+            hit = campaign_replied_to(db, tenant_id, guest_id, message)
+            if hit is None:
+                return None
+            campaign_id, name = hit
+            inquiry = (db.query(Inquiry).filter_by(tenant_id=tenant_id, guest_id=guest_id)
+                       .order_by(Inquiry.created_at.desc()).first())
+            stages = StageMap.load(db, tenant_id)
+            current = stages.by_id(inquiry.stage_id) if inquiry is not None else None
+            if current is None or current.is_closed_won or current.is_closed_lost:
+                return None
+            target = stages.qualified
+            moved = target is not None and target.id != current.id and _not_engaged(current)
+            if moved:
+                inquiry_service.update_stage_by_id(
+                    db, tenant_id=tenant_id, inquiry_id=inquiry.id, new_stage_id=target.id, actor_user_id=None,
+                    actor_role="system", reason=f"Replied to the WhatsApp campaign {name or ''}".strip())
+            mark_returned(inquiry, "campaign_reply", campaign_id)
+            append_audit(db, tenant_id=tenant_id, action="lead.campaign_reply", target_type="inquiry", target_id=inquiry.id,
+                         payload={"campaign_id": campaign_id, "campaign": name, "from_stage": current.key,
+                                  "to_stage": target.key if moved else current.key, "actor": "system"})
+            return inquiry
+    except Exception as exc:  # noqa: BLE001 -- best-effort: the message itself must still be stored
+        log.warning("lead_campaign_reply_failed", tenant_id=tenant_id, error=str(exc)[:200])
         return None

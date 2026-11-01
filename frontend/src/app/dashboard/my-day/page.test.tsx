@@ -96,6 +96,26 @@ describe("My day", () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith("/calls/click-to-call", { inquiry_id: "i1" }));
   });
 
+  it("lists leads nobody owns first with Take it, and names the new kinds (came back, campaign, bot handover)", async () => {
+    post.mockResolvedValue({ data: {} });
+    get.mockResolvedValue({ data: queue([
+      item({ kind: "handover", title: "Karthik Rao", inquiry_id: "i2", guest_id: "g2", owner_id: "u1", owner_name: "Asha", lane: "now",
+        detail: "The bot promised: “Our team will call you shortly”" }),
+      item({ kind: "campaign_reply", title: "Priya Iyer", inquiry_id: "i3", guest_id: "g3", unowned: true, lane: "now",
+        detail: "Replied to the campaign “Monsoon offer”" }),
+      item({ kind: "came_back", title: "Rahul Shetty", inquiry_id: "i4", guest_id: "g4", owner_id: "u1", owner_name: "Asha", lane: "today" }),
+    ]) });
+    renderPage();
+    const first = await screen.findByText("Nobody owns these yet");
+    expect(first.compareDocumentPosition(screen.getByText("Karthik Rao")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText("Replied to campaign").length).toBe(2);                 // filter chip + the row
+    expect(screen.getByText("Bot handed over: call / quote needed")).toBeTruthy();
+    expect(screen.getAllByText("Came back").length).toBe(2);
+    expect(screen.queryByRole("button", { name: "Take Karthik Rao" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Take Priya Iyer" }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/work-queue/take/i3"));
+  });
+
   it("calls a missed caller by their own number", async () => {
     post.mockResolvedValue({ data: {} });
     get.mockResolvedValue({ data: queue([item({ kind: "callback", title: "Unknown caller", action: "Call back", inquiry_id: null, severity: "late", since: ago(45), channels: ["call"] })]) });

@@ -490,6 +490,8 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
                 link_attribution_to_inquiry(db, tenant.id, conversation.id, lead_inquiry.id)
         except Exception as exc:
             log.warning("wa_lead_auto_create_failed", tenant_id=tenant.id, error=str(exc))
+    # A reply to a WhatsApp campaign (any days later): Active + "Replied to campaign" on My day (lead_reopen, S3).
+    lead_reopen.on_campaign_reply(db, tenant.id, guest_id, message)
 
     # Another number the guest typed ("reach me on 96...") is kept as an extra phone signal, never a merge.
     if body and msg_type == "text":

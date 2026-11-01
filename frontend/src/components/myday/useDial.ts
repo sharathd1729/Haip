@@ -8,8 +8,11 @@ import { useToast } from "@/components/ui/toast";
 
 export type DialPayload = { inquiry_id: string } | { guest_number: string };
 
+// Kinds whose action is a call: a new lead, and a guest who came back / replied to a campaign / was handed over by the bot.
+const CALL_KINDS = new Set(["new_lead", "came_back", "campaign_reply", "handover"]);
+
 export function dialPayload(item: { kind: string; inquiry_id: string | null; guest_phone: string | null }): DialPayload | null {
-  if (item.kind === "new_lead" && item.inquiry_id) return { inquiry_id: item.inquiry_id };
+  if (CALL_KINDS.has(item.kind) && item.inquiry_id) return { inquiry_id: item.inquiry_id };
   if ((item.kind === "new_lead" || item.kind === "callback") && item.guest_phone) return { guest_number: item.guest_phone };
   return null;
 }
