@@ -14,7 +14,7 @@ describe("NeedCard GPS detour", () => {
     const onDetour = vi.fn();
     render(<NeedCard need={need()} onResolve={vi.fn()} onDetour={onDetour} />);
     await userEvent.click(screen.getByRole("button", { name: "Approved detour" }));
-    expect(screen.getByRole("button", { name: "Save detour" })).toBeDisabled();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save detour" }).disabled).toBe(true);
     await userEvent.type(screen.getByLabelText("Why is the new road fine?"), "Road closed at Hosur");
     await userEvent.click(screen.getByRole("button", { name: "Save detour" }));
     expect(onDetour).toHaveBeenCalledWith("i1", "Road closed at Hosur");
