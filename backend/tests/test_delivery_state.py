@@ -198,12 +198,13 @@ class TestSendWhatsappWorker:
         with patch("app.workers.tasks.send_whatsapp.SessionLocal", return_value=db), \
              patch("app.workers.tasks.send_whatsapp.get_wa_adapter", return_value=mock_adapter), \
              patch("app.workers.tasks.whatsapp._get_wa_access_token", return_value="tok"), \
-             patch("app.models.guest.Guest"):
+             patch("app.models.guest.Guest"),              patch("app.services.ai_draft_expiry.after_send") as expire_hook:
             # run() bypasses Celery machinery
             send_whatsapp.run(message_id=msg.id, tenant_id=msg.tenant_id)
 
         assert msg.delivery_state == MessageDeliveryState.SENT
         assert msg.channel_message_id == "wamid-123"
+        expire_hook.assert_called_once_with(db, msg)    # rule (b): older pending drafts of the thread expire on a send
         assert msg.delivery_error is None
 
     def test_missing_integration_marks_failed(self):

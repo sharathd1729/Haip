@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState, MessageDirection
 from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RejectDraftRequest, RewriteDraftRequest, ComposerRewriteRequest
 from app.workers.tasks.concierge_draft import concierge_draft
-from app.services import ai_draft_outcomes_service
+from app.services import ai_draft_expiry, ai_draft_outcomes_service
 import structlog
 
 log = structlog.get_logger()
@@ -347,6 +347,8 @@ def _msg_dict(m: Message) -> dict:
         # Approve/Edit/Reject card kept showing forever even after the
         # reply had actually gone out to the guest.
         "was_approved": m.was_approved,
+        # An AI draft nobody acted on, closed by ai_draft_expiry (was_approved is False too): shown collapsed, no actions.
+        "draft_expired": ai_draft_expiry.is_expired(m),
         "ai_confidence": m.ai_confidence,
         "is_internal": m.is_internal,
         "replied_to_message_id": m.replied_to_message_id,
@@ -1079,6 +1081,8 @@ def _pending_draft_conditions(tenant_id: str, conversation_id: str, message_id: 
 
 
 def _not_pending_error(msg: Message) -> HTTPException:
+    if ai_draft_expiry.is_expired(msg):
+        return _draft_error(409, "draft_expired", "This draft expired: the conversation moved on. Write a new reply.", state="expired")
     if msg.was_approved is False:
         return _draft_error(409, "draft_rejected", "This draft was rejected.", state="rejected")
     if msg.was_approved is True:
@@ -1228,7 +1232,7 @@ def reject_ai_draft(
     if claimed != 1:
         db.expire_all()      # nothing was updated; re-read the committed state (no rollback: it would also discard the caller's own work)
         msg = _load_ai_draft(db, tenant_id, conversation_id, message_id)
-        if msg.was_approved is False:
+        if msg.was_approved is False and not ai_draft_expiry.is_expired(msg):
             return {"status": "already_rejected"}
         raise _not_pending_error(msg)
     db.refresh(msg)

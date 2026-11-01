@@ -221,3 +221,6 @@ class TestConciergeDraftSupersededBeforeSend:
         assert draft is not None
         assert draft.sent_autonomously is False
         assert "superseded" in (draft.ai_needs_human_reason or "")
+        # Rule (a) of ai_draft_expiry: kept for the record but closed as expired, never left waiting for review.
+        db.refresh(draft)
+        assert draft.was_approved is False and draft.channel_status == "expired"

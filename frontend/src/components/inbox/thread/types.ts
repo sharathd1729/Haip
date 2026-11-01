@@ -17,6 +17,8 @@ export interface Message {
   // false = rejected -- backend now serializes this (previously omitted
   // entirely), which is what isAiDraft below gates on.
   was_approved?: boolean | null;
+  // An AI draft nobody acted on, closed by the server (was_approved is false too): shown collapsed, never approvable.
+  draft_expired?: boolean;
   ai_confidence?: number;
   is_internal?: boolean;
   replied_to_message_id?: string;
