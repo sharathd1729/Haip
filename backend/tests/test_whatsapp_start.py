@@ -240,8 +240,8 @@ def test_late_ai_no_answer_still_sends_within_three_hours(db, tenant_and_user):
     with _no_sends() as tpl:
         assert engine.on_call(db, tid, call.id)["status"] == "too_old"          # the ingest-time limit still holds
         tpl.assert_not_called()
+    db.query(PlaybookAction).filter_by(tenant_id=tid).delete()      # actions first: they reference the run (FK on PostgreSQL)
     db.query(PlaybookRun).filter_by(tenant_id=tid).delete()
-    db.query(PlaybookAction).filter_by(tenant_id=tid).delete()
     db.commit()
     with _no_sends() as tpl:
         out = engine.on_call(db, tid, call.id, classified_late=True)
