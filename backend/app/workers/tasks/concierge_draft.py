@@ -1499,6 +1499,18 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         db.commit()
         agent_consult_flow.after_draft(db, consult_turn, draft_message, tenant, conversation, guest, inquiry)
 
+        # The guest asked for a person: AI off on this thread, older drafts withdrawn, someone owns the callback
+        # (services/ai_handoff.py). This turn's draft (the acknowledgement) is kept.
+        _handoff = "wants_human" if details.get("wants_human") else (
+            "human_request" if escalation and escalation.get("category") == "human_request" else None)
+        if _handoff and not force:
+            try:
+                from app.services import ai_handoff
+                ai_handoff.turn_off(db, tenant, conversation, _handoff, keep_message_id=draft_message.id, guest=guest)
+            except Exception as exc:  # noqa: BLE001 -- the guest's reply must not be lost to this
+                db.rollback()
+                log.warning("ai_handoff_failed", conversation_id=conversation_id, error=str(exc)[:200])
+
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
                  auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))
 

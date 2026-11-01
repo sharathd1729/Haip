@@ -97,13 +97,15 @@ def test_a_request_for_a_person_is_held_and_a_holding_reply_goes_once(db):
     assert sent == [hold.id] and hold.sent_autonomously is True and hold.is_ai_generated is False
     assert any(call.kwargs.get("user_id") == mgr_id for call in push.call_args_list)
 
-    # The guest writes again: the same consult grows, and no second holding reply in a row.
+    # Asking for a person switched the AI off on this thread (services/ai_handoff.py): the guest writing again gets no new AI
+    # turn at all -- the open consult stays as it was, and no second holding reply.
     t, c = db.get(Tenant, t_id), db.get(Conversation, c_id)
+    assert c.ai_mode == "off"
     m2 = add_inbound(db, t, c, "Hello?? anyone there")
     sent2, _ = run_turn(db, t, c, m2, reply="Yes!", intent={"intent": "general", "sentiment": "frustrated"})
     assert db.query(AgentConsult).filter_by(tenant_id=t_id).count() == 1
     consult = db.query(AgentConsult).filter_by(tenant_id=t_id).one()
-    assert "frustrated" in consult.reason_codes and sent2 == []
+    assert consult.status == "open" and "frustrated" not in consult.reason_codes and sent2 == []
     assert db.query(Message).filter_by(conversation_id=c_id, sender_kind="ai_holding").count() == 1
 
 

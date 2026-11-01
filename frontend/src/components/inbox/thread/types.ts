@@ -47,6 +47,8 @@ export interface ConversationDetail {
   // AI switch, and the owner.
   guest_channels?: GuestChannel[];
   ai_enabled?: boolean;
+  // Set while the AI is off because the guest said STOP / asked for a person (backend ai_handoff.off_reason).
+  ai_off_reason?: string | null;
   assigned_to?: string | null;
 }
 

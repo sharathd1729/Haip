@@ -180,13 +180,17 @@ export function ThreadHeader({
           <StatusPill tone="warning">Template required</StatusPill>
         ))}
 
+        {!aiOn && detail.ai_off_reason && (
+          <StatusPill tone="warning">AI turned off: {detail.ai_off_reason}</StatusPill>
+        )}
+
         <button type="button" role="switch" aria-checked={aiOn} onClick={() => aiToggleMutation.mutate(!aiOn)} disabled={aiToggleMutation.isPending}
           title={aiOn ? "AI is replying to this guest. Click to pause." : "AI is paused for this guest. Click to resume."}
           className="ml-auto inline-flex min-h-7 items-center gap-2 rounded-lg px-1.5 text-xs font-semibold text-[var(--haip-fg-2)] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <span className={cn("relative h-4 w-7 rounded-full transition-colors", aiOn ? "bg-primary" : "bg-[var(--haip-border-strong)]")}>
             <span className={cn("absolute top-0.5 size-3 rounded-full bg-white transition-[left]", aiOn ? "left-3.5" : "left-0.5")} />
           </span>
-          {aiOn ? "AI on" : "AI paused"}
+          {aiOn ? "AI on" : detail.ai_off_reason ? "AI off" : "AI paused"}
         </button>
       </div>
     </div>
