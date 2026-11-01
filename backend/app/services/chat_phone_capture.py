@@ -69,6 +69,30 @@ def capture_from_text(
     return phone
 
 
+def capture_alternates(db: Session, tenant_id: str, guest_id: str, text: Optional[str], *,
+                       source: str = "message_text") -> list[str]:
+    """WhatsApp: a number the guest types besides the one they write from ("reach me anytime on 96...") becomes an extra
+    phone signal on THIS guest. Returns the numbers added. A number another guest already has is skipped and logged:
+    add_signal would merge the two people, and a number typed in a chat is not proof enough for that.
+
+    Does not commit (the caller owns the transaction)."""
+    if not text or text.startswith("["):
+        return []
+    from app.services import identity_service
+    added: list[str] = []
+    for phone in phone_identity.find_phones(text, region_for(db, tenant_id)):
+        holder = identity_service.find_person_by_phone(db, tenant_id, phone)
+        if holder == guest_id:
+            continue
+        if holder:
+            log.info("chat_phone_alternate_skipped_other_guest", tenant_id=tenant_id, guest_id=guest_id,
+                     value_token=identity_service._phone_token(phone))
+            continue
+        identity_service.add_signal(db, tenant_id, guest_id, "phone", phone, source=source)
+        added.append(phone)
+    return added
+
+
 def promote_inquiry(db: Session, tenant_id: str, conversation) -> bool:
     """Default-entry stage -> valid-lead entry stage, now that the guest gave a number. True when it moved.
 

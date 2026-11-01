@@ -858,6 +858,10 @@ def update_conversation(
         if not isinstance(body["ai_enabled"], bool):
             raise HTTPException(status_code=422, detail="ai_enabled must be true or false")
         conv.ai_mode = "shadow" if body["ai_enabled"] else "off"
+        # Audited: it also ends an "AI turned off: guest asked for a person" banner (ai_handoff.off_reason).
+        from app.core.audit import append_audit
+        append_audit(db, tenant_id=current_user.tenant_id, action="conversation.ai_toggled", actor_user_id=current_user.id,
+                     target_type="conversation", target_id=conv.id, payload={"ai_enabled": body["ai_enabled"]})
         log.info("conversation_ai_toggled", conversation_id=conv.id, tenant_id=current_user.tenant_id,
                  actor_user_id=current_user.id, ai_enabled=body["ai_enabled"])
     db.commit()
@@ -1024,7 +1028,7 @@ def get_conversation_detail(
         if phone_decline_task_row else None
     )
 
-    from app.services import inbox_service
+    from app.services import ai_handoff, inbox_service
     guest_channels = inbox_service.guest_channels(db, current_user.tenant_id, [conv.guest_id]).get(conv.guest_id, [])
 
     return {
@@ -1045,6 +1049,7 @@ def get_conversation_detail(
         # per-conversation AI switch and the owner.
         "guest_channels": guest_channels,
         "ai_enabled": (conv.ai_mode or "").lower() != "off",
+        "ai_off_reason": ai_handoff.off_reason(db, current_user.tenant_id, conv),
         "assigned_to": conv.assigned_to,
     }
 
