@@ -7,7 +7,8 @@ most one Decision. The first rule that fires wins, in this order:
   1b. collab_request    the guest asked for a collaboration / barter deal and
                         no person has answered (collab_requests.pending)    -> the tenant's collab-entry stage; while it
                         waits NO other rule runs, so it is never auto-Lost (lead_autopilot_service blocks an AI Lost too)
-  2. dates_passed       check-in is in the past and nothing was booked        -> closed-lost, reason "dates"
+  2. dates_passed       check-in is in the past and nothing was booked (not while the guest wrote in the last 3 days)
+                        -> closed-lost, reason "dates"
   3. explicit_decline   a person set the call outcome to Lost, or the guest's
                         LATEST message is a clear decline ("not interested",
                         "booked elsewhere", "cancelled our plan")            -> closed-lost with the reason
@@ -45,6 +46,8 @@ from sqlalchemy.orm import Session
 IST = ZoneInfo("Asia/Kolkata")
 # Stages a "qualified" decision never targets, whatever their order: dead ends the work queue treats as done.
 NEVER_QUALIFIED_KEYS = frozenset({"unsuitable"})
+# "Travel date passed -> Lost" waits while the guest wrote this recently (S8).
+DATES_PASSED_QUIET = timedelta(days=3)
 
 
 @dataclass
@@ -266,7 +269,9 @@ def evaluate(db: Session, tenant_id: str, inquiry, stages: StageMap, settings: d
     check_in = _parse_date(inquiry.check_in)
     moved_after = (inquiry.current_stage_entered_at is not None and check_in is not None
                    and _aware(inquiry.current_stage_entered_at).astimezone(IST).date() > check_in)
-    if check_in is not None and check_in < today and not moved_after:
+    # Nor while the guest is still writing (S8, owner 1 Nov 2026): a message in the last 3 days means they are planning.
+    writing = sig.last_inbound is not None and _aware(sig.last_inbound.created_at) >= now - DATES_PASSED_QUIET
+    if check_in is not None and check_in < today and not moved_after and not writing:
         return Decision(stages.lost, "dates_passed", f"The travel date ({check_in:%d %b}) passed without a booking",
                         lost_reason="dates",
                         evidence=[{"kind": "inquiry", "id": inquiry.id, "quote": f"Check-in {check_in.isoformat()}"}])

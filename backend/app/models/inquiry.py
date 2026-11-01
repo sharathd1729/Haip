@@ -169,6 +169,11 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     outcome_decided_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     outcome_decided_at = Column(DateTime(timezone=True), nullable=True)
     outcome_proposal = Column(JSON, nullable=True)
+    # The guest got in touch again (migration 180): a Lost lead reopened (came_back) or a reply to a WhatsApp campaign
+    # (campaign_reply). The work queue lists it from returned_at until a person contacts them (lead_reopen).
+    returned_at = Column(DateTime(timezone=True), nullable=True)
+    returned_via = Column(String(20), nullable=True)
+    returned_campaign_id = Column(String, nullable=True)
 
     # Metadata
     tags = Column(JSON, default=list)

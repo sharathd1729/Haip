@@ -7,11 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface QueueItem { kind: string; severity: string; guest_id: string | null; owner_id?: string | null }
+interface QueueItem { kind: string; severity: string; guest_id: string | null; owner_id?: string | null; unowned?: boolean }
 interface Queue { people_waiting?: number; total: number; unowned: number; severity?: { stale?: number }; items: QueueItem[] }
 
 const KIND_WORDS: Record<string, [string, string]> = {
   callback: ["call-back", "call-backs"],
+  came_back: ["came back", "came back"],
+  campaign_reply: ["campaign reply", "campaign replies"],
+  handover: ["bot handover", "bot handovers"],
   new_lead: ["new lead", "new leads"],
   reply: ["reply", "replies"],
   consult: ["question from the AI", "questions from the AI"],
@@ -47,8 +50,8 @@ export function WaitingBanner() {
   if (!data) return <Skeleton className="h-[104px] rounded-2xl" />;
   const n = data.people_waiting ?? Math.max(0, data.total - (data.severity?.stale ?? 0));
   const why = waitingBreakdown(data.items ?? []);
-  // New leads nobody owns, among the people counted above (the server's `unowned` also counts the cold tail).
-  const unowned = (data.items ?? []).filter(i => i.kind === "new_lead" && !i.owner_id && i.severity !== "stale").length;
+  // Leads nobody owns, among the people counted above (the server's `unowned` also counts the cold tail).
+  const unowned = (data.items ?? []).filter(i => i.unowned && i.severity !== "stale").length;
   return (
     <section aria-label="Waiting for you" className="grid gap-2 rounded-[calc(var(--radius)+4px)] bg-[var(--haip-stat-dark-bg)] px-4 py-3 text-[var(--haip-stat-dark-fg)]">
       <h2 className="font-[family-name:var(--font-display)] text-[17px] font-semibold leading-tight">

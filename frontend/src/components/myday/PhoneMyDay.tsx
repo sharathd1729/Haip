@@ -18,8 +18,9 @@ import {
 } from "@/components/ui/kit";
 import { SEVERITY_TONE, waitText, type Severity } from "@/lib/waitText";
 import { dialPayload, useDial } from "./useDial";
+import { TakeIt } from "./TakeIt";
 
-type Kind = "consult" | "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
+type Kind = "consult" | "callback" | "came_back" | "campaign_reply" | "new_lead" | "reply" | "handover" | "no_reply" | "followup" | "clash";
 type Lane = "now" | "today" | "chase";
 export interface MyDayItem {
   kind: Kind; title: string; detail: string; action: string; href: string;
@@ -27,6 +28,7 @@ export interface MyDayItem {
   owner_id: string | null; owner_name: string | null; channels: string[]; since: string | null;
   severity: Severity; facts: string[]; has_draft: boolean; flags?: string[]; lane?: Lane;
   tasks?: { title: string; due: string | null; overdue: boolean }[];
+  unowned?: boolean;
 }
 interface Queue { counts: Record<Kind, number>; people: number; people_waiting?: number; items: MyDayItem[]; scope: "mine" | "team" }
 
@@ -36,8 +38,12 @@ const CHIPS: { value: string; label: string; kind?: Kind }[] = [
   { value: "new_lead", label: "New", kind: "new_lead" },
   { value: "reply", label: "Replies", kind: "reply" },
 ];
-// The rest of the kinds live behind Filters.
+// The rest of the kinds live behind Filters. Why a row is here (came back, campaign, bot handover) also shows as a tag.
+const WHY: Partial<Record<Kind, string>> = { came_back: "came back", campaign_reply: "replied to campaign", handover: "bot handed over" };
 const MORE: { value: Kind; label: string }[] = [
+  { value: "came_back", label: "Came back" },
+  { value: "campaign_reply", label: "Replied to campaign" },
+  { value: "handover", label: "Bot handed over" },
   { value: "no_reply", label: "Not replying to us" },
   { value: "followup", label: "Follow-ups" },
   { value: "clash", label: "Calendar clashes" },
@@ -57,11 +63,12 @@ function Row({ item }: { item: MyDayItem }) {
   const payload = dialPayload(item);
   const fact = item.facts[0];
   const task = item.tasks?.[0];
-  const action = payload
+  const call = payload
     ? <RowAction icon={Phone} label={`${item.action} ${item.title}`} primary disabled={dial.isPending} onClick={() => dial.mutate(payload)} />
     : item.kind === "reply" || item.kind === "no_reply"
       ? <RowAction icon={MessageCircle} label={`Reply to ${item.title}`} href={item.href} />
       : <RowAction icon={ChevronRight} label={`Open ${item.title}`} href={item.href} />;
+  const action = item.unowned && item.inquiry_id ? <><TakeIt inquiryId={item.inquiry_id} name={item.title} />{call}</> : call;
   return (
     <CompactRow href={item.href} avatar={<GuestAvatar name={item.title} phone={item.guest_phone} />}
       title={fact ? `${item.title} · ${fact}` : item.title}
@@ -69,7 +76,8 @@ function Row({ item }: { item: MyDayItem }) {
       meta={waitText(item.since, item.severity) || undefined} metaTone={SEVERITY_TONE[item.severity]}
       extra={<>
         {item.has_draft && <RowTag tone="info">AI reply ready</RowTag>}
-        {item.kind === "new_lead" && !item.owner_id && <RowTag tone="warning">unassigned</RowTag>}
+        {WHY[item.kind] && <RowTag tone="brand">{WHY[item.kind]}</RowTag>}
+        {item.unowned && <RowTag tone="warning">unassigned</RowTag>}
       </>}
       actions={action} />
   );
@@ -108,8 +116,10 @@ export function PhoneMyDay() {
     (!kind || i.kind === kind || (kind === "followup" && (i.tasks?.length ?? 0) > 0)) && (!flag || (i.flags ?? []).includes(flag))), [data, kind, flag]);
   const clashes = filtered.filter(i => i.kind === "clash");
   const people = filtered.filter(i => i.kind !== "clash" && i.kind !== "consult");
+  // Leads nobody owns first, for everyone, with "Take it" (S10); the rest by lane.
+  const unowned = people.filter(i => i.unowned && i.severity !== "stale");
   const byLane: Record<Lane, MyDayItem[]> = { now: [], today: [], chase: [] };
-  for (const i of people) byLane[laneOf(i)].push(i);
+  for (const i of people) if (!unowned.includes(i)) byLane[laneOf(i)].push(i);
   const count = (q?: { people_waiting?: number; people: number }) => q ? (q.people_waiting ?? q.people) : undefined;
   const moreOn = MORE.some(m => m.value === chip);
 
@@ -142,6 +152,11 @@ export function PhoneMyDay() {
         ) : (
           <>
             <CalendarClashes items={clashes} />
+            {unowned.length > 0 && (
+              <RowSection title="Nobody owns these yet" count={unowned.length}>
+                <RowList label="Nobody owns these yet">{unowned.map((i, n) => <Row key={`u-${i.guest_id ?? i.inquiry_id ?? n}-${n}`} item={i} />)}</RowList>
+              </RowSection>
+            )}
             {LANES.map(l => {
               const rows = byLane[l.id];
               if (!rows.length) return null;

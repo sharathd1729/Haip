@@ -260,32 +260,11 @@ def run_step(db: Session, run: PlaybookRun) -> dict:
     return {**out, "run_id": run.id}
 
 
-def reopen_if_closed_by_system(db: Session, run: PlaybookRun, inquiry: Optional[Inquiry]) -> bool:
-    """An agent called a lead the SYSTEM had closed as Lost (the 10 Oct bulk reset, autopilot "no response"): they are
-    working it again, so it goes back to the open stage the autopilot qualifies leads into (Active) and the no-answer
-    WhatsApp still goes (owner, 20 Oct 2026). A lead a PERSON marked Lost stays Lost and gets nothing (lead-closed guard);
-    Sold is never touched. Audited like any reopen (inquiry_service.reopen_lost_inquiry)."""
-    from app.models.pipeline_stage import PipelineStage
-    from app.services import lead_reopen
-
-    if inquiry is None or not inquiry.stage_id:
-        return False
-    stage = db.query(PipelineStage).filter_by(id=inquiry.stage_id, tenant_id=run.tenant_id).first()
-    # by_guest=False: our own (unanswered) call, so only a lead the system closed comes back (lead_reopen's rule)
-    if stage is None or not lead_reopen.reopen(db, inquiry, stage, trigger="outbound_call", by_guest=False):
-        return False
-    db.commit()
-    _record(db, run, "reopen", "done", reason="closed automatically; moved back to an open stage")
-    return True
-
-
 def _run_call_playbook(db: Session, tenant: Tenant, run: PlaybookRun) -> dict:
     call = db.query(Call).filter_by(id=(run.context or {}).get("call_id"), tenant_id=run.tenant_id).first()
     guest = db.query(Guest).filter_by(id=run.guest_id, tenant_id=run.tenant_id).first() if run.guest_id else None
     inquiry = db.query(Inquiry).filter_by(id=run.inquiry_id, tenant_id=run.tenant_id).first() if run.inquiry_id else None
     since = _aware(call.created_at) if call else _now()
-    if run.playbook_key == cat.UNANSWERED_OUTBOUND:
-        reopen_if_closed_by_system(db, run, inquiry)
     reason = guards.check(db, tenant, guest, inquiry, playbook=run.playbook_key, since=since)
     missed = run.playbook_key == cat.MISSED_INBOUND_CALL
     pb = settings.playbook(tenant, run.playbook_key)

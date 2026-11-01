@@ -1,5 +1,6 @@
 """Moving a lead out of Lost: by hand (PATCH /inquiries, MCP: owner/manager + reason, 403 otherwise) and automatically
-(lead_reopen: the guest writes / calls again, or our contact reaches a lead the SYSTEM closed). Sold always stays Sold."""
+(lead_reopen: only the GUEST responding -- they write, call, or pick up our call -- whoever closed it; owner 1 Nov 2026).
+Sold always stays Sold."""
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -147,17 +148,18 @@ def test_guest_writing_again_reopens_and_the_chat_lookup_reuses_the_lead(db, ten
     assert ev.payload["trigger"] == "whatsapp_message" and ev.payload["closed_by"] == closed_by
 
 
-def test_our_outreach_reopens_only_a_lead_the_system_closed(db, tenant_and_user):
+def test_our_outreach_alone_never_reopens(db, tenant_and_user):
     tid = _tid(tenant_and_user)
     g1, sys_lead, st = _lost_lead(db, tid, by="system")
     g2, person_lead, _ = _lost_lead(db, tid, by=tenant_and_user["user"].id)
     me = tenant_and_user["user"].id
-    assert lead_reopen.on_contact(db, tid, g1.id, trigger="team_message", by_guest=False, actor_user_id=me)
+    assert lead_reopen.on_contact(db, tid, g1.id, trigger="team_message", by_guest=False, actor_user_id=me) is None
     assert lead_reopen.on_contact(db, tid, g2.id, trigger="team_message", by_guest=False, actor_user_id=me) is None
     db.commit()
     db.refresh(sys_lead)
     db.refresh(person_lead)
-    assert sys_lead.stage_id == st["active"].id and person_lead.stage_id == st["lost"].id
+    assert sys_lead.stage_id == st["lost"].id and person_lead.stage_id == st["lost"].id
+    assert sys_lead.returned_at is None
 
 
 def test_sold_is_never_reopened_automatically(db, tenant_and_user):
@@ -195,17 +197,18 @@ def _call(db, tid, g, inq, direction, answered):
     return c
 
 
-def test_calls_guest_calling_reopens_our_unanswered_call_does_not(db, tenant_and_user):
+def test_calls_guest_calling_or_picking_up_reopens_our_unanswered_call_does_not(db, tenant_and_user):
     tid = _tid(tenant_and_user)
     g1, person_lead, st = _lost_lead(db, tid, by=tenant_and_user["user"].id)
     assert lead_reopen.on_call(db, _call(db, tid, g1, person_lead, "inbound", answered=False))      # the guest called us
     g2, sys_lead, _ = _lost_lead(db, tid, by="system")
     assert lead_reopen.on_call(db, _call(db, tid, g2, sys_lead, "outbound", answered=False)) is None
-    assert lead_reopen.on_call(db, _call(db, tid, g2, sys_lead, "outbound", answered=True))
     g3, person2, _ = _lost_lead(db, tid, by=tenant_and_user["user"].id)
-    assert lead_reopen.on_call(db, _call(db, tid, g3, person2, "outbound", answered=True)) is None   # our call, a person's Lost
+    assert lead_reopen.on_call(db, _call(db, tid, g3, person2, "outbound", answered=False)) is None
+    assert lead_reopen.on_call(db, _call(db, tid, g3, person2, "outbound", answered=True))         # they picked up (S2)
     db.commit()
-    assert [db.get(Inquiry, i.id).stage_id for i in (person_lead, sys_lead, person2)] == [st["active"].id, st["active"].id, st["lost"].id]
+    assert [db.get(Inquiry, i.id).stage_id for i in (person_lead, sys_lead, person2)] == [st["active"].id, st["lost"].id, st["active"].id]
+    assert db.get(Inquiry, person2.id).returned_via == "came_back"
 
 
 def test_outbound_call_to_a_person_marked_lost_lead_joins_it_without_a_new_lead(db, tenant_and_user):
@@ -215,7 +218,7 @@ def test_outbound_call_to_a_person_marked_lost_lead_joins_it_without_a_new_lead(
     assert got.id == inq.id and db.query(Inquiry).filter_by(tenant_id=tid, guest_id=g.id).count() == 1
 
 
-def test_inbox_send_reopens_system_closed_but_not_person_closed(client, db, tenant_and_user):
+def test_inbox_send_never_reopens(client, db, tenant_and_user):
     from tests.conftest import seed_capabilities
     tid = _tid(tenant_and_user)
     seed_capabilities(db, tid)
@@ -232,7 +235,7 @@ def test_inbox_send_reopens_system_closed_but_not_person_closed(client, db, tena
         assert r.status_code == 201, r.text
         db.refresh(inq)
         out[by == "system"] = inq.stage_id
-    assert out[True] == st["active"].id and out[False] == st["lost"].id
+    assert out[True] == st["lost"].id and out[False] == st["lost"].id       # a one-way message keeps it Lost (S2)
 
 
 def test_autopilot_does_not_close_a_reopened_lead_again_for_an_old_date(db, tenant_and_user):

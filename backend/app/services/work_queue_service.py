@@ -7,18 +7,24 @@ organised around PEOPLE (a LEAD is a guest with a usable phone number, ``guests.
 threads, so a Instagram DM that never produced a number is not on this list (the Inbox still has it), and a bot that already
 answered a guest is not "waiting".
 
-  new_lead   a lead (number captured) that no person has contacted yet, whatever channel it came from
-  callback   missed call nobody has returned
-  reply      a lead whose last message is theirs and nobody (person or bot) has answered
-  no_reply   a lead whose last message is OURS and who has been silent 24 h+ (D-23; work_queue_signals.py)
+  consult         the AI asked a person (Ask a manager; agent_consult_queue)
+  callback        missed call nobody has returned
+  came_back       a Lost lead the guest reopened by writing / calling again (work_queue_handover; S1)
+  campaign_reply  the guest replied to a WhatsApp campaign (work_queue_handover; S3)
+  new_lead        a lead (number captured) that no person has contacted yet, whatever channel it came from
+  reply           a lead whose last message is theirs and nobody (person or bot) has answered; a Sold guest too (S9)
+  handover        the bot answered but a person is still needed: it flagged its reply, promised a call / quote, or an AI
+                  draft is held for approval (work_queue_handover; S4). A bot that fully answered is not listed (S5).
+  no_reply        a lead whose last message is OURS and who has been silent 24 h+ (D-23; work_queue_signals.py)
   followup   a task someone committed to is due or overdue, about a LEAD (its guest has a phone) or about nobody in particular
   clash      a task the calendar sync raised (double booking, which vehicle, not enough vehicles): "Calendar clashes"
 
 A person who already holds a booking is a guest, not a lead: never a new_lead / no_reply, never flagged not_called / at_risk,
 but still a ``reply`` when they wrote and nobody answered (work_queue_signals.booked_guests).
 
-Each person appears ONCE, under the most specific reason (callback > new_lead > reply > no_reply), so counts are people, not
-rows. Items also carry ``flags`` (not_called, open_lead, at_risk; work_queue_signals.apply_flags) that the owner dashboard counts.
+Each person appears ONCE, under the most specific reason (the PERSON_KINDS order), so counts are people, not rows. People
+whose lead nobody owns come first unless gone cold (S10: anyone can "Take it"; lead_assignment_service.take_unowned). Items
+also carry ``flags`` (not_called, open_lead, at_risk; work_queue_signals.apply_flags) that the owner dashboard counts.
 Every item carries a ``severity`` (how far past its SLA it is) so the screen and the alerts agree on what is urgent:
 fresh -> late -> urgent -> critical, and ``stale`` once it is old enough that it is probably cold.
 
@@ -45,14 +51,14 @@ from app.models.inquiry import Inquiry
 from app.models.task import Task
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.services import agent_consult_queue, call_status_service, lead_priority, work_queue_signals
+from app.services import agent_consult_queue, call_status_service, lead_priority, work_queue_handover, work_queue_signals
 from app.services.date_presets import IST
 
 log = structlog.get_logger()
 
 # Display / priority order. A person shows once, under the earliest kind that applies.
-KINDS = ("consult", "callback", "new_lead", "reply", "no_reply", "followup", "clash")      # consult: agent_consult_queue
-PERSON_KINDS = ("consult", "callback", "new_lead", "reply", "no_reply")
+KINDS = ("consult", "callback", "came_back", "campaign_reply", "new_lead", "reply", "handover", "no_reply", "followup", "clash")
+PERSON_KINDS = ("consult", "callback", "came_back", "campaign_reply", "new_lead", "reply", "handover", "no_reply")
 
 # Calls older than this are a lost cause for a call-back queue; the same window the Calls screen uses.
 CALLBACK_WINDOW = timedelta(days=7)
@@ -70,6 +76,9 @@ SLA_MINUTES = {
     "new_lead": (15, 60, 240, 72 * 60),
     "callback": (30, 120, 480, 72 * 60),
     "reply": (30, 120, 480, 72 * 60),
+    "came_back": (30, 120, 480, 72 * 60),
+    "campaign_reply": (30, 120, 480, 72 * 60),
+    "handover": (30, 120, 480, 72 * 60),       # the bot handed over; same clock as an unanswered message
     # Only listed once they have been silent 24 h: fresh up to 2 days, late at 2, urgent at 3, critical at 5, cold after 7.
     "no_reply": (48 * 60, 72 * 60, 120 * 60, 7 * 24 * 60),
 }
@@ -111,7 +120,7 @@ class QueueItem:
             "channels": self.channels, "since": _iso(self.since), "overdue": self.overdue,
             "severity": self.severity, "attempts": self.attempts, "facts": self.facts, "has_draft": self.has_draft,
             "flags": self.flags, "priority": self.priority, "lane": self.lane, "reasons": self.reasons,
-            "tasks": self.tasks,
+            "tasks": self.tasks, "unowned": unowned(self),
         }
 
 
@@ -201,6 +210,20 @@ def _open_inquiries_by_guest(db: Session, tenant_id: str, guest_ids: list[str]) 
         if not closed and inq.guest_id not in open_by:
             open_by[inq.guest_id] = inq
     return open_by, {g for g in seen if g not in open_by}
+
+
+def _sold_guests(db: Session, tenant_id: str, guest_ids: list[str]) -> set[str]:
+    """The guests among these with a Sold (closed-won) enquiry."""
+    if not guest_ids:
+        return set()
+    from app.models.inquiry import InquiryStage
+    from app.models.pipeline_stage import PipelineStage
+
+    won = [s.id for s in db.query(PipelineStage.id).filter(PipelineStage.tenant_id == tenant_id,
+                                                            PipelineStage.is_closed_won.is_(True))]
+    return {g for (g,) in db.query(Inquiry.guest_id).filter(
+        Inquiry.tenant_id == tenant_id, Inquiry.guest_id.in_(guest_ids),
+        or_(Inquiry.stage_id.in_(won or [""]), Inquiry.stage == InquiryStage.BOOKED)).distinct()}
 
 
 # ── Has a person reached out? ────────────────────────────────────────────────
@@ -413,7 +436,8 @@ def _replies(db: Session, tenant_id: str, scope_user_id: Optional[str], now: dat
     # Drop leads whose enquiry is closed, and anyone a person has spoken to since their last message (a phone call counts:
     # the unanswered chat line is then already dealt with).
     open_by, closed = _open_inquiries_by_guest(db, tenant_id, list({c.guest_id for c, _ in rows}))
-    rows = [(c, last_in) for c, last_in in rows if c.guest_id not in closed]
+    sold = _sold_guests(db, tenant_id, list(closed))           # a Sold guest writing again still needs an answer (S9)
+    rows = [(c, last_in) for c, last_in in rows if c.guest_id not in closed or c.guest_id in sold]
     last_in_by_guest: dict[str, datetime] = {}
     for c, last_in in rows:
         prev = last_in_by_guest.get(c.guest_id)
@@ -535,6 +559,11 @@ def _dedupe_people(by_kind: dict[str, list[QueueItem]]) -> None:
         taken |= {i.guest_id for i in kept if i.guest_id}
 
 
+def unowned(item: QueueItem) -> bool:
+    """A person's lead that nobody owns yet: anyone may take it from My day (S10)."""
+    return item.kind in PERSON_KINDS and bool(item.inquiry_id) and not item.owner_id
+
+
 def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Optional[list[str]] = None) -> dict:
     """The queue for one person (or the whole team when scope_user_id is None). Counts always cover every kind (a person is
     counted once), ``kinds`` only narrows the ``items`` returned."""
@@ -545,12 +574,16 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
     by_kind: dict[str, list[QueueItem]] = {
         "consult": agent_consult_queue.items(db, tenant.id, scope_user_id, now),
         "callback": _callbacks(db, tenant),
+        "came_back": [], "campaign_reply": [],
         "new_lead": _new_leads(db, tenant.id, scope_user_id, now),
         "reply": _replies(db, tenant.id, scope_user_id, now),
+        "handover": work_queue_handover.handovers(db, tenant.id, scope_user_id, now),
         "no_reply": work_queue_signals.no_replies(db, tenant.id, scope_user_id, now),
         "followup": _followups(db, tenant.id, scope_user_id),
         "clash": work_queue_signals.calendar_items(db, tenant.id, scope_user_id, now, today),
     }
+    for item in work_queue_handover.returned(db, tenant.id, scope_user_id, now):
+        by_kind[item.kind].append(item)
     # Someone who already booked is a guest, not a lead to chase (still a "reply" if they wrote and nobody answered).
     booked = work_queue_signals.booked_guests(
         db, tenant.id, [i.guest_id for k in ("new_lead", "reply", "no_reply") for i in by_kind[k]], today)
@@ -571,6 +604,8 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
     # Best chance first (lead_priority): lane, then score, then longest wait. Severity above still drives alerts.
     lead_priority.apply(db, tenant.id, shown, now, today)
     shown.sort(key=lambda i: lead_priority.sort_key(i, _aware))
+    # S10: leads nobody owns first, for everyone, unless gone cold (stable sort: the order above is kept inside each part)
+    shown.sort(key=lambda i: not (unowned(i) and i.severity != "stale"))
     counts = {k: len(by_kind[k]) for k in KINDS}
     oldest = {
         k: _iso(min((i.since for i in by_kind[k] if i.since), key=_aware, default=None))
@@ -589,7 +624,7 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
         "people": len(people) + no_guest,
         "people_waiting": len(waiting),
         "severity": severity,
-        "unowned": sum(1 for i in by_kind["new_lead"] if not i.owner_id),
+        "unowned": sum(1 for i in all_items if unowned(i)),
         "flags": flags,
         "items": [i.as_dict() for i in shown if i.kind in wanted or (i.tasks and "followup" in wanted)],
         "scope": "mine" if scope_user_id else "team",
