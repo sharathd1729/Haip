@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { AlertCircle, ArrowDownRight, ArrowUpRight, CheckCircle2, Clock, Eye, Megaphone, Send, Shield } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -10,6 +11,7 @@ import { CampaignReport } from "@/components/messaging/CampaignReport";
 import { WhatsAppHealthCard } from "@/components/messaging/WhatsAppHealthCard";
 import { FailureBars, Funnel, HourChart, RateChart, VolumeChart } from "@/components/messaging/analytics/AnalyticsCharts";
 import { CampaignTable, TemplateTable } from "@/components/messaging/analytics/AnalyticsTables";
+import { AutomaticMessages } from "@/components/messaging/analytics/AutomaticMessages";
 import { change, fmt, pct, type Analytics } from "@/components/messaging/analytics/analyticsTypes";
 
 const RANGES = [7, 14, 30, 90] as const;
@@ -59,6 +61,8 @@ const RATING: Record<string, { label: string; cls: string }> = {
 export default function MessagingOverviewPage() {
   const [days, setDays] = useState<number>(30);
   const [report, setReport] = useState<{ id: string; name: string } | null>(null);
+  const role = useSession().data?.user?.role;
+  const seesTeam = role === "owner" || role === "manager";
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<Analytics>({
     queryKey: ["wa-analytics", days],
@@ -85,7 +89,7 @@ export default function MessagingOverviewPage() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="haip-page-title">WhatsApp overview</h1>
-            <p className="text-sm text-[var(--haip-fg-muted)] mt-0.5">How your campaigns are doing: what was sent, what arrived, what was read, and what failed.</p>
+            <p className="text-sm text-[var(--haip-fg-muted)] mt-0.5">Campaigns: what was sent, arrived, read and failed.{seesTeam && " Below them: team alerts (WhatsApp and app alerts to your staff) and automatic guest messages (the workflows' own WhatsApps to guests)."}</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-xl bg-[var(--haip-surface)] p-0.5" role="tablist" aria-label="Period">
@@ -201,6 +205,7 @@ export default function MessagingOverviewPage() {
             )}
           </>
         )}
+        {seesTeam && <AutomaticMessages days={days} />}
       </div>
 
       {report && <CampaignReport campaignId={report.id} campaignName={report.name} onClose={() => setReport(null)} />}

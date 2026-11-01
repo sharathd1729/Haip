@@ -53,6 +53,18 @@ def messaging_analytics(
     return wa_analytics_service.dashboard(db, current_user.tenant_id, days)
 
 
+@router.get("/analytics/automatic")
+def messaging_analytics_automatic(
+    days: int = Query(default=30, ge=1, le=365),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """What HAIP sent on its own in the same period: team alerts (staff WhatsApp + app) and the playbooks' automatic
+    WhatsApps to guests, with delivery, failures and skip reasons. Owner/manager: it names team members."""
+    from app.services import wa_automatic_analytics
+    return wa_automatic_analytics.automatic(db, current_user.tenant_id, days)
+
+
 @router.get("/whatsapp/health")
 def whatsapp_health(
     request: Request,

@@ -179,12 +179,14 @@ export function Funnel({ totals }: { totals: Totals }) {
 
 // ─── Why messages failed ─────────────────────────────────────────────────────
 
-export function FailureBars({ failures }: { failures: FailureRow[] }) {
+export function FailureBars({ failures, title = "Why messages failed", subtitle = "Most common reasons in this period", empty = "No failed messages. Nice." }: {
+  failures: FailureRow[]; title?: string; subtitle?: string; empty?: string;
+}) {
   const max = Math.max(...failures.map(f => f.count), 1);
   return (
-    <ChartCard title="Why messages failed" subtitle="Most common reasons in this period"
+    <ChartCard title={title} subtitle={subtitle}
       table={{ columns: ["Reason", "Messages"], rows: failures.map(f => [f.label, fmt(f.count)]) }}>
-      {failures.length === 0 ? <Empty text="No failed messages. Nice." /> : (
+      {failures.length === 0 ? <Empty text={empty} /> : (
         <ul className="space-y-3">
           {failures.map(f => (
             <li key={f.group}>
