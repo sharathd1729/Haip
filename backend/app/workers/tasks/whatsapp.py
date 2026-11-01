@@ -613,11 +613,15 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
         message.channel_status = meta_status
 
         if meta_status == "failed":
+            # In words + the next step ("This number isn't on WhatsApp..."), and on Workflows > Activity.
+            from app.services import wa_delivery_errors
             errors = status_obj.get("errors", [])
-            error_msg = "; ".join(
-                f"{e.get('code')}: {e.get('title', '')}" for e in errors
-            ) if errors else "Meta reported failure"
-            message.delivery_error = error_msg[:500]
+            message.delivery_error = wa_delivery_errors.describe(errors)[:500]
+            try:
+                with db.begin_nested():
+                    wa_delivery_errors.record(db, str(tenant.id), message, errors)
+            except Exception as exc:  # noqa: BLE001 -- the activity row must never lose the delivery update
+                log.warning("wa_undeliverable_record_failed", message_id=message.id, error=str(exc)[:200])
         else:
             message.delivery_error = None
 

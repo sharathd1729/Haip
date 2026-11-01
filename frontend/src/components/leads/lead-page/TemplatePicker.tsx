@@ -1,6 +1,7 @@
 "use client";
 // Outside WhatsApp's 24-hour window only an approved template can go. Same endpoints as the Inbox's template modal
 // (GET /messaging/templates, POST /conversations/{id}/send-template), laid out inline for the lead composer.
+// ``startFor`` = Start on WhatsApp for a guest with a number but no WhatsApp chat yet (POST /guests/{id}/whatsapp/start).
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -12,8 +13,9 @@ interface Template { id: string; name: string; language: string; status: string;
 const body = (t?: Template | null) => t?.components.find(c => c.type === "BODY")?.text ?? "";
 const slots = (text: string) => new Set(text.match(/\{\{\d+\}\}/g) ?? []).size;
 
-export function TemplatePicker({ conversationId, name, onSent, onError }: {
-  conversationId: string; name: string; onSent: () => void; onError: (msg: string) => void;
+export function TemplatePicker({ conversationId, startFor, name, onSent, onError }: {
+  conversationId?: string; startFor?: { guestId: string; inquiryId?: string | null };
+  name: string; onSent: () => void; onError: (msg: string) => void;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [vars, setVars] = useState<string[]>([]);
@@ -26,11 +28,14 @@ export function TemplatePicker({ conversationId, name, onSent, onError }: {
   const chosen = approved.find(t => t.id === picked) ?? null;
   const preview = vars.reduce((txt, v, i) => txt.replace(`{{${i + 1}}}`, v || `{{${i + 1}}}`), body(chosen));
   const send = useMutation({
-    mutationFn: () => api.post(`/conversations/${conversationId}/send-template`, { template_id: picked, variables: vars }),
+    mutationFn: () => startFor
+      ? api.post(`/guests/${startFor.guestId}/whatsapp/start`, { template_id: picked, variables: vars, inquiry_id: startFor.inquiryId ?? null },
+        { headers: { "Idempotency-Key": crypto.randomUUID() } })
+      : api.post(`/conversations/${conversationId}/send-template`, { template_id: picked, variables: vars }),
     onSuccess: () => { setPicked(null); setVars([]); onSent(); },
     onError: (e: unknown) => {
       const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      onError(typeof d === "string" ? d : "The template was not sent. Please try again.");
+      onError(typeof d === "string" ? d : d && typeof d === "object" && "message" in d ? String((d as { message: unknown }).message) : "The template was not sent. Please try again.");
     },
   });
 

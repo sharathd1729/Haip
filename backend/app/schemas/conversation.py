@@ -113,6 +113,12 @@ class SendTemplateRequest(BaseModel):
     variables: Optional[list[str]] = None
 
 
+class StartWhatsAppRequest(SendTemplateRequest):
+    """Start (or continue) a guest's chat on the official WhatsApp number with an approved template.
+    ``inquiry_id`` = the lead it is about (a newly opened conversation is tied to it)."""
+    inquiry_id: Optional[str] = None
+
+
 class ApproveDraftRequest(BaseModel):
     """Approve an AI draft, optionally with edited text. `text` omitted or
     equal to the stored draft means sent verbatim; a different value means

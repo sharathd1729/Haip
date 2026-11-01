@@ -28,21 +28,23 @@ log = structlog.get_logger()
 CALL_DELAY_SECONDS = 45
 
 
-def queue_on_call(tenant_id: str, call_id: str, countdown: int = CALL_DELAY_SECONDS) -> None:
-    """Best-effort enqueue from ingest code: a broker hiccup must never fail the call ingest."""
+def queue_on_call(tenant_id: str, call_id: str, countdown: int = CALL_DELAY_SECONDS, classified_late: bool = False) -> None:
+    """Best-effort enqueue from ingest code: a broker hiccup must never fail the call ingest. ``classified_late`` = wrap-up
+    or scoring found the call unanswered after ingest (a longer age limit applies, lead_playbook_engine.on_call)."""
     try:
-        on_call.apply_async(kwargs={"tenant_id": tenant_id, "call_id": call_id}, countdown=countdown)
+        on_call.apply_async(kwargs={"tenant_id": tenant_id, "call_id": call_id, "classified_late": classified_late},
+                            countdown=countdown)
     except Exception as exc:  # noqa: BLE001
         log.warning("playbook_on_call_enqueue_failed", tenant_id=tenant_id, call_id=call_id, error=str(exc)[:200])
 
 
 @shared_task(name="lead_playbooks.on_call")
-def on_call(tenant_id: str, call_id: str) -> dict:
+def on_call(tenant_id: str, call_id: str, classified_late: bool = False) -> dict:
     from app.services import lead_playbook_engine as engine
     db = SessionLocal()
     try:
         set_tenant_context(db, tenant_id)
-        out = engine.on_call(db, tenant_id, call_id)
+        out = engine.on_call(db, tenant_id, call_id, classified_late=classified_late)
         log.info("playbook_on_call", tenant_id=tenant_id, call_id=call_id, **{k: v for k, v in out.items() if k != "reason"})
         return out
     finally:

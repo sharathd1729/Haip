@@ -21,13 +21,14 @@ import {
 
 export function ThreadBody({
   detail, detailLoading, olderMessages, hasMoreOlderMessages, loadOlderMessages, loadingOlderMessages, callItems,
-  handleApprove, handleReject, handleRetry, setEditingDraftId, setEditText, setReplyToMsg, textareaRef,
+  handleApprove, handleReject, handleRetry, handleFailureAction, setEditingDraftId, setEditText, setReplyToMsg, textareaRef,
   rewriteDraft, rewritingMessageId, aiTyping, bottomRef, canSend = true,
 }: {
   detail?: ConversationDetail; detailLoading: boolean;
   olderMessages: Message[]; hasMoreOlderMessages: boolean; loadOlderMessages: () => void; loadingOlderMessages: boolean;
   callItems: TimelineCallItem[];
   handleApprove: (id: string) => void; handleReject: (id: string) => void; handleRetry: (id: string) => void;
+  handleFailureAction?: (step: "template" | "whatsapp") => void;
   setEditingDraftId: (id: string | null) => void; setEditText: (t: string) => void;
   setReplyToMsg: (m: Message | null) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -155,6 +156,8 @@ export function ThreadBody({
                         onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
                         onReject={handleReject}
                         onRetry={canSend ? handleRetry : undefined}
+                        onFailureAction={canSend ? handleFailureAction : undefined}
+                        isTemplate={row.msg.is_template}
                         onReply={(id) => {
                           setReplyToMsg(row.msg);
                           textareaRef.current?.focus();

@@ -145,8 +145,10 @@ export function useReveal(inquiryId: string) {
   return { shown, reveal: () => reveal.mutate(), pending: reveal.isPending };
 }
 
-export function ContactCard({ lead, feed, canReveal, reveal, onAddSignal }: {
+export function ContactCard({ lead, feed, canReveal, reveal, onAddSignal, onWhatsApp }: {
   lead: LeadDetail; feed?: LeadFeed; canReveal: boolean; reveal: ReturnType<typeof useReveal>; onAddSignal?: () => void;
+  /** Opens the composer on WhatsApp: the WhatsApp chat, or Start on WhatsApp for a number with no chat yet. */
+  onWhatsApp?: () => void;
 }) {
   const c = feed?.contact;
   const merges = feed?.merges ?? [];
@@ -174,6 +176,9 @@ export function ContactCard({ lead, feed, canReveal, reveal, onAddSignal }: {
               <span className="text-[14px] font-semibold text-[var(--haip-fg)]">{c?.has_whatsapp ? "WhatsApp" : "No WhatsApp chat yet"}</span>
               {wa?.last_inbound_at && <span className="text-[12.5px] text-[var(--haip-fg-subtle)]">Last message from them {when(wa.last_inbound_at)}</span>}
             </span>
+            {onWhatsApp && (wa?.can_send || c?.has_phone) && (
+              <button type="button" className={ghost} onClick={onWhatsApp}>{wa?.can_send ? "Message" : "Start on WhatsApp"}</button>
+            )}
           </li>
           {(c?.has_instagram || ig) && (
             <li className={rowCls}>

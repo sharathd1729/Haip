@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BellOff, Check, ChevronLeft, Loader2, MoreHorizontal, Phone, Search, Timer, User } from "@/lib/icons";
+import { BellOff, Check, ChevronLeft, Loader2, MessageSquare, MoreHorizontal, Phone, Search, Timer, User } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/ui/page";
@@ -62,7 +62,7 @@ function MenuLabel({ children }: { children: ReactNode }) {
 
 export function ThreadHeader({
   detail, setMobileView, isOfficialWhatsApp, windowOpen, aiToggleMutation, assignMutation, teamMembers,
-  currentUserId, clickToCallMutation, resolveMutation, setShowGuestSheet, setShowSearch, snoozeMutation,
+  currentUserId, clickToCallMutation, resolveMutation, setShowGuestSheet, setShowSearch, snoozeMutation, onStartWhatsApp,
 }: {
   detail?: ConversationDetail;
   setMobileView: (v: "list" | "thread") => void;
@@ -76,6 +76,8 @@ export function ThreadHeader({
   /** Kept for the page's call site; the menu now owns its own open state. */
   showSnooze?: boolean;
   setShowSnooze?: (fn: (s: boolean) => boolean) => void;
+  /** An Instagram chat with a guest who gave their number: message that number on the official WhatsApp. */
+  onStartWhatsApp?: () => void;
 }) {
   if (!detail) {
     return <div className="flex-shrink-0 border-b border-[var(--haip-border)] px-3 py-3 md:px-5"><Skeleton className="h-10 w-56" /></div>;
@@ -114,6 +116,14 @@ export function ThreadHeader({
             className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform] hover:opacity-90 active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2">
             {clickToCallMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Phone size={14} />}
             <span className="hidden sm:inline">Call</span>
+          </button>
+        )}
+
+        {onStartWhatsApp && detail.channel === "instagram" && detail.guest_phone && (
+          <button type="button" onClick={onStartWhatsApp} aria-label="Start on WhatsApp"
+            className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-status-success-fg)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            <MessageSquare size={15} />
+            <span className="hidden sm:inline">WhatsApp</span>
           </button>
         )}
 
