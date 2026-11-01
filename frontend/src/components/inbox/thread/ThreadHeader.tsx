@@ -92,7 +92,9 @@ export function ThreadHeader({
   const channels = detail.guest_channels?.length ? detail.guest_channels : (toGuestChannel(detail.channel) ? [toGuestChannel(detail.channel)!] : []);
 
   return (
-    <div className="flex-shrink-0 border-b border-[var(--haip-border)]">
+    // @container: the buttons show their words by the thread column's width, not the window's (the column is ~384px
+    // between the list and the guest panel at 1024px, where the words did not fit).
+    <div className="@container flex-shrink-0 border-b border-[var(--haip-border)]">
       <div className="flex items-center gap-2 px-3 py-2.5 md:gap-3 md:px-5">
         <button type="button" onClick={() => setMobileView("list")} aria-label="Back to conversations"
           className={cn(ICON_BTN, "-ml-1 md:hidden")}>
@@ -112,10 +114,10 @@ export function ThreadHeader({
         </div>
 
         {detail.guest_phone && (
-          <button type="button" onClick={() => clickToCallMutation.mutate(detail.guest_phone)} disabled={clickToCallMutation.isPending}
+          <button type="button" onClick={() => clickToCallMutation.mutate(detail.guest_phone)} disabled={clickToCallMutation.isPending} aria-label="Call"
             className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform] hover:opacity-90 active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2">
             {clickToCallMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Phone size={14} />}
-            <span className="hidden sm:inline">Call</span>
+            <span className="hidden @md:inline">Call</span>
           </button>
         )}
 
@@ -123,19 +125,19 @@ export function ThreadHeader({
           <button type="button" onClick={onStartWhatsApp} aria-label="Start on WhatsApp"
             className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-status-success-fg)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
             <MessageSquare size={15} />
-            <span className="hidden sm:inline">WhatsApp</span>
+            <span className="hidden @md:inline">WhatsApp</span>
           </button>
         )}
 
         {/* The rate calculator on top of the chat, prefilled with this lead and the trip the chat mentioned. */}
-        <SendQuoteButton iconOnlyBelowSm className="h-9 min-h-0 sm:min-h-0"
+        <SendQuoteButton iconOnlyBelowSm labelClassName="hidden @md:inline" className="h-9 min-h-0 sm:min-h-0"
           args={{ conversationId: detail.id, inquiryId: detail.inquiry_id ?? null, from: "inbox", name: detail.guest_name || null }} />
 
         <button type="button" onClick={() => resolveMutation.mutate()} disabled={resolveMutation.isPending || detail.status === "resolved"}
           aria-label={detail.status === "resolved" ? "Resolved" : "Mark resolved"}
           className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-fg-2)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] hover:text-[var(--haip-status-success-fg)] active:scale-[0.97] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <Check size={15} />
-          <span className="hidden lg:inline">{detail.status === "resolved" ? "Resolved" : "Resolve"}</span>
+          <span className="hidden @2xl:inline">{detail.status === "resolved" ? "Resolved" : "Resolve"}</span>
         </button>
 
         <button type="button" onClick={() => setShowGuestSheet(true)} aria-label="Guest details" className={cn(ICON_BTN, "md:hidden")}>
