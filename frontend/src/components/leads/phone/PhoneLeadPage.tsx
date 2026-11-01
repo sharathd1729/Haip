@@ -115,7 +115,7 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
     pastBooking: (feed.bookings ?? []).some(b => b.inquiry_id === inquiryId && b.status === "checked_out"),
   }) : null;
 
-  const message = () => { setTab("activity"); setTimeout(() => composer.current?.focus(), 250); };
+  const message = () => { setTab("activity"); setTimeout(() => composer.current?.focus("whatsapp"), 250); };
   const run = (key: LeadActionKey) => {
     switch (key) {
       case "call":
@@ -198,6 +198,7 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
                 : <LeadThread items={items} inquiryId={inquiryId} canSend={canSend} canOpenBookings={canOpenBookings} capped={!!feed?.capped} messagesRestricted={!!feed?.messages_restricted} />}
             <SalesActionCard inquiryId={inquiryId} />
             <LeadComposer ref={composer} channels={feed?.channels ?? []} name={name} canSend={canSend} canQuote={canQuote} canBook={canBook} hasPhone={canCall} run={run}
+              startWhatsApp={feed?.contact.has_phone && feed.guest_id ? { guestId: feed.guest_id, inquiryId } : null}
               onSent={ch => { toast({ variant: "success", title: `Sent on ${ch === "instagram" ? "Instagram" : "WhatsApp"}`, description: "Logged on this lead." }); qc.invalidateQueries({ queryKey: ["lead-feed", inquiryId] }); }}
               onError={msg => toast({ variant: "error", title: "Not sent", description: msg })} />
           </div>

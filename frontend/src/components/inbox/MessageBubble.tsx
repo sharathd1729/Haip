@@ -2,6 +2,7 @@
 import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote, Languages, Wand2 } from "@/lib/icons";
 import { ChannelBadge, toGuestChannel } from "./ChannelBadges";
 import { cn } from "@/lib/utils";
+import { failureStep } from "@/lib/deliveryFailure";
 import { memo, useState } from "react";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
 
@@ -40,6 +41,9 @@ export interface MessageBubbleProps {
   onEdit?: (id: string, text: string) => void;
   onReject?: (id: string) => void;
   onRetry?: (id: string) => void;
+  /** A failed send whose fix is not a retry: open the template picker, or Start on WhatsApp (Instagram window closed). */
+  onFailureAction?: (step: "template" | "whatsapp") => void;
+  isTemplate?: boolean;
   onReply?: (id: string) => void;        // W5
   onRewrite?: (id: string, opts: { tone?: string; target_language?: string }) => void;
   isRewriting?: boolean;
@@ -125,6 +129,8 @@ export const MessageBubble = memo(function MessageBubble({
   onEdit,
   onReject,
   onRetry,
+  onFailureAction,
+  isTemplate,
   onReply,
   onRewrite,
   isRewriting,
@@ -233,16 +239,15 @@ export const MessageBubble = memo(function MessageBubble({
           {!isOut && toGuestChannel(channel) && <ChannelBadge channel={toGuestChannel(channel)!} size={12} />}
           <span className="text-[10px] text-[var(--haip-fg-subtle)]">{formatTime(timestamp)}</span>
           {isOut && <StatusIcon status={status} error={deliveryError} />}
-          {/* W23: inline retry for failed messages */}
-          {isOut && isFailed && onRetry && (
-            <button
-              onClick={() => onRetry(id)}
-              title={deliveryError ? `Retry — last error: ${deliveryError}` : "Retry sending"}
-              className="flex items-center gap-0.5 text-[10px] font-medium text-[var(--haip-status-danger-fg)] hover:opacity-80 transition-colors ml-1"
-            >
-              <RotateCw size={10} /> Retry
-            </button>
-          )}
+          {/* W23: the next step for a failed send -- Retry only when sending the same thing again can work */}
+          {isOut && isFailed && (() => {
+            const step = failureStep(deliveryError, { isTemplate, channel });
+            const btn = "flex items-center gap-0.5 text-[10px] font-medium text-[var(--haip-status-danger-fg)] hover:opacity-80 transition-colors ml-1";
+            if (step === "retry" && onRetry) return <button onClick={() => onRetry(id)} className={btn}><RotateCw size={10} /> Retry</button>;
+            if (step === "template" && onFailureAction) return <button onClick={() => onFailureAction("template")} className={btn}>Send a template</button>;
+            if (step === "whatsapp" && onFailureAction) return <button onClick={() => onFailureAction("whatsapp")} className={btn}>Message on WhatsApp</button>;
+            return null;
+          })()}
         </div>
 
         {/* Why a send failed, in words -- a red bubble alone tells nobody what to fix */}

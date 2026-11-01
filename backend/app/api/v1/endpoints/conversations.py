@@ -338,6 +338,7 @@ def _msg_dict(m: Message) -> dict:
         "status": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else str(m.delivery_state or ""),
         "delivery_state": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else None,
         "delivery_error": m.delivery_error,
+        "is_template": bool(isinstance(m.channel_metadata, dict) and m.channel_metadata.get("template_name")),
         "timestamp": _iso(m.created_at) or "",
         "sender_name": m.sender_name,
         "ai_drafted": m.is_ai_generated,
@@ -565,9 +566,6 @@ def send_template_message(
     "Send template" did nothing). Only meaningful for WhatsApp; other
     channels don't have Meta's 24h-window/template requirement.
     """
-    from app.api.v1.endpoints.messaging import WATemplate, TemplateStatus
-    from app.models.conversation import ChannelType
-
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -575,42 +573,24 @@ def send_template_message(
 
     channel = str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
     if channel != "whatsapp":
-        raise HTTPException(status_code=422, detail="Templates can only be sent on WhatsApp conversations")
-
-    tmpl = db.query(WATemplate).filter_by(id=body.template_id, tenant_id=current_user.tenant_id).first()
-    if not tmpl:
-        raise HTTPException(status_code=404, detail="Template not found")
-    if tmpl.status != TemplateStatus.APPROVED:
-        raise HTTPException(status_code=422, detail="Only approved templates can be sent")
+        # An Instagram (or other) thread: the guest's number is reached through POST /guests/{id}/whatsapp/start.
+        raise HTTPException(status_code=422, detail="Templates can only be sent on WhatsApp conversations. Use Start on WhatsApp to message this guest's number.")
 
     # Refuse now, in words, what Meta would refuse later: a number that isn't a
     # real WhatsApp number (Meta accepts the request and then never delivers)
     # and a template whose values don't match. Before this the person saw a red
     # bubble and "Max retries exceeded", with no way to tell why.
     from app.models.guest import Guest
-    from app.services import wa_template_service as wts
+    from app.services import whatsapp_start_service
     from app.workers.tasks.send_whatsapp import _bad_number_reason
+    try:
+        tmpl, display_text = whatsapp_start_service.template_message(db, current_user.tenant_id, body.template_id, body.variables)
+    except whatsapp_start_service.Refused as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
     guest = db.query(Guest).filter_by(id=conv.guest_id, tenant_id=current_user.tenant_id).first()
     bad_number = _bad_number_reason(guest.phone if guest else "")
     if bad_number:
         raise HTTPException(status_code=422, detail=bad_number)
-    needed = wts.template_variables(tmpl.components)
-    if needed.get("header"):
-        raise HTTPException(status_code=422, detail="This template has a variable in its header, which can't be filled in from the inbox yet.")
-    expected = len(needed.get("body", []))
-    given = len(body.variables or [])
-    if given != expected:
-        raise HTTPException(
-            status_code=422,
-            detail=f"This template needs {expected} value{'s' if expected != 1 else ''} to fill in; {given} given.",
-        )
-
-    # Render the template body text (for display in the thread) by
-    # substituting {{1}}, {{2}}, ... with the supplied variables.
-    body_component = next((c for c in (tmpl.components or []) if c.get("type") == "BODY"), None)
-    display_text = body_component.get("text", "") if body_component else tmpl.name
-    for i, var in enumerate(body.variables or [], start=1):
-        display_text = display_text.replace(f"{{{{{i}}}}}", str(var))
 
     msg = Message(
         id=str(uuid.uuid4()),
@@ -779,6 +759,9 @@ def retry_failed_message(
         raise HTTPException(status_code=404, detail="Message not found")
     if msg.delivery_state != MessageDeliveryState.FAILED:
         raise HTTPException(status_code=409, detail="Message is not in failed state")
+    # Retry re-sends the text as a normal message: for a template that fails outside the 24-hour window, so say what works.
+    if isinstance(msg.channel_metadata, dict) and msg.channel_metadata.get("template_name"):
+        raise HTTPException(status_code=409, detail="This was a template. Pick the template again to resend it.")
 
     # Guard: only allow retry within 24h
     if msg.created_at:

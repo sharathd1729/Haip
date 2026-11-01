@@ -216,8 +216,17 @@ def playbook_for_call(call: Call) -> Optional[str]:
     return cat.MISSED_INBOUND_CALL if cs.is_missed_call(call) else None
 
 
-def on_call(db: Session, tenant_id: str, call_id: str) -> dict:
-    """A call was logged (or re-classified as unanswered). Starts and runs P1/P2 when it applies. Safe to repeat."""
+# How old a call may be when its WhatsApp goes. A call the IVR already reports as unanswered is seen at ingest (30 min is
+# plenty); one only the AI can tell (Vobiz says "completed" for a ringing tone or a carrier announcement) is known after
+# transcription + wrap-up, which on a busy day takes longer than 30 min: those were dropped with no trace (Neha Vats,
+# Ratha, 21 Oct 2026). A run still re-checks every guard, so a person who reached the guest meanwhile stops it.
+MAX_CALL_AGE = timedelta(minutes=30)
+MAX_CALL_AGE_CLASSIFIED_LATE = timedelta(hours=3)
+
+
+def on_call(db: Session, tenant_id: str, call_id: str, classified_late: bool = False) -> dict:
+    """A call was logged (or re-classified as unanswered: ``classified_late``). Starts and runs P1/P2 when it applies.
+    Safe to repeat."""
     call = db.query(Call).filter_by(id=call_id, tenant_id=tenant_id).first()
     if call is None:
         return {"status": "no_call"}
@@ -227,7 +236,15 @@ def on_call(db: Session, tenant_id: str, call_id: str) -> dict:
     tenant = db.query(Tenant).filter_by(id=tenant_id).first()
     if not settings.playbook(tenant, key)["active"]:
         return {"status": "off", "playbook": key}
-    if _now() - (_aware(call.created_at) or _now()) > timedelta(minutes=30):
+    age = _now() - (_aware(call.created_at) or _now())
+    if age > (MAX_CALL_AGE_CLASSIFIED_LATE if classified_late else MAX_CALL_AGE):
+        if age < timedelta(hours=24):       # say so on Workflows > Activity (an old call replayed by a backfill stays quiet)
+            run = start_run(db, tenant_id, key, f"call:{call.id}", inquiry_id=call.inquiry_id, guest_id=call.guest_id,
+                            context={"call_id": call.id})
+            if run is not None:
+                reason = f"the call was found unanswered {int(age.total_seconds() // 60)} min after it was made: too late for an automatic WhatsApp"
+                _record(db, run, "wa_text", "skipped", reason=reason)
+                _finish(db, run, "done", reason)
         return {"status": "too_old", "playbook": key}
     run = start_run(db, tenant_id, key, f"call:{call.id}", inquiry_id=call.inquiry_id, guest_id=call.guest_id,
                     context={"call_id": call.id})

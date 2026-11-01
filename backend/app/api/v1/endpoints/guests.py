@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
@@ -12,6 +12,8 @@ from app.services.guest_service import upsert_by_phone, get_timeline, dpdp_delet
 from app.services import guest_events_service
 from app.schemas.guest_events import GuestJourneyResponse
 from app.core.audit import append_audit
+from app.services.authz_service import require_capability
+from app.schemas.conversation import StartWhatsAppRequest
 
 router = APIRouter(prefix="/guests", tags=["guests"])
 
@@ -264,3 +266,33 @@ def list_pending_deletions(
             "days_until_hard_delete": days_left,
         })
     return result
+
+
+@router.post("/{guest_id}/whatsapp/start", status_code=201)
+def start_whatsapp(
+    guest_id: str,
+    body: StartWhatsAppRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("conversations.send")),
+):
+    """Message a guest on the official WhatsApp number with an approved template: reuses their open WhatsApp
+    conversation or opens one (a guest who only wrote on Instagram but gave their number). whatsapp_start_service."""
+    from app.api.v1.endpoints.conversations import _extract_idempotency_key, _find_idempotent_message
+    from app.schemas.conversation import MessageOut
+    from app.services import whatsapp_start_service as svc
+
+    key = _extract_idempotency_key(request)
+    if key:
+        prior = _find_idempotent_message(db, current_user.tenant_id, key)
+        if prior:
+            return {"conversation_id": prior.conversation_id, "created": False,
+                    "message": MessageOut.model_validate(prior).model_dump(mode="json")}
+    try:
+        out = svc.start(db, tenant_id=current_user.tenant_id, guest_id=guest_id, template_id=body.template_id,
+                        variables=body.variables, user=current_user, inquiry_id=body.inquiry_id, idempotency_key=key)
+    except svc.Refused as exc:     # every refusal comes before anything is written
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
+    return {"conversation_id": out["conversation_id"], "created": out["created"],
+            "message": MessageOut.model_validate(out["message"]).model_dump(mode="json")}

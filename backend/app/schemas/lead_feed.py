@@ -30,6 +30,7 @@ class FeedItemSchema(BaseModel):
     is_internal: bool = False                # an internal note, never sent to the guest
     is_template: bool = False
     delivery: Optional[str] = None           # pending | queued | sent | delivered | read | failed | rejected
+    delivery_error: Optional[str] = None     # why it did not go, in words (wa_delivery_errors)
     # call
     call_id: Optional[str] = None
     duration_seconds: Optional[int] = None

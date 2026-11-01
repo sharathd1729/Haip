@@ -20,11 +20,14 @@ import {
 } from "./types";
 
 export function ComposerNotices({
-  isVoiceOnly, windowBlocked, setShowTemplatePicker, setIsInternalNote,
+  isVoiceOnly, windowBlocked, setShowTemplatePicker, setIsInternalNote, channel, onStartWhatsApp,
 }: {
   isVoiceOnly: boolean; windowBlocked: boolean;
   setShowTemplatePicker: (v: boolean) => void; setIsInternalNote: (v: boolean) => void;
+  /** Instagram: its window closed too, and the way on is the guest's number on WhatsApp (when they gave one). */
+  channel?: string; onStartWhatsApp?: () => void;
 }) {
+  const instagram = channel === "instagram";
   return (
     <>
             {/* HAIP Inbox UI-fidelity pass, ticket 5: no chat composer for a
@@ -59,19 +62,23 @@ export function ComposerNotices({
                     <AlertTriangle size={14} style={{ color: "var(--haip-amber)" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold" style={{ color: "var(--haip-amber)" }}>24-hour service window closed</p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--haip-amber)" }}>{instagram ? "Instagram window closed" : "24-hour service window closed"}</p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--haip-amber)" }}>
-                      Free-form messages are not allowed. Send a pre-approved WhatsApp template to re-open the window.
+                      {instagram
+                        ? (onStartWhatsApp
+                          ? "Instagram only delivers within 24 hours of the guest's last message. Message their number on WhatsApp instead."
+                          : "Instagram only delivers within 24 hours of the guest's last message, and we have no number for them. Call, or wait for them to write.")
+                        : "Free-form messages are not allowed. Send a pre-approved WhatsApp template to re-open the window."}
                     </p>
                     <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => setShowTemplatePicker(true)}
+                      {(!instagram || onStartWhatsApp) && <button
+                        onClick={() => (instagram ? onStartWhatsApp?.() : setShowTemplatePicker(true))}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
                         style={{ background: "var(--haip-amber)", color: "#fff" }}
                       >
                         <LayoutTemplate size={12} />
-                        Send template
-                      </button>
+                        {instagram ? "Start on WhatsApp" : "Send template"}
+                      </button>}
                       <button
                         onClick={() => { setIsInternalNote(true); }}
                         className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"

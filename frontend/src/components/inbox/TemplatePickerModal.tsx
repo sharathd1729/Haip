@@ -25,12 +25,15 @@ function countPlaceholders(text: string): number {
   return new Set(matches).size;
 }
 
+/** ``startFor`` = Start on WhatsApp: the template goes to the guest's number on the official WhatsApp number, reusing or
+ * opening their WhatsApp chat (POST /guests/{id}/whatsapp/start); ``onSent`` then gets that chat's id. */
 export function TemplatePickerModal({
-  conversationId, onClose, onSent,
+  conversationId, startFor, onClose, onSent,
 }: {
-  conversationId: string;
+  conversationId?: string;
+  startFor?: { guestId: string; inquiryId?: string | null };
   onClose: () => void;
-  onSent: () => void;
+  onSent: (conversationId?: string) => void;
 }) {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -66,20 +69,20 @@ export function TemplatePickerModal({
   }
 
   const sendMutation = useMutation({
-    mutationFn: () =>
-      api.post(`/conversations/${conversationId}/send-template`, {
-        template_id: selectedId,
-        variables,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["conversation", conversationId] });
+    mutationFn: () => startFor
+      ? api.post(`/guests/${startFor.guestId}/whatsapp/start`,
+        { template_id: selectedId, variables, inquiry_id: startFor.inquiryId ?? null },
+        { headers: { "Idempotency-Key": crypto.randomUUID() } }).then(r => r.data?.conversation_id as string | undefined)
+      : api.post(`/conversations/${conversationId}/send-template`, { template_id: selectedId, variables }).then(() => conversationId),
+    onSuccess: (convId) => {
+      qc.invalidateQueries({ queryKey: ["conversation", convId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
-      onSent();
+      onSent(convId);
       onClose();
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to send template";
-      setError(typeof msg === "string" ? msg : "Failed to send template");
+      const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      setError(typeof d === "string" ? d : d && typeof d === "object" && "message" in d ? String((d as { message: unknown }).message) : "Failed to send template");
     },
   });
 
@@ -89,7 +92,7 @@ export function TemplatePickerModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--haip-border)]">
           <div className="flex items-center gap-2">
             <LayoutTemplate size={16} className="text-amber-600" />
-            <h2 className="text-sm font-bold text-[var(--haip-fg)]">Send WhatsApp Template</h2>
+            <h2 className="text-sm font-bold text-[var(--haip-fg)]">{startFor ? "Start on WhatsApp" : "Send WhatsApp Template"}</h2>
           </div>
           <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"><X size={16} /></button>
         </div>

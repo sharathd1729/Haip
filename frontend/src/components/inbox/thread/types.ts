@@ -10,6 +10,7 @@ export interface Message {
   status?: "pending" | "queued" | "sent" | "delivered" | "read" | "failed";
   delivery_state?: string;
   delivery_error?: string;
+  is_template?: boolean;
   timestamp: string;
   sender_name?: string;
   ai_drafted?: boolean;

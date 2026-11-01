@@ -53,6 +53,9 @@ export function MessageBubble({ item, canSend, inquiryId }: { item: FeedItem; ca
             </span>
           )}
         </span>
+        {out && item.delivery_error && (item.delivery === "failed" || item.delivery === "rejected") && (
+          <span role="status" className="text-[12px] leading-snug text-[var(--haip-status-danger-fg)]">{item.delivery_error}</span>
+        )}
       </div>
     </div>
   );

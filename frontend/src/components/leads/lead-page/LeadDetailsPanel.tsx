@@ -156,7 +156,8 @@ export function LeadDetailsPanel({ lead, feed, stages, step, temp, perms, run, o
       <TripFields lead={lead} feed={feed} canEdit={perms.canEdit} />
       <TasksCard feed={feed} inquiryId={lead.inquiry_id} closed={closed} run={run} />
       <DealsCard lead={lead} feed={feed} canQuote={perms.canQuote} canBook={perms.canBook} canOpenBookings={perms.canOpenBookings} run={run} />
-      <ContactCard lead={lead} feed={feed} canReveal={perms.canReveal} reveal={reveal} onAddSignal={onAddSignal} />
+      <ContactCard lead={lead} feed={feed} canReveal={perms.canReveal} reveal={reveal} onAddSignal={onAddSignal}
+        onWhatsApp={perms.canSend ? () => run("message") : undefined} />
 
       <Card>
         <CardBody className="grid gap-2 pt-3">
