@@ -1,9 +1,13 @@
 """Ops files API (migration 179): one file per booking, caravan pack first. Capabilities from 178.
 
+Villa pack (stays): /people, /check-in, /check-out, /meals..., /deposit, /cleaning/{job}/done live in ops_stays.py; the
+shared steps below (checklist, settle, close, money, report) answer by the file's pack (_flow).
+
 Files       GET /ops/files?state= · GET /ops/files/today · GET /ops/files/{id}/report.pdf · POST /ops/files/sync · GET /ops/files/by-stay/{stay_id} · GET /ops/files/{id}
 Steps       POST /ops/files/{id}/accept | /crew | /dispatch | /return | /settle | /close
 Checklist   PUT /ops/files/{id}/checklist/{key}
 Money       POST /ops/files/{id}/expenses · POST /ops/files/{id}/extras · POST /ops/files/{id}/extras/{extra_id}/approve|remove
+Guest form  POST /ops/files/{id}/guest-form/link · POST /ops/files/{id}/guest-form/send (WhatsApp, 24 h window only)
 
 ops.write: checklist, accept, crew, return odometer, expenses, asking for an extra. ops.manage: dispatch (always a person's
 tap), approving or removing an extra, settle, close, sync. Guest contact details are never returned here.
@@ -15,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.ops import StaffProfile
 from app.models.ops_files import OpsExpense, OpsExtra, OpsFile, OpsFileEvent
+from app.models.ops_fleet import OpsAutoMessage
 from app.models.property import Property, Stay
 from app.models.user import User
 from app.schemas.ops_files import (
@@ -26,8 +31,17 @@ from app.schemas.ops_files import (
     OdometerIn,
     SettleIn,
 )
-from app.services import booking_agenda_service, ops_today_service, ops_trip_report
+from app.services import (
+    booking_agenda_service,
+    ops_fleet_service,
+    ops_guest_form,
+    ops_return_check,
+    ops_stay_report,
+    ops_today_service,
+    ops_trip_report,
+)
 from app.services import ops_money as money
+from app.services import ops_stay_service as stays
 from app.services import ops_trip_service as trips
 from app.services.authz_service import require_capability
 
@@ -56,8 +70,46 @@ def _stay_summary(db: Session, stay: Stay) -> dict:
     }
 
 
+def _flow(f: OpsFile):
+    """The pack's state machine: villa stays or caravan trips (same function names)."""
+    return stays if f.pack == stays.PACK else trips
+
+
+def _items_out(items) -> list[dict]:
+    return [
+        {
+            "key": i.key,
+            "label": i.label,
+            "critical": i.critical,
+            "source": i.source,
+            "photo_required": i.photo_required,
+            "status": i.status,
+            "note": i.note,
+            "has_photo": bool(i.photo_key),
+            "ai_verdict": i.ai_verdict,
+            "set_at": i.set_at.isoformat() if i.set_at else None,
+        }
+        for i in items
+    ]
+
+
+def _villa_extra(db: Session, f: OpsFile) -> dict:
+    jobs = stays._cleaning(db, f)
+    return {
+        "people": stays.names(db, f),
+        "inspection": _items_out(trips.readiness_items(db, f, "inspection")),
+        "cleaning": [
+            {"id": j.id, "due_at": j.due_at.isoformat() if j.due_at else None, "status": j.status} for j in jobs
+        ],
+        "service_requests": [
+            {"id": r.id, "title": r.title, "status": r.status, "due_date": r.due_date.isoformat() if r.due_date else None}
+            for r in stays.service_requests(db, f)
+        ],
+    }
+
+
 def _card(db: Session, f: OpsFile) -> dict:
-    st = trips.stage(db, f)
+    st = _flow(f).stage(db, f)
     return {
         "id": f.id,
         "pack": f.pack,
@@ -71,11 +123,12 @@ def _card(db: Session, f: OpsFile) -> dict:
 
 def _full(db: Session, f: OpsFile) -> dict:
     d = money.details(f)
-    crew_ids = [i for i in (d.driver_staff_id, d.helper_staff_id) if i]
+    crew_ids = list(money.crew_ids(f))
     crew = {
         s.id: s.name
         for s in db.query(StaffProfile).filter(StaffProfile.tenant_id == f.tenant_id, StaffProfile.id.in_(crew_ids))
     }
+    villa = f.pack == stays.PACK
     items = trips.readiness_items(db, f)
 
     def q(m):
@@ -83,28 +136,19 @@ def _full(db: Session, f: OpsFile) -> dict:
 
     return {
         **_card(db, f),
-        "stage": trips.stage(db, f),
+        "stage": _flow(f).stage(db, f),
         "details": d.model_dump(mode="json"),
-        "crew": {
-            "driver": crew.get(d.driver_staff_id),
-            "helper": crew.get(d.helper_staff_id),
-        },
-        "gate": trips.gate(items),
-        "checklist": [
-            {
-                "key": i.key,
-                "label": i.label,
-                "critical": i.critical,
-                "source": i.source,
-                "photo_required": i.photo_required,
-                "status": i.status,
-                "note": i.note,
-                "has_photo": bool(i.photo_key),
-                "ai_verdict": i.ai_verdict,
-                "set_at": i.set_at.isoformat() if i.set_at else None,
+        "crew": (
+            {}
+            if villa
+            else {
+                "driver": crew.get(d.driver_staff_id),
+                "helper": crew.get(d.helper_staff_id),
             }
-            for i in items
-        ],
+        ),
+        "gate": trips.gate(items),
+        "checklist": _items_out(items),
+        **(_villa_extra(db, f) if villa else {}),
         "account": money.account(db, f),
         "expenses": [
             {
@@ -132,12 +176,28 @@ def _full(db: Session, f: OpsFile) -> dict:
             {"at": e.at.isoformat(), "text": e.text, "auto": e.auto}
             for e in q(OpsFileEvent).order_by(OpsFileEvent.at, OpsFileEvent.id).limit(200)
         ],
-        "close_blockers": trips.close_blockers(db, f) if f.state == "returned" else [],
+        "close_blockers": _flow(f).close_blockers(db, f) if f.state in ("returned", "settling") else [],
+        "fleet_problems": ops_fleet_service.dispatch_problems(db, f) if f.state in trips.BEFORE_ROAD else [],
+        "guest_form": ops_guest_form.staff_view(db, f, with_link=False),
+        "return_check": ops_return_check.summary(db, f),
+        "messages": [
+            {"kind": m.kind, "recipient": m.recipient, "status": m.status, "via": m.via, "reason": m.reason,
+             "sent_at": m.sent_at.isoformat() if m.sent_at else None}
+            for m in q(OpsAutoMessage).order_by(OpsAutoMessage.created_at)
+        ],
     }
 
 
 def _file(db: Session, user: User, file_id: str) -> OpsFile:
     return trips.get_file(db, user.tenant_id, file_id)
+
+
+def _trip(db: Session, user: User, file_id: str) -> OpsFile:
+    """A caravan-only step (route, crew, odometer)."""
+    f = _file(db, user, file_id)
+    if f.pack != trips.PACK:
+        raise HTTPException(status_code=409, detail="This step is for caravan trips only.")
+    return f
 
 
 def _done(db: Session, f: OpsFile) -> dict:
@@ -198,9 +258,10 @@ def get_file(file_id: str, user: User = Depends(_read), db: Session = Depends(ge
 def trip_report(file_id: str, user: User = Depends(_manage), db: Session = Depends(get_db)):
     """The Trip Account Report (Saleem shape). Money for the business, so owner/manager only; "DRAFT" until approved."""
     f = _file(db, user, file_id)
-    pdf = ops_trip_report.render(ops_trip_report.build(db, f))
+    villa = f.pack == stays.PACK
+    pdf = ops_trip_report.render((ops_stay_report if villa else ops_trip_report).build(db, f))
     stay = money.stay_of(db, f)
-    name = f"trip-account-{stay.check_in.isoformat()}-{f.id[:8]}.pdf"
+    name = f"{'stay' if villa else 'trip'}-account-{stay.check_in.isoformat()}-{f.id[:8]}.pdf"
     return Response(
         content=pdf,
         media_type="application/pdf",
@@ -215,7 +276,7 @@ def accept(
     user: User = Depends(_write),
     db: Session = Depends(get_db),
 ):
-    f = trips.accept(db, _file(db, user, file_id), body, user.id)
+    f = trips.accept(db, _trip(db, user, file_id), body, user.id)
     return _done(db, f)
 
 
@@ -226,7 +287,7 @@ def crew(
     user: User = Depends(_write),
     db: Session = Depends(get_db),
 ):
-    return _done(db, trips.set_crew(db, _file(db, user, file_id), body, user.id))
+    return _done(db, trips.set_crew(db, _trip(db, user, file_id), body, user.id))
 
 
 @router.put("/{file_id}/checklist/{key}")
@@ -238,7 +299,7 @@ def set_item(
     db: Session = Depends(get_db),
 ):
     f = _file(db, user, file_id)
-    trips.set_item(db, f, key, body.status, body.note, user_id=user.id)
+    _flow(f).set_item(db, f, key, body.status, body.note, user_id=user.id)
     return _done(db, f)
 
 
@@ -249,7 +310,7 @@ def dispatch(
     user: User = Depends(_manage),
     db: Session = Depends(get_db),
 ):
-    return _done(db, trips.dispatch(db, _file(db, user, file_id), body.reading_km, user.id))
+    return _done(db, trips.dispatch(db, _trip(db, user, file_id), body.reading_km, user.id))
 
 
 @router.post("/{file_id}/return")
@@ -261,7 +322,7 @@ def returned(
 ):
     return _done(
         db,
-        trips.end_trip(db, _file(db, user, file_id), body.reading_km, actor_id=user.id),
+        trips.end_trip(db, _trip(db, user, file_id), body.reading_km, actor_id=user.id),
     )
 
 
@@ -272,12 +333,31 @@ def settle(
     user: User = Depends(_manage),
     db: Session = Depends(get_db),
 ):
-    return _done(db, trips.settle(db, _file(db, user, file_id), body.step, user.id))
+    f = _file(db, user, file_id)
+    return _done(db, _flow(f).settle(db, f, body.step, user.id))
 
 
 @router.post("/{file_id}/close")
 def close(file_id: str, user: User = Depends(_manage), db: Session = Depends(get_db)):
-    return _done(db, trips.close(db, _file(db, user, file_id), user.id))
+    f = _file(db, user, file_id)
+    return _done(db, _flow(f).close(db, f, user.id))
+
+
+@router.post("/{file_id}/guest-form/link")
+def guest_form_link(file_id: str, user: User = Depends(_write), db: Session = Depends(get_db)):
+    """The private link for the guest ID form (the same link every time, made on first use)."""
+    form = ops_guest_form.ensure_form(db, _file(db, user, file_id))
+    db.commit()
+    return {"url": ops_guest_form.link(form)}
+
+
+@router.post("/{file_id}/guest-form/send")
+def guest_form_send(file_id: str, user: User = Depends(_write), db: Session = Depends(get_db)):
+    """Send the link on WhatsApp. Only inside the guest's 24-hour window: otherwise 409 with the reason (copy the link)."""
+    out = ops_guest_form.send_link(db, _file(db, user, file_id), user.id)
+    if out["status"] not in ("queued", "duplicate"):
+        raise HTTPException(status_code=409, detail=f"Not sent: {out['reason']}. Copy the link and send it yourself.")
+    return out
 
 
 @router.post("/{file_id}/expenses", status_code=201)
@@ -319,5 +399,5 @@ def decide_extra(
         money.remove_extra(db, f, extra_id, user.id)
     else:
         raise HTTPException(status_code=404, detail="Unknown action")
-    trips.refresh(db, f)
+    _flow(f).refresh(db, f)
     return _done(db, f)

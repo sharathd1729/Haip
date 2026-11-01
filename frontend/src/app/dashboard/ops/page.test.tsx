@@ -46,6 +46,8 @@ function file(patch: Partial<OpsFileFull> = {}): OpsFileFull {
                expenses_by_category: {}, total_expenses: "0", net_cash: "126732", deposit: null, extras_waiting: 1 },
     expenses: [], extras: [{ id: "x1", kind: "upsell", label: "Bonfire kit", amount: "2500", status: "proposed" }],
     timeline: [{ at: "2026-10-25T10:00:00Z", text: "Booking confirmed, trip file created", auto: true }], close_blockers: [],
+    fleet_problems: [], guest_form: { submitted_at: null, link: null, guests: [] },
+    return_check: { words: "", damage: [], items: [] }, messages: [],
     ...patch,
   };
 }

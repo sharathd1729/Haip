@@ -247,17 +247,19 @@ def read_bill(ans: dict) -> tuple[dict | None, list[str], list[str]]:
 
 def active_file(db: Session, tenant_id: str, staff: StaffProfile) -> OpsFile | None:
     """The file this person is crew on now: a trip on the road first, else the next one getting ready."""
+    from app.services import ops_stay_service as stays
+
     files = [
         f
         for f in db.query(OpsFile).filter(
             OpsFile.tenant_id == tenant_id,
-            OpsFile.state.in_(trips.BEFORE_ROAD + ("on_trip",)),
+            OpsFile.state.in_(trips.BEFORE_ROAD + ("on_trip",) + stays.LIVE),
         )
-        if staff.id in (money.details(f).driver_staff_id, money.details(f).helper_staff_id)
+        if staff.id in money.crew_ids(f)
     ]
     if not files:
         return None
-    on_road = [f for f in files if f.state == "on_trip"]
+    on_road = [f for f in files if f.state in ("on_trip", "staying")]
     return on_road[0] if on_road else min(files, key=lambda f: money.stay_of(db, f).check_in)
 
 
@@ -375,7 +377,8 @@ def _bill(db, f, staff, jpeg, key, ans, hint) -> Outcome:
         )
     total = money.account(db, f)["total_expenses"]
     return Outcome(
-        f"Recorded {fields['category']} Rs {fields['amount']:,}. Trip expenses so far Rs {total:,}.",
+        f"Recorded {fields['category']} Rs {fields['amount']:,}. "
+        f"{'Stay' if f.pack == 'villa' else 'Trip'} expenses so far Rs {total:,}.",
         sends,
     )
 
@@ -398,6 +401,11 @@ def _check(db, f, staff, jpeg, key, ans, item_key) -> Outcome:
     trips.set_item(db, f, item.key, "green" if ok else "red", note, staff_id=staff.id)
     if ok:
         return Outcome(f"Got it. {item.label.split(',')[0]} looks fine. {_still_needed(db, f)}")
+    if item.critical:  # a critical item that looks wrong is a defect: the vehicle stays off sale until it is closed
+        from app.services.ops_fleet_service import defect_from_photo
+
+        defect_from_photo(db, f, item.key, f"{item.label.split(',')[0]}: {'; '.join(problems) or 'looks wrong'}",
+                          f"Photo from {staff.name} before the trip.")
     sends = _flag(
         db,
         f,
@@ -425,9 +433,28 @@ def handle_photo(
     store: Callable[[str, str, str, bytes], str] | None = None,
 ) -> Outcome:
     """One staff photo. Raises vision_adapter.VisionError (the task retries transient ones); everything else is a reply."""
+    if re.match(r"\s*return\b", caption or "", re.IGNORECASE):  # "return ac": compared with the handover photo
+        from app.services import ops_return_check
+
+        return ops_return_check.handle(
+            db, tenant_id, staff, raw=raw, caption=caption or "", message_id=message_id, describe=describe, store=store
+        )
     f = active_file(db, tenant_id, staff)
     if f is None:
         return Outcome("No trip found for your number right now. Please check with the manager.")
+    if f.pack == "villa":
+        from app.services import ops_stay_photos
+
+        return ops_stay_photos.handle(
+            db,
+            tenant_id,
+            staff,
+            raw=raw,
+            caption=caption,
+            message_id=message_id,
+            describe=describe or _default_describe,
+            store=store or _store,
+        )
     kind, detail = classify(caption, trips.readiness_items(db, f))
     if kind is None:
         return Outcome(
@@ -481,6 +508,11 @@ def _store(tenant_id: str, file_id: str, message_id: str, jpeg: bytes) -> str:
 def handle_text(db: Session, tenant_id: str, staff: StaffProfile, text: str) -> Outcome | None:
     """'issue <what happened>' from crew -> an incident for the manager. None = not an ops command (the foundations
     handler logs it on the person's latest alert as before)."""
+    from app.services import ops_stay_meals
+
+    reply = ops_stay_meals.cook_reply(db, tenant_id, staff, text)  # "OK" from a villa cook confirms the meal plan sent to them
+    if reply is not None:
+        return Outcome(reply)
     m = _ISSUE.match(text or "")
     if not m:
         return None
@@ -494,7 +526,7 @@ def handle_text(db: Session, tenant_id: str, staff: StaffProfile, text: str) -> 
         f,
         "crew reported a problem",
         f"{staff.name}: {body}",
-        "critical" if f.state == "on_trip" else "high",
+        "critical" if f.state in ("on_trip", "staying") else "high",
         "incident",
     )
     return Outcome(

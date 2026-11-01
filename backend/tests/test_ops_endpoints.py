@@ -204,6 +204,9 @@ def test_settings_and_template_install(client, db, w):
     assert r.status_code == 200 and set(r.json()["created"]) == {
         "ops_alert_v1",
         "ops_escalation_v1",
+        "ops_crew_brief_v1",
+        "ops_helper_chase_v1",
+        "ops_guest_pretrip_v1",
     }
     assert r.json()["template_status"]["ops_alert_v1"] == "draft"
     assert client.post("/api/v1/ops/templates/install", headers=_h(w.owner)).json()["created"] == []

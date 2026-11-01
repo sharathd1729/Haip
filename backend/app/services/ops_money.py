@@ -16,7 +16,7 @@ from app.core.audit import append_audit
 from app.models.ops_files import OpsExpense, OpsExtra, OpsFile, OpsFileEvent
 from app.models.property import Stay
 from app.models.stay_finance import StayAddOn, StayDeposit
-from app.schemas.ops_files import CaravanDetails, ExpenseIn, ExtraIn
+from app.schemas.ops_files import CaravanDetails, ExpenseIn, ExtraIn, VillaDetails
 from app.services import booking_service
 
 EXTRA_KM_ADDON = "Extra distance"
@@ -51,12 +51,23 @@ def event(
     )
 
 
-def details(f: OpsFile) -> CaravanDetails:
-    return CaravanDetails.model_validate(f.details or {})
+def details(f: OpsFile) -> CaravanDetails | VillaDetails:
+    return (VillaDetails if f.pack == "villa" else CaravanDetails).model_validate(f.details or {})
 
 
-def save_details(f: OpsFile, d: CaravanDetails) -> None:
+def save_details(f: OpsFile, d: CaravanDetails | VillaDetails) -> None:
     f.details = d.model_dump(mode="json")
+
+
+def crew_ids(f: OpsFile) -> tuple[str, ...]:
+    """Staff on this file: driver + helper (caravan), caretaker + cook + cleaner (villa)."""
+    d = details(f)
+    ids = (
+        (d.caretaker_staff_id, d.cook_staff_id, d.cleaner_staff_id)
+        if isinstance(d, VillaDetails)
+        else (d.driver_staff_id, d.helper_staff_id)
+    )
+    return tuple(i for i in ids if i)
 
 
 def stay_of(db: Session, f: OpsFile) -> Stay:
@@ -121,7 +132,8 @@ def account(db: Session, f: OpsFile) -> dict:
     d = details(f)
     fin = booking_service.financials_for(db, f.tenant_id, [stay])[stay.id]
     gst = gst_percent(db, stay)
-    dist, over = extra_km(d)
+    km = isinstance(d, CaravanDetails)  # a villa has no kilometres
+    dist, over = extra_km(d) if km else (None, 0)
     expenses = db.query(OpsExpense).filter(OpsExpense.tenant_id == f.tenant_id, OpsExpense.file_id == f.id).all()
     by_cat: dict[str, Decimal] = {}
     for e in expenses:
@@ -143,11 +155,11 @@ def account(db: Session, f: OpsFile) -> dict:
         "package_total": _r(fin["stay_charge"]),
         "addons_total": _r(fin["addons_total"]),
         "distance_km": dist,
-        "allowance_km": d.allowance_km,
+        "allowance_km": d.allowance_km if km else None,
         "extra_km": over,
-        "extra_km_rate": d.extra_km_rate,
-        "rate_includes_gst": d.rate_includes_gst,
-        "extra_km_charge": extra_km_charge(d, gst),
+        "extra_km_rate": d.extra_km_rate if km else None,
+        "rate_includes_gst": d.rate_includes_gst if km else False,
+        "extra_km_charge": extra_km_charge(d, gst) if km else Decimal("0.00"),
         "total_revenue": revenue,
         "gst_percent": gst,
         "revenue_ex_gst": revenue_ex_gst,

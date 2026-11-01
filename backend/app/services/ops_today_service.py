@@ -4,6 +4,8 @@ ONE read for the screen, so it never applies rules of its own:
   units  one card per vehicle: what it is doing, how ready, its biggest problem
   needs  only what needs a person, red first: open ops items (staff flags, issues) + what the trip files say
          (critical checks still open close to departure, a trip not accepted yet, extras waiting, money/deposit after return)
+         + the fleet (ops_fleet_service: papers expiring, defects, services due, stock below par; action open_fleet /
+         open_staff) + automatic messages that could not be sent (ops_auto_messages.failed_needs)
   day    today and tomorrow in time order: who leaves, who is away, who comes back
 A day with nothing wrong returns an empty `needs`. Built for the caravan pack; other packs add their own needs here.
 """
@@ -17,7 +19,7 @@ from app.models.ops import OpsItem
 from app.models.ops_files import OpsFile
 from app.models.property import Property, Stay
 from app.models.tenant import Tenant
-from app.services import booking_agenda_service
+from app.services import booking_agenda_service, ops_fleet_view
 from app.services import ops_money as money
 from app.services import ops_pack_catalog as packs
 from app.services import ops_trip_service as trips
@@ -110,7 +112,8 @@ def _file_needs(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, t
         )
     if f.state == "returned":
         dep = a["deposit"]
-        back_h = (now - f.returned_at).total_seconds() / 3600 if f.returned_at else 0
+        back = f.returned_at.replace(tzinfo=f.returned_at.tzinfo or UTC) if f.returned_at else None  # SQLite: naive
+        back_h = (now - back).total_seconds() / 3600 if back else 0
         if dep is not None and dep["status"] == "held":
             out.append(
                 _need(
@@ -147,6 +150,10 @@ def _file_needs(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, t
 def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
     now = now or datetime.now(UTC)
     tenant = db.get(Tenant, tenant_id)
+    if tenant is not None and packs.pack_for_business_type(tenant.business_type) == "villa":
+        from app.services import ops_stay_today  # villa rules live apart; same screen shape
+
+        return ops_stay_today.build(db, tenant_id, now=now)
     tz = get_tz(tenant) if tenant else UTC
     today = booking_agenda_service.tenant_today(db, tenant_id)
     trips.sync_files(db, tenant_id, today)  # a new booking shows up here without waiting for a job
@@ -176,6 +183,11 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
         file_needs[f.id] = fn
         needs += fn
     by_stay = {stay.id: f for f, stay in rows}
+    from app.services import ops_auto_messages  # it reads _hours_until from here
+
+    for n in ops_auto_messages.failed_needs(db, tenant_id, names):
+        needs.append(n)
+        file_needs.setdefault(n["file_id"], []).append(n)
     for it in (
         db.query(OpsItem)
         .filter(OpsItem.tenant_id == tenant_id, OpsItem.status.in_(("open", "acknowledged")))
@@ -183,6 +195,8 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
         .limit(50)
     ):
         f = by_stay.get(it.stay_id) if it.stay_id else None
+        if it.category == "deposit" and f is not None:
+            continue  # the deposit reminder sent to the manager: the trip's own "Refund deposit" need already shows it
         lvl = "red" if it.severity in _RED_SEVERITY else "amber"
         title = it.title.split(": ", 1)[-1]  # the unit is shown apart; "Ratha 1: crew ..." -> "Crew ..."
         n = _need(
@@ -195,9 +209,13 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
             item_id=it.id,
             key=f"item:{it.id}",
         )
+        n["item_kind"] = it.kind  # gps_off_route offers "Approved detour" on the card
         needs.append(n)
         if f is not None:
             file_needs.setdefault(f.id, []).append(n)
+    fleet_needs = ops_fleet_view.needs(db, tenant_id, today)  # papers, defects, services, stock (+ "" = people)
+    for n in fleet_needs.values():
+        needs += n
     needs.sort(key=lambda n: _ORDER[n["level"]])
 
     units = []
@@ -207,22 +225,23 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
         back = next(((f, s) for f, s in mine if f.state == "returned"), None)
         nxt = next(((f, s) for f, s in mine if f.state in trips.BEFORE_ROAD), None)
         cur = on_road or back or nxt
+        mine_fleet = fleet_needs.get(p.id, [])
         if cur is None:
             units.append(
                 {
                     "property_id": p.id,
                     "name": p.name,
-                    "tone": "idle",
+                    "tone": ("red" if any(n["level"] == "red" for n in mine_fleet) else "amber") if mine_fleet else "idle",
                     "status": "Free",
                     "line": "No trip coming up",
-                    "problem": None,
+                    "problem": mine_fleet[0]["title"] if mine_fleet else None,
                     "file_id": None,
                     "ready_pct": None,
                 }
             )
             continue
         f, s = cur
-        fn = file_needs.get(f.id, [])
+        fn = sorted(file_needs.get(f.id, []) + mine_fleet, key=lambda n: _ORDER[n["level"]])
         tone = "red" if any(n["level"] == "red" for n in fn) else "amber" if fn else "ok"
         g = trips.gate(trips.readiness_items(db, f))
         who = (s.guest.name if s.guest is not None else None) or "Guest"

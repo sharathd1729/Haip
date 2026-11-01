@@ -11,7 +11,7 @@ from app.models.ops import StaffDuty, StaffProfile
 from app.models.property import Property
 from app.models.user import User
 from app.schemas.ops import DutyAssignment, StaffCreate, StaffUpdate
-from app.services import phone_identity
+from app.services import ops_fleet_service, phone_identity
 
 
 def normalize_phone(db: Session, tenant_id: str, raw: str) -> str:
@@ -46,10 +46,14 @@ def duties_of(db: Session, tenant_id: str, staff_ids: list[str]) -> dict[str, li
     return out
 
 
-def to_out(db: Session, staff: StaffProfile, duties: list[DutyAssignment] | None = None) -> dict:
+def to_out(db: Session, staff: StaffProfile, duties: list[DutyAssignment] | None = None, lic=False) -> dict:
     if duties is None:
         duties = duties_of(db, staff.tenant_id, [staff.id]).get(staff.id, [])
+    if lic is False:
+        lic = ops_fleet_service.licence(db, staff.tenant_id, staff.id)
     return {
+        "licence_number": lic.number if lic else None,
+        "licence_expires_on": lic.expires_on if lic else None,
         "id": staff.id,
         "name": staff.name,
         "phone_e164": staff.phone_e164,
@@ -68,7 +72,8 @@ def list_staff(db: Session, tenant_id: str, include_inactive: bool = False) -> l
         q = q.filter(StaffProfile.active.is_(True))
     rows = q.order_by(StaffProfile.name).all()
     duties = duties_of(db, tenant_id, [s.id for s in rows])
-    return [to_out(db, s, duties.get(s.id, [])) for s in rows]
+    lic = ops_fleet_service.licences(db, tenant_id, [s.id for s in rows])
+    return [to_out(db, s, duties.get(s.id, []), lic.get(s.id)) for s in rows]
 
 
 def get_staff(db: Session, tenant_id: str, staff_id: str) -> StaffProfile:
@@ -135,6 +140,7 @@ def create_staff(db: Session, tenant_id: str, body: StaffCreate) -> StaffProfile
     db.add(staff)
     db.flush()
     _replace_duties(db, tenant_id, staff.id, body.duties)
+    ops_fleet_service.set_licence(db, tenant_id, staff.id, body.licence_number, body.licence_expires_on)
     db.flush()
     return staff
 
@@ -162,5 +168,14 @@ def update_staff(db: Session, tenant_id: str, staff_id: str, body: StaffUpdate) 
             staff.whatsapp_opt_in_at = None
     if body.duties is not None:
         _replace_duties(db, tenant_id, staff.id, body.duties)
+    if "licence_number" in data or "licence_expires_on" in data:
+        cur = ops_fleet_service.licence(db, tenant_id, staff.id)
+        ops_fleet_service.set_licence(
+            db,
+            tenant_id,
+            staff.id,
+            data.get("licence_number", cur.number if cur else None),
+            data.get("licence_expires_on", cur.expires_on if cur else None),
+        )
     db.flush()
     return staff
