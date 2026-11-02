@@ -53,7 +53,7 @@ def _live(db: Session, host: str):
 @router.get("/sites/{host}/bootstrap")
 def bootstrap(host: str, db: Session = Depends(get_db)):
     tenant, site, v = _live(db, host)
-    return pub.bootstrap(db, tenant, site, v)
+    return pub.bootstrap(db, tenant, site, v, host=host)
 
 
 @router.get("/preview/{token}/bootstrap")

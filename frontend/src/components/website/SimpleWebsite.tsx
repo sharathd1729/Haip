@@ -48,6 +48,7 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
   const host = site.url.replace("https://", "");
   const trips = (missing.data?.drafts || []).filter(d => d.kind !== "destination");
   const blocking = draft.checks.filter(c => c.level === "block");
+  const scores = draft.checks.filter(c => c.key.startsWith("score_"));   // speed / accessibility / search (warn only)
   const unpublished = !!v && v.status === "draft" && v.id !== site.live?.id;
 
   return (
@@ -146,6 +147,9 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
           <div className="grid gap-3 text-[15px]"><p>Fix these first:</p>
             <ul className="grid gap-2">{blocking.map(c => <li key={c.key} className="rounded-xl border border-[var(--haip-border)] p-3"><b className="font-semibold">{c.title}</b><span className="block text-sm text-[var(--haip-fg-muted)]">{c.detail}</span></li>)}</ul></div>
         ) : <p className="text-[15px]">Guests will see this version at <b className="font-semibold">{host}</b>. You can change it and publish again any time.</p>}
+        {scores.length > 0 && <ul className="mt-4 grid gap-2" aria-label="Website check">{scores.map(c => (
+          <li key={c.key} className="rounded-xl border border-[var(--haip-border)] p-3"><b className="font-semibold">{c.ok ? "✓ " : ""}{c.title}</b>
+            <span className="block text-sm text-[var(--haip-fg-muted)]">{c.detail}</span></li>))}</ul>}
       </Drawer>
     </div>
   );

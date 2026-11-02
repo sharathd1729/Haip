@@ -1,6 +1,7 @@
 // Server-side access to the HAIP guest API. HAIP_API_URL is the internal API address (never sent to browsers).
 import type { LiveData, SiteEnv, Stay } from "@/site-blocks/types";
 import type { LiveDataV2 } from "@/site-blocks/v2/types";
+import { selfHosted } from "@/lib/fonts";
 
 /** A published version is a v1 block document or a v2 SiteSpec (spec_version 2); isV2() tells them apart. */
 export type AnyLive = LiveData | LiveDataV2;
@@ -27,12 +28,21 @@ export async function getLive(host: string): Promise<AnyLive | null> {
     { next: { revalidate: 300, tags: [`site:${host}`] } });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`HAIP ${r.status}`);
-  return r.json();
+  return withOwnFonts(await r.json());
+}
+
+/** v2: the theme's fonts come from this site (next/font) instead of Google's stylesheet. */
+export function withOwnFonts<T extends AnyLive>(live: T): T {
+  if (!("spec_version" in live) || live.spec_version !== 2) return live;
+  const v = live.theme.vars, t = live.doc.tokens;
+  return { ...live, theme: { ...live.theme, fonts_href: "", vars: { ...v,
+    "--v-display": selfHosted(t.display, v["--v-display"]) || v["--v-display"],
+    "--v-body": selfHosted(t.body, v["--v-body"]) || v["--v-body"] } } };
 }
 
 export async function getPreview(token: string): Promise<AnyLive | null> {
   const r = await fetch(`${apiRoot()}/public/preview/${encodeURIComponent(token)}/bootstrap`, { cache: "no-store" });
-  return r.ok ? r.json() : null;
+  return r.ok ? withOwnFonts(await r.json()) : null;
 }
 
 export async function getStay(host: string, slug: string, preview?: string): Promise<Stay | null> {

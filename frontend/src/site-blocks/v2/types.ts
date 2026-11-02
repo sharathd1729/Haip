@@ -61,6 +61,9 @@ export interface LiveDataV2 {
   policies: LiveData["policies"];
   legal: LiveData["legal"];
   tracking?: LiveData["tracking"];
+  /** JSON-LD per page slug (backend website_seo; live pages only). */
+  jsonld?: Record<string, object[]>;
+  business_kind?: string | null;
 }
 
 /** Pages every v2 site has without a spec page: Razorpay returns guests to /book/done, confirmations link /my-booking, and

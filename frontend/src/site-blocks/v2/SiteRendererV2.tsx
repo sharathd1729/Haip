@@ -42,7 +42,7 @@ export function SiteRendererV2({ live, page, env, banner, main }: { live: LiveDa
   return (
     <div className={`sv${hasBar ? " sv--has-bar" : ""}${overHero ? " sv--over-hero" : ""}`} data-motion={live.theme.motion}
       data-scheme={live.theme.scheme} style={live.theme.vars as CSSProperties}>
-      <link rel="stylesheet" href={live.theme.fonts_href} precedence="default" />
+      {live.theme.fonts_href && <link rel="stylesheet" href={live.theme.fonts_href} precedence="default" />}
       {banner}
       <a className="sv-skip" href="#sv-main">Skip to content</a>
       <header className="sv-top">

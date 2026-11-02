@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { envFor, getPreview, getStay, queryOf } from "@/lib/haip";
+import { V1Fonts } from "@/components/V1Fonts";
 import { findPage, SiteRenderer } from "@/site-blocks/SiteRenderer";
 import { SiteRendererV2 } from "@/site-blocks/v2/SiteRendererV2";
 import { findPageV2, isV2 } from "@/site-blocks/v2/types";
@@ -28,5 +29,5 @@ export default async function Preview({ params, searchParams }: { params: Promis
   const stay = found.slug ? await getStay("", found.slug, token) : null;
   const env = envFor(live, { mode: "preview", base, query: queryOf(await searchParams), stay,
     mediaBase: `/_haip/pmedia/${token}` });
-  return <SiteRenderer live={live} page={found.page} env={env} banner={banner} />;
+  return <><V1Fonts /><SiteRenderer live={live} page={found.page} env={env} banner={banner} /></>;
 }

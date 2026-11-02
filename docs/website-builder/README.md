@@ -77,6 +77,24 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
   booked. Booked value only for roles with `bookings.read`.
 - Not built: GA4 server-side (Measurement Protocol needs an API secret per property), Google Ads conversion tags.
 
+## Phase 3: Google and speed (3 Nov 2026, no migration)
+- **Structured data** (`services/website_seo.py`): every live v2 page gets JSON-LD built from the data the page shows.
+  The business is VacationRental (villa, homestay, farmhouse), Hotel (boutique hotel), Resort, TravelAgency or
+  LodgingBusiness (caravan, service apartments, unknown), from `tenants.business_type` via `business_kind()`.
+  `aggregateRating` averages EVERY rated review HAIP holds (not only the 4-5 star ones shown); `review` lists only reviews
+  the guest agreed to show, first name only. `makesOffer` and `priceRange` appear only in grounded price mode. A page
+  with an FAQ section also gets FAQPage. Previews carry none.
+- **Photos** (`sites/src/app/x/media/[id]/route.ts`): `?w=480|640|960|1280|1920` returns the photo resized to that width
+  as AVIF or WebP (JPEG for old browsers), cached a day in the browser and a week at the CDN. The v2 `Img` part writes
+  the srcset and keeps width/height, so nothing jumps while loading.
+- **Fonts** (`sites/src/lib/fonts.ts`): the 12 v2 catalogue fonts are self-hosted with next/font (downloaded at build,
+  served from the site). A page downloads only its two. Classic v1 sites still use Google Fonts' stylesheet.
+- **Publish gate** (`services/website_quality.py`): speed, accessibility and search scores out of 100 in the publish
+  checklist, with what to improve. They warn only; publishing is blocked only by text colours below WCAG AA contrast.
+  This is the static part of a Lighthouse audit (HAIP has no headless browser in the API).
+- **Google Business Profile**: Website page › Google profile, a 12-step guidance checklist (claim, category, matching
+  name/address/phone, photos, reviews, posts...). Nothing is changed on Google from HAIP.
+
 ## Celery
 `website.ai_job` (default), `website.after_booking` (whatsapp: invoice, email + WhatsApp confirmation, staff push),
 `website.expire_holds` (beat */5), `website.verify_domains` (beat hourly :17), `website.revalidate` (after publish),

@@ -145,6 +145,18 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
     prof = get_profile(tenant) if tenant else None
     add("legal", bool(prof and prof.legal_name and prof.address), "Legal name and address",
         "Shown in the footer and on invoices (Settings › Invoices).", "warn", "invoice_profile")
+    # phase 3 publish gate: speed / accessibility / search scores warn; only failing contrast blocks
+    from app.services import website_public_service as pub
+    from app.services.website_quality import audit
+    q = audit(doc, data["bound"], pub.asset_urls(db, site.tenant_id, doc, extra=data["asset_ids"]))
+    for item in q["items"]:
+        if item["level"] == "block":
+            add(f"quality_{item['key']}", False, item["title"], item["detail"], "block")
+    names = {"performance": "Speed", "accessibility": "Accessibility", "seo": "Search"}
+    for cat, score in q["scores"].items():
+        todo = [i["title"] for i in q["items"] if i["category"] == cat and not i["ok"]]
+        add(f"score_{cat}", score >= 90, f"{names[cat]} {score}/100",
+            "To improve: " + "; ".join(todo) if todo else "Nothing to improve here.")
     return out
 
 
@@ -158,14 +170,18 @@ def _is_empty(stype: str, data: dict) -> bool:
     return False
 
 
-def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False) -> dict:
-    """What the sites renderer needs for a v2 page: the spec, its bound data, theme variables and photo paths."""
+def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False,
+              host: Optional[str] = None) -> dict:
+    """What the sites renderer needs for a v2 page: the spec, its bound data, theme variables and photo paths, and (live
+    only) JSON-LD per page (website_seo)."""
+    from app.services import website_seo
     from app.services import website_public_service as pub
     from app.services.business_data_service import tenant_today
     cfg = site_settings(site)
     doc = version.doc
     data = website_bindings.resolve(db, tenant, doc, site=site)
     shown, mode = guest_terms(tenant, site, doc)
+    assets = pub.asset_urls(db, tenant.id, doc, extra=data["asset_ids"])
     return {
         "spec_version": 2,
         "site": {"id": site.id, "name": site.name, "status": site.status, "preview": preview, "booking_mode": mode,
@@ -178,7 +194,9 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "price_mode": data["price_mode"],
         "bound": data["bound"],
         "page_wa": data["page_wa"],
-        "assets": pub.asset_urls(db, tenant.id, doc, extra=data["asset_ids"]),
+        "assets": assets,
+        "jsonld": website_seo.jsonld(tenant, doc, data["bound"], assets, host=host, grounded=shown) if host and not preview else {},
+        "business_kind": website_seo.business_kind(tenant.business_type),
         "policies": pub._policies(db, tenant),        # the built-in /policies page (sites app), same as v1
         "legal": pub._legal(tenant),
         "tracking": {} if preview else website_tracking.public(site),   # pixels never load in a draft preview

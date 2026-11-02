@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Consent } from "@/components/Consent";
 import { PageView } from "@/components/PageView";
+import { V1Fonts } from "@/components/V1Fonts";
 import { type AnyLive, envFor, getLive, getStay, queryOf } from "@/lib/haip";
 import { findPage, SiteRenderer } from "@/site-blocks/SiteRenderer";
 import type { LiveData, Page, Stay } from "@/site-blocks/types";
@@ -34,7 +35,8 @@ async function resolve(host: string, path: string[] | undefined): Promise<Found 
   return { v2: false, live, page: found.page, slug: found.slug, stay };
 }
 
-function jsonLd(r: Found, host: string) {
+function jsonLd(r: Found, host: string): object | object[] {
+  if (r.v2) return r.live.jsonld?.[r.page.slug] || r.live.jsonld?.["/"] || [];   // built by HAIP (website_seo) from the page's own data
   const c = r.live.doc.site.contact;
   const stay = r.stay;
   return {
@@ -79,7 +81,7 @@ export default async function SitePage({ params, searchParams }: { params: Promi
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(r, host)).replace(/</g, "<") }} />
-      {r.v2 ? <SiteRendererV2 live={r.live} page={r.page} env={env} main={sys?.main} /> : <SiteRenderer live={r.live} page={r.page} env={env} />}
+      {r.v2 ? <SiteRendererV2 live={r.live} page={r.page} env={env} main={sys?.main} /> : <><V1Fonts /><SiteRenderer live={r.live} page={r.page} env={env} /></>}
       <PageView path={p} />
       <Consent pixel={r.live.tracking?.pixel_id} ga4={r.live.tracking?.ga4_id} />
     </>

@@ -167,11 +167,12 @@ def asset_urls(db: Session, tenant_id: str, doc: dict, extra: Optional[set] = No
     return {a.id: {"src": f"/_haip/media/{a.id}", "alt": (a.alt_text or "")[:200], "w": a.width, "h": a.height} for a in rows}
 
 
-def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False) -> dict:
+def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False,
+              host: Optional[str] = None) -> dict:
     from app.services import website_spec_service as wspec
     from app.services.business_data_service import tenant_today
     if wspec.is_v2(version.doc):
-        return wspec.bootstrap(db, tenant, site, version, preview=preview)
+        return wspec.bootstrap(db, tenant, site, version, preview=preview, host=normalise_host(host) if host else None)
     cfg = site_settings(site)
     today = tenant_today(db, tenant.id)
     props = bookable_properties(db, tenant.id, cfg.property_ids or None)
