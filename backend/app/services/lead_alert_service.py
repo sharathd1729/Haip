@@ -15,7 +15,9 @@ When the item leaves the queue (someone replied, called, booked ...) the run clo
 cold (stale): that is the morning report's business, not an alarm's.
 
 WhatsApp goes only to a person who opted in (users.whatsapp_alerts_opt_in_at) and has a phone on their profile; everyone
-else, and every failed send, gets the push. During quiet hours (default 22:00-08:00 local) alerts are HELD; the first tick
+else, and every failed send, gets the push. Every alert is pushed; the WhatsApp is held back (``wa_hold``, push only) when
+the person already had one in the last ``staff_whatsapp_gap_minutes`` (default 15: one manager got almost every alert), or
+for an hour after Meta refused a send to them with 131049 ("healthy ecosystem engagement"). Each level still fires once. During quiet hours (default 22:00-08:00 local) alerts are HELD; the first tick
 after quiet hours sends each person one morning summary instead of a burst. Acknowledge (a button on the WhatsApp, or the
 app) records that the person saw it; it does not stop the ladder -- only acting on the lead does.
 """
@@ -41,7 +43,12 @@ log = structlog.get_logger()
 
 LEVELS = {"late": 1, "urgent": 2, "critical": 3}
 LEVEL_LABEL = {1: "Late", 2: "Urgent", 3: "Critical"}
-KIND_LABEL = {"new_lead": "new lead", "reply": "waiting for a reply", "callback": "missed call to return"}
+KIND_LABEL = {"new_lead": "new lead", "reply": "waiting for a reply", "callback": "missed call to return",
+              "came_back": "came back", "campaign_reply": "replied to a campaign",
+              "handover": "bot handed over: call / quote needed"}
+# Meta 131049: not delivered "to maintain healthy ecosystem engagement" -- sending again soon fails again.
+ECOSYSTEM_CODE = "Meta 131049"
+BACKOFF = timedelta(hours=1)
 WATCHING = "watching"
 
 
@@ -121,6 +128,21 @@ def push_fallback(db: Session, action: PlaybookAction) -> None:
     db.flush()
 
 
+def wa_hold(db: Session, tenant: Tenant, user_id: str, now: datetime) -> Optional[str]:
+    """Why this person gets no alert WhatsApp right now (push only), or None: Meta refused one with 131049 in the last
+    hour, or they already had one inside the gap."""
+    gap = timedelta(minutes=int(settings.get(tenant)["staff_whatsapp_gap_minutes"]))
+    recent = (db.query(PlaybookAction).filter(
+        PlaybookAction.tenant_id == tenant.id, PlaybookAction.recipient_user_id == user_id,
+        PlaybookAction.action == "staff_wa", PlaybookAction.created_at >= now - max(gap, BACKOFF)).all())
+    if any(a.status == "failed" and (a.reason or "").startswith(ECOSYSTEM_CODE) for a in recent
+           if _aware(a.created_at) >= now - BACKOFF):
+        return "WhatsApp paused for 1 h after Meta 131049; sent as push"
+    if gap and any(a.status in ("done", "queued") for a in recent if _aware(a.created_at) >= now - gap):
+        return f"one WhatsApp per {int(gap.total_seconds() // 60)} min; sent as push"
+    return None
+
+
 # ── The ladder ──────────────────────────────────────────────────────────────
 
 def _texts(item: dict, level: int, now: datetime) -> tuple[str, list[str], str, str]:
@@ -153,7 +175,11 @@ def _fire(db: Session, tenant: Tenant, run: PlaybookRun, item: dict, level: int,
             continue
         _push(db, tenant.id, user.id, title, body, url)
         db.add(PlaybookAction(**base, action="push", status="done", payload=meta))
-        if phone:
+        hold = wa_hold(db, tenant, user.id, now) if phone else None
+        if hold:
+            db.add(PlaybookAction(**base, action="staff_wa", status="skipped", template_name=template, reason=hold,
+                                  payload=meta))
+        elif phone:
             action = PlaybookAction(**base, action="staff_wa", status="queued", template_name=template, payload=meta)
             db.add(action)
             db.flush()
@@ -253,7 +279,7 @@ def notify_now(db: Session, tenant: Tenant, run: PlaybookRun, inquiry: Optional[
     out = False
     for user in recipients_for(db, tenant.id, 1, getattr(inquiry, "assigned_to", None)):
         phone = staff_phone(user)
-        if not phone:
+        if not phone or (wa_hold(db, tenant, user.id, _now()) or "").startswith("WhatsApp paused"):
             continue
         action = PlaybookAction(tenant_id=tenant.id, run_id=run.id, playbook_key=run.playbook_key, inquiry_id=run.inquiry_id,
                                 guest_id=run.guest_id, recipient_user_id=user.id, action="staff_wa", status="queued",

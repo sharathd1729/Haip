@@ -1429,9 +1429,11 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # DEBOUNCE_SECONDS is tuned -- a fresher task already has this
         # message's text via unanswered_guest_text(), so this draft would
         # only ever duplicate it, never add anything.
+        superseded_at_send = False
         if should_auto_send and not is_latest_pending_draft(tenant_id, conversation_id, message_id):
             log.info("concierge_draft_send_superseded", conversation_id=conversation_id, message_id=message_id)
             should_auto_send = False
+            superseded_at_send = True
             needs_human_reasons.append("superseded by a newer guest message before send")
 
         # Ask a manager (services/agent_consult_flow.py): a deterministic trigger holds the guessed answer; the consult opens below.
@@ -1498,6 +1500,26 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         db.add(draft_message)
         db.commit()
         agent_consult_flow.after_draft(db, consult_turn, draft_message, tenant, conversation, guest, inquiry)
+        if superseded_at_send:    # kept for the record, closed as "expired": the newer message's own run answers both
+            try:
+                from app.services import ai_draft_expiry
+                ai_draft_expiry.expire(db, tenant_id, conversation_id, [draft_message.id], "superseded")
+                db.commit()
+            except Exception as exc:  # noqa: BLE001 -- the 24 h sweep closes it instead
+                db.rollback()
+                log.warning("superseded_draft_expire_failed", message_id=draft_message.id, error=str(exc)[:200])
+
+        # The guest asked for a person: AI off on this thread, older drafts withdrawn, someone owns the callback
+        # (services/ai_handoff.py). This turn's draft (the acknowledgement) is kept.
+        _handoff = "wants_human" if details.get("wants_human") else (
+            "human_request" if escalation and escalation.get("category") == "human_request" else None)
+        if _handoff and not force:
+            try:
+                from app.services import ai_handoff
+                ai_handoff.turn_off(db, tenant, conversation, _handoff, keep_message_id=draft_message.id, guest=guest)
+            except Exception as exc:  # noqa: BLE001 -- the guest's reply must not be lost to this
+                db.rollback()
+                log.warning("ai_handoff_failed", conversation_id=conversation_id, error=str(exc)[:200])
 
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
                  auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))

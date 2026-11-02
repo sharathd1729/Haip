@@ -134,6 +134,17 @@ def test_inbox_rewrite_tasks_land_on_a_consumed_queue(celery_app_instance):
         assert _queue_of(celery_app_instance, name) == "whatsapp"
 
 
+def test_draft_expiry_sweep_is_scheduled_and_consumed(celery_app_instance):
+    """The 30-minute sweep that closes AI drafts nobody acted on (services/ai_draft_expiry.py)."""
+    import app.workers.tasks.draft_expiry  # noqa: F401
+
+    app = celery_app_instance
+    assert app.conf.beat_schedule["ai-drafts-expire-stale-30min"]["task"] == "ai_drafts.expire_stale_all_tenants"
+    for name in ("ai_drafts.expire_stale", "ai_drafts.expire_stale_all_tenants"):
+        assert name in app.tasks
+        assert _queue_of(app, name) == "whatsapp"
+
+
 def test_lead_assignment_tick_lands_on_a_consumed_queue(celery_app_instance):
     """The 5-minute automatic-assignment tick shipped with no queue route, so it
     fell through to the unconsumed "celery" queue and never ran in production.

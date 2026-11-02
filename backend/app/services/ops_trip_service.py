@@ -92,7 +92,13 @@ def ensure_file(db: Session, tenant_id: str, stay: Stay, pack: str | None = None
     if pack is None:
         tenant = db.query(Tenant).filter_by(id=tenant_id).first()
         pack = packs.pack_for_business_type(tenant.business_type if tenant else None)
-    if pack != PACK or stay.status not in LIVE_STAY:
+    if stay.status not in LIVE_STAY:
+        return None
+    if pack == "villa":
+        from app.services import ops_stay_service
+
+        return ops_stay_service.create_file(db, tenant_id, stay)
+    if pack != PACK:
         return None
     r = ops_rates.for_stay(db, stay)
     d = CaravanDetails(
@@ -128,7 +134,7 @@ def sync_files(db: Session, tenant_id: str, today: date) -> dict:
         .join(Stay, Stay.id == OpsFile.stay_id)
         .filter(
             OpsFile.tenant_id == tenant_id,
-            OpsFile.state.in_(BEFORE_ROAD),
+            OpsFile.state.in_(packs.CANCELLABLE),
             Stay.status == "cancelled",
         )
     ):
@@ -148,10 +154,10 @@ def get_file(db: Session, tenant_id: str, file_id: str) -> OpsFile:
 # ── Readiness gate ──────────────────────────────────────────────────────────
 
 
-def readiness_items(db: Session, f: OpsFile) -> list[OpsJobItem]:
+def readiness_items(db: Session, f: OpsFile, kind: str = "readiness") -> list[OpsJobItem]:
     job = (
         db.query(OpsJob)
-        .filter_by(tenant_id=f.tenant_id, file_id=f.id, kind="readiness")
+        .filter_by(tenant_id=f.tenant_id, file_id=f.id, kind=kind)
         .order_by(OpsJob.created_at)
         .first()
     )
@@ -301,6 +307,10 @@ def set_crew(db: Session, f: OpsFile, body: CrewIn, actor_id: str) -> OpsFile:
         if sid not in crew or not crew[sid].active:
             raise HTTPException(status_code=422, detail=f"Pick an active {role} from your staff list.")
     stay = money.stay_of(db, f)
+    from app.services.ops_fleet_service import licence_problem
+
+    if problem := licence_problem(db, crew[body.driver_staff_id], stay.check_out):
+        raise HTTPException(status_code=422, detail=problem)
     others = (
         db.query(OpsFile, Stay)
         .join(Stay, Stay.id == OpsFile.stay_id)
@@ -355,6 +365,10 @@ def dispatch(db: Session, f: OpsFile, start_odometer: int, actor_id: str) -> Ops
     refresh(db, f)
     if f.state != "dispatch_ready" or not gate(readiness_items(db, f))["ready"]:
         raise _conflict("Not ready to dispatch: some critical checks are not green yet.")
+    from app.services.ops_fleet_service import dispatch_problems
+
+    if problems := dispatch_problems(db, f):
+        raise _conflict("Cannot dispatch: " + "; ".join(problems) + ".")
     stay = money.stay_of(db, f)
     last = _last_reading(db, f, stay.property_id)
     if last is not None and start_odometer < last:
@@ -398,6 +412,8 @@ def end_trip(
     d.end_odometer = end_odometer
     money.save_details(f, d)
     f.state, f.returned_at = "returned", _now()
+    if not db.query(OpsJob.id).filter_by(tenant_id=f.tenant_id, file_id=f.id, kind="return").first():
+        _open_job(db, f, "return", money.stay_of(db, f).property_id)  # the same photo zones, compared on return
     charge = money.post_extra_km(db, f)
     dist, over = money.extra_km(money.details(f))
     money.event(
@@ -460,6 +476,12 @@ def close(db: Session, f: OpsFile, actor_id: str) -> OpsFile:
 
 
 # ── What the manager sees ───────────────────────────────────────────────────
+
+def _return_hint(db: Session, f: OpsFile) -> str:
+    from app.services.ops_return_check import summary
+
+    return summary(db, f)["words"]
+
 
 # What to do next, said as an instruction (a task's label says what "done" looks like: "Driver and helper assigned").
 NEXT_WORDS = {
@@ -550,7 +572,7 @@ def stage(db: Session, f: OpsFile) -> dict:
                 "ret",
                 "Vehicle checked on return",
                 f.return_checked_at,
-                "Compare with the handover photos",
+                _return_hint(db, f),
             ),
             t("extras", "Extras decided", not waiting),
             t(

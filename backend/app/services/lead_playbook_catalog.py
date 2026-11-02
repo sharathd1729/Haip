@@ -65,9 +65,11 @@ CATALOG: list[dict] = [
     {
         "key": SLA_ESCALATION, "code": "P4", "built": True, "kind": "alert",
         "name": "Waiting too long: escalate",
-        "trigger": "A lead waiting for a reply (30 min) or a missed call to return (30 min) is still waiting.",
+        "trigger": "A lead waiting for a reply, a missed call to return, a lead that came back or replied to a campaign, or a "
+                   "lead the bot handed over (30 min each) is still waiting.",
         "actions": ["Late: the lead's owner", "Urgent (2 h): the managers", "Critical (8 h): the owners",
-                    "Same WhatsApp buttons: Acknowledge, or I'll take it"],
+                    "Same WhatsApp buttons: Acknowledge, or I'll take it",
+                    "At most one WhatsApp per person every 15 minutes (the rest go as push)"],
         "stops": "The item leaves My day.",
         "template": "haip_staff_escalation_v1",
         "defaults": {"enabled": False},
@@ -115,8 +117,11 @@ GUEST_MESSAGE_PLAYBOOKS = (MISSED_INBOUND_CALL, UNANSWERED_OUTBOUND, CALLBACK_RE
 WORKSPACE_DEFAULTS = {"enabled": True, "guest_cap_hours": 4, "daily_cap": 150, "bridge_quiet_minutes": 120,
                       # Team alerts (P3/P4/P7): WhatsApp to staff who opted in, held during quiet hours (local time) and
                       # sent as one morning summary instead.
-                      "staff_whatsapp": True, "quiet_start_hour": 22, "quiet_end_hour": 8}
+                      "staff_whatsapp": True, "quiet_start_hour": 22, "quiet_end_hour": 8,
+                      # At most one alert WhatsApp per person per this many minutes; alerts inside it go as push only.
+                      "staff_whatsapp_gap_minutes": 15}
 
 FOLLOWUP_PLAYBOOKS = (PROPOSAL_FOLLOWUP, QUIET_LEAD_NURTURE, LOST_REENGAGE)
 
-ALERT_PLAYBOOKS = {NEW_LEAD_ALERT: ("new_lead",), SLA_ESCALATION: ("reply", "callback")}
+ALERT_PLAYBOOKS = {NEW_LEAD_ALERT: ("new_lead",),
+                   SLA_ESCALATION: ("reply", "callback", "came_back", "campaign_reply", "handover")}

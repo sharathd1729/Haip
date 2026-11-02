@@ -239,6 +239,8 @@ def _handle_staff_message(db, tenant: Tenant, staff, msg: dict, msg_type: str) -
     dedup_key = f"haip:ops:inbound:{msg.get('id', '')}"
     if msg.get("id") and get_cached(dedup_key):      # Meta redelivers webhooks; a staff tap is handled once
         return
+    staff.last_inbound_at = datetime.now(timezone.utc)   # their 24-hour window: ops trip messages can go as plain text
+    db.commit()
     # A photo from crew (odometer, bill, checklist) is read by AI in its own task (ops_photo_intake): never here.
     media = msg.get("image") if msg_type == "image" else (
         msg.get("document") if msg_type == "document" and str((msg.get("document") or {}).get("mime_type", "")).startswith("image/")
@@ -488,6 +490,17 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
                 link_attribution_to_inquiry(db, tenant.id, conversation.id, lead_inquiry.id)
         except Exception as exc:
             log.warning("wa_lead_auto_create_failed", tenant_id=tenant.id, error=str(exc))
+    # A reply to a WhatsApp campaign (any days later): Active + "Replied to campaign" on My day (lead_reopen, S3).
+    lead_reopen.on_campaign_reply(db, tenant.id, guest_id, message)
+
+    # Another number the guest typed ("reach me on 96...") is kept as an extra phone signal, never a merge.
+    if body and msg_type == "text":
+        try:
+            from app.services import chat_phone_capture
+            with db.begin_nested():
+                chat_phone_capture.capture_alternates(db, tenant.id, guest_id, body)
+        except Exception as exc:  # noqa: BLE001 -- the message is stored either way
+            log.warning("wa_alternate_phone_capture_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
     # Notify SSE subscribers so the inbox updates without a page refresh
     try:
@@ -541,6 +554,15 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
                 log.info("opt_out_detected", direction=result.direction, kw=result.matched_keyword)
                 # For opt-out, skip concierge draft (don't reply twice)
                 if result.direction == "opt_out":
+                    # A whole-message STOP also switches the AI off on this thread (services/ai_handoff.py); a keyword
+                    # inside a sentence ("cancel my booking") does not.
+                    from app.services import ai_handoff
+                    if ai_handoff.is_stop_message(body):
+                        try:
+                            ai_handoff.turn_off(db, tenant, conversation, "guest_stop", guest=guest)
+                        except Exception as exc:  # noqa: BLE001 -- still no AI reply to a STOP
+                            db.rollback()
+                            log.error("ai_handoff_failed", conversation_id=conversation.id, error=str(exc)[:200])
                     return
         except Exception as exc:
             log.error("opt_out_detection_failed", error=str(exc))
@@ -679,11 +701,15 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
         message.channel_status = meta_status
 
         if meta_status == "failed":
+            # In words + the next step ("This number isn't on WhatsApp..."), and on Workflows > Activity.
+            from app.services import wa_delivery_errors
             errors = status_obj.get("errors", [])
-            error_msg = "; ".join(
-                f"{e.get('code')}: {e.get('title', '')}" for e in errors
-            ) if errors else "Meta reported failure"
-            message.delivery_error = error_msg[:500]
+            message.delivery_error = wa_delivery_errors.describe(errors)[:500]
+            try:
+                with db.begin_nested():
+                    wa_delivery_errors.record(db, str(tenant.id), message, errors)
+            except Exception as exc:  # noqa: BLE001 -- the activity row must never lose the delivery update
+                log.warning("wa_undeliverable_record_failed", message_id=message.id, error=str(exc)[:200])
         else:
             message.delivery_error = None
 

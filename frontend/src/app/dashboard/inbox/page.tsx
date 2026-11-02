@@ -380,8 +380,16 @@ function InboxPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const windowSecsLeft = isWhatsApp ? getWindowSecondsLeft(detail?.last_inbound_at) : Infinity;
   const windowOpen = windowSecsLeft > 0 || !isWhatsApp;
-  // Block free-form send when window is closed and this is a WhatsApp thread (not internal note)
-  const windowBlocked = isWhatsApp && !windowOpen && !isInternalNote;
+  // Instagram has a 24h window too: a free-form DM after it fails at Meta, so offer WhatsApp instead of a doomed send.
+  const igWindowClosed = detail?.channel === "instagram" && getWindowSecondsLeft(detail?.last_inbound_at) <= 0;
+  // Block free-form send when window is closed (not internal note)
+  const windowBlocked = ((isWhatsApp && !windowOpen) || igWindowClosed) && !isInternalNote;
+  const [startWa, setStartWa] = useState(false);
+  const canStartWa = canSend && detail?.channel === "instagram" && !!detail?.guest_phone && !!detail?.guest_id;
+  const openStartWa = useCallback(() => setStartWa(true), []);
+  const handleFailureAction = useCallback((step: "template" | "whatsapp") => {
+    if (step === "template") setShowTemplatePicker(true); else setStartWa(true);
+  }, []);
   void windowTick; // consumed by re-render cycle to refresh countdown
 
   // HAIP Inbox UI-fidelity pass, ticket 1/5: a channel="voice" conversation
@@ -710,6 +718,7 @@ function InboxPageInner() {
               currentUserId={currentUserId} clickToCallMutation={clickToCallMutation} resolveMutation={resolveMutation}
               setShowGuestSheet={setShowGuestSheet} setShowSearch={setShowSearch} showSnooze={showSnooze}
               setShowSnooze={setShowSnooze} snoozeMutation={snoozeMutation}
+              onStartWhatsApp={canStartWa ? openStartWa : undefined}
             />
 
 
@@ -737,6 +746,7 @@ function InboxPageInner() {
               hasMoreOlderMessages={hasMoreOlderMessages} loadOlderMessages={loadOlderMessages}
               loadingOlderMessages={loadingOlderMessages} callItems={callItems}
               handleApprove={handleApprove} handleReject={handleReject} handleRetry={handleRetry}
+              handleFailureAction={handleFailureAction}
               setEditingDraftId={setEditingDraftId} setEditText={setEditText} setReplyToMsg={setReplyToMsg}
               textareaRef={textareaRef} rewriteDraft={rewriteDraft} rewritingMessageId={rewritingMessageId}
               aiTyping={aiTyping} bottomRef={bottomRef} canSend={canSend}
@@ -750,6 +760,7 @@ function InboxPageInner() {
             <ComposerNotices
               isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked}
               setShowTemplatePicker={setShowTemplatePicker} setIsInternalNote={setIsInternalNote}
+              channel={detail?.channel} onStartWhatsApp={canStartWa ? openStartWa : undefined}
             />
 
             {!canSend ? (
@@ -793,6 +804,17 @@ function InboxPageInner() {
           conversationId={activeConversationId}
           onClose={() => setShowTemplatePicker(false)}
           onSent={() => toast({ variant: "success", title: "Template sent", description: "The template message is on its way." })}
+        />
+      )}
+
+      {startWa && detail?.guest_id && (
+        <TemplatePickerModal
+          startFor={{ guestId: detail.guest_id, inquiryId: detail.inquiry_id }}
+          onClose={() => setStartWa(false)}
+          onSent={(convId) => {
+            toast({ variant: "success", title: "Sent on WhatsApp", description: "The template is on its way. Delivery shows on the message." });
+            if (convId) setActiveConversation(convId);
+          }}
         />
       )}
     </div>

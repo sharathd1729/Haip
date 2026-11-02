@@ -10,6 +10,7 @@ export interface Message {
   status?: "pending" | "queued" | "sent" | "delivered" | "read" | "failed";
   delivery_state?: string;
   delivery_error?: string;
+  is_template?: boolean;
   timestamp: string;
   sender_name?: string;
   ai_drafted?: boolean;
@@ -17,6 +18,8 @@ export interface Message {
   // false = rejected -- backend now serializes this (previously omitted
   // entirely), which is what isAiDraft below gates on.
   was_approved?: boolean | null;
+  // An AI draft nobody acted on, closed by the server (was_approved is false too): shown collapsed, never approvable.
+  draft_expired?: boolean;
   ai_confidence?: number;
   is_internal?: boolean;
   replied_to_message_id?: string;
@@ -47,6 +50,8 @@ export interface ConversationDetail {
   // AI switch, and the owner.
   guest_channels?: GuestChannel[];
   ai_enabled?: boolean;
+  // Set while the AI is off because the guest said STOP / asked for a person (backend ai_handoff.off_reason).
+  ai_off_reason?: string | null;
   assigned_to?: string | null;
 }
 

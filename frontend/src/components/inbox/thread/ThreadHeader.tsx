@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BellOff, Check, ChevronLeft, Loader2, MoreHorizontal, Phone, Search, Timer, User } from "@/lib/icons";
+import { BellOff, Check, ChevronLeft, Loader2, MessageSquare, MoreHorizontal, Phone, Search, Timer, User } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/ui/page";
@@ -11,9 +11,9 @@ import {
 } from "./types";
 
 /** How long the guest has been waiting, when their last real message is unanswered. Internal notes and
- *  AI drafts nobody has approved are not replies, so they don't count. */
+ *  AI drafts that were never sent (pending, rejected, expired) are not replies, so they don't count. */
 function waitingSince(detail: ConversationDetail): string | null {
-  const real = detail.messages.filter(m => !m.is_internal && !(m.ai_drafted && m.direction === "outbound" && m.was_approved == null));
+  const real = detail.messages.filter(m => !m.is_internal && !(m.ai_drafted && m.direction === "outbound" && m.was_approved !== true));   // pending, rejected or expired: never sent
   const last = real[real.length - 1];
   return last && last.direction === "inbound" ? last.timestamp : null;
 }
@@ -62,7 +62,7 @@ function MenuLabel({ children }: { children: ReactNode }) {
 
 export function ThreadHeader({
   detail, setMobileView, isOfficialWhatsApp, windowOpen, aiToggleMutation, assignMutation, teamMembers,
-  currentUserId, clickToCallMutation, resolveMutation, setShowGuestSheet, setShowSearch, snoozeMutation,
+  currentUserId, clickToCallMutation, resolveMutation, setShowGuestSheet, setShowSearch, snoozeMutation, onStartWhatsApp,
 }: {
   detail?: ConversationDetail;
   setMobileView: (v: "list" | "thread") => void;
@@ -76,6 +76,8 @@ export function ThreadHeader({
   /** Kept for the page's call site; the menu now owns its own open state. */
   showSnooze?: boolean;
   setShowSnooze?: (fn: (s: boolean) => boolean) => void;
+  /** An Instagram chat with a guest who gave their number: message that number on the official WhatsApp. */
+  onStartWhatsApp?: () => void;
 }) {
   if (!detail) {
     return <div className="flex-shrink-0 border-b border-[var(--haip-border)] px-3 py-3 md:px-5"><Skeleton className="h-10 w-56" /></div>;
@@ -90,7 +92,9 @@ export function ThreadHeader({
   const channels = detail.guest_channels?.length ? detail.guest_channels : (toGuestChannel(detail.channel) ? [toGuestChannel(detail.channel)!] : []);
 
   return (
-    <div className="flex-shrink-0 border-b border-[var(--haip-border)]">
+    // @container: the buttons show their words by the thread column's width, not the window's (the column is ~384px
+    // between the list and the guest panel at 1024px, where the words did not fit).
+    <div className="@container flex-shrink-0 border-b border-[var(--haip-border)]">
       <div className="flex items-center gap-2 px-3 py-2.5 md:gap-3 md:px-5">
         <button type="button" onClick={() => setMobileView("list")} aria-label="Back to conversations"
           className={cn(ICON_BTN, "-ml-1 md:hidden")}>
@@ -110,22 +114,30 @@ export function ThreadHeader({
         </div>
 
         {detail.guest_phone && (
-          <button type="button" onClick={() => clickToCallMutation.mutate(detail.guest_phone)} disabled={clickToCallMutation.isPending}
+          <button type="button" onClick={() => clickToCallMutation.mutate(detail.guest_phone)} disabled={clickToCallMutation.isPending} aria-label="Call"
             className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform] hover:opacity-90 active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2">
             {clickToCallMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Phone size={14} />}
-            <span className="hidden sm:inline">Call</span>
+            <span className="hidden @md:inline">Call</span>
+          </button>
+        )}
+
+        {onStartWhatsApp && detail.channel === "instagram" && detail.guest_phone && (
+          <button type="button" onClick={onStartWhatsApp} aria-label="Start on WhatsApp"
+            className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-status-success-fg)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            <MessageSquare size={15} />
+            <span className="hidden @md:inline">WhatsApp</span>
           </button>
         )}
 
         {/* The rate calculator on top of the chat, prefilled with this lead and the trip the chat mentioned. */}
-        <SendQuoteButton iconOnlyBelowSm className="h-9 min-h-0 sm:min-h-0"
+        <SendQuoteButton iconOnlyBelowSm labelClassName="hidden @md:inline" className="h-9 min-h-0 sm:min-h-0"
           args={{ conversationId: detail.id, inquiryId: detail.inquiry_id ?? null, from: "inbox", name: detail.guest_name || null }} />
 
         <button type="button" onClick={() => resolveMutation.mutate()} disabled={resolveMutation.isPending || detail.status === "resolved"}
           aria-label={detail.status === "resolved" ? "Resolved" : "Mark resolved"}
           className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-fg-2)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] hover:text-[var(--haip-status-success-fg)] active:scale-[0.97] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <Check size={15} />
-          <span className="hidden lg:inline">{detail.status === "resolved" ? "Resolved" : "Resolve"}</span>
+          <span className="hidden @2xl:inline">{detail.status === "resolved" ? "Resolved" : "Resolve"}</span>
         </button>
 
         <button type="button" onClick={() => setShowGuestSheet(true)} aria-label="Guest details" className={cn(ICON_BTN, "md:hidden")}>
@@ -180,13 +192,17 @@ export function ThreadHeader({
           <StatusPill tone="warning">Template required</StatusPill>
         ))}
 
+        {!aiOn && detail.ai_off_reason && (
+          <StatusPill tone="warning">AI turned off: {detail.ai_off_reason}</StatusPill>
+        )}
+
         <button type="button" role="switch" aria-checked={aiOn} onClick={() => aiToggleMutation.mutate(!aiOn)} disabled={aiToggleMutation.isPending}
           title={aiOn ? "AI is replying to this guest. Click to pause." : "AI is paused for this guest. Click to resume."}
           className="ml-auto inline-flex min-h-7 items-center gap-2 rounded-lg px-1.5 text-xs font-semibold text-[var(--haip-fg-2)] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <span className={cn("relative h-4 w-7 rounded-full transition-colors", aiOn ? "bg-primary" : "bg-[var(--haip-border-strong)]")}>
             <span className={cn("absolute top-0.5 size-3 rounded-full bg-white transition-[left]", aiOn ? "left-3.5" : "left-0.5")} />
           </span>
-          {aiOn ? "AI on" : "AI paused"}
+          {aiOn ? "AI on" : detail.ai_off_reason ? "AI off" : "AI paused"}
         </button>
       </div>
     </div>

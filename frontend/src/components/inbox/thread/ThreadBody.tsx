@@ -1,7 +1,7 @@
 "use client";
 import type { RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User, Check } from "@/lib/icons";
+import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, Timer, Clock, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User, Check } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,13 +21,14 @@ import {
 
 export function ThreadBody({
   detail, detailLoading, olderMessages, hasMoreOlderMessages, loadOlderMessages, loadingOlderMessages, callItems,
-  handleApprove, handleReject, handleRetry, setEditingDraftId, setEditText, setReplyToMsg, textareaRef,
+  handleApprove, handleReject, handleRetry, handleFailureAction, setEditingDraftId, setEditText, setReplyToMsg, textareaRef,
   rewriteDraft, rewritingMessageId, aiTyping, bottomRef, canSend = true,
 }: {
   detail?: ConversationDetail; detailLoading: boolean;
   olderMessages: Message[]; hasMoreOlderMessages: boolean; loadOlderMessages: () => void; loadingOlderMessages: boolean;
   callItems: TimelineCallItem[];
   handleApprove: (id: string) => void; handleReject: (id: string) => void; handleRetry: (id: string) => void;
+  handleFailureAction?: (step: "template" | "whatsapp") => void;
   setEditingDraftId: (id: string | null) => void; setEditText: (t: string) => void;
   setReplyToMsg: (m: Message | null) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -81,8 +82,9 @@ export function ThreadBody({
                     // rather than given a "rejected" visual treatment --
                     // there's nothing useful about seeing a reply that never
                     // reached the guest sitting in their conversation history.
+                    // An expired draft (nobody acted, the server closed it) stays, collapsed: staff can still read what the AI wrote.
                     const msgs = [...olderMessages, ...(detail?.messages ?? [])]
-                      .filter(m => !(m.ai_drafted && m.direction === "outbound" && m.was_approved === false));
+                      .filter(m => m.draft_expired || !(m.ai_drafted && m.direction === "outbound" && m.was_approved === false));
                     // Interleave calls (ticket 2) by timestamp -- messages
                     // keep their own tested render path, calls are spliced
                     // in purely for chronological display.
@@ -132,6 +134,8 @@ export function ThreadBody({
                       </div>
                     ) : row.kind === "call" ? (
                       <CallLogCard key={row.key} call={row.call} />
+                    ) : row.msg.draft_expired ? (
+                      <ExpiredDraft key={row.key} msg={row.msg} />
                     ) : (
                       <MessageBubble
                         key={row.key}
@@ -155,6 +159,8 @@ export function ThreadBody({
                         onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
                         onReject={handleReject}
                         onRetry={canSend ? handleRetry : undefined}
+                        onFailureAction={canSend ? handleFailureAction : undefined}
+                        isTemplate={row.msg.is_template}
                         onReply={(id) => {
                           setReplyToMsg(row.msg);
                           textareaRef.current?.focus();
@@ -169,5 +175,20 @@ export function ThreadBody({
                 </>
               )}
             </div>
+  );
+}
+
+/** An AI draft that was never sent and can no longer be: collapsed to one line, the text one tap away. No actions. */
+function ExpiredDraft({ msg }: { msg: Message }) {
+  const at = new Date(msg.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });   // same as MessageBubble
+  return (
+    <div className="flex justify-end">
+      <details className="max-w-[85%] md:max-w-[70%] rounded-xl border border-dashed border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[var(--haip-fg-subtle)]">
+        <summary className="flex min-h-11 cursor-pointer items-center gap-1.5 text-xs font-medium md:min-h-8">
+          <Clock size={12} /> Expired draft · not sent · {at}
+        </summary>
+        <p className="whitespace-pre-wrap break-words pb-2 text-sm text-[var(--haip-fg-muted)]">{msg.text}</p>
+      </details>
+    </div>
   );
 }

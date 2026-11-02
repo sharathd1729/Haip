@@ -38,6 +38,9 @@ CHUNK = 500
 LABEL = {"consult": "Questions the AI asked the team (not cleared here)", "reply": "Leads waiting for a reply", "callback": "Missed calls not called back",
          "followup": "Follow-ups overdue / due soon", "new_lead": "New leads to contact",
          "no_reply": "Leads not replying to us (not cleared here)",
+         "came_back": "Lost leads that came back (not cleared here)",
+         "campaign_reply": "Replies to a WhatsApp campaign (not cleared here)",
+         "handover": "Bot handed over: call / quote needed (not cleared here)",
          "clash": "Calendar clashes (due ones are marked done with the follow-ups)"}
 
 

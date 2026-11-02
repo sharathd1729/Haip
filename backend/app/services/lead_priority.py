@@ -32,7 +32,12 @@ from sqlalchemy.orm import Session
 LANES = ("now", "today", "chase")
 _LANE_RANK = {lane: i for i, lane in enumerate(LANES)}
 
-BASE = {"consult": 45, "callback": 35, "new_lead": 30, "reply": 30, "no_reply": 20, "followup": 15}
+BASE = {"consult": 45, "callback": 35, "came_back": 35, "handover": 35, "campaign_reply": 30, "new_lead": 30, "reply": 30,
+        "no_reply": 20, "followup": 15}
+# The person-is-back / bot-handed-over kinds: a guest waiting on a PERSON right now (work_queue_handover).
+_WAITING_KINDS = ("new_lead", "reply", "came_back", "campaign_reply", "handover")
+_REASON = {"callback": "Called us", "reply": "Their message is waiting", "came_back": "Came back",
+           "campaign_reply": "Replied to a campaign", "handover": "The bot handed over"}
 ASKED_CALLBACK_BASE = 40
 NOW_SCORE, CHASE_SCORE = 60, 30
 _FAR = datetime.max.replace(tzinfo=timezone.utc)
@@ -59,10 +64,8 @@ def score_item(item, inq, *, now: datetime, today: date, quote_out: bool = False
     score = ASKED_CALLBACK_BASE if asked else BASE.get(item.kind, 15)
     if asked:
         reasons.append("Asked for a call back")
-    elif item.kind == "callback":
-        reasons.append("Called us")
-    elif item.kind == "reply":
-        reasons.append("Their message is waiting")
+    elif item.kind in _REASON:
+        reasons.append(_REASON[item.kind])
 
     since = item.since
     age = (now - since) if since is not None else None
@@ -126,7 +129,7 @@ def score_item(item, inq, *, now: datetime, today: date, quote_out: bool = False
         score = min(score, 10)
         reasons.append("Travel date is over")
 
-    fresh_person = item.kind in ("new_lead", "reply") and age is not None and age < timedelta(days=1)
+    fresh_person = item.kind in _WAITING_KINDS and age is not None and age < timedelta(days=1)
     if passed or item.severity == "stale" or score < CHASE_SCORE and not (asked or item.kind in ("callback", "consult") or fresh_person):
         lane = "chase"
     elif asked or item.kind in ("callback", "consult") or fresh_person or score >= NOW_SCORE:

@@ -64,6 +64,7 @@ def _erase_one(db: Session, tenant_id: str, guest_id: str, counts: dict, files: 
     from app.models.lead_attribution import LeadAttribution
     from app.models.lead_autopilot import LeadAutopilotEvent
     from app.models.lead_workflow import LeadJourney, LeadView, PlaybookAction, PlaybookRun
+    from app.models.ops_fleet import OpsGuestForm
     from app.models.property import Stay
     from app.models.sales_action import SalesAction
     from app.models.stay_finance import (StayAddOn, StayDeposit, StayInstalment, StayPayment, StayPaymentLink,
@@ -135,6 +136,8 @@ def _erase_one(db: Session, tenant_id: str, guest_id: str, counts: dict, files: 
 
     # Bookings and their money lines (issued invoices are tax records: detached from the booking, kept).
     if stay_ids:
+        # The trip's guest ID form (names, ages, ID numbers, emergency contact): ops_guest_forms, migration 180.
+        delete(OpsGuestForm, OpsGuestForm.tenant_id == tenant_id, OpsGuestForm.stay_id.in_(stay_ids), name="ops_guest_forms")
         for model in (StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest):
             delete(model, model.tenant_id == tenant_id, model.stay_id.in_(stay_ids), name=model.__tablename__)
         db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.stay_id.in_(stay_ids)).update(

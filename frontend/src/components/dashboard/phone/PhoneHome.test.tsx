@@ -40,7 +40,7 @@ function trip(id: string, patch: Record<string, unknown> = {}) {
 
 const queue = { people_waiting: 3, total: 4, unowned: 1, severity: { stale: 1 },
   items: [{ kind: "callback", severity: "urgent", guest_id: "a" }, { kind: "callback", severity: "late", guest_id: "b" },
-    { kind: "new_lead", severity: "fresh", guest_id: "c", owner_id: null }, { kind: "new_lead", severity: "stale", guest_id: "e", owner_id: null }, { kind: "reply", severity: "stale", guest_id: "d" }] };
+    { kind: "new_lead", severity: "fresh", guest_id: "c", owner_id: null, unowned: true }, { kind: "new_lead", severity: "stale", guest_id: "e", owner_id: null, unowned: true }, { kind: "reply", severity: "stale", guest_id: "d" }] };
 
 function route(ov: ReturnType<typeof overview>, trips = [trip("b1"), trip("b2", { main_guest: { id: "g2", first_name: "Shruthi", last_name: "", phone: null, email: null }, trip: "Wild Karnataka", total_outstanding: 0, payment_status: "paid" })]) {
   get.mockImplementation((url: string) => {

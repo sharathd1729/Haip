@@ -103,3 +103,67 @@ class ExtraIn(_Strict):
 
 class SettleIn(_Strict):
     step: Literal["return_checked", "report_approved"]
+
+
+# ── Villa pack (phase 4) ────────────────────────────────────────────────────
+
+MEALS = ("breakfast", "lunch", "dinner")
+FOOD = ("veg", "non_veg", "mixed")
+
+
+class Meal(_Strict):
+    """One meal the cook makes. Editing a meal clears its confirmation; the cook confirms by WhatsApp reply or a person
+    marks it (confirmed_by = "cook" or a user id)."""
+
+    id: str
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    meal: Literal["breakfast", "lunch", "dinner"]
+    guests: int = Field(ge=1, le=60)
+    food: Literal["veg", "non_veg", "mixed"] = "veg"
+    notes: str | None = Field(default=None, max_length=300)
+    sent_at: str | None = None  # when the plan went to the cook on WhatsApp
+    confirmed_at: str | None = None
+    confirmed_by: str | None = None
+
+
+class VillaDetails(_Strict):
+    """Stored in ops_files.details for pack villa. OpsFile columns are shared with the caravan pack: dispatched_at = the
+    guest was welcomed (check-in), returned_at = checked out, return_checked_at = inspection done."""
+
+    caretaker_staff_id: str | None = None
+    cook_staff_id: str | None = None
+    cleaner_staff_id: str | None = None
+    keys_handed: bool = False
+    deposit_collected: bool | None = None  # None = not asked yet (before check-in)
+    check_in_note: str | None = Field(default=None, max_length=500)
+    meals: list[Meal] = Field(default_factory=list, max_length=200)
+    deposit_decision: str | None = None  # refund | deduct
+    deposit_reason: str | None = Field(default=None, max_length=500)
+    deposit_evidence: list[str] = Field(default_factory=list)  # inspection item keys whose photos back the deduction
+
+
+class PeopleIn(_Strict):
+    caretaker_staff_id: str | None = None
+    cook_staff_id: str | None = None
+    cleaner_staff_id: str | None = None
+
+
+class CheckInIn(_Strict):
+    keys_handed: bool
+    deposit_collected: bool
+    deposit_amount: Decimal | None = Field(default=None, gt=0, le=Decimal(10000000))  # only when no deposit is on the booking
+    note: str | None = Field(default=None, max_length=500)
+
+
+class MealIn(_Strict):
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    meal: Literal["breakfast", "lunch", "dinner"]
+    guests: int = Field(ge=1, le=60)
+    food: Literal["veg", "non_veg", "mixed"] = "veg"
+    notes: str | None = Field(default=None, max_length=300)
+
+
+class DepositDecisionIn(_Strict):
+    decision: Literal["refund", "deduct"]
+    amount: Decimal | None = Field(default=None, gt=0, le=Decimal(10000000))  # kept back; deduct only
+    reason: str | None = Field(default=None, max_length=500)

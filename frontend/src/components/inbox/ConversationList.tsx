@@ -110,12 +110,11 @@ export function ConversationList({
   onBulkResolve, onBulkMarkRead, onLoadMore, isLoadingMore, onArchive, onCall, callingNumber,
   view, onViewChange, counts, channelFilter, channelOptions, onChannelChange, isLoading,
 }: ConversationListProps) {
-  const [sort, setSort] = useState<SortMode>(() => {
-    if (typeof window !== "undefined") {
-      try { return (localStorage.getItem("inbox_sort") as SortMode) ?? "recent"; } catch { return "recent"; }
-    }
-    return "recent";
-  });
+  // Read after mount: the first client render must match the server's (React #418).
+  const [sort, setSort] = useState<SortMode>("recent");
+  useEffect(() => {
+    try { const saved = localStorage.getItem("inbox_sort") as SortMode | null; if (saved) setSort(saved); } catch { /* storage unavailable */ }
+  }, []);
   const [showSortMenu, setShowSortMenu] = useState(false);
   // Compact rows fit more conversations on screen. Remembered on this device.
   const [compact, setCompact] = useState(false);

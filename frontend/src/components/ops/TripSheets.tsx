@@ -10,10 +10,10 @@ import { EXPENSE_LABELS, type ChecklistItem, type OpsFileFull } from "@/lib/ops"
 export type SheetKind = "accept" | "crew" | "dispatch" | "return" | "expense" | "extra" | "item" | null;
 type Submit = (path: string, body?: object, method?: "post" | "put") => Promise<boolean>;
 
-const input = "min-h-12 w-full rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] text-[var(--haip-fg)] focus:outline-2 focus:outline-[var(--ring)]";
-const label = "flex flex-col gap-1.5 text-[14px] font-semibold text-[var(--haip-fg)]";
+export const input = "min-h-12 w-full rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] text-[var(--haip-fg)] focus:outline-2 focus:outline-[var(--ring)]";
+export const label = "flex flex-col gap-1.5 text-[14px] font-semibold text-[var(--haip-fg)]";
 
-function Shell({ open, onClose, title, description, busy, submitLabel, onSubmit, children }: {
+export function Shell({ open, onClose, title, description, busy, submitLabel, onSubmit, children }: {
   open: boolean; onClose: () => void; title: string; description?: string; busy: boolean; submitLabel: string;
   onSubmit: () => void; children: ReactNode;
 }) {
@@ -91,7 +91,7 @@ export function TripSheets({ file, kind, item, onClose, submit, busy }: {
             </select>
           </label>
         ))}
-        {staff.data?.length === 0 && <p className="text-[13.5px] text-[var(--haip-fg-subtle)]">Add your drivers and helpers in Ops settings first.</p>}
+        {staff.data?.length === 0 && <p className="text-[13.5px] text-[var(--haip-fg-subtle)]">Add your drivers and helpers on Ops → Staff first.</p>}
       </Shell>
 
       <Shell open={kind === "dispatch" || kind === "return"} onClose={onClose} busy={busy}

@@ -12,14 +12,15 @@ export interface OpsUnit {
 }
 export interface OpsNeed {
   key: string; level: Level; unit: string; title: string; detail: string;
-  file_id: string | null; item_id: string | null; action: "open_file" | "resolve_item";
+  file_id: string | null; item_id: string | null; action: "open_file" | "resolve_item" | "open_fleet" | "open_staff";
+  item_kind?: string; // gps_off_route: the card offers "Approved detour" (backend gps_alerts.approve_detour)
 }
 export interface OpsDayEntry {
   date: string; time: string | null; now: boolean; what: string; sub: string; file_id: string; tone: UnitTone;
 }
 export interface OpsToday {
   date: string; pack: string; unit_word: string; file_word: string;
-  units: OpsUnit[]; needs: OpsNeed[]; day: OpsDayEntry[]; counts: { leaving: number; away: number; back: number };
+  units: OpsUnit[]; needs: OpsNeed[]; day: OpsDayEntry[]; counts: Record<string, number>;  // caravan leaving/away/back, villa arriving/staying/leaving
 }
 
 export interface StageTask { key: string; label: string; done: boolean; hint: string | null }
@@ -45,7 +46,7 @@ export interface OpsFileFull {
     route: string | null; stops: string[]; allowance_km: string | null; extra_km_rate: string | null; rate_includes_gst: boolean;
     rate_source: string | null; driver_staff_id: string | null; helper_staff_id: string | null;
     start_odometer: number | null; end_odometer: number | null; start_odometer_photo_km: number | null;
-  };
+  } & Partial<VillaDetails>;
   crew: { driver: string | null; helper: string | null };
   gate: { blocking: string[]; red: string[]; green: number; total: number; ready: boolean };
   checklist: ChecklistItem[];
@@ -54,6 +55,86 @@ export interface OpsFileFull {
   extras: { id: string; kind: string; label: string; amount: string; status: "proposed" | "approved" | "removed" }[];
   timeline: { at: string; text: string; auto: boolean }[];
   close_blockers: string[];
+  fleet_problems: string[];
+  guest_form: {
+    submitted_at: string | null; link: string | null; guests: { name: string; age: number | null; id: string }[];
+    emergency_name?: string; emergency_phone?: string; food?: string; requests?: string; signed_name?: string;
+  };
+  return_check: { words: string; damage: string[]; items: { key: string; label: string; status: "pending" | "green" | "red"; note: string | null; has_photo: boolean }[] };
+  messages: { kind: string; recipient: string; status: "sent" | "failed"; via: string | null; reason: string | null; sent_at: string | null }[];
+  // Villa pack only (ops_files._villa_extra): the stay's people, check-out inspection, mid-stay cleans, the booking's requests.
+  people?: { caretaker: string | null; cook: string | null; cleaner: string | null };
+  inspection?: ChecklistItem[];
+  cleaning?: { id: string; due_at: string | null; status: "open" | "done" | "cancelled" }[];
+  service_requests?: { id: string; title: string; status: "open" | "done"; due_date: string | null }[];
+}
+
+// ── Villa pack (ops_stay_service): the stay file's own details ──────────────────────────────────────────────────────
+export interface Meal {
+  id: string; date: string; meal: "breakfast" | "lunch" | "dinner"; guests: number; food: "veg" | "non_veg" | "mixed";
+  notes: string | null; sent_at: string | null; confirmed_at: string | null; confirmed_by: string | null;
+}
+export interface VillaDetails {
+  caretaker_staff_id: string | null; cook_staff_id: string | null; cleaner_staff_id: string | null; keys_handed: boolean;
+  deposit_collected: boolean | null; check_in_note: string | null; meals: Meal[]; deposit_decision: "refund" | "deduct" | null;
+  deposit_reason: string | null; deposit_evidence: string[];
+}
+export const FOOD_LABELS: Record<Meal["food"], string> = { veg: "Veg", non_veg: "Non-veg", mixed: "Veg + non-veg" };
+
+export type StayAction =
+  | { kind: "people" | "checkin" | "checkout" | "deposit" | "checklist" | "inspection" | "extras" | "meals" | "cleaning" | "close" | "booking"; label: string }
+  | { kind: "settle"; step: "return_checked" | "report_approved"; label: string };
+
+/** The villa file's "Next step" button for the stage's next_key (ops_stay_service.stage). Welcoming the guest, the deposit,
+ *  settling and closing are the manager's taps (ops.manage); null = nothing for this person to tap. */
+export function stayNextAction(key: string | null | undefined, canManage: boolean): StayAction | null {
+  switch (key) {
+    case "people": return { kind: "people", label: "Pick the people" };
+    case "gate": return { kind: "checklist", label: "See the checklist" };
+    case "checkin": return canManage ? { kind: "checkin", label: "Check in the guest" } : null;
+    case "extras": return { kind: "extras", label: "See the extras" };
+    case "clean": return { kind: "cleaning", label: "See the cleaning" };
+    case "meals": return { kind: "meals", label: "See the meal plan" };
+    case "checkout": return { kind: "checkout", label: "Guest has left: check out" };
+    case "inspect": return { kind: "inspection", label: "See the inspection" };
+    case "ret": return canManage ? { kind: "settle", step: "return_checked", label: "Inspection is done" } : null;
+    case "bal": return { kind: "booking", label: "Open the booking" };
+    case "deposit": return canManage ? { kind: "deposit", label: "Decide the deposit" } : null;
+    case "rep": return canManage ? { kind: "settle", step: "report_approved", label: "Approve the report" } : null;
+    case "close": return canManage ? { kind: "close", label: "Close the stay" } : null;
+    default: return null;
+  }
+}
+
+// ── Fleet (GET /ops/fleet, ops_fleet_view) and staff (GET /ops/staff) ──────────────────────────────────────────────────
+export type FleetLevel = Level | null;
+export interface FleetPaper { id: string; kind: string; name: string; number: string | null; expires_on: string | null; level: FleetLevel; words: string; has_file: boolean }
+export interface FleetCardData {
+  property_id: string; name: string; km: number | null; tone: "red" | "amber" | "ok"; problems: string[];
+  papers: FleetPaper[]; missing_papers: string[];
+  defects: { id: string; title: string; detail: string | null; severity: "critical" | "normal"; source: "person" | "photo"; file_id: string | null; reported_at: string | null }[];
+  services: { id: string; name: string; due_on: string | null; due_km: number | null; status: "open" | "done"; level: FleetLevel; words: string }[];
+  inventory: { id: string; name: string; par: number; count: number | null; low: boolean; counted_at: string | null }[];
+}
+export interface OpsStaff {
+  id: string; name: string; phone_e164: string; active: boolean; whatsapp_opt_in_at: string | null; notes: string | null;
+  duties: { duty: string; property_id: string | null }[]; licence_number: string | null; licence_expires_on: string | null;
+}
+/** Paper kinds (backend schemas/ops_fleet.py PAPER_KINDS): vehicle papers first. */
+export const VEHICLE_PAPERS: Record<string, string> = {
+  insurance: "Insurance", permit: "Permit", fc: "Fitness certificate (FC)", puc: "Pollution certificate (PUC)",
+  ais140: "AIS-140 tracker certificate", other: "Other paper",
+};
+/** Duties (backend schemas/ops.py DUTIES), in the words the owner uses. */
+export const DUTY_LABELS: Record<string, string> = {
+  driver: "Driver", caretaker: "Helper / caretaker", housekeeping: "Housekeeping", maintenance: "Maintenance",
+  front_desk: "Front desk", fnb: "Food", ops_manager: "Ops manager",
+};
+/** A licence that ends within 30 days is amber, within 7 days (or gone) red: the same rule as the server's papers. */
+export function expiryLevel(iso: string | null, todayIso: string): FleetLevel {
+  if (!iso) return null;
+  const days = Math.round((new Date(`${iso}T00:00:00Z`).getTime() - new Date(`${todayIso}T00:00:00Z`).getTime()) / 86_400_000);
+  return days <= 7 ? "red" : days <= 30 ? "amber" : null;
 }
 
 /** Roles behind the ops capabilities (backend migration 178): ops.read, ops.write, ops.manage. */

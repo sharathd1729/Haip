@@ -3,7 +3,8 @@
 Looks at one tenant over the last N days and prints
   * the AI mode per channel (shadow = drafts wait for a person, autonomous = sends above the confidence floor, off) and the kill switch,
   * guest messages still unanswered (no staff or AI reply after the guest's last message), oldest first,
-  * what happened to every AI draft: sent by the bot, waiting for review, approved, rejected, and how each one delivered,
+  * what happened to every AI draft: sent by the bot, waiting for review, approved, rejected, expired (nobody acted, closed by
+    services/ai_draft_expiry.py), and how each one delivered (per channel: Instagram sends no delivery receipts),
   * the reasons drafts were held back (the AI's own "needs a human" reasons, guards that fired, provider failures),
   * delivery errors from Meta (expired token, outside the 24-hour window, template needed ...).
 
@@ -26,6 +27,7 @@ from app.core.database import SessionLocal  # noqa: E402
 from app.models.conversation import Conversation, Message, MessageDirection  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.services import ai_mode_service  # noqa: E402
+from app.services.ai_draft_expiry import is_expired  # noqa: E402
 
 HOLDING = "let me check and get right back to you"
 
@@ -91,16 +93,20 @@ def main() -> int:
         sent_bot = [m for m in drafts if m.sent_autonomously]
         waiting = [m for m in drafts if not m.sent_autonomously and m.was_approved is None]
         approved = [m for m in drafts if not m.sent_autonomously and m.was_approved is True]
-        rejected = [m for m in drafts if m.was_approved is False]
+        expired = [m for m in drafts if is_expired(m)]
+        rejected = [m for m in drafts if m.was_approved is False and not is_expired(m)]
         holding = [m for m in drafts if HOLDING in (m.body or "").lower()]
         print(f"  sent by the bot itself : {len(sent_bot)}")
         print(f"  approved by a person   : {len(approved)}")
         print(f"  waiting for review     : {len(waiting)}   <- these never reach the guest until someone approves")
         print(f"  rejected               : {len(rejected)}")
+        print(f"  expired                : {len(expired)}   <- nobody acted: superseded, a later message went out, or 24 h old")
         print(f"  generic holding reply  : {len(holding)}   <- the AI could not produce a real answer (provider error, timeout, or no usable output)")
-        by_state = Counter(_enum(m.delivery_state) for m in drafts if m.sent_autonomously or m.was_approved)
-        if by_state:
-            print("  delivery of the ones meant to send: " + ", ".join(f"{k}={v}" for k, v in sorted(by_state.items())))
+        by_state = Counter((_enum(m.channel), _enum(m.delivery_state)) for m in drafts if m.sent_autonomously or m.was_approved)
+        for ch in sorted({c for c, _ in by_state}):
+            print(f"  delivery of the ones meant to send, {ch}: "
+                  + ", ".join(f"{k}={v}" for (c, k), v in sorted(by_state.items()) if c == ch)
+                  + ("   (Instagram sends no delivered/read receipts: 'sent' is final there)" if ch == "instagram" else ""))
 
         reasons = Counter()
         for m in drafts:
@@ -149,6 +155,8 @@ def main() -> int:
                 why = "no AI draft was ever made (AI off for this thread, or the draft task never ran)"
             elif d.sent_autonomously:
                 why = f"bot sent, delivery={_enum(d.delivery_state)}" + (f" ({error_group(d.delivery_error)})" if d.delivery_error else "")
+            elif is_expired(d):
+                why = "draft expired unsent (nobody acted on it)"
             elif d.was_approved is None:
                 why = "draft is waiting for review" + (f": {d.ai_needs_human_reason[:90]}" if d.ai_needs_human_reason else "")
             else:

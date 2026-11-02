@@ -47,7 +47,7 @@ export interface FeedItem {
   id: string; kind: FeedKind; at: string;
   channel?: string | null; direction?: string | null; conversation_id?: string | null; text?: string | null;
   media_type?: string | null; sender_name?: string | null; is_ai?: boolean; is_draft?: boolean; is_internal?: boolean;
-  is_template?: boolean; delivery?: string | null;
+  is_template?: boolean; delivery?: string | null; delivery_error?: string | null;
   call_id?: string | null; duration_seconds?: number | null; answered?: boolean | null; summary?: string | null;
   summary_pending?: boolean; has_recording?: boolean; has_transcript?: boolean;
   /** A call logged by hand from a personal phone (POST /leads/{id}/log-call); its note is in `text`. */

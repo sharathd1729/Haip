@@ -1,7 +1,8 @@
 "use client";
 // Lead workflows, Activity tab: everything the playbooks did, skipped or held, newest first, with the reason.
-// Backend: GET /workflows/activity?playbook=&status=&limit= (owner/manager).
-import { useState } from "react";
+// Backend: GET /workflows/activity?playbook=&status=&action=&limit= (owner/manager).
+// "?show=team" / "?show=guest" in the page link (from the WhatsApp overview) keeps only team alerts / guest WhatsApps.
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -26,15 +27,24 @@ const PLAYBOOKS: [string, string][] = [
   ["callback_requested", "Call me back"], ["new_lead_alert", "New lead alert"], ["sla_escalation", "Escalation"],
   ["proposal_followup", "Proposal follow-up"], ["quiet_lead_nurture", "Quiet lead"], ["lost_reengage", "Win back"],
 ];
+const SHOW: Record<string, { label: string; action: string }> = {
+  team: { label: "team alerts", action: "staff_wa,push" }, guest: { label: "automatic guest WhatsApps", action: "wa_template,wa_text" },
+};
 const STATUSES: [string, string][] = [["", "Any result"], ["done", "Done"], ["queued", "Sent"], ["skipped", "Skipped"], ["failed", "Failed"], ["held", "Held"]];
 const selectCls = "min-h-[44px] rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-2.5 text-[16px] text-[var(--haip-fg)] sm:text-sm";
 
 export function ActivityTab() {
   const [playbook, setPlaybook] = useState("");
   const [status, setStatus] = useState("");
+  const [show, setShow] = useState("");
+  useEffect(() => {   // read after mount: the first render must match the server's
+    const s = new URLSearchParams(window.location.search).get("show") ?? "";
+    if (SHOW[s]) setShow(s);
+  }, []);
+  const action = SHOW[show]?.action;
   const q = useQuery<{ items: Activity[] }>({
-    queryKey: ["workflows-activity", playbook, status],
-    queryFn: () => api.get("/workflows/activity", { params: { limit: 100, playbook: playbook || undefined, status: status || undefined } }).then(r => r.data),
+    queryKey: ["workflows-activity", playbook, status, action],
+    queryFn: () => api.get("/workflows/activity", { params: { limit: 100, playbook: playbook || undefined, status: status || undefined, action } }).then(r => r.data),
   });
   return (
     <Card>
@@ -47,7 +57,10 @@ export function ActivityTab() {
             {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
-        <p className="text-xs text-[var(--haip-fg-subtle)]">Newest first, last 100. Times in IST.</p>
+        <p className="text-xs text-[var(--haip-fg-subtle)]">
+          Newest first, last 100. Times in IST.
+          {show && <> Showing {SHOW[show].label} only. <button type="button" className="font-semibold text-primary" onClick={() => setShow("")}>Show everything</button></>}
+        </p>
         {q.isPending ? (
           <p className="flex items-center gap-2 text-sm text-[var(--haip-fg-muted)]"><Loader2 size={14} className="animate-spin" /> Loading…</p>
         ) : q.isError ? (

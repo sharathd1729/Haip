@@ -15,6 +15,9 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { TripSheets, type SheetKind } from "./TripSheets";
+import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
+import { StayFile } from "./StayFile";
+import { TripGps } from "./TripGps";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -50,8 +53,9 @@ export function TripFile({ id }: { id: string }) {
     queryKey: ["ops-file", id], queryFn: () => api.get(`/ops/files/${id}`).then(r => r.data), staleTime: 10_000, refetchInterval: 60_000,
   });
   const act = useMutation({
-    mutationFn: ({ path, body, method }: { path: string; body?: object; method?: "post" | "put" }) =>
-      (method === "put" ? api.put(path, body ?? {}) : api.post(path, body ?? {})).then(r => r.data as OpsFileFull),
+    mutationFn: ({ path, body, method }: { path: string; body?: object; method?: "post" | "put" | "delete" }) =>
+      (method === "put" ? api.put(path, body ?? {}) : method === "delete" ? api.delete(path) : api.post(path, body ?? {}))
+        .then(r => r.data as OpsFileFull),
     onSuccess: data => { qc.setQueryData(["ops-file", id], data); qc.invalidateQueries({ queryKey: ["ops-today"] }); },
   });
   const report = useMutation({
@@ -59,14 +63,14 @@ export function TripFile({ id }: { id: string }) {
     mutationFn: async () => {
       try {
         const res = await api.get(`/ops/files/${id}/report.pdf`, { responseType: "blob", timeout: DOWNLOAD_TIMEOUT_MS });
-        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "application/pdf")), `trip-account-${id.slice(0, 8)}.pdf`);
+        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "application/pdf")), `${f?.pack === "villa" ? "stay" : "trip"}-account-${id.slice(0, 8)}.pdf`);
       } catch (e) {
         throw new Error(await downloadErrorMessage(e, "The report could not be made. Please try again."));
       }
     },
     onError: e => toast({ title: "No report", description: (e as Error).message, variant: "error" }),
   });
-  const submit = async (path: string, body?: object, method?: "post" | "put") => {
+  const submit = async (path: string, body?: object, method?: "post" | "put" | "delete") => {
     try { await act.mutateAsync({ path, body, method }); toast({ title: "Saved", variant: "success" }); return true; }
     catch (e) { toast({ title: "Not saved", description: errorText(e), variant: "error" }); return false; }
   };
@@ -88,6 +92,10 @@ export function TripFile({ id }: { id: string }) {
   }
 
   const write = canWriteOps(role), manage = canManageOps(role);
+  if (f.pack === "villa") {
+    return <StayFile f={f} submit={submit} busy={act.isPending} write={write} manage={manage}
+      onReport={() => report.mutate()} reportBusy={report.isPending} />;
+  }
   const s = f.stay, a = f.account;
   const na = nextAction(f.stage.next_key, manage);
   const beforeRoad = BEFORE_ROAD.includes(f.state);
@@ -141,6 +149,9 @@ export function TripFile({ id }: { id: string }) {
             <p className="mt-2 text-[13.5px] opacity-80">A manager does this step.</p>
           ) : null}
           {f.close_blockers.length > 0 && <p className="mt-2 text-[13.5px] opacity-80">Still to do: {f.close_blockers.join(", ")}.</p>}
+          {f.fleet_problems.length > 0 && (
+            <p className="mt-2 text-[13.5px] font-semibold">Cannot leave yet: {f.fleet_problems.join("; ")}. Sort it on Ops → Fleet.</p>
+          )}
         </section>
       )}
 
@@ -215,6 +226,8 @@ export function TripFile({ id }: { id: string }) {
         </CardBody>
       </Card>
 
+      {!beforeRoad && f.state !== "cancelled" && <TripGps fileId={f.id} live={f.state === "on_trip"} />}
+
       <Card>
         <CardHeader title="Team" tone="plain"
           actions={write && beforeRoad ? <button type="button" className="haip-btn-secondary min-h-11" onClick={() => setSheet("crew")}>Change</button> : undefined} />
@@ -222,8 +235,12 @@ export function TripFile({ id }: { id: string }) {
           <StatusPill tone="neutral">Driver: {f.crew.driver ?? "not set"}</StatusPill>
           <StatusPill tone="neutral">Helper: {f.crew.helper ?? "not set"}</StatusPill>
           {s.concierge_notes && <p className="w-full text-[14px] text-[var(--haip-fg-muted)]">Notes: {s.concierge_notes}</p>}
+          <MessagesList f={f} />
         </CardBody>
       </Card>
+
+      <GuestFormCard f={f} canWrite={write} onSent={() => qc.invalidateQueries({ queryKey: ["ops-file", id] })} />
+      {(f.state === "returned" || f.state === "closed") && <ReturnCheckCard f={f} />}
 
       <Card>
         <CardHeader title="What happened" tone="plain" />

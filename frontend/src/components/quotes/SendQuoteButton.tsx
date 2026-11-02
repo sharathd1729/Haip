@@ -23,8 +23,10 @@ const VARIANT = {
   link: "px-1 text-primary hover:underline",
 } as const;
 
-export function SendQuoteButton({ args, label = "Send quote", variant = "outline", iconOnlyBelowSm, className }: {
+export function SendQuoteButton({ args, label = "Send quote", variant = "outline", iconOnlyBelowSm, className, labelClassName }: {
   args: QuoteOpenArgs; label?: string; variant?: keyof typeof VARIANT; iconOnlyBelowSm?: boolean; className?: string;
+  /** Replaces the label's show/hide rule (e.g. a container query) when iconOnlyBelowSm is not the right breakpoint. */
+  labelClassName?: string;
 }) {
   const canQuote = useCanQuote();
   const sheet = useQuoteSheet();
@@ -39,7 +41,7 @@ export function SendQuoteButton({ args, label = "Send quote", variant = "outline
       className={cn("inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold transition-colors sm:min-h-9",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40", VARIANT[variant], className)}>
       <Calculator size={14} aria-hidden />
-      <span className={cn(iconOnlyBelowSm && "hidden sm:inline")}>{label}</span>
+      <span className={labelClassName ?? cn(iconOnlyBelowSm && "hidden sm:inline")}>{label}</span>
     </button>
   );
 }

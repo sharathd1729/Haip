@@ -21,7 +21,8 @@ from app.services import ops_photo_intake as intake
 from app.services import ops_trip_service as trips
 from app.workers.tasks import whatsapp as wa
 from tests.ops_helpers import prop, staff
-from tests.test_ops_files import (
+from tests.test_ops_files import (  # noqa: F401 -- _actor_u1: the audit actor "u1" must exist on PostgreSQL
+    _actor_u1,
     _green_all_critical,
     _pay,
     _ready_file,
@@ -178,6 +179,10 @@ def test_a_problem_turns_the_item_red_and_flags_the_manager(db, w):
     flag = db.query(OpsItem).filter_by(tenant_id=w.t.id, stay_id=w.stay.id).one()
     assert flag.severity == "high" and flag.duty == "ops_manager" and "Ratha 1" in flag.title
     assert "manager has been told" in out.reply
+    from app.models.ops_fleet import OpsDefect
+
+    defect = db.query(OpsDefect).filter_by(tenant_id=w.t.id, file_id=w.f.id).one()  # a critical item: off sale until fixed
+    assert defect.severity == "critical" and defect.source == "photo" and defect.item_key == "safety"
 
 
 def test_a_photo_of_something_else_changes_nothing(db, w):

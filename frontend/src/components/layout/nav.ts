@@ -10,7 +10,7 @@ import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
   AtSign, BadgeCheck, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
-  FlaskConical, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
+  FlaskConical, MapPin, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
@@ -38,8 +38,9 @@ export const NAV_SECTIONS: NavSection[] = [
   { title: "Today", links: [
     { label: "My day", href: "/dashboard/my-day", icon: I["/dashboard/my-day"], resource: "inbox" },
     { label: "Home", href: "/dashboard", icon: I["/dashboard"], resource: "dashboard" },
-    // Ops module: only the caravan pack is built so far (backend ops_pack_catalog); more business types join as packs land.
-    { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
+    // Ops module: caravan and villa packs are built (backend ops_pack_catalog); more business types join as packs land.
+    { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan", "villa", "villa_resort"] },
+    { label: "Vehicle map", href: "/dashboard/ops/map", icon: MapPin, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
   ] },
   { title: "Conversations", links: [
     { label: "Inbox", href: "/dashboard/inbox", icon: I["/dashboard/inbox"], resource: "inbox" },
@@ -88,6 +89,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "GPS trackers", href: "/dashboard/settings/gps", icon: MapPin, resource: "settings", onlyRoles: ["owner", "manager"], onlyForBusinessTypes: ["caravan"] },
     { label: "Packages and routes", href: "/dashboard/settings/quotes", icon: Calculator, resource: "settings", onlyRoles: ["owner", "manager"], onlyForBusinessTypes: ["caravan"] },
     { label: "Developers", href: "/dashboard/settings/developers", icon: Key, resource: "settings" },
     { label: "Branding", href: "/dashboard/settings/branding", icon: Palette, resource: "branding" },

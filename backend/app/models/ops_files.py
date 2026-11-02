@@ -44,6 +44,8 @@ class OpsFile(Base, TimestampMixin, TenantMixin):
     report_approved_by = Column(String, nullable=True)
     closed_at = Column(DateTime(timezone=True), nullable=True)
     closed_by = Column(String, nullable=True)
+    # Planned road for the GPS checks (migration 181, schemas/gps.py RouteIn): points, approved detours. NULL = no route.
+    gps_route = Column(JSON, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("stay_id", name="uq_ops_files_stay"),

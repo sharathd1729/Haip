@@ -156,7 +156,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
       case "call":
         if (!hasPhone) { toast({ variant: "error", title: `${name} hasn't shared a phone number yet` }); return; }
         closeSheetOnPhone(); setSheet(null); call.start(); return;
-      case "message": closeSheetOnPhone(); setSheet(null); setTimeout(() => composer.current?.focus(), 250); return;
+      case "message": closeSheetOnPhone(); setSheet(null); setTimeout(() => composer.current?.focus("whatsapp"), 250); return;
       case "quote": setSheet(null); quoteSheet.open({ inquiryId, from: "lead", name: lead?.display_name }); return;
       case "book": router.push(`/dashboard/bookings/new?inquiry=${encodeURIComponent(inquiryId)}`); return;
       case "open_booking": if (booking) router.push(`/dashboard/bookings/${booking.booking_id}`); return;
@@ -261,6 +261,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
 
         <LeadComposer ref={composer} channels={feed?.channels ?? []} name={name} canSend={perms.canSend} canQuote={perms.canQuote}
           canBook={perms.canBook} hasPhone={perms.canCall} run={run}
+          startWhatsApp={feed?.contact.has_phone && feed.guest_id ? { guestId: feed.guest_id, inquiryId } : null}
           onSent={ch => { toast({ variant: "success", title: `Sent on ${ch === "instagram" ? "Instagram" : "WhatsApp"}`, description: "Logged on this lead." }); qc.invalidateQueries({ queryKey: ["lead-feed", inquiryId] }); }}
           onError={msg => toast({ variant: "error", title: "Not sent", description: msg })} />
       </div>

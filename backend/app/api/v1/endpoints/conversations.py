@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState, MessageDirection
 from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RejectDraftRequest, RewriteDraftRequest, ComposerRewriteRequest
 from app.workers.tasks.concierge_draft import concierge_draft
-from app.services import ai_draft_outcomes_service
+from app.services import ai_draft_expiry, ai_draft_outcomes_service
 import structlog
 
 log = structlog.get_logger()
@@ -338,6 +338,7 @@ def _msg_dict(m: Message) -> dict:
         "status": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else str(m.delivery_state or ""),
         "delivery_state": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else None,
         "delivery_error": m.delivery_error,
+        "is_template": bool(isinstance(m.channel_metadata, dict) and m.channel_metadata.get("template_name")),
         "timestamp": _iso(m.created_at) or "",
         "sender_name": m.sender_name,
         "ai_drafted": m.is_ai_generated,
@@ -347,6 +348,8 @@ def _msg_dict(m: Message) -> dict:
         # Approve/Edit/Reject card kept showing forever even after the
         # reply had actually gone out to the guest.
         "was_approved": m.was_approved,
+        # An AI draft nobody acted on, closed by ai_draft_expiry (was_approved is False too): shown collapsed, no actions.
+        "draft_expired": ai_draft_expiry.is_expired(m),
         "ai_confidence": m.ai_confidence,
         "is_internal": m.is_internal,
         "replied_to_message_id": m.replied_to_message_id,
@@ -503,9 +506,6 @@ def send_message(
     # decision to do so.
     # First agent to reach out owns an unowned lead (lead_assignment_service).
     if not body.is_internal:
-        from app.services import lead_reopen     # our message to a lead the system closed brings it back (lead_reopen)
-        lead_reopen.on_contact(db, current_user.tenant_id, conv.guest_id, trigger="team_message", by_guest=False,
-                               actor_user_id=current_user.id)
         from app.services.lead_assignment_service import claim_on_first_touch
         claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
@@ -566,9 +566,6 @@ def send_template_message(
     "Send template" did nothing). Only meaningful for WhatsApp; other
     channels don't have Meta's 24h-window/template requirement.
     """
-    from app.api.v1.endpoints.messaging import WATemplate, TemplateStatus
-    from app.models.conversation import ChannelType
-
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -576,42 +573,24 @@ def send_template_message(
 
     channel = str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
     if channel != "whatsapp":
-        raise HTTPException(status_code=422, detail="Templates can only be sent on WhatsApp conversations")
-
-    tmpl = db.query(WATemplate).filter_by(id=body.template_id, tenant_id=current_user.tenant_id).first()
-    if not tmpl:
-        raise HTTPException(status_code=404, detail="Template not found")
-    if tmpl.status != TemplateStatus.APPROVED:
-        raise HTTPException(status_code=422, detail="Only approved templates can be sent")
+        # An Instagram (or other) thread: the guest's number is reached through POST /guests/{id}/whatsapp/start.
+        raise HTTPException(status_code=422, detail="Templates can only be sent on WhatsApp conversations. Use Start on WhatsApp to message this guest's number.")
 
     # Refuse now, in words, what Meta would refuse later: a number that isn't a
     # real WhatsApp number (Meta accepts the request and then never delivers)
     # and a template whose values don't match. Before this the person saw a red
     # bubble and "Max retries exceeded", with no way to tell why.
     from app.models.guest import Guest
-    from app.services import wa_template_service as wts
+    from app.services import whatsapp_start_service
     from app.workers.tasks.send_whatsapp import _bad_number_reason
+    try:
+        tmpl, display_text = whatsapp_start_service.template_message(db, current_user.tenant_id, body.template_id, body.variables)
+    except whatsapp_start_service.Refused as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
     guest = db.query(Guest).filter_by(id=conv.guest_id, tenant_id=current_user.tenant_id).first()
     bad_number = _bad_number_reason(guest.phone if guest else "")
     if bad_number:
         raise HTTPException(status_code=422, detail=bad_number)
-    needed = wts.template_variables(tmpl.components)
-    if needed.get("header"):
-        raise HTTPException(status_code=422, detail="This template has a variable in its header, which can't be filled in from the inbox yet.")
-    expected = len(needed.get("body", []))
-    given = len(body.variables or [])
-    if given != expected:
-        raise HTTPException(
-            status_code=422,
-            detail=f"This template needs {expected} value{'s' if expected != 1 else ''} to fill in; {given} given.",
-        )
-
-    # Render the template body text (for display in the thread) by
-    # substituting {{1}}, {{2}}, ... with the supplied variables.
-    body_component = next((c for c in (tmpl.components or []) if c.get("type") == "BODY"), None)
-    display_text = body_component.get("text", "") if body_component else tmpl.name
-    for i, var in enumerate(body.variables or [], start=1):
-        display_text = display_text.replace(f"{{{{{i}}}}}", str(var))
 
     msg = Message(
         id=str(uuid.uuid4()),
@@ -632,9 +611,6 @@ def send_template_message(
     # See the send_message() comment above -- a manual send (a template
     # reopening the WA window included) no longer forces shadow mode.
     # First agent to reach out owns an unowned lead (lead_assignment_service).
-    from app.services import lead_reopen
-    lead_reopen.on_contact(db, current_user.tenant_id, conv.guest_id, trigger="team_message", by_guest=False,
-                           actor_user_id=current_user.id)
     from app.services.lead_assignment_service import claim_on_first_touch
     claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
@@ -783,6 +759,9 @@ def retry_failed_message(
         raise HTTPException(status_code=404, detail="Message not found")
     if msg.delivery_state != MessageDeliveryState.FAILED:
         raise HTTPException(status_code=409, detail="Message is not in failed state")
+    # Retry re-sends the text as a normal message: for a template that fails outside the 24-hour window, so say what works.
+    if isinstance(msg.channel_metadata, dict) and msg.channel_metadata.get("template_name"):
+        raise HTTPException(status_code=409, detail="This was a template. Pick the template again to resend it.")
 
     # Guard: only allow retry within 24h
     if msg.created_at:
@@ -858,6 +837,10 @@ def update_conversation(
         if not isinstance(body["ai_enabled"], bool):
             raise HTTPException(status_code=422, detail="ai_enabled must be true or false")
         conv.ai_mode = "shadow" if body["ai_enabled"] else "off"
+        # Audited: it also ends an "AI turned off: guest asked for a person" banner (ai_handoff.off_reason).
+        from app.core.audit import append_audit
+        append_audit(db, tenant_id=current_user.tenant_id, action="conversation.ai_toggled", actor_user_id=current_user.id,
+                     target_type="conversation", target_id=conv.id, payload={"ai_enabled": body["ai_enabled"]})
         log.info("conversation_ai_toggled", conversation_id=conv.id, tenant_id=current_user.tenant_id,
                  actor_user_id=current_user.id, ai_enabled=body["ai_enabled"])
     db.commit()
@@ -1024,7 +1007,7 @@ def get_conversation_detail(
         if phone_decline_task_row else None
     )
 
-    from app.services import inbox_service
+    from app.services import ai_handoff, inbox_service
     guest_channels = inbox_service.guest_channels(db, current_user.tenant_id, [conv.guest_id]).get(conv.guest_id, [])
 
     return {
@@ -1045,6 +1028,7 @@ def get_conversation_detail(
         # per-conversation AI switch and the owner.
         "guest_channels": guest_channels,
         "ai_enabled": (conv.ai_mode or "").lower() != "off",
+        "ai_off_reason": ai_handoff.off_reason(db, current_user.tenant_id, conv),
         "assigned_to": conv.assigned_to,
     }
 
@@ -1079,6 +1063,8 @@ def _pending_draft_conditions(tenant_id: str, conversation_id: str, message_id: 
 
 
 def _not_pending_error(msg: Message) -> HTTPException:
+    if ai_draft_expiry.is_expired(msg):
+        return _draft_error(409, "draft_expired", "This draft expired: the conversation moved on. Write a new reply.", state="expired")
     if msg.was_approved is False:
         return _draft_error(409, "draft_rejected", "This draft was rejected.", state="rejected")
     if msg.was_approved is True:
@@ -1165,9 +1151,6 @@ def approve_ai_draft(
     )
     from app.services.lead_assignment_service import claim_on_first_touch
     if conversation:
-        from app.services import lead_reopen
-        lead_reopen.on_contact(db, tenant_id, conversation.guest_id, trigger="team_message", by_guest=False,
-                               actor_user_id=current_user.id)
         claim_on_first_touch(db, tenant_id, conversation.guest_id, current_user.id)
     db.commit()
     if conversation:
@@ -1228,7 +1211,7 @@ def reject_ai_draft(
     if claimed != 1:
         db.expire_all()      # nothing was updated; re-read the committed state (no rollback: it would also discard the caller's own work)
         msg = _load_ai_draft(db, tenant_id, conversation_id, message_id)
-        if msg.was_approved is False:
+        if msg.was_approved is False and not ai_draft_expiry.is_expired(msg):
             return {"status": "already_rejected"}
         raise _not_pending_error(msg)
     db.refresh(msg)

@@ -357,7 +357,8 @@ def journey_out(db: Session, tenant_id: str, inquiry: Inquiry) -> dict:
 def action_out(a: PlaybookAction) -> dict:
     from app.services import lead_playbook_catalog as cat
     meta = cat.BY_KEY.get(a.playbook_key) or {}
-    return {"id": a.id, "playbook": a.playbook_key, "playbook_name": meta.get("name", a.playbook_key), "action": a.action,
+    name = meta.get("name") or ("Template sent by a person" if a.playbook_key == "manual_template" else a.playbook_key)
+    return {"id": a.id, "playbook": a.playbook_key, "playbook_name": name, "action": a.action,
             "status": a.status, "reason": a.reason, "template": a.template_name, "message_id": a.message_id,
             "task_id": a.task_id, "inquiry_id": a.inquiry_id, "guest_id": a.guest_id,
             "at": _aware(a.created_at).isoformat() if a.created_at else None}

@@ -24,7 +24,8 @@ function item(patch: Record<string, unknown>) {
 }
 const ITEMS = [
   item({ title: "Ravi", kind: "callback", action: "Call back", inquiry_id: null, guest_id: "g2", detail: "Missed call, not returned", severity: "urgent", since: ago(2 * 1440), facts: ["3-9 Jan"] }),
-  item({ title: "Neha", guest_id: "g3", severity: "fresh", since: ago(20) }),
+  item({ title: "Neha", guest_id: "g3", severity: "fresh", since: ago(20), unowned: true }),
+  item({ title: "Arjun", kind: "handover", guest_id: "g5", inquiry_id: "i5", owner_id: "u1", lane: "now", detail: "The bot promised a call" }),
   item({ title: "Priya", kind: "reply", guest_id: "g4", lane: "today", href: "/dashboard/inbox?c=c1", detail: "“Dates for Hampi?”", has_draft: true, owner_id: "u1" }),
 ];
 const queue = (items = ITEMS) => ({ counts: { consult: 0, callback: 1, new_lead: 1, reply: 1, no_reply: 0, followup: 0, clash: 0 }, people: items.length,
@@ -52,6 +53,18 @@ describe("Phone My day", () => {
     expect(screen.getByText("2d late").className).toContain("danger");
     expect(screen.getByText("AI reply ready")).toBeTruthy();
     expect(screen.getByText("unassigned")).toBeTruthy();
+    expect(screen.getByText("Nobody owns these yet")).toBeTruthy();                  // unowned leads first (S10)
+    expect(screen.getByText("bot handed over")).toBeTruthy();                         // the new kind says why (S4)
+  });
+
+  it("takes a lead nobody owns, and a bot handover calls its lead", async () => {
+    post.mockResolvedValue({ data: {} });
+    renderIt();
+    await userEvent.click(await screen.findByRole("button", { name: "Take Neha" }));
+    expect(post).toHaveBeenCalledWith("/work-queue/take/i1");
+    await userEvent.click(screen.getByRole("button", { name: "Call Arjun" }));
+    expect(post).toHaveBeenLastCalledWith("/calls/click-to-call", { inquiry_id: "i5" });
+    expect(screen.queryByRole("button", { name: "Take Arjun" })).toBeNull();          // owned: no Take it
   });
 
   it("calls a missed caller back through click-to-call and a reply row links to the chat", async () => {

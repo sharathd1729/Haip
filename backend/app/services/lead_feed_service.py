@@ -203,6 +203,7 @@ def _message_item(m, guest_name: str, allowed: bool) -> FeedItemSchema:
         conversation_id=m.conversation_id, text=(m.body or "") if allowed else None, media_type=m.media_type,
         sender_name=sender, is_ai=bool(m.is_ai_generated), is_draft=draft, is_internal=bool(m.is_internal),
         is_template=bool(isinstance(meta, dict) and meta.get("template_id")), delivery=_val(m.delivery_state),
+        delivery_error=(m.delivery_error if allowed else None),
         imported=getattr(m, "sender_kind", None) == "chat_export",
     )
 
