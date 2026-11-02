@@ -38,7 +38,7 @@ export function SiteRendererV2({ live, page, env, banner, main }: { live: LiveDa
   const wa = live.page_wa[page.slug] || null;
   const c = doc.site.contact;
   const hasBar = page.sections.some(s => s.type === "booking-cta" && s.variant === "sticky-bar");
-  const overHero = page.sections[0]?.type === "hero" && page.sections[0].variant === "fullbleed-image";
+  const overHero = page.sections[0]?.type === "hero" && ["fullbleed-image", "video"].includes(page.sections[0].variant);
   return (
     <div className={`sv${hasBar ? " sv--has-bar" : ""}${overHero ? " sv--over-hero" : ""}`} data-motion={live.theme.motion}
       data-scheme={live.theme.scheme} style={live.theme.vars as CSSProperties}>
@@ -86,7 +86,7 @@ export function SiteRendererV2({ live, page, env, banner, main }: { live: LiveDa
             {Object.entries(doc.site.social || {}).map(([k, v]) => <a key={k} href={v} target="_blank" rel="noopener noreferrer">{k[0].toUpperCase() + k.slice(1)}</a>)}
           </div>
         </div>
-        <p className="sv-wrap sv-legal">© {live.legal.legal_name || doc.site.name}{live.legal.gstin ? ` · GSTIN ${live.legal.gstin}` : ""}{c.address ? ` · ${c.address}` : ""} · <a href={hrefOf(env, "/policies")}>Policies</a> · Website by HAIP</p>
+        <p className="sv-wrap sv-legal">© {live.legal.legal_name || doc.site.name}{live.legal.gstin ? ` · GSTIN ${live.legal.gstin}` : ""}{c.address ? ` · ${c.address}` : ""} · <a href={hrefOf(env, "/policies")}>Policies</a>{live.blog_count ? <> · <a href={hrefOf(env, "/blog")}>Guides</a></> : null} · Website by HAIP</p>
       </footer>
     </div>
   );

@@ -45,6 +45,13 @@ export async function getPreview(token: string): Promise<AnyLive | null> {
   return r.ok ? withOwnFonts(await r.json()) : null;
 }
 
+/** Guides (website phase 5): approved only, cached like pages. */
+export async function getBlog(host: string, slug?: string): Promise<unknown | null> {
+  const url = `${apiRoot()}/public/sites/${encodeURIComponent(host)}/blog${slug ? `/${encodeURIComponent(slug)}` : ""}`;
+  const r = await fetch(url, { next: { revalidate: 300, tags: [`site:${host}`] } });
+  return r.ok ? r.json() : null;
+}
+
 export async function getStay(host: string, slug: string, preview?: string): Promise<Stay | null> {
   const url = preview ? `${apiRoot()}/public/preview/${encodeURIComponent(preview)}/stays/${slug}`
     : `${apiRoot()}/public/sites/${encodeURIComponent(host)}/stays/${slug}`;

@@ -256,6 +256,24 @@ def links(host: str, db: Session = Depends(get_db)):
             "packages": bio_packages.items(db, tenant, v.doc)}
 
 
+@router.get("/sites/{host}/blog")
+def blog(host: str, db: Session = Depends(get_db)):
+    """The website's guides: approved versions only (website_blog)."""
+    from app.services import website_blog
+    tenant, _site, _v = _live(db, host)
+    return {"items": website_blog.listing(db, tenant.id)}
+
+
+@router.get("/sites/{host}/blog/{slug}")
+def blog_article(host: str, slug: str, db: Session = Depends(get_db)):
+    from app.services import website_blog
+    tenant, _site, _v = _live(db, host)
+    out = website_blog.article(db, tenant.id, slug[:80])
+    if out is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No such guide."})
+    return out
+
+
 @router.post("/sites/{host}/views", status_code=204)
 def views(host: str, body: PageViewIn, db: Session = Depends(get_db)):
     try:

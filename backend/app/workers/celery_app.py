@@ -303,6 +303,7 @@ celery_app.conf.update(
         "website.revalidate":                        {"queue": "default"},
         "website.send_manage_link":                  {"queue": "whatsapp"},
         "website.send_events":                       {"queue": "default"},
+        "website.blog_draft":                        {"queue": "default"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from

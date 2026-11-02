@@ -66,6 +66,8 @@ export interface LiveDataV2 {
   /** JSON-LD per page slug (backend website_seo; live pages only). */
   jsonld?: Record<string, object[]>;
   business_kind?: string | null;
+  /** Approved guides on this site (website_blog); the footer links /blog when > 0. */
+  blog_count?: number;
 }
 
 /** Pages every v2 site has without a spec page: Razorpay returns guests to /book/done, confirmations link /my-booking, and

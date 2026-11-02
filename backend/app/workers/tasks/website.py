@@ -6,6 +6,7 @@
   website.expire_holds    every 5 min: lapsed holds free their dates; their Razorpay links are cancelled best-effort.
   website.verify_domains  hourly: pending custom domains re-check DNS.
   website.revalidate      after a publish: tell the sites renderer to refresh that site's pages.
+  website.blog_draft      a website guide drafted by the AI (website_blog; queue default, transient errors retried 2x).
   website.send_events     every 5 min: website Conversions API events to Meta (website_tracking), queue default.
 Every task sets the tenant context before touching tenant rows, and uses one transaction per tenant.
 """
@@ -286,3 +287,35 @@ def send_events():
                 db.rollback()
                 log.error("website_send_events_failed", tenant_id=tid, error=type(exc).__name__)
     return sent
+
+
+@shared_task(name="website.blog_draft", bind=True, max_retries=MAX_RETRIES)
+def blog_draft(self, tenant_id: str, item_id: str, topic: str):
+    """A guide for the website (website_blog.run_draft). A transient provider error retries (2x, backoff); any other
+    failure marks the item failed so the screen says so (never stuck on "writing")."""
+    from app.models.marketing import MarketingContent
+    from app.models.tenant import Tenant
+    from app.services import website_blog
+    from app.services.marketing_ai_service import LLMTransientError
+
+    def failed(db, why: str):
+        set_tenant_context(db, tenant_id)
+        item = db.query(MarketingContent).filter_by(id=item_id, tenant_id=tenant_id).first()
+        if item is not None:
+            item.generation_status, item.generation_error = "failed", why
+        db.commit()
+
+    with SessionLocal() as db:
+        set_tenant_context(db, tenant_id)
+        try:
+            website_blog.run_draft(db, db.get(Tenant, tenant_id), item_id, topic)
+            db.commit()
+        except LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            failed(db, "The AI service is busy right now. Try again in a few minutes.")
+        except Exception as exc:  # noqa: BLE001 -- never leave the item stuck on "writing"
+            db.rollback()
+            failed(db, f"Couldn't write this guide ({type(exc).__name__}). Try again or write it yourself.")
+            log.exception("website_blog_draft_failed", tenant_id=tenant_id, item_id=item_id)

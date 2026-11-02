@@ -205,7 +205,8 @@ def media_url(db: Session, tenant_id: str, doc: dict, asset_id: str) -> str:
     from app.services.media_storage import get_presigned_media_url
     allowed = wb.asset_ids(doc)
     if asset_id not in allowed and wspec.is_v2(doc):
-        allowed = allowed | wspec.media_ids(db, db.get(Tenant, tenant_id), doc)
+        from app.services.website_blog import media_ids as blog_media
+        allowed = allowed | wspec.media_ids(db, db.get(Tenant, tenant_id), doc) | blog_media(db, tenant_id)
     if asset_id not in allowed:
         raise WebsiteError(404, "not_found", "Not found")
     a = db.query(MediaAsset).filter_by(id=asset_id, tenant_id=tenant_id, status="active").first()

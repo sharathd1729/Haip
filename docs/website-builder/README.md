@@ -110,10 +110,28 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
   "15% off · use code MONSOON15 · until 30 Sep". The amount shows only in grounded price mode; a discount typed into the
   text is refused like any typed price.
 
+## Phase 5: content (3 Nov 2026, no migration)
+- **Guides** (Website page › More for your website › Guides; `services/website_blog.py`): a guide is a Marketing Studio
+  item of kind `article`, so it has the same immutable versions, price/avoid-word text gate and approval (bound to the
+  version's sha256; no self-approval except the owner). "Write it for me" queues Celery `website.blog_draft` (router
+  `website_copy` = Gemini Flash-Lite, prompt `website-blog-v1`, only the business's own approved facts, no prices). The
+  website shows a guide only while its approved version is current: `/blog` lists them, `/blog/<slug>` shows one (with
+  BlogPosting structured data). Editing takes it down until it is approved again; "Take down" archives it. Guides are
+  never posted to Instagram/Facebook/Google (the publisher refuses them).
+- **Google reviews** (`services/website_reviews.py`): reviews arrive from Google Business Profile hourly (Marketing Studio
+  connection); "Import from Google now" queues it at once. A review appears on the site only after an owner/manager
+  notes how the guest agreed; "Hide from website" takes it off. First names only; the star average counts every review.
+- **Video hero**: hero layout `video` plays an uploaded MP4 (sound removed on upload) muted, inline and looping over the
+  hero photo (its poster). Visitors who prefer reduced motion never load the video and see the photo.
+- **Canva**: export the design from Canva as PNG, JPG or MP4 and add it with "Video or Canva design" (marked as a Canva
+  export in the library). Not built, on purpose: a Canva OAuth app or publishing a HAIP site through Canva (Canva cannot
+  host a HAIP site and has no confirmed website-publish API). Marketing Studio's Canva brand-template fill (M2b) is
+  unchanged.
+
 ## Celery
 `website.ai_job` (default), `website.after_booking` (whatsapp: invoice, email + WhatsApp confirmation, staff push),
 `website.expire_holds` (beat */5), `website.verify_domains` (beat hourly :17), `website.revalidate` (after publish),
-`website.send_manage_link` (whatsapp), `website.send_events` (beat */5, default: Conversions API).
+`website.send_manage_link` (whatsapp), `website.send_events` (beat */5, default: Conversions API), `website.blog_draft` (default: AI guide draft).
 
 ## Settings (backend)
 `SITES_BASE_DOMAIN`, `SITES_CNAME_TARGET`, `SITES_RENDERER_URL`, `SITES_REVALIDATE_SECRET`, `CLOUDFLARE_API_TOKEN`,
@@ -124,5 +142,5 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
 - `haip_manage_booking_v1` (UTILITY): "Hi {{1}}, here is the link to your booking {{2}}: {{3}}"
 
 ## Not built yet
-Reviews import from Airbnb, multi-language pages, blog, Google free booking links, room-level
+Reviews import from Airbnb, multi-language pages, Google free booking links, room-level
 inventory (one booking blocks a whole property, as in the rest of HAIP).

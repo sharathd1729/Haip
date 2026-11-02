@@ -73,6 +73,8 @@ WANDERWHEEL_SPEC = {
              {"id": "quick", "type": "faq", "variant": "compact", "slots": {"heading": "Quick answers", "limit": 4}},
              {"id": "card", "type": "contact", "variant": "card", "slots": {"heading": "Say hello", "show_map": False}},
              {"id": "bar", "type": "booking-cta", "variant": "sticky-bar", "slots": {"heading": "Ready when you are"}},
+             {"id": "drive", "type": "hero", "variant": "video",
+              "slots": {"headline": "Watch a morning on the *road*", "cta_label": "Plan my trip"}},
              {"id": "monsoon", "type": "offer", "variant": "banner",
               "slots": {"eyebrow": "This season", "heading": "Monsoon weekdays on the road", "promo": "MONSOON"}},
              {"id": "groups", "type": "offer", "variant": "card",

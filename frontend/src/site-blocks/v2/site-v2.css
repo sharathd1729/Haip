@@ -365,3 +365,11 @@
 .sv .sv-promo { display: flex; gap: .5rem; margin-top: .6rem; }
 .sv .sv-promo input { flex: 1; min-width: 0; min-height: 44px; font-size: 16px; padding: 0 .8rem; border: 1px solid var(--v-line);
   border-radius: var(--v-r-btn); background: var(--v-surface); color: var(--v-ink); text-transform: uppercase; }
+/* Video hero (website phase 5): the video sits over its poster photo; reduced motion never mounts it (video.tsx). */
+.sv .sv-hero__video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+@media (prefers-reduced-motion: reduce) { .sv .sv-hero__video { display: none; } }
+/* Guides (website phase 5) */
+.sv .sv-blog__grid { list-style: none; padding: 0; margin: 0; display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+.sv .sv-blog__card a { display: grid; gap: .5rem; color: inherit; text-decoration: none; }
+.sv .sv-blog__card img, .sv .sv-article__photo { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: var(--v-r-media); }
+.sv .sv-article .sv-own h2 { margin-top: 1.6rem; }

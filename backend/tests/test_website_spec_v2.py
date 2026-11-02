@@ -61,7 +61,7 @@ def test_valid_spec_normalises_once_and_fills_defaults():
     assert out["tokens"]["palette"]["primary"] == "#2F5D46" and out["tokens"]["motion"] == "calm"
     pk = next(s for p in out["pages"] for s in p["sections"] if s["type"] == "packages")
     assert pk["source"] == "business_data:packages" and pk["slots"]["keys"] == []
-    assert sum(len(p["sections"]) for p in out["pages"]) == 33          # 9 types x 3 variants + booking, text, offer (2 each)
+    assert sum(len(p["sections"]) for p in out["pages"]) == 34          # 9 types x 3 variants + hero video + booking, text, offer (2 each)
 
 
 def test_every_preset_palette_passes_wcag_aa():
@@ -71,7 +71,7 @@ def test_every_preset_palette_passes_wcag_aa():
 
 @pytest.mark.parametrize("mutate, needle", [
     (lambda s: s["pages"][0]["sections"].append({"type": "carousel", "variant": "x"}), "type"),
-    (lambda s: s["pages"][0]["sections"].append({"type": "hero", "variant": "video", "slots": {"headline": "x"}}), "unknown variant"),
+    (lambda s: s["pages"][0]["sections"].append({"type": "hero", "variant": "parallax-3d", "slots": {"headline": "x"}}), "unknown variant"),
     (lambda s: s["pages"][0]["sections"][1].update(source="business_data:destinations"), "reads from"),
     (lambda s: s["tokens"].update(palette={"name": "mine", "ink": "#777777", "surface": "#888888", "primary": "#2F5D46", "accent": "#A8641C"}), "contrast"),
     (lambda s: s["tokens"].update(display="comic-sans"), "unknown display font"),

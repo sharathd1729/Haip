@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-CONTENT_KINDS = ("post", "carousel", "story", "promo", "reel")
+CONTENT_KINDS = ("post", "carousel", "story", "promo", "reel", "article")   # article = a website guide (website_blog)
 CHANNELS = ("instagram",)
 
 # Item lifecycle in Phase 1 (no external publishing yet): draft -> in_review -> approved | rejected; any edit -> draft.
@@ -286,8 +286,22 @@ class ReelContent(_Captioned):
         return self
 
 
+class ArticleContent(_Strict):
+    """A guide or blog post for the business's HAIP website (website phase 5). Same versions and approval as every Studio
+    item; the website shows only the APPROVED version (website_blog). Never posted to social channels. Body: plain text,
+    blank line = new paragraph, a line starting "## " = a sub-heading."""
+    kind: Literal["article"] = "article"
+    title: str = Field(min_length=4, max_length=110)
+    slug: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=80)
+    excerpt: str = Field(min_length=20, max_length=240)
+    body: str = Field(min_length=200, max_length=9000)
+    seo_description: str = Field("", max_length=160)
+    media: MediaRef = Field(default_factory=MediaRef)
+
+
 CONTENT_MODELS: dict[str, type[BaseModel]] = {
     "post": PostContent, "carousel": CarouselContent, "story": StoryContent, "promo": PromoContent, "reel": ReelContent,
+    "article": ArticleContent,
 }
 
 

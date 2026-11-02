@@ -178,10 +178,11 @@ class HeroSlots(_Strict):
     eyebrow: Short = ""
     headline: str = Field(min_length=1, max_length=90)       # *word* = emphasis in the accent colour
     subhead: str = Field("", max_length=240)
-    media: Optional[str] = None                              # empty = the first approved library photo
+    media: Optional[str] = None                              # empty = the first approved library photo (the video's poster)
+    video: Optional[str] = None                              # "video" layout: an uploaded MP4 from the library (no sound)
     cta_label: str = Field("Plan my trip on WhatsApp", min_length=1, max_length=40)
 
-    @field_validator("media", mode="before")
+    @field_validator("media", "video", mode="before")
     @classmethod
     def _media(cls, v):
         return _asset(v)

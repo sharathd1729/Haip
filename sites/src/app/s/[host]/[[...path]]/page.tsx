@@ -6,7 +6,8 @@ import { notFound } from "next/navigation";
 import { Consent } from "@/components/Consent";
 import { PageView } from "@/components/PageView";
 import { V1Fonts } from "@/components/V1Fonts";
-import { type AnyLive, envFor, getLive, getStay, queryOf } from "@/lib/haip";
+import { type AnyLive, envFor, getBlog, getLive, getStay, queryOf } from "@/lib/haip";
+import { type Article, ArticleView, type BlogItem, BlogList } from "@/site-blocks/v2/blog";
 import { findPage, SiteRenderer } from "@/site-blocks/SiteRenderer";
 import type { LiveData, Page, Stay } from "@/site-blocks/types";
 import { SiteRendererV2, systemPage } from "@/site-blocks/v2/SiteRendererV2";
@@ -16,7 +17,7 @@ type Params = { host: string; path?: string[] };
 type Search = Record<string, string | string[] | undefined>;
 type Found =
   | { v2: false; live: LiveData; page: Page; slug?: string; stay: Stay | null }
-  | { v2: true; live: LiveDataV2; page: PageV2; stay: null; system?: boolean };
+  | { v2: true; live: LiveDataV2; page: PageV2; stay: null; system?: boolean; blog?: { items?: BlogItem[]; article?: Article } };
 
 async function resolve(host: string, path: string[] | undefined): Promise<Found | null> {
   const live: AnyLive | null = await getLive(host);
@@ -25,6 +26,17 @@ async function resolve(host: string, path: string[] | undefined): Promise<Found 
   if (isV2(live)) {
     const page = findPageV2(live, p);
     if (page) return { v2: true, live, page, stay: null };
+    const low = p.toLowerCase();
+    if (low === "/blog" || low.startsWith("/blog/")) {                 // guides (website phase 5)
+      const slug = low.slice(6);
+      const data = await getBlog(host, slug || undefined);
+      if (!data) return null;
+      const a = slug ? (data as Article) : null;
+      return { v2: true, live, stay: null, system: true, blog: a ? { article: a } : { items: (data as { items: BlogItem[] }).items },
+        page: { slug: low, title: a ? a.title : "Guides", nav: false, sections: [],
+          seo: { title: a ? `${a.title} · ${live.doc.site.name}`.slice(0, 70) : `Guides · ${live.doc.site.name}`.slice(0, 70),
+            description: a ? (a.seo_description || a.excerpt) : `Trip ideas and practical guides from ${live.doc.site.name}.` } } };
+    }
     const title = SYSTEM_PAGES[p.toLowerCase()];
     return title ? { v2: true, live, stay: null, system: true,
       page: { slug: p.toLowerCase(), title, nav: false, seo: { title: "", description: "" }, sections: [] } } : null;
@@ -36,6 +48,12 @@ async function resolve(host: string, path: string[] | undefined): Promise<Found 
 }
 
 function jsonLd(r: Found, host: string): object | object[] {
+  if (r.v2 && r.blog?.article) {
+    const a = r.blog.article;
+    return [...(r.live.jsonld?.["/"] || []).slice(0, 1), { "@context": "https://schema.org", "@type": "BlogPosting", headline: a.title,
+      description: a.excerpt, datePublished: a.date || undefined, url: `https://${host}/blog/${a.slug}`,
+      image: a.media ? `https://${host}/_haip/media/${a.media}` : undefined, publisher: { "@id": `https://${host}/#business` } }];
+  }
   if (r.v2) return r.live.jsonld?.[r.page.slug] || r.live.jsonld?.["/"] || [];   // built by HAIP (website_seo) from the page's own data
   const c = r.live.doc.site.contact;
   const stay = r.stay;
@@ -58,7 +76,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     const title = r.page.seo.title || `${r.page.title} · ${siteName}`;
     const description = (r.page.seo.description || r.live.doc.site.tagline || "").slice(0, 170);
     return { title, description, alternates: { canonical: `https://${host}${r.page.slug}` },
-      ...(r.system && r.page.slug !== "/policies" ? { robots: { index: false } } : {}),
+      ...(r.system && r.page.slug !== "/policies" && !r.blog ? { robots: { index: false } } : {}),
       openGraph: { title, description, siteName, type: "website", locale: "en_IN", images: image } };
   }
   const { page } = r;
@@ -76,11 +94,12 @@ export default async function SitePage({ params, searchParams }: { params: Promi
   if (!r) notFound();
   const env = envFor(r.live, { mode: "live", base: "", query: queryOf(await searchParams), stay: r.stay, mediaBase: "/_haip/media" });
   const p = "/" + (path || []).join("/");
-  const sys = r.v2 && r.system ? systemPage(r.live, r.page.slug, env) : null;
+  const sys = r.v2 && r.blog ? { main: r.blog.article ? <ArticleView a={r.blog.article} env={env} /> : <BlogList items={r.blog.items || []} env={env} /> }
+    : r.v2 && r.system ? systemPage(r.live, r.page.slug, env) : null;
   if (r.v2 && r.system && !sys) notFound();
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(r, host)).replace(/</g, "<") }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(r, host)).replace(/</g, "\u003c") }} />
       {r.v2 ? <SiteRendererV2 live={r.live} page={r.page} env={env} main={sys?.main} /> : <><V1Fonts /><SiteRenderer live={r.live} page={r.page} env={env} /></>}
       <PageView path={p} />
       <Consent pixel={r.live.tracking?.pixel_id} ga4={r.live.tracking?.ga4_id} />

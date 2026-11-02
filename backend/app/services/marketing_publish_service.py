@@ -117,6 +117,8 @@ def schedule_all(db: Session, tenant: Tenant, item_id: str, when: datetime, acto
     if any channel has a blocking problem, nothing is scheduled and every problem is listed with its channel."""
     from app.services import marketing_channels as channels
     item = content_svc.get_item(db, tenant.id, item_id)
+    if item.kind == "article":
+        raise MarketingError(422, "website_only", "Guides appear on your website once approved; they aren't posted to social.")
     targets = channels.publish_targets(item) or ["instagram"]
     if item.status == "approved":
         payload = content_svc.approved_payload(db, tenant.id, item.id)
@@ -133,6 +135,8 @@ def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id
     if agency.level(tenant, "publish") == "off":
         raise MarketingError(409, "publishing_off", "Publishing is switched off for this workspace.")
     item = content_svc.get_item(db, tenant.id, item_id)
+    if item.kind == "article":
+        raise MarketingError(422, "website_only", "Guides appear on your website once approved; they aren't posted to social.")
     if item.status not in ("approved", "scheduled") or (item.status == "scheduled" and not _checked):
         raise MarketingError(409, "not_approved", "Only approved content can be scheduled.")
     if channel not in channels.CHANNELS:
@@ -194,6 +198,9 @@ def on_approved(db: Session, tenant: Tenant, item_id: str) -> Optional[Marketing
     item = content_svc.get_item(db, tenant.id, item_id)
     from app.services import marketing_whatsapp
     marketing_whatsapp.on_approved(db, tenant, item)
+    if item.kind == "article":           # website guides go live on the site by approval alone (website_blog)
+        _revalidate_site(db, tenant.id)
+        return None
     if agency.publish_level(tenant, item.kind) != "autopilot":
         return None
     try:
@@ -202,6 +209,18 @@ def on_approved(db: Session, tenant: Tenant, item_id: str) -> Optional[Marketing
     except MarketingError as exc:
         _auto_schedule_failed(db, tenant.id, item, "; ".join([exc.message, *exc.problems]))
         return None
+
+
+def _revalidate_site(db: Session, tenant_id: str) -> None:
+    from app.services.website_service import get_site
+    site = get_site(db, tenant_id)
+    if site is None:
+        return
+    try:
+        from app.workers.tasks.website import revalidate
+        revalidate.delay(tenant_id, site.id)
+    except Exception:  # noqa: BLE001 -- pages refresh by themselves within 5 minutes
+        pass
 
 
 def _auto_schedule_failed(db: Session, tenant_id: str, item: MarketingContent, reason: str) -> None:

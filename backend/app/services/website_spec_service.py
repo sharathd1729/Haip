@@ -15,7 +15,7 @@ from app.core.audit import append_audit
 from app.models.tenant import Tenant
 from app.models.website import Site, SiteVersion
 from app.schemas.site_spec import SiteSpec, _lum, catalogue, derived
-from app.services import website_bindings, website_tracking
+from app.services import website_bindings, website_blog, website_tracking
 from app.services.website_service import WebsiteError, site_settings
 
 
@@ -197,6 +197,7 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "assets": assets,
         "jsonld": website_seo.jsonld(tenant, doc, data["bound"], assets, host=host, grounded=shown) if host and not preview else {},
         "business_kind": website_seo.business_kind(tenant.business_type),
+        "blog_count": len(website_blog.listing(db, tenant.id)),     # the footer links /blog only when there is a guide
         "policies": pub._policies(db, tenant),        # the built-in /policies page (sites app), same as v1
         "legal": pub._legal(tenant),
         "tracking": {} if preview else website_tracking.public(site),   # pixels never load in a draft preview

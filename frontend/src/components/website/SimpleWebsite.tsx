@@ -10,6 +10,7 @@ import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { webApi, webError, type SiteOut, type SiteSettings } from "@/lib/website";
 import { ChangeSheet } from "./ChangeSheet";
+import { ContentPanel } from "./ContentPanel";
 import { GrowthPanel } from "./GrowthPanel";
 import { LookSheet, PhotosSheet, SectionsSheet, WordsSheet } from "./DirectEditors";
 import { useDraft } from "./useDraft";
@@ -129,6 +130,7 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
         </div>
       </div>
 
+      <ContentPanel canApprove={canApprove} draft={draft} />
       {site.live && <GrowthPanel canApprove={canApprove} />}
 
       {doc && <ContactSheet open={sheet === "contact"} onClose={() => setSheet(null)} contact={doc.site.contact}
