@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
+from app.core.cache import ctx_bust
 from app.models.audit_event import AuditEvent
 from app.models.marketing import MarketingContent, MarketingGuestReview
 from app.models.media_asset import MediaAsset
@@ -16,7 +17,7 @@ from app.services import marketing_content_service as content_svc
 from app.services import marketing_publish_service as publish
 from app.services import website_blog
 from app.services.marketing_content_service import MarketingError
-from tests.test_marketing_studio_content import make_user
+from tests.test_marketing_studio_content import enable_module, make_user
 from tests.test_website_v2_booking import _spec, _v2_live
 from tests.website_fixtures import BASE, make_tenant, wsite  # noqa: F401
 
@@ -81,6 +82,8 @@ def test_guide_goes_live_only_when_approved(client, db, wsite):  # noqa: F811
 
 
 def test_guides_are_per_workspace_and_never_posted_to_social(client, db, wsite):  # noqa: F811
+    enable_module(db, wsite["tenant"].id)  # Studio on, so its generate endpoint answers below
+    ctx_bust(wsite["tenant"].id)
     _v2_live(client, db, wsite)
     g = _written(client, db, wsite)
     other = make_tenant(db, "Elsewhere")
@@ -93,6 +96,9 @@ def test_guides_are_per_workspace_and_never_posted_to_social(client, db, wsite):
     with pytest.raises(MarketingError) as e:
         publish.schedule_all(db, wsite["tenant"], g["id"], None, wsite["owner"].id)
     assert e.value.code == "website_only"
+    # Studio's Instagram copywriter never rewrites a guide (website_blog writes them)
+    r = client.post(f"/api/v1/marketing/studio/content/{g['id']}/generate", json={}, headers=wsite["mkt_h"])
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "website_only", r.text
 
 
 def test_guide_text_follows_the_price_policy(db, wsite):  # noqa: F811

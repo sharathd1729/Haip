@@ -299,6 +299,8 @@ def generate(item_id: str, body: GenerateRequest = GenerateRequest(), user: User
     item = _run(svc.get_item, db, user.tenant_id, item_id)
     if item.status == "archived":
         raise HTTPException(status_code=409, detail={"code": "archived", "message": "Archived content cannot change.", "problems": []})
+    if item.kind == "article":   # guides have their own writer (website_blog); the copywriter here writes Instagram posts
+        raise HTTPException(status_code=409, detail={"code": "website_only", "message": "Write guides from the Website screen.", "problems": []})
     n = (db.query(MarketingContent)
          .filter(MarketingContent.id == item.id, MarketingContent.tenant_id == user.tenant_id,
                  MarketingContent.generation_status != "pending")
