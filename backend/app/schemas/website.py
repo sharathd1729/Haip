@@ -80,6 +80,7 @@ class QuoteIn(_Strict):
     adults: int = Field(2, ge=1, le=30)
     children: int = Field(0, ge=0, le=20)
     extras: list[dict] = Field(default_factory=list, max_length=20)   # [{id, quantity}]
+    promo_code: Optional[str] = Field(None, max_length=30)            # website_promos; the server checks and applies it
 
 
 class GuestIn(_Strict):
@@ -142,6 +143,28 @@ class TrackingIn(_Strict):
     capi_enabled: bool = False
     capi_token: Optional[str] = Field(None, max_length=400)
     capi_test_code: Optional[str] = Field(None, pattern=r"^[A-Z0-9]{3,20}$")
+
+
+class PromoIn(_Strict):
+    """Website › Promo codes (owner/manager). percent = 1-90 % off the nights; flat = rupees off the stay."""
+    code: str = Field(pattern=r"^[A-Za-z0-9]{3,30}$")
+    kind: Literal["percent", "flat"]
+    value: float = Field(gt=0, le=1_000_000)
+    starts_on: Optional[date] = None
+    ends_on: Optional[date] = None
+    min_nights: int = Field(1, ge=1, le=60)
+    max_uses: Optional[int] = Field(None, ge=1, le=100_000)
+    property_ids: list[str] = Field(default_factory=list, max_length=50)
+    label: Optional[str] = Field(None, max_length=80)
+    active: bool = True
+
+    @model_validator(mode="after")
+    def _sane(self):
+        if self.kind == "percent" and self.value > 90:
+            raise ValueError("a percent discount is at most 90")
+        if self.starts_on and self.ends_on and self.ends_on < self.starts_on:
+            raise ValueError("the end date is before the start date")
+        return self
 
 
 class PageViewIn(_Strict):

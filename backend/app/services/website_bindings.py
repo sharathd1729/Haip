@@ -258,6 +258,12 @@ def _faq(ctx: _Ctx, s: dict) -> dict:
     return {"items": [i for i in items if i["q"] and i["a"]]}
 
 
+def _offer(ctx: _Ctx, s: dict) -> dict:
+    """The offer band's promo code while it is usable; its amount only in grounded mode (website_promos.banner)."""
+    from app.services.website_promos import banner
+    return {"promo": banner(ctx.db, ctx.tenant.id, s["slots"].get("promo"), today=ctx.today, grounded=ctx.grounded)}
+
+
 def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] = None, site=None) -> dict:
     """{bound: {section_id: data + wa}, page_wa: {slug: wa}, price_mode, asset_ids: set} for a validated spec.
     `types` limits which sections are resolved (the photo route only needs hero and gallery). `site` = the site's chosen
@@ -278,7 +284,8 @@ def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] =
             data = (_hero(ctx, s) if t == "hero" else _stays(ctx, s) if t == "stays" else _booking(ctx, s) if t == "booking"
                     else _packages(ctx, s, number, code) if t == "packages"
                     else _itinerary(ctx, s) if t == "itinerary" else _gallery(ctx, s) if t == "gallery"
-                    else _reviews(ctx, s) if t == "reviews" else _faq(ctx, s) if t == "faq" else {})
+                    else _reviews(ctx, s) if t == "reviews" else _faq(ctx, s) if t == "faq"
+                    else _offer(ctx, s) if t == "offer" else {})
             data["wa"] = wa_link(number, code)
             bound[s["id"]] = data
     ids: set[str] = set()

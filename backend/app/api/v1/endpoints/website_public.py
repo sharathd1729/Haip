@@ -112,13 +112,20 @@ def quote(host: str, body: QuoteIn, db: Session = Depends(get_db)):
     free = book.is_free(db, tenant.id, prop, body.check_in, body.check_out)
     out = q.to_api()
     if not shown:
-        out = {k: v for k, v in out.items() if k in ("property_id", "check_in", "check_out", "adults", "children", "nights_count")}
+        out = _no_figures(out)
     return {"available": free, "quote": out, "mode": mode}
+
+
+def _no_figures(q: dict) -> dict:
+    """A handoff-price site's guest sees no amount (a promo code is kept: the team honours it)."""
+    return {k: v for k, v in (q or {}).items()
+            if k in ("property_id", "check_in", "check_out", "adults", "children", "nights_count", "promo_code")}
 
 
 @router.post("/sites/{host}/holds", status_code=201)
 def hold(host: str, body: HoldIn, request: Request, db: Session = Depends(get_db)):
     tenant, site, ver = _live(db, host)
+    shown = guest_terms(tenant, site, ver.doc)[0]
     try:
         # Refusals are raised before anything is written (a failed payment link leaves only a "failed" hold, which
         # holds nothing); the request session is discarded uncommitted.
@@ -137,7 +144,7 @@ def hold(host: str, body: HoldIn, request: Request, db: Session = Depends(get_db
                  value=out["quote"].get("total") if paying else None, source_url=_page_url(host, body.path),
                  user_agent=request.headers.get("user-agent"), fbp=body.fbp, fbc=body.fbc)
     db.commit()
-    return {**out, "event_id": event_id}
+    return {**out, "event_id": event_id, **({} if shown else {"quote": _no_figures(out.get("quote"))})}
 
 
 def _page_url(host: str, path: Optional[str]) -> str:

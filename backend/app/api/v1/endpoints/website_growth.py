@@ -1,4 +1,4 @@
-"""Website builder phases 2-6 (staff API, /api/v1/websites/...): tracking + report (phase 2).
+"""Website builder phases 2-6 (staff API, /api/v1/websites/...): tracking + report (phase 2), promo codes (phase 4).
 
 Same module + capabilities as endpoints/website.py: read = website.read, settings that change what guests' browsers
 load or what leaves HAIP = website.approve (owner/manager). Errors are {"detail": {"code", "message", "problems"}}.
@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from app.api.v1.deps import get_current_user, require_module
 from app.core.database import get_db
 from app.models.user import User
-from app.schemas.website import TrackingIn
-from app.services import website_report
+from app.schemas.website import PromoIn, TrackingIn
+from app.services import website_promos, website_report
 from app.services import website_service as svc
 from app.services import website_tracking as track
 from app.services.authz_service import require_capability
@@ -68,3 +68,40 @@ def report(days: int = 30, user: User = Depends(get_current_user), db: Session =
     site = _site(db, user)
     return website_report.build(db, site, today=tenant_today(db, user.tenant_id), days=max(7, min(days, 180)),
                                 show_money=user_can_see_money(db, user))
+
+
+# ─── phase 4: promo codes ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/promos")
+def list_promos(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    return [website_promos.out(p) for p in website_promos.list_codes(db, user.tenant_id)]
+
+
+@router.post("/promos", status_code=201)
+def create_promo(body: PromoIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                 _m=_module, _c=_approve):
+    try:
+        p = website_promos.create(db, user.tenant_id, body, actor_id=user.id)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+    db.commit()
+    _refresh_offer(db, user.tenant_id)
+    return website_promos.out(p)
+
+
+@router.put("/promos/{promo_id}")
+def update_promo(promo_id: str, body: PromoIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                 _m=_module, _c=_approve):
+    try:
+        p = website_promos.update(db, user.tenant_id, promo_id, body, actor_id=user.id)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+    db.commit()
+    _refresh_offer(db, user.tenant_id)
+    return website_promos.out(p)
+
+
+def _refresh_offer(db: Session, tenant_id: str) -> None:
+    site = svc.get_site(db, tenant_id)
+    if site is not None:
+        _revalidate(tenant_id, site.id)          # an offer band may show this code

@@ -55,6 +55,8 @@ class Quote:
     balance_due: Optional[date] = None
     gst_percent: Optional[Decimal] = None
     gst_registered: bool = True
+    discount: Decimal = Decimal("0")                      # rupees off the nights' rates (website_promos)
+    promo_code: Optional[str] = None
 
     def to_api(self) -> dict:
         return {
@@ -69,6 +71,7 @@ class Quote:
             "balance_due": self.balance_due.isoformat() if self.balance_due else None,
             "gst_percent": str(self.gst_percent) if self.gst_percent is not None else None,
             "gst_registered": self.gst_registered, "currency": "INR",
+            "discount": str(self.discount), "promo_code": self.promo_code,
         }
 
 
@@ -119,6 +122,20 @@ def night_rates(db: Session, prop: Property, check_in: date, check_out: date, gu
     return out
 
 
+def _discounted(rates: list[tuple], kind: str, value: Decimal) -> list[tuple]:
+    """[(date, new rate, old rate)]: percent off each night, or a flat amount split evenly (remainder on the last night)."""
+    if kind == "percent":
+        return [(d, rupee(r * (100 - value) / 100), r) for d, r in rates]
+    total = min(rupee(value), sum(r for _, r in rates))
+    share = rupee(total / len(rates)) if rates else Decimal("0")
+    out, left = [], total
+    for i, (d, r) in enumerate(rates):
+        off = min(r, left if i == len(rates) - 1 else share)
+        left -= off
+        out.append((d, r - off, r))
+    return out
+
+
 def slab_for(rate: Decimal, inclusive: bool) -> Decimal:
     """The GST slab for one night. When tariffs include GST, the slab is judged on the value before tax."""
     if inclusive:
@@ -147,7 +164,9 @@ def _addon_quantity(addon: PropertyAddOn, qty: int, nights: int, guests: int) ->
 
 def quote(db: Session, prop: Property, *, check_in: date, check_out: date, adults: int, children: int,
           extras: list[dict], today: date, inclusive: bool, gst_registered: bool, mode: str, deposit_percent: int,
-          balance_due_days: int, min_nights: int = 1, max_advance_days: int = 365) -> Quote:
+          balance_due_days: int, min_nights: int = 1, max_advance_days: int = 365, promo=None) -> Quote:
+    """`promo` (website_promos.check) lowers each night's rate: percent off every night, or a flat amount spread over the
+    nights (never below zero). GST slabs and tax are then judged on the discounted rate, which is what the guest pays."""
     nights = (check_out - check_in).days
     if nights < 1:
         raise QuoteRefused("bad_dates", "Check-out must be after check-in.")
@@ -165,7 +184,12 @@ def quote(db: Session, prop: Property, *, check_in: date, check_out: date, adult
     q = Quote(property_id=prop.id, check_in=check_in, check_out=check_out, adults=adults, children=children,
               gst_registered=gst_registered)
     slabs = set()
-    for d, rate in night_rates(db, prop, check_in, check_out, guests):
+    rates = [(d, rupee(r)) for d, r in night_rates(db, prop, check_in, check_out, guests)]
+    if promo is not None:
+        rates = _discounted(rates, promo.kind, Decimal(str(promo.value)))
+        q.promo_code = promo.code
+    for d, rate, *before in rates:
+        q.discount += (before[0] - rate) if before else Decimal("0")
         pct = slab_for(rate, inclusive) if gst_registered else Decimal("0")
         slabs.add(pct)
         net, gst = _gst(rupee(rate), pct, inclusive)

@@ -10,12 +10,14 @@ import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { webError } from "@/lib/website";
 import { growthApi, type Tracking } from "@/lib/websiteGrowth";
+import { PromoSheet } from "./PromoSheet";
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
 export function GrowthPanel({ canApprove }: { canApprove: boolean }) {
   const [days, setDays] = useState(30);
   const [open, setOpen] = useState(false);
+  const [promos, setPromos] = useState(false);
   const report = useQuery({ queryKey: ["web-report", days], queryFn: () => growthApi.report(days) });
   const r = report.data;
   return (
@@ -28,6 +30,7 @@ export function GrowthPanel({ canApprove }: { canApprove: boolean }) {
             <option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option>
           </select>
           <Link className={btn} href="/dashboard/marketing/website/google">Google profile</Link>
+          {canApprove && <button className={btn} onClick={() => setPromos(true)}>Promo codes</button>}
           {canApprove && <button className={btn} onClick={() => setOpen(true)}>Tracking</button>}
         </div>
         {report.isLoading ? <div className="h-32 animate-pulse rounded-xl bg-[var(--haip-border)]" />
@@ -51,6 +54,7 @@ export function GrowthPanel({ canApprove }: { canApprove: boolean }) {
           </>}
       </CardBody>
       {canApprove && <TrackingSheet open={open} onClose={() => setOpen(false)} />}
+      {canApprove && <PromoSheet open={promos} onClose={() => setPromos(false)} />}
     </Card>
   );
 }

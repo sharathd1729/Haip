@@ -95,6 +95,21 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
 - **Google Business Profile**: Website page › Google profile, a 12-step guidance checklist (claim, category, matching
   name/address/phone, photos, reviews, posts...). Nothing is changed on Google from HAIP.
 
+## Phase 4: starting designs and offers (3 Nov 2026, migration 184)
+- **Starting designs** (`services/website_starters.py`): boutique hotel, resort, service apartments, homestay / Airbnb-style,
+  villa, farmhouse, caravan, travel agency. Each sets the palette, fonts, corners, hero layout, which sections come
+  first, their variants and the tone of their headings. "Make my website" picks one from the business type
+  (`website_seo.business_kind`); the content still comes from HAIP data (stays, published packages and itineraries,
+  approved photos, consented reviews, approved knowledge-base FAQs), and a section with no data is left out.
+- **Promo codes** (Website page › Promo codes; owner/manager; `services/website_promos.py`): percent off the nights
+  (up to 90%) or rupees off the stay; check-in window, minimum nights, a usage cap, optional stays. HAIP checks the code
+  (live holds count against the cap) and lowers each night's rate before GST, so the GST and the Razorpay amount are on
+  what the guest really pays. A paid booking counts one use. Every create/change/use is audited. On a site that
+  doesn't show prices the guest sees no amount; the code travels with their booking request for the team.
+- **Seasonal offer section** (`offer`, banner or card): the owner's heading and text plus, while the code is usable,
+  "15% off · use code MONSOON15 · until 30 Sep". The amount shows only in grounded price mode; a discount typed into the
+  text is refused like any typed price.
+
 ## Celery
 `website.ai_job` (default), `website.after_booking` (whatsapp: invoice, email + WhatsApp confirmation, staff push),
 `website.expire_holds` (beat */5), `website.verify_domains` (beat hourly :17), `website.revalidate` (after publish),
@@ -109,5 +124,5 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
 - `haip_manage_booking_v1` (UTILITY): "Hi {{1}}, here is the link to your booking {{2}}: {{3}}"
 
 ## Not built yet
-Reviews import from Google/Airbnb, promo codes, multi-language pages, blog, Google free booking links, room-level
+Reviews import from Airbnb, multi-language pages, blog, Google free booking links, room-level
 inventory (one booking blocks a whole property, as in the rest of HAIP).

@@ -272,11 +272,23 @@ class TextSlots(_Strict):
         return _asset(v)
 
 
+class OfferSlots(_Strict):
+    """A seasonal offer band. The discount itself is never typed: it comes from the promo code (website_promos), and its
+    amount shows only in grounded price mode. An expired or used-up code hides the band's code line, not the band."""
+    eyebrow: Short = ""
+    heading: str = Field(min_length=1, max_length=90)
+    text: str = Field("", max_length=280)
+    promo: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{3,30}$")
+    cta_label: str = Field("Check dates", min_length=1, max_length=40)
+
+
 SLOTS: dict[str, type[_Strict]] = {
     "hero": HeroSlots, "stays": StaysSlots, "booking": BookingSlots, "packages": PackagesSlots, "itinerary": ItinerarySlots, "gallery": GallerySlots,
     "reviews": ReviewsSlots, "faq": FaqSlots, "contact": ContactSlots, "booking-cta": BookingCtaSlots, "text": TextSlots,
+    "offer": OfferSlots,
 }
-SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta", "text"]
+SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta", "text",
+                      "offer"]
 
 
 def _typed_price(obj) -> Optional[str]:

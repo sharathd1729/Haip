@@ -4,7 +4,7 @@ A site's content lives in one JSON document per version. Only the head draft is 
 version is submitted it is frozen, and an approval is bound to its sha256. Booking settings (mode, deposit) are
 operational, not content, so they live on the site row and change through an audited owner/manager endpoint.
 """
-from sqlalchemy import (JSON, Column, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text,
+from sqlalchemy import (JSON, Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text,
                         UniqueConstraint)
 
 from app.core.database import Base
@@ -169,3 +169,24 @@ class WebsiteEvent(Base, TimestampMixin):
     reason = Column(String(300), nullable=True)
     tries = Column(Integer, nullable=False, default=0)
     sent_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class WebsitePromoCode(Base, TimestampMixin):
+    """A promo code guests type at website checkout (migration 184, website_promos)."""
+    __tablename__ = "website_promo_codes"
+    __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_website_promo_codes_code"),)
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    code = Column(String(30), nullable=False)                        # upper case
+    kind = Column(String(10), nullable=False)                        # percent | flat
+    value = Column(Numeric(12, 2), nullable=False)                   # percent 1-90, or rupees off the stay
+    starts_on = Column(Date, nullable=True)
+    ends_on = Column(Date, nullable=True)
+    min_nights = Column(Integer, nullable=False, default=1)
+    max_uses = Column(Integer, nullable=True)                        # None = no cap
+    used_count = Column(Integer, nullable=False, default=0)          # confirmed bookings that used it
+    property_ids = Column(JSON, nullable=True)                       # empty = every stay on the site
+    label = Column(String(80), nullable=True)                        # owner's own name for it ("Monsoon weekdays")
+    active = Column(Boolean, nullable=False, default=True)
+    created_by = Column(String, nullable=True)

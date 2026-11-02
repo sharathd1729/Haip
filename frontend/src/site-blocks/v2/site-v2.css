@@ -357,3 +357,11 @@
   .sv *, .sv *::before, .sv *::after { transition: none !important; animation: none !important; }
 }
 .sv .k-preview-bar { position: relative; z-index: 50; background: #1C1917; color: #fff; text-align: center; font-size: 13px; padding: 6px 12px; }
+
+/* Seasonal offer band (website phase 4) */
+.sv .sv-offer__code { margin-top: .6rem; font-weight: 600; letter-spacing: .01em; }
+.sv .sv-offer-card { border: 1px solid var(--v-line); border-radius: var(--v-r-card); padding: clamp(1.25rem, 3vw, 2rem);
+  display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; background: var(--v-surface-alt); }
+.sv .sv-promo { display: flex; gap: .5rem; margin-top: .6rem; }
+.sv .sv-promo input { flex: 1; min-width: 0; min-height: 44px; font-size: 16px; padding: 0 .8rem; border: 1px solid var(--v-line);
+  border-radius: var(--v-r-btn); background: var(--v-surface); color: var(--v-ink); text-transform: uppercase; }

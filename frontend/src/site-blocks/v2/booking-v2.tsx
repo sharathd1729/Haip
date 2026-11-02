@@ -15,7 +15,8 @@ import type { FromPrice } from "./types";
 
 export interface BookStay { id: string; name: string; sleeps: number; from?: FromPrice | null }
 export interface BookTerms { mode: "instant" | "deposit" | "request" | "enquiry"; rates: boolean; holdMinutes: number; depositPercent: number }
-interface Quote { nights_count: number; total?: string; gst?: string; pay_now?: string; balance?: string; balance_due?: string | null }
+interface Quote { nights_count: number; total?: string; gst?: string; pay_now?: string; balance?: string; balance_due?: string | null;
+  discount?: string; promo_code?: string | null }
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const plus = (s: string, n: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return iso(d); };
@@ -34,6 +35,8 @@ export function BookingForm({ env, stays, today, cta, path, terms }: { env: Site
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");      // typed promo code
+  const [promo, setPromo] = useState("");    // the code sent with /quote and /holds (website_promos checks it)
   const live = !!env.apiBase;
   const pay = terms.mode === "instant" || terms.mode === "deposit";
   const stay = stays.find(s => s.id === stayId);
@@ -52,16 +55,20 @@ export function BookingForm({ env, stays, today, cta, path, terms }: { env: Site
     if (!pay || !live || !stayId || !ci || !co) return;
     let alive = true;
     setQuote({ loading: true });
-    callApi(env, "/quote", { method: "POST", body: { property_id: stayId, check_in: ci, check_out: co, adults, children: 0, extras: [] } })
+    callApi(env, "/quote", { method: "POST", body: { property_id: stayId, check_in: ci, check_out: co, adults, children: 0, extras: [], promo_code: promo || null } })
       .then(async r => {
         if (!alive) return;
-        if (!r.ok) return setQuote({ error: await readError(r, "We couldn't price these dates.") });
+        if (!r.ok) {
+          const msg = await readError(r, "We couldn't price these dates.");
+          if (promo) { setPromo(""); setErr(msg); return; }      // a refused code: price again without it, say why
+          return setQuote({ error: msg });
+        }
         const j = await r.json();
         setQuote({ q: j.quote, available: j.available });
       })
       .catch(() => alive && setQuote({ error: "Couldn't reach us. Try again." }));
     return () => { alive = false; };
-  }, [pay, stayId, ci, co, adults, live, env]);
+  }, [pay, stayId, ci, co, adults, live, env, promo]);
 
   const pick = (d: string) => {
     if (!ci || co || d <= ci) { setCi(d); setCo(""); setQuote({}); return; }
@@ -84,7 +91,7 @@ export function BookingForm({ env, stays, today, cta, path, terms }: { env: Site
     if (pay) {
       const utm = Object.fromEntries(Object.entries(env.query || {}).filter(([k]) => k.startsWith("utm_")));
       const r = await callApi(env, "/holds", { method: "POST", body: {
-        quote: { property_id: stayId, check_in: ci, check_out: co, adults, children: 0, extras: [] },
+        quote: { property_id: stayId, check_in: ci, check_out: co, adults, children: 0, extras: [], promo_code: promo || null },
         guest: { name, phone, email: String(f.get("email") || "").trim() || null, note: String(f.get("note") || "").trim() || null },
         consent: { transactional: true, marketing: f.get("offers") === "on" }, website: f.get("website") || null, utm, path, ...adIds() } }).catch(() => null);
       if (!r) { setBusy(false); return setErr("Couldn't reach us. Try again."); }
@@ -170,10 +177,16 @@ export function BookingForm({ env, stays, today, cta, path, terms }: { env: Site
             {Q?.total && quote.available && (
               <dl className="sv-sum">
                 <div><dt>{Q.nights_count} night{Q.nights_count > 1 ? "s" : ""}{Number(Q.gst) > 0 ? ", incl. GST" : ""}</dt><dd>{inr(Q.total)}</dd></div>
+                {Number(Q.discount) > 0 && <div><dt>Code {Q.promo_code} saved you</dt><dd>{inr(Q.discount)}</dd></div>}
                 {terms.mode === "deposit" && Q.pay_now && <div><dt>Pay now ({terms.depositPercent}%)</dt><dd>{inr(Q.pay_now)}</dd></div>}
                 {Number(Q.balance) > 0 && <div className="sv-muted"><dt>Balance due {Q.balance_due ? nice(Q.balance_due) : "before arrival"}</dt><dd>{inr(Q.balance)}</dd></div>}
               </dl>
             )}
+            {Q?.total && quote.available && <div className="sv-promo">
+              <input aria-label="Promo code" placeholder="Promo code" value={code} maxLength={30}
+                onChange={e => setCode(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase())} />
+              <button type="button" className="sv-chip" disabled={!code || code === promo} onClick={() => { setErr(""); setPromo(code); }}>Apply</button>
+            </div>}
           </div>
         )}
         <label className="sv-field"><span>Your name</span><input name="name" autoComplete="name" required /></label>

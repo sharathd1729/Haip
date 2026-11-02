@@ -11,7 +11,14 @@ export type ReportRow = { source: string; visits: number; enquiries: number; boo
 export type Report = { days: number; since: string; total: { visits: number; enquiries: number; bookings: number }; rows: ReportRow[];
   buttons: { code: string; enquiries: number; bookings: number }[]; money_restricted: boolean };
 
+export type Promo = { id: string; code: string; kind: "percent" | "flat"; value: number; starts_on: string | null; ends_on: string | null;
+  min_nights: number; max_uses: number | null; used_count: number; property_ids: string[]; label: string | null; active: boolean };
+export type PromoIn = Omit<Promo, "id" | "used_count">;
+
 export const growthApi = {
+  promos: () => api.get<Promo[]>(`${WEB}/promos`).then(r => r.data),
+  addPromo: (p: PromoIn) => api.post<Promo>(`${WEB}/promos`, p).then(r => r.data),
+  savePromo: (id: string, p: PromoIn) => api.put<Promo>(`${WEB}/promos/${id}`, p).then(r => r.data),
   tracking: () => api.get<Tracking>(`${WEB}/tracking`).then(r => r.data),
   saveTracking: (t: TrackingIn) => api.put<Tracking>(`${WEB}/tracking`, t).then(r => r.data),
   report: (days = 30) => api.get<Report>(`${WEB}/report`, { params: { days } }).then(r => r.data),

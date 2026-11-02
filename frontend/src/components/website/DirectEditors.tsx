@@ -29,6 +29,7 @@ export const SECTION_NAMES: Record<SectionType, [string, string]> = {
   contact: ["Contact and map", "Phone, WhatsApp, email and address."],
   "booking-cta": ["Message us banner", "A band asking guests to message you."],
   text: ["Your own text", "Anything you want to say: your story, house rules, directions."],
+  offer: ["Seasonal offer", "A band for an offer, with its promo code."],
 };
 
 // The text each section type lets you write (backend app/schemas/site_spec.py SLOTS; change both together).
@@ -44,6 +45,7 @@ const FIELDS: Record<SectionType, string[]> = {
   contact: ["eyebrow", "heading", "text"],
   "booking-cta": ["heading", "text", "cta_label"],
   text: ["eyebrow", "heading", "body"],
+  offer: ["eyebrow", "heading", "text", "cta_label"],
 };
 const FIELD: Record<string, [string, number, string?]> = {
   eyebrow: ["Small line above the heading", 60],

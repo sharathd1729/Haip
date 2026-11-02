@@ -4,7 +4,7 @@
 import catalogue from "./spec.json";
 import type { LiveData } from "../types";
 
-export type SectionType = "hero" | "stays" | "booking" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta" | "text";
+export type SectionType = "hero" | "stays" | "booking" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta" | "text" | "offer";
 
 export const CATALOGUE = catalogue as unknown as {
   spec_version: 2;
@@ -46,6 +46,8 @@ export interface Bound {
   itinerary?: Itinerary | null;
   count?: number;
   average?: number | null;
+  /** offer band: its promo code while usable; `label` ("15% off") only when the business shows prices. */
+  promo?: { code: string; until: string | null; min_nights: number; label: string | null } | null;
 }
 
 export interface LiveDataV2 {

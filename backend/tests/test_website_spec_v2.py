@@ -40,10 +40,12 @@ def spec(**over) -> dict:
 
 
 def every_variant_spec() -> dict:
-    sections = [{"id": f"{t}-{v}", "type": t, "variant": v, "slots": {"headline": "Hello"} if t == "hero" else {}}
+    need = {"hero": {"headline": "Hello"}, "offer": {"heading": "Hello"}}       # slots with a required field
+    sections = [{"id": f"{t}-{v}", "type": t, "variant": v, "slots": dict(need.get(t, {}))}
                 for t, sec in catalogue()["sections"].items() for v in sec["variants"]]
     return spec(pages=[{"slug": "/", "title": "Home", "sections": sections[:12]},
-                       {"slug": "/more", "title": "More", "sections": sections[12:]}])
+                       {"slug": "/more", "title": "More", "sections": sections[12:24]},
+                       {"slug": "/extra", "title": "Extra", "sections": sections[24:]}])
 
 
 # ─── schema ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ def test_valid_spec_normalises_once_and_fills_defaults():
     assert out["tokens"]["palette"]["primary"] == "#2F5D46" and out["tokens"]["motion"] == "calm"
     pk = next(s for p in out["pages"] for s in p["sections"] if s["type"] == "packages")
     assert pk["source"] == "business_data:packages" and pk["slots"]["keys"] == []
-    assert sum(len(p["sections"]) for p in out["pages"]) == 31          # 9 types x 3 variants + booking (2) + text (2)
+    assert sum(len(p["sections"]) for p in out["pages"]) == 33          # 9 types x 3 variants + booking, text, offer (2 each)
 
 
 def test_every_preset_palette_passes_wcag_aa():

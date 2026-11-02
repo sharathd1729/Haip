@@ -10,12 +10,12 @@ import { hrefOf, type LiveData, type SiteEnv } from "../types";
 import { type Ctx, WaButton } from "./parts";
 import { Gallery, Hero, ItinerarySection, Packages } from "./sections-a";
 import { BookingCta, ContactSection, Faq, Reviews } from "./sections-b";
-import { Booking, Stays, TextSection } from "./sections-c";
+import { Booking, OfferSection, Stays, TextSection } from "./sections-c";
 import { kVars, SYSTEM_PAGES, type LiveDataV2, type PageV2, type SectionType, type SectionV2 } from "./types";
 
 const SECTIONS: Record<SectionType, (s: SectionV2, ctx: Ctx) => ReactNode> = {
   hero: Hero, stays: Stays, booking: Booking, packages: Packages, itinerary: ItinerarySection, gallery: Gallery,
-  reviews: Reviews, faq: Faq, contact: ContactSection, "booking-cta": BookingCta, text: TextSection,
+  reviews: Reviews, faq: Faq, contact: ContactSection, "booking-cta": BookingCta, text: TextSection, offer: OfferSection,
 };
 
 /** A page every v2 site has (SYSTEM_PAGES) unless the spec has its own: drawn with the v1 parts, in this site's palette. */
