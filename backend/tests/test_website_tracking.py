@@ -1,6 +1,7 @@
 """Website phase 2 (measurement): tracking settings, server-side Conversions API events with the browser's event_id,
 consent gating, WhatsApp button refs on the chat's lead, and the visits -> enquiries -> bookings report.
 Nothing reaches Meta: the writer is a fake."""
+
 from unittest.mock import patch
 
 import pytest
@@ -71,7 +72,7 @@ def test_tracking_is_per_workspace(client, db, wsite):  # noqa: F811
     other = make_tenant(db, "Elsewhere")
     _, other_h = make_user(db, other.id, UserRole.OWNER)
     r = client.get(f"{BASE}/tracking", headers=other_h)
-    assert r.status_code == 404 and r.json()["detail"]["code"] == "no_site"    # never this workspace's settings
+    assert r.status_code == 404 and r.json()["detail"]["code"] == "no_site"  # never this workspace's settings
     assert client.get(f"{BASE}/report", headers=other_h).status_code == 404
 
 
@@ -88,8 +89,9 @@ def test_enquiry_lead_event_needs_marketing_consent(client, db, wsite):  # noqa:
     _track_on(client, wsite)
     base = {"name": "Ravi Kumar", "phone": "+919812300001", "path": "/stays", "fbp": "fb.1.1.2"}
     no = client.post(f"{PUB}/{host}/enquiries", json=base).json()
-    yes = client.post(f"{PUB}/{host}/enquiries", json={**base, "phone": "+919812300002",
-                                                       "consent": {"marketing": True}}).json()
+    yes = client.post(
+        f"{PUB}/{host}/enquiries", json={**base, "phone": "+919812300002", "consent": {"marketing": True}}
+    ).json()
     assert no["event_id"].startswith("wl:") and yes["event_id"].startswith("wl:")
     rows = {r.event_id: r for r in db.query(WebsiteEvent).filter_by(tenant_id=wsite["tenant"].id)}
     assert rows[no["event_id"]].status == "skipped" and rows[no["event_id"]].reason == "no marketing consent"
@@ -99,14 +101,17 @@ def test_enquiry_lead_event_needs_marketing_consent(client, db, wsite):  # noqa:
     assert out["sent"] == 1
     ev = FakeWriter.calls[0]["events"][0]
     assert FakeWriter.calls[0]["dataset"] == PIXEL and FakeWriter.calls[0]["token"] == "EAAsecret"
-    assert ev["event_id"] == yes["event_id"] and ev["action_source"] == "website" and ev["user_data"]["fbp"] == "fb.1.1.2"
-    assert "+919812300002" not in str(ev) and len(ev["user_data"]["ph"][0]) == 64      # hashed only
+    assert (
+        ev["event_id"] == yes["event_id"] and ev["action_source"] == "website" and ev["user_data"]["fbp"] == "fb.1.1.2"
+    )
+    assert "+919812300002" not in str(ev) and len(ev["user_data"]["ph"][0]) == 64  # hashed only
     assert db.query(WebsiteEvent).filter_by(event_id=yes["event_id"]).one().status == "sent"
 
 
 def test_paid_booking_sends_checkout_then_purchase_with_the_stay_id(client, db, wsite, fake_rzp):  # noqa: F811
-    from tests.test_booking_detail import _connect_razorpay
     from app.models.website import BookingHold
+    from tests.test_booking_detail import _connect_razorpay
+
     host = _v2_live(client, db, wsite)
     _track_on(client, wsite)
     body = {**_hold_body(wsite, future(30)), "consent": {"transactional": True, "marketing": True}, "fbc": "fb.1.1.abc"}
@@ -116,37 +121,47 @@ def test_paid_booking_sends_checkout_then_purchase_with_the_stay_id(client, db, 
     hold = db.get(BookingHold, out["hold_id"])
     raw, sig = _paid(hold.payment_link_id, "pay_T1", int(float(hold.pay_now) * 100))
     with patch("app.workers.tasks.website.after_booking.delay"):
-        client.post(f"/api/v1/webhooks/razorpay/{wsite['tenant'].slug}", content=raw, headers={"x-razorpay-signature": sig})
+        client.post(
+            f"/api/v1/webhooks/razorpay/{wsite['tenant'].slug}", content=raw, headers={"x-razorpay-signature": sig}
+        )
     db.refresh(hold)
     st = client.get(f"{PUB}/{host}/holds/{hold.id}", params={"s": out["session"]}).json()
-    assert st["event_id"] == f"stay:{hold.stay_id}"          # what the browser's Purchase uses
+    assert st["event_id"] == f"stay:{hold.stay_id}"  # what the browser's Purchase uses
     purchase = db.query(WebsiteEvent).filter_by(event_id=f"stay:{hold.stay_id}").one()
     assert purchase.event_name == "Purchase" and purchase.fbc == "fb.1.1.abc" and purchase.status == "pending"
 
 
 def test_no_rows_when_capi_is_off(client, db, wsite):  # noqa: F811
     host = _v2_live(client, db, wsite)
-    r = client.post(f"{PUB}/{host}/enquiries", json={"name": "Ravi", "phone": "+919812300003",
-                                                       "consent": {"marketing": True}})
-    assert r.json()["event_id"].startswith("wl:")       # the browser pixel still gets an id
+    r = client.post(
+        f"{PUB}/{host}/enquiries", json={"name": "Ravi", "phone": "+919812300003", "consent": {"marketing": True}}
+    )
+    assert r.json()["event_id"].startswith("wl:")  # the browser pixel still gets an id
     assert db.query(WebsiteEvent).count() == 0
 
 
 def test_whatsapp_ref_stamps_the_lead(client, db, wsite):  # noqa: F811
     _v2_live(client, db, wsite)
     prefix = website_refs.site_prefix(db, wsite["tenant"].id)
-    assert prefix == "HV"                                   # "Hill Villas"
+    assert prefix == "HV"  # "Hill Villas"
     from app.services import identity_service
-    gid, _ = identity_service.resolve_gid(db, wsite["tenant"].id, signal_type="phone", value="+919812300009",
-                                          source="whatsapp", guest_fields={"name": "Meera"})
+
+    gid, _ = identity_service.resolve_gid(
+        db,
+        wsite["tenant"].id,
+        signal_type="phone",
+        value="+919812300009",
+        source="whatsapp",
+        guest_fields={"name": "Meera"},
+    )
     inq = Inquiry(tenant_id=wsite["tenant"].id, guest_id=gid, source=InquirySource.WA_DIRECT)
     db.add(inq)
     db.flush()
-    assert website_refs.stamp(db, wsite["tenant"].id, inq, "Hi! (Ref ZZ-HOME-HERO)") is None   # not this site's code
+    assert website_refs.stamp(db, wsite["tenant"].id, inq, "Hi! (Ref ZZ-HOME-HERO)") is None  # not this site's code
     ref = website_refs.stamp(db, wsite["tenant"].id, inq, "Hi! I'd like to know more. (Ref HV-HOME-BOOK)")
     assert ref == {"code": "HV-HOME-BOOK", "page": "HOME", "section": "BOOK"}
     assert inq.source == InquirySource.WEBSITE and inq.custom_fields["website_ref"]["code"] == "HV-HOME-BOOK"
-    assert website_refs.stamp(db, wsite["tenant"].id, inq, "(Ref HV-HOME-HERO)") is None       # written once
+    assert website_refs.stamp(db, wsite["tenant"].id, inq, "(Ref HV-HOME-HERO)") is None  # written once
     db.commit()
     rep = client.get(f"{BASE}/report", headers=wsite["mkt_h"]).json()
     assert rep["buttons"][0] == {"code": "HV-HOME-BOOK", "enquiries": 1, "bookings": 0}
@@ -157,8 +172,9 @@ def test_report_joins_visits_and_enquiries_by_source(client, db, wsite):  # noqa
     host = _v2_live(client, db, wsite)
     for src in ("l.instagram.com", "instagram", "google.co.in"):
         client.post(f"{PUB}/{host}/views", json={"path": "/", "source": src})
-    client.post(f"{PUB}/{host}/enquiries", json={"name": "Asha", "phone": "+919812300010",
-                                                  "utm": {"utm_source": "Instagram"}})
+    client.post(
+        f"{PUB}/{host}/enquiries", json={"name": "Asha", "phone": "+919812300010", "utm": {"utm_source": "Instagram"}}
+    )
     rep = client.get(f"{BASE}/report", headers=wsite["owner_h"]).json()
     ig = next(r for r in rep["rows"] if r["source"] == "instagram")
     assert ig["visits"] == 2 and ig["enquiries"] == 1 and ig["enquiry_rate"] == 0.5 and "value" in ig

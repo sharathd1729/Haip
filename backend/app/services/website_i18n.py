@@ -8,12 +8,12 @@ tagline); HAIP data (stays, packages, reviews, FAQs) and prices are never in it.
 the human approval. An answer longer than its English field allows is dropped (that text stays in English) and listed.
 The sites app serves /hi/<page> with hreflang alternates; menus and buttons HAIP draws itself stay English for now.
 """
+
 from __future__ import annotations
 
 import copy
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -44,8 +44,11 @@ class TranslateOut(BaseModel):
     items: list[_Item] = Field(default_factory=list, max_length=200)
 
 
-TOOL = {"name": "submit_translation", "description": "Return each key with its translation.",
-        "input_schema": TranslateOut.model_json_schema()}
+TOOL = {
+    "name": "submit_translation",
+    "description": "Return each key with its translation.",
+    "input_schema": TranslateOut.model_json_schema(),
+}
 
 
 def _cap(stype: str, slot: str) -> int:
@@ -95,17 +98,33 @@ def merge(loc: dict, wanted: list[dict], answer: TranslateOut) -> list[str]:
 
 def request(db: Session, site: Site, lang: str, actor: User) -> SiteAiJob:
     from app.services import website_version_service as vs
+
     if lang not in LANGUAGES:
         raise WebsiteError(422, "language", "That language isn't available yet.")
     head = vs.head(db, site)
     if not wspec.is_v2(head.doc):
-        raise WebsiteError(409, "classic_site", "Make your website with \"Make my website\" first; then add languages.")
-    job = SiteAiJob(tenant_id=site.tenant_id, site_id=site.id, kind="translate", request=lang, status="pending",
-                    base_version_id=head.id, created_by=actor.id, prompt_version=PROMPT_VERSION)
+        raise WebsiteError(409, "classic_site", 'Make your website with "Make my website" first; then add languages.')
+    job = SiteAiJob(
+        tenant_id=site.tenant_id,
+        site_id=site.id,
+        kind="translate",
+        request=lang,
+        status="pending",
+        base_version_id=head.id,
+        created_by=actor.id,
+        prompt_version=PROMPT_VERSION,
+    )
     db.add(job)
     db.flush()
-    append_audit(db, tenant_id=site.tenant_id, actor_user_id=actor.id, action="website.translate_requested",
-                 target_type="site_ai_job", target_id=job.id, payload={"language": lang, "base_version_id": head.id})
+    append_audit(
+        db,
+        tenant_id=site.tenant_id,
+        actor_user_id=actor.id,
+        action="website.translate_requested",
+        target_type="site_ai_job",
+        target_id=job.id,
+        payload={"language": lang, "base_version_id": head.id},
+    )
     return job
 
 
@@ -113,37 +132,60 @@ def run(db: Session, job: SiteAiJob, site: Site) -> SiteAiJob:
     from app.services import usage_service
     from app.services import website_version_service as vs
     from app.services.marketing_ai_service import _call
+
     head = vs.head(db, site)
     if head.id != job.base_version_id or not wspec.is_v2(head.doc):
         job.status, job.error = "failed", "Your website changed while this ran. Ask again."
         return job
     lang = job.request or ""
-    system = SYSTEM.format(language=LANGUAGES[lang] + (" (Hindi)" if lang == "hi" else ""), script=SCRIPTS.get(lang, ""))
+    system = SYSTEM.format(
+        language=LANGUAGES[lang] + (" (Hindi)" if lang == "hi" else ""), script=SCRIPTS.get(lang, "")
+    )
     loc: dict = {}
     skipped: list[str] = []
     for n, page in enumerate(head.doc["pages"]):
         wanted = items_for(head.doc, page, first=n == 0)
         if not wanted:
             continue
-        data, raw, provider = _call(TASK, site.tenant_id, system, "INPUT: " + json.dumps(wanted, ensure_ascii=False), TOOL)
-        usage_service.record_llm(db, site.tenant_id, "website", raw, provider=provider, ref_type="site_ai_job", ref_id=job.id)
+        data, raw, provider = _call(
+            TASK, site.tenant_id, system, "INPUT: " + json.dumps(wanted, ensure_ascii=False), TOOL
+        )
+        usage_service.record_llm(
+            db, site.tenant_id, "website", raw, provider=provider, ref_type="site_ai_job", ref_id=job.id
+        )
         job.model = raw.get("model") or job.model
         skipped += merge(loc, wanted, TranslateOut.model_validate(data))
     doc = copy.deepcopy(head.doc)
     doc.setdefault("i18n", {})[lang] = loc
-    v, problems = wspec.create_draft(db, site, doc, actor_id=job.created_by, origin="ai",
-                                     note=f"{LANGUAGES[lang]} words by HAIP: check them in the preview before publishing")
+    v, problems = wspec.create_draft(
+        db,
+        site,
+        doc,
+        actor_id=job.created_by,
+        origin="ai",
+        note=f"{LANGUAGES[lang]} words by HAIP: check them in the preview before publishing",
+    )
     job.status, job.result_version_id = "ready", v.id
-    job.result = {"language": lang, "translated": sum(len(x) for x in loc.get("sections", {}).values()),
-                  "left_in_english": skipped[:50], "problems": problems}
-    job.updated_at = datetime.now(timezone.utc)
+    job.result = {
+        "language": lang,
+        "translated": sum(len(x) for x in loc.get("sections", {}).values()),
+        "left_in_english": skipped[:50],
+        "problems": problems,
+    }
+    job.updated_at = datetime.now(UTC)
     return job
 
 
 def out(job: SiteAiJob) -> dict:
-    return {"id": job.id, "status": job.status, "error": job.error, "language": job.request, "result": job.result,
-            "version_id": job.result_version_id}
+    return {
+        "id": job.id,
+        "status": job.status,
+        "error": job.error,
+        "language": job.request,
+        "result": job.result,
+        "version_id": job.result_version_id,
+    }
 
 
-def get_job(db: Session, tenant_id: str, job_id: str) -> Optional[SiteAiJob]:
+def get_job(db: Session, tenant_id: str, job_id: str) -> SiteAiJob | None:
     return db.query(SiteAiJob).filter_by(id=job_id, tenant_id=tenant_id, kind="translate").first()

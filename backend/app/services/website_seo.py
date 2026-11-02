@@ -10,8 +10,8 @@ from it too). JSON-LD is built from the SAME bound data the page shows, so it ne
   * FAQPage: the page's FAQ section items (approved, active knowledge entries)
 Only for a live page with its host; previews get none.
 """
+
 import re
-from typing import Optional
 
 KINDS = ("boutique_hotel", "resort", "service_apartments", "homestay", "villa", "farmhouse", "caravan", "travel_agency")
 
@@ -26,24 +26,31 @@ _WORDS = (  # first match wins: order matters ("villa_resort" is a villa busines
     ("homestay", ("homestay", "home_stay", "home stay", "airbnb", "bnb", "cottage", "guest_house", "guesthouse")),
 )
 
-SCHEMA_TYPE = {"boutique_hotel": "Hotel", "resort": "Resort", "service_apartments": "LodgingBusiness",
-               "homestay": "VacationRental", "villa": "VacationRental", "farmhouse": "VacationRental",
-               "caravan": "LodgingBusiness", "travel_agency": "TravelAgency"}
+SCHEMA_TYPE = {
+    "boutique_hotel": "Hotel",
+    "resort": "Resort",
+    "service_apartments": "LodgingBusiness",
+    "homestay": "VacationRental",
+    "villa": "VacationRental",
+    "farmhouse": "VacationRental",
+    "caravan": "LodgingBusiness",
+    "travel_agency": "TravelAgency",
+}
 
 
-def business_kind(business_type: Optional[str]) -> Optional[str]:
+def business_kind(business_type: str | None) -> str | None:
     bt = (business_type or "").strip().lower()
     if bt in KINDS:
         return bt
     flat = bt.replace("-", "_")
     tokens = set(re.split(r"[^a-z]+", bt))
     for kind, words in _WORDS:
-        if any(w in tokens or (len(w) >= 4 and w in flat) for w in words):   # "rv"/"inn" only as whole words
+        if any(w in tokens or (len(w) >= 4 and w in flat) for w in words):  # "rv"/"inn" only as whole words
             return kind
     return None
 
 
-def schema_type(business_type: Optional[str]) -> str:
+def schema_type(business_type: str | None) -> str:
     return SCHEMA_TYPE.get(business_kind(business_type) or "", "LodgingBusiness")
 
 
@@ -56,8 +63,13 @@ def jsonld(tenant, doc: dict, bound: dict, assets: dict, *, host: str, grounded:
     site = doc.get("site") or {}
     contact = site.get("contact") or {}
     base = f"https://{host}"
-    biz: dict = {"@context": "https://schema.org", "@type": schema_type(tenant.business_type), "@id": f"{base}/#business",
-                 "name": site.get("name") or tenant.name, "url": f"{base}/"}
+    biz: dict = {
+        "@context": "https://schema.org",
+        "@type": schema_type(tenant.business_type),
+        "@id": f"{base}/#business",
+        "name": site.get("name") or tenant.name,
+        "url": f"{base}/",
+    }
     if site.get("tagline"):
         biz["description"] = site["tagline"]
     if contact.get("phone"):
@@ -74,22 +86,46 @@ def jsonld(tenant, doc: dict, bound: dict, assets: dict, *, host: str, grounded:
     reviews = [bound.get(s["id"]) or {} for s in _sections(doc, "reviews")]
     rated = next((r for r in reviews if r.get("count")), None)
     if rated and rated.get("average"):
-        biz["aggregateRating"] = {"@type": "AggregateRating", "ratingValue": rated["average"], "reviewCount": rated["count"],
-                                  "bestRating": 5, "worstRating": 1}
-        biz["review"] = [{"@type": "Review", "author": {"@type": "Person", "name": i["name"] or "Guest"},
-                          "reviewBody": i["quote"],
-                          **({"reviewRating": {"@type": "Rating", "ratingValue": i["rating"], "bestRating": 5}}
-                             if i.get("rating") else {})}
-                         for i in rated.get("items", [])[:5]]
+        biz["aggregateRating"] = {
+            "@type": "AggregateRating",
+            "ratingValue": rated["average"],
+            "reviewCount": rated["count"],
+            "bestRating": 5,
+            "worstRating": 1,
+        }
+        biz["review"] = [
+            {
+                "@type": "Review",
+                "author": {"@type": "Person", "name": i["name"] or "Guest"},
+                "reviewBody": i["quote"],
+                **(
+                    {"reviewRating": {"@type": "Rating", "ratingValue": i["rating"], "bestRating": 5}}
+                    if i.get("rating")
+                    else {}
+                ),
+            }
+            for i in rated.get("items", [])[:5]
+        ]
     if grounded:
         offers, seen = [], set()
         for s in _sections(doc, "stays") + _sections(doc, "booking"):
             for i in (bound.get(s["id"]) or {}).get("items") or []:
                 if i.get("from") and i["id"] not in seen:
                     seen.add(i["id"])
-                    offers.append({"@type": "Offer", "name": i["name"], "priceCurrency": "INR", "price": i["from"]["amount"],
-                                   "priceSpecification": {"@type": "UnitPriceSpecification", "price": i["from"]["amount"],
-                                                          "priceCurrency": "INR", "unitText": "night"}})
+                    offers.append(
+                        {
+                            "@type": "Offer",
+                            "name": i["name"],
+                            "priceCurrency": "INR",
+                            "price": i["from"]["amount"],
+                            "priceSpecification": {
+                                "@type": "UnitPriceSpecification",
+                                "price": i["from"]["amount"],
+                                "priceCurrency": "INR",
+                                "unitText": "night",
+                            },
+                        }
+                    )
         if offers:
             biz["makesOffer"] = offers[:10]
             low = min(float(o["price"]) for o in offers)
@@ -97,11 +133,22 @@ def jsonld(tenant, doc: dict, bound: dict, assets: dict, *, host: str, grounded:
     out: dict[str, list[dict]] = {}
     for page in doc.get("pages", []):
         items = [biz]
-        faqs = [i for s in page.get("sections", []) if s.get("type") == "faq"
-                for i in (bound.get(s["id"]) or {}).get("items") or []]
+        faqs = [
+            i
+            for s in page.get("sections", [])
+            if s.get("type") == "faq"
+            for i in (bound.get(s["id"]) or {}).get("items") or []
+        ]
         if faqs:
-            items.append({"@context": "https://schema.org", "@type": "FAQPage",
-                          "mainEntity": [{"@type": "Question", "name": f["q"],
-                                          "acceptedAnswer": {"@type": "Answer", "text": f["a"]}} for f in faqs[:20]]})
+            items.append(
+                {
+                    "@context": "https://schema.org",
+                    "@type": "FAQPage",
+                    "mainEntity": [
+                        {"@type": "Question", "name": f["q"], "acceptedAnswer": {"@type": "Answer", "text": f["a"]}}
+                        for f in faqs[:20]
+                    ],
+                }
+            )
         out[page["slug"]] = items
     return out

@@ -10,10 +10,10 @@ Flash-Lite, a low model for a short piece), prompt `website-blog-v1`, facts = ma
 knowledge + published business records, prices stripped; payment terms only in grounded mode). The draft is a new
 version with origin "ai"; a person submits and approves it.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -50,11 +50,19 @@ def slugify(title: str) -> str:
 
 def request_draft(db: Session, tenant: Tenant, topic: str, *, actor_id: str) -> MarketingContent:
     from app.services import marketing_content_service as content_svc
+
     item = content_svc.create_item(db, tenant.id, kind="article", title=topic, actor_id=actor_id)
     item.targets = ["website"]
     item.generation_status = "pending"
-    append_audit(db, tenant_id=tenant.id, actor_user_id=actor_id, action="website.blog_draft_requested",
-                 target_type="marketing_content", target_id=item.id, payload={"topic": topic[:160]})
+    append_audit(
+        db,
+        tenant_id=tenant.id,
+        actor_user_id=actor_id,
+        action="website.blog_draft_requested",
+        target_type="marketing_content",
+        target_id=item.id,
+        payload={"topic": topic[:160]},
+    )
     return item
 
 
@@ -66,25 +74,52 @@ def run_draft(db: Session, tenant: Tenant, item_id: str, topic: str) -> None:
     from app.services import usage_service
     from app.services.marketing_ai_service import _call
     from app.services.marketing_context import business_facts
+
     facts = business_facts(db, tenant)
     name = (tenant.brand_name or tenant.name or "").strip()
-    user = (f"BUSINESS: {name} ({tenant.business_type or 'stay'})\nTOPIC: {topic}\n"
-            f"FACTS: {json.dumps(facts, ensure_ascii=False, default=str)[:12000]}")
+    user = (
+        f"BUSINESS: {name} ({tenant.business_type or 'stay'})\nTOPIC: {topic}\n"
+        f"FACTS: {json.dumps(facts, ensure_ascii=False, default=str)[:12000]}"
+    )
     data, raw, provider = _call(TASK, tenant.id, SYSTEM, user, TOOL)
-    usage_service.record_llm(db, tenant.id, "website", raw, provider=provider, ref_type="marketing_content", ref_id=item_id)
+    usage_service.record_llm(
+        db, tenant.id, "website", raw, provider=provider, ref_type="marketing_content", ref_id=item_id
+    )
     out = ArticleOut.model_validate(data)
-    payload = {"title": out.title.strip() or topic[:110], "slug": slugify(out.title or topic), "excerpt": out.excerpt.strip(),
-               "body": out.body.strip(), "seo_description": out.seo_description.strip()}
-    content_svc.add_version(db, tenant.id, item_id, payload, origin="ai", actor_id=None, prompt_version=PROMPT_VERSION,
-                            model=raw.get("model"))
+    payload = {
+        "title": out.title.strip() or topic[:110],
+        "slug": slugify(out.title or topic),
+        "excerpt": out.excerpt.strip(),
+        "body": out.body.strip(),
+        "seo_description": out.seo_description.strip(),
+    }
+    content_svc.add_version(
+        db,
+        tenant.id,
+        item_id,
+        payload,
+        origin="ai",
+        actor_id=None,
+        prompt_version=PROMPT_VERSION,
+        model=raw.get("model"),
+    )
 
 
 def _approved(db: Session, tenant_id: str) -> list[tuple[MarketingContent, dict]]:
     from app.services import marketing_content_service as content_svc
-    items = (db.query(MarketingContent).filter(MarketingContent.tenant_id == tenant_id, MarketingContent.kind == "article",
-                                               MarketingContent.approved_version_id.isnot(None),
-                                               MarketingContent.status != "archived")
-             .order_by(MarketingContent.updated_at.desc()).limit(100).all())
+
+    items = (
+        db.query(MarketingContent)
+        .filter(
+            MarketingContent.tenant_id == tenant_id,
+            MarketingContent.kind == "article",
+            MarketingContent.approved_version_id.isnot(None),
+            MarketingContent.status != "archived",
+        )
+        .order_by(MarketingContent.updated_at.desc())
+        .limit(100)
+        .all()
+    )
     out = []
     for it in items:
         try:
@@ -101,18 +136,30 @@ def listing(db: Session, tenant_id: str) -> list[dict]:
         if p["slug"] in seen:
             continue
         seen.add(p["slug"])
-        out.append({"slug": p["slug"], "title": p["title"], "excerpt": p["excerpt"],
-                    "media": (p.get("media") or {}).get("asset_id"),
-                    "date": (it.updated_at or it.created_at).date().isoformat() if (it.updated_at or it.created_at) else None})
+        out.append(
+            {
+                "slug": p["slug"],
+                "title": p["title"],
+                "excerpt": p["excerpt"],
+                "media": (p.get("media") or {}).get("asset_id"),
+                "date": (it.updated_at or it.created_at).date().isoformat()
+                if (it.updated_at or it.created_at)
+                else None,
+            }
+        )
     return out
 
 
-def article(db: Session, tenant_id: str, slug: str) -> Optional[dict]:
+def article(db: Session, tenant_id: str, slug: str) -> dict | None:
     for it, p in _approved(db, tenant_id):
         if p["slug"] == slug:
-            return {**{k: p[k] for k in ("slug", "title", "excerpt", "body", "seo_description")},
-                    "media": (p.get("media") or {}).get("asset_id"),
-                    "date": (it.updated_at or it.created_at).date().isoformat() if (it.updated_at or it.created_at) else None}
+            return {
+                **{k: p[k] for k in ("slug", "title", "excerpt", "body", "seo_description")},
+                "media": (p.get("media") or {}).get("asset_id"),
+                "date": (it.updated_at or it.created_at).date().isoformat()
+                if (it.updated_at or it.created_at)
+                else None,
+            }
     return None
 
 

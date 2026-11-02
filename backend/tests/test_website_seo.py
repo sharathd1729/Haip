@@ -1,5 +1,6 @@
 """Website phase 3: JSON-LD per page (business type, honest ratings, consented reviews, offers only when prices show,
 FAQPage) and the publish gate's speed / accessibility / search scores (warn; only failing contrast blocks)."""
+
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -19,20 +20,36 @@ def _no_rate_limit():
         yield
 
 
-@pytest.mark.parametrize("bt,kind,schema", [
-    ("villa_resort", "villa", "VacationRental"), ("homestay", "homestay", "VacationRental"), ("hotel", "boutique_hotel", "Hotel"),
-    ("Beach Resort", "resort", "Resort"), ("caravan", "caravan", "LodgingBusiness"),
-    ("Serviced apartments", "service_apartments", "LodgingBusiness"), ("travel agency", "travel_agency", "TravelAgency"),
-    (None, None, "LodgingBusiness"),
-])
+@pytest.mark.parametrize(
+    "bt,kind,schema",
+    [
+        ("villa_resort", "villa", "VacationRental"),
+        ("homestay", "homestay", "VacationRental"),
+        ("hotel", "boutique_hotel", "Hotel"),
+        ("Beach Resort", "resort", "Resort"),
+        ("caravan", "caravan", "LodgingBusiness"),
+        ("Serviced apartments", "service_apartments", "LodgingBusiness"),
+        ("travel agency", "travel_agency", "TravelAgency"),
+        (None, None, "LodgingBusiness"),
+    ],
+)
 def test_business_kind_and_schema_type(bt, kind, schema):
     assert website_seo.business_kind(bt) == kind and website_seo.schema_type(bt) == schema
 
 
 def _review(db, tid, rating, consent=True, comment="Lovely stay, the cook was wonderful."):
-    db.add(MarketingGuestReview(tenant_id=tid, source="google", external_id=f"r{rating}{consent}", reviewer="Priya Sharma",
-                                rating=rating, comment=comment, reviewed_at="2026-10-01",
-                                consent_at=datetime(2026, 10, 2, tzinfo=UTC) if consent else None))
+    db.add(
+        MarketingGuestReview(
+            tenant_id=tid,
+            source="google",
+            external_id=f"r{rating}{consent}",
+            reviewer="Priya Sharma",
+            rating=rating,
+            comment=comment,
+            reviewed_at="2026-10-01",
+            consent_at=datetime(2026, 10, 2, tzinfo=UTC) if consent else None,
+        )
+    )
     db.commit()
 
 
@@ -40,7 +57,7 @@ def test_live_jsonld_ratings_reviews_offers(client, db, wsite):  # noqa: F811
     t = wsite["tenant"]
     t.business_type = "villa_resort"
     _review(db, t.id, 5)
-    _review(db, t.id, 2, consent=False)          # counted in the average, never shown
+    _review(db, t.id, 2, consent=False)  # counted in the average, never shown
     spec = _spec()
     spec["pages"][0]["sections"].insert(1, {"id": "rev", "type": "reviews", "variant": "quote-carousel"})
     with patch("tests.test_website_v2_booking._spec", return_value=spec):
@@ -49,7 +66,7 @@ def test_live_jsonld_ratings_reviews_offers(client, db, wsite):  # noqa: F811
     biz = boot["jsonld"]["/"][0]
     assert biz["@type"] == "VacationRental" and biz["url"] == f"https://{host}/"
     assert biz["aggregateRating"]["reviewCount"] == 2 and biz["aggregateRating"]["ratingValue"] == 3.5
-    assert [r["author"]["name"] for r in biz["review"]] == ["Priya"]      # consented only, first name
+    assert [r["author"]["name"] for r in biz["review"]] == ["Priya"]  # consented only, first name
     assert biz["makesOffer"][0]["price"] == "4200" and biz["priceRange"].startswith("From ₹4,200")
     assert boot["business_kind"] == "villa"
 
@@ -69,10 +86,26 @@ def test_preview_has_no_jsonld(client, db, wsite):  # noqa: F811
 
 
 def test_publish_checklist_has_scores_and_contrast_blocks():
-    doc = {"site": {"name": "X", "contact": {"phone": "1", "address": "Coorg"}},
-           "tokens": {"palette": {"name": "custom", "ink": "#777777", "surface": "#888888", "primary": "#2F5D46", "accent": "#A8641C"}},
-           "pages": [{"slug": "/", "title": "Home", "seo": {"title": "Hill Villas in Coorg", "description": "x" * 80},
-                      "sections": [{"id": "hero", "type": "hero", "slots": {"headline": "Hi"}}]}]}
+    doc = {
+        "site": {"name": "X", "contact": {"phone": "1", "address": "Coorg"}},
+        "tokens": {
+            "palette": {
+                "name": "custom",
+                "ink": "#777777",
+                "surface": "#888888",
+                "primary": "#2F5D46",
+                "accent": "#A8641C",
+            }
+        },
+        "pages": [
+            {
+                "slug": "/",
+                "title": "Home",
+                "seo": {"title": "Hill Villas in Coorg", "description": "x" * 80},
+                "sections": [{"id": "hero", "type": "hero", "slots": {"headline": "Hi"}}],
+            }
+        ],
+    }
     q = website_quality.audit(doc, {}, {"a1": {"alt": "", "w": None, "h": None}})
     contrast = next(i for i in q["items"] if i["key"] == "contrast")
     assert contrast["level"] == "block" and not contrast["ok"]

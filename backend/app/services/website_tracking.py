@@ -15,10 +15,11 @@ guest's latest MARKETING consent is granted (same rule as marketing_capi: sharin
 else `skipped` and nothing about the guest leaves HAIP. Consent is re-checked at send. Identifiers are hashed
 (marketing_capi.user_data); fbp/fbc only exist when the visitor accepted the banner. Beat `website.send_events` sends.
 """
+
 import uuid
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Callable, Optional
 
 import structlog
 from sqlalchemy.exc import IntegrityError
@@ -39,13 +40,18 @@ MAX_TRIES = 5
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def settings_out(site: Site) -> dict:
     t = site.tracking or {}
-    return {"pixel_id": t.get("pixel_id"), "ga4_id": t.get("ga4_id"), "capi_enabled": bool(t.get("capi_enabled")),
-            "capi_test_code": t.get("capi_test_code"), "has_capi_token": bool(site.capi_token_enc)}
+    return {
+        "pixel_id": t.get("pixel_id"),
+        "ga4_id": t.get("ga4_id"),
+        "capi_enabled": bool(t.get("capi_enabled")),
+        "capi_test_code": t.get("capi_test_code"),
+        "has_capi_token": bool(site.capi_token_enc),
+    }
 
 
 def public(site: Site) -> dict:
@@ -56,20 +62,30 @@ def public(site: Site) -> dict:
 
 def update(db: Session, site: Site, body, *, actor_id: str) -> dict:
     before = settings_out(site)
-    site.tracking = {"pixel_id": body.pixel_id, "ga4_id": body.ga4_id, "capi_enabled": body.capi_enabled,
-                     "capi_test_code": body.capi_test_code}
+    site.tracking = {
+        "pixel_id": body.pixel_id,
+        "ga4_id": body.ga4_id,
+        "capi_enabled": body.capi_enabled,
+        "capi_test_code": body.capi_test_code,
+    }
     if body.capi_token is not None:
         token = body.capi_token.strip()
         site.capi_token_enc = encrypt_credentials({"token": token}).decode() if token else None
     after = settings_out(site)
-    append_audit(db, tenant_id=site.tenant_id, actor_user_id=actor_id, action="website.tracking_changed",
-                 target_type="site", target_id=site.id,
-                 payload={"changed": {k: [before[k], v] for k, v in after.items() if before[k] != v}})
+    append_audit(
+        db,
+        tenant_id=site.tenant_id,
+        actor_user_id=actor_id,
+        action="website.tracking_changed",
+        target_type="site",
+        target_id=site.id,
+        payload={"changed": {k: [before[k], v] for k, v in after.items() if before[k] != v}},
+    )
     db.flush()
     return after
 
 
-def _token(site: Site) -> Optional[str]:
+def _token(site: Site) -> str | None:
     if not site.capi_token_enc:
         return None
     try:
@@ -88,19 +104,42 @@ def new_lead_id() -> str:
     return f"wl:{uuid.uuid4()}"
 
 
-def record(db: Session, site: Site, *, name: str, event_id: str, guest_id: Optional[str], inquiry_id: Optional[str] = None,
-           hold_id: Optional[str] = None, value=None, source_url: Optional[str] = None,
-           user_agent: Optional[str] = None, fbp: Optional[str] = None, fbc: Optional[str] = None) -> Optional[WebsiteEvent]:
+def record(
+    db: Session,
+    site: Site,
+    *,
+    name: str,
+    event_id: str,
+    guest_id: str | None,
+    inquiry_id: str | None = None,
+    hold_id: str | None = None,
+    value=None,
+    source_url: str | None = None,
+    user_agent: str | None = None,
+    fbp: str | None = None,
+    fbc: str | None = None,
+) -> WebsiteEvent | None:
     """Queue one server-side event (no row when CAPI is off). Idempotent on (tenant, event_id)."""
     if not capi_on(site):
         return None
     ok = bool(guest_id) and guest_id in marketing_capi.consented(db, site.tenant_id, [guest_id])
-    row = WebsiteEvent(tenant_id=site.tenant_id, site_id=site.id, event_name=name, event_id=event_id[:80],
-                       guest_id=guest_id, inquiry_id=inquiry_id, hold_id=hold_id,
-                       value=Decimal(str(value)) if value is not None else None, currency="INR",
-                       source_url=(source_url or "")[:500] or None, client_user_agent=(user_agent or "")[:300] or None,
-                       fbp=fbp, fbc=fbc, status="pending" if ok else "skipped",
-                       reason=None if ok else "no marketing consent")
+    row = WebsiteEvent(
+        tenant_id=site.tenant_id,
+        site_id=site.id,
+        event_name=name,
+        event_id=event_id[:80],
+        guest_id=guest_id,
+        inquiry_id=inquiry_id,
+        hold_id=hold_id,
+        value=Decimal(str(value)) if value is not None else None,
+        currency="INR",
+        source_url=(source_url or "")[:500] or None,
+        client_user_agent=(user_agent or "")[:300] or None,
+        fbp=fbp,
+        fbc=fbc,
+        status="pending" if ok else "skipped",
+        reason=None if ok else "no marketing consent",
+    )
     try:
         with db.begin_nested():
             db.add(row)
@@ -109,23 +148,38 @@ def record(db: Session, site: Site, *, name: str, event_id: str, guest_id: Optio
     return row
 
 
-def purchase(db: Session, site: Site, hold, stay) -> Optional[WebsiteEvent]:
+def purchase(db: Session, site: Site, hold, stay) -> WebsiteEvent | None:
     """The paid hold became a booking: Purchase with the stay's own id; browser ids from the hold's checkout event."""
     first = db.query(WebsiteEvent).filter_by(tenant_id=site.tenant_id, event_id=f"wc:{hold.id}").first()
-    return record(db, site, name="Purchase", event_id=f"stay:{stay.id}", guest_id=hold.guest_id,
-                  inquiry_id=hold.inquiry_id, hold_id=hold.id, value=hold.total,
-                  source_url=first.source_url if first else None, user_agent=first.client_user_agent if first else None,
-                  fbp=first.fbp if first else None, fbc=first.fbc if first else None)
+    return record(
+        db,
+        site,
+        name="Purchase",
+        event_id=f"stay:{stay.id}",
+        guest_id=hold.guest_id,
+        inquiry_id=hold.inquiry_id,
+        hold_id=hold.id,
+        value=hold.total,
+        source_url=first.source_url if first else None,
+        user_agent=first.client_user_agent if first else None,
+        fbp=first.fbp if first else None,
+        fbc=first.fbc if first else None,
+    )
 
 
 def _event(row: WebsiteEvent, guest: Guest) -> dict:
-    created = row.created_at if row.created_at.tzinfo else row.created_at.replace(tzinfo=timezone.utc)
+    created = row.created_at if row.created_at.tzinfo else row.created_at.replace(tzinfo=UTC)
     ud = marketing_capi.user_data(guest)
     for k, v in (("client_user_agent", row.client_user_agent), ("fbp", row.fbp), ("fbc", row.fbc)):
         if v:
             ud[k] = v
-    ev = {"event_name": row.event_name, "event_time": int(created.timestamp()), "event_id": row.event_id,
-          "action_source": "website", "user_data": ud}
+    ev = {
+        "event_name": row.event_name,
+        "event_time": int(created.timestamp()),
+        "event_id": row.event_id,
+        "action_source": "website",
+        "user_data": ud,
+    }
     if row.source_url:
         ev["event_source_url"] = row.source_url
     if row.value is not None:
@@ -135,31 +189,46 @@ def _event(row: WebsiteEvent, guest: Guest) -> dict:
 
 def _writer(token: str):
     from app.adapters.marketing.meta_ads_write import MetaAdsWriter
-    return MetaAdsWriter(token, "")       # send_events needs only the token and the dataset (pixel) id
+
+    return MetaAdsWriter(token, "")  # send_events needs only the token and the dataset (pixel) id
 
 
-def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Optional[Callable] = None) -> dict:
+def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Callable | None = None) -> dict:
     from app.adapters.marketing.meta_ads import MetaAdsError
     from app.services.website_service import get_site
+
     site = get_site(db, tenant.id)
     if site is None or not capi_on(site):
         return {"sent": 0, "skipped": "off"}
-    rows = (db.query(WebsiteEvent).filter(WebsiteEvent.tenant_id == tenant.id, WebsiteEvent.site_id == site.id,
-                                          WebsiteEvent.status.in_(("pending", "failed")), WebsiteEvent.tries < MAX_TRIES)
-            .order_by(WebsiteEvent.created_at.asc()).limit(BATCH).all())
+    rows = (
+        db.query(WebsiteEvent)
+        .filter(
+            WebsiteEvent.tenant_id == tenant.id,
+            WebsiteEvent.site_id == site.id,
+            WebsiteEvent.status.in_(("pending", "failed")),
+            WebsiteEvent.tries < MAX_TRIES,
+        )
+        .order_by(WebsiteEvent.created_at.asc())
+        .limit(BATCH)
+        .all()
+    )
     if not rows:
         return {"sent": 0}
     token = _token(site)
     if not token:
         return {"sent": 0, "skipped": "no token"}
-    guests = {g.id: g for g in db.query(Guest).filter(Guest.tenant_id == tenant.id,
-                                                      Guest.id.in_({r.guest_id for r in rows if r.guest_id}))}
-    ok = marketing_capi.consented(db, tenant.id, list(guests))          # re-checked at send time
+    guests = {
+        g.id: g
+        for g in db.query(Guest).filter(
+            Guest.tenant_id == tenant.id, Guest.id.in_({r.guest_id for r in rows if r.guest_id})
+        )
+    }
+    ok = marketing_capi.consented(db, tenant.id, list(guests))  # re-checked at send time
     cutoff = _now() - WINDOW
     batch, events = [], []
     for r in rows:
         g = guests.get(r.guest_id)
-        made = r.created_at if r.created_at.tzinfo else r.created_at.replace(tzinfo=timezone.utc)
+        made = r.created_at if r.created_at.tzinfo else r.created_at.replace(tzinfo=UTC)
         if g is None or g.id not in ok:
             r.status, r.reason = "skipped", "no marketing consent"
         elif made < cutoff:
@@ -172,8 +241,9 @@ def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Optional[Callabl
         return {"sent": 0}
     writer = (writer_factory or _writer)(token)
     try:
-        resp = writer.send_events((site.tracking or {})["pixel_id"], events,
-                                  test_code=(site.tracking or {}).get("capi_test_code"))
+        resp = writer.send_events(
+            (site.tracking or {})["pixel_id"], events, test_code=(site.tracking or {}).get("capi_test_code")
+        )
     except MetaAdsError as exc:
         for r in batch:
             r.tries, r.status, r.reason = r.tries + 1, "failed", str(exc)[:300]
@@ -185,15 +255,34 @@ def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Optional[Callabl
     when = _now()
     for r in batch:
         r.tries, r.status, r.sent_at, r.reason = r.tries + 1, "sent", when, None
-    append_audit(db, tenant_id=tenant.id, action="website.capi_sent", actor_user_id=None, target_type="site",
-                 target_id=site.id, payload={"actor": "system", "events": len(batch),
-                                             "received": resp.get("events_received")})
+    append_audit(
+        db,
+        tenant_id=tenant.id,
+        action="website.capi_sent",
+        actor_user_id=None,
+        target_type="site",
+        target_id=site.id,
+        payload={"actor": "system", "events": len(batch), "received": resp.get("events_received")},
+    )
     db.commit()
     return {"sent": len(batch), "received": resp.get("events_received")}
 
 
 def recent(db: Session, site: Site, limit: int = 30) -> list[dict]:
-    rows = (db.query(WebsiteEvent).filter_by(tenant_id=site.tenant_id, site_id=site.id)
-            .order_by(WebsiteEvent.created_at.desc()).limit(limit).all())
-    return [{"event_name": r.event_name, "status": r.status, "reason": r.reason, "sent_at": r.sent_at,
-             "created_at": r.created_at} for r in rows]
+    rows = (
+        db.query(WebsiteEvent)
+        .filter_by(tenant_id=site.tenant_id, site_id=site.id)
+        .order_by(WebsiteEvent.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "event_name": r.event_name,
+            "status": r.status,
+            "reason": r.reason,
+            "sent_at": r.sent_at,
+            "created_at": r.created_at,
+        }
+        for r in rows
+    ]
