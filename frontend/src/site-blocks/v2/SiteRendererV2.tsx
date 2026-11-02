@@ -43,9 +43,10 @@ export function SiteRendererV2({ live, page, env, banner, main }: { live: LiveDa
     <div className={`sv${hasBar ? " sv--has-bar" : ""}${overHero ? " sv--over-hero" : ""}`} data-motion={live.theme.motion}
       data-scheme={live.theme.scheme} style={live.theme.vars as CSSProperties}>
       {live.theme.fonts_href && <link rel="stylesheet" href={live.theme.fonts_href} precedence="default" />}
-      {banner}
+      {!overHero && banner}
       <a className="sv-skip" href="#sv-main">Skip to content</a>
       <header className="sv-top">
+        {overHero && banner /* the header floats over the photo; outside it the banner would sit under the header */}
         <div className="sv-wrap sv-top__bar">
           <a className="sv-brand" href={hrefOf(env, "/")}>{doc.site.name}</a>
           {nav.length > 0 && (
