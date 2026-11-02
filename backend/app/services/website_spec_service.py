@@ -154,9 +154,9 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
             add(f"quality_{item['key']}", False, item["title"], item["detail"], "block")
     names = {"performance": "Speed", "accessibility": "Accessibility", "seo": "Search"}
     for cat, score in q["scores"].items():
-        todo = [i["title"] for i in q["items"] if i["category"] == cat and not i["ok"]]
+        todo = [i["detail"] for i in q["items"] if i["category"] == cat and not i["ok"]]   # what to do, not the check's name
         add(f"score_{cat}", score >= 90, f"{names[cat]} {score}/100",
-            "To improve: " + "; ".join(todo) if todo else "Nothing to improve here.")
+            " ".join(t if t.endswith(".") else t + "." for t in todo) if todo else "Nothing to improve here.")
     return out
 
 

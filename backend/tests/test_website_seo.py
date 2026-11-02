@@ -118,3 +118,20 @@ def test_v2_draft_checklist_lists_scores(client, db, wsite):  # noqa: F811
     keys = {c["key"]: c for c in r.json()["checks"]}
     assert {"score_performance", "score_accessibility", "score_seo"} <= set(keys)
     assert all(keys[k]["level"] in ("ok", "warn") for k in keys if k.startswith("score_"))
+
+
+def test_publish_scores_say_what_to_do_not_the_checks_name(client, db, wsite):  # noqa: F811
+    item = {
+        "category": "performance",
+        "key": "sections",
+        "ok": False,
+        "level": "warn",
+        "title": "Pages are a sensible length",
+        "detail": "Split these long pages: About",
+    }
+    fake = {"items": [item], "scores": {"performance": 75, "accessibility": 100, "seo": 100}}
+    with patch("app.services.website_quality.audit", return_value=fake):
+        r = client.post(f"{BASE}/draft/v2", json={"spec": _spec()}, headers=wsite["owner_h"])
+    keys = {c["key"]: c for c in r.json()["checks"]}
+    assert keys["score_performance"]["detail"] == "Split these long pages: About."
+    assert keys["score_seo"]["detail"] == "Nothing to improve here."
