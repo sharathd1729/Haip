@@ -24,6 +24,7 @@ from app.models.tenant import Tenant
 from app.models.website import Site, SiteDomain, SitePageView, SiteVersion
 from app.services import website_blocks as wb
 from app.services import website_pricing as pricing
+from app.services import website_tracking
 from app.services.website_service import WebsiteError, bookable_properties, site_settings
 
 PREVIEW_TTL = 60 * 60 * 24
@@ -185,6 +186,7 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "assets": asset_urls(db, tenant.id, version.doc),
         "policies": _policies(db, tenant),
         "legal": _legal(tenant),
+        "tracking": {} if preview else website_tracking.public(site),
     }
 
 

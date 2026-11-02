@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.schemas.website import EnquiryIn, HoldIn, ManageLookupIn, PageViewIn, QuoteIn
 from app.services import website_booking_service as book
 from app.services import website_public_service as pub
+from app.services import website_tracking as track
 from app.services.website_pricing import rate_calendar
 from app.services.website_spec_service import guest_terms
 from app.services.website_leads import enquiry as make_enquiry
@@ -127,8 +128,21 @@ def hold(host: str, body: HoldIn, request: Request, db: Session = Depends(get_db
         if exc.code == "payment_link_failed":
             db.commit()
         _fail(exc)
+    paying = out.get("payment_url") is not None
+    event_id = f"wc:{out['hold_id']}" if paying else track.new_lead_id()
+    from app.models.website import BookingHold
+    h = db.get(BookingHold, out["hold_id"])
+    track.record(db, site, name="InitiateCheckout" if paying else "Lead", event_id=event_id,
+                 guest_id=h.guest_id if h else None, inquiry_id=h.inquiry_id if h else None, hold_id=out["hold_id"],
+                 value=out["quote"].get("total") if paying else None, source_url=_page_url(host, body.path),
+                 user_agent=request.headers.get("user-agent"), fbp=body.fbp, fbc=body.fbc)
     db.commit()
-    return out
+    return {**out, "event_id": event_id}
+
+
+def _page_url(host: str, path: Optional[str]) -> str:
+    p = (path or "/").split("?")[0][:200]
+    return f"https://{pub.normalise_host(host)}{p if p.startswith('/') else '/' + p}"
 
 
 @router.get("/sites/{host}/holds/{hold_id}")
@@ -150,8 +164,15 @@ def enquiries(host: str, body: EnquiryIn, request: Request, db: Session = Depend
                            user_agent=request.headers.get("user-agent"))
     except ValueError:      # invalid phone: raised before anything is written
         raise HTTPException(status_code=422, detail={"code": "invalid_phone", "message": "Enter a mobile number we can reach."})
+    event_id = track.new_lead_id()
+    if out.get("inquiry_id"):
+        from app.models.inquiry import Inquiry
+        inq = db.get(Inquiry, out["inquiry_id"])
+        track.record(db, site, name="Lead", event_id=event_id, guest_id=inq.guest_id if inq else None,
+                     inquiry_id=out["inquiry_id"], source_url=_page_url(host, body.path),
+                     user_agent=request.headers.get("user-agent"), fbp=body.fbp, fbc=body.fbc)
     db.commit()
-    return {"status": out["status"]}
+    return {"status": out["status"], "event_id": event_id}
 
 
 @router.post("/sites/{host}/manage/lookup")

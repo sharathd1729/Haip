@@ -302,6 +302,7 @@ celery_app.conf.update(
         "website.verify_domains":                    {"queue": "default"},
         "website.revalidate":                        {"queue": "default"},
         "website.send_manage_link":                  {"queue": "whatsapp"},
+        "website.send_events":                       {"queue": "default"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from
@@ -665,6 +666,11 @@ celery_app.conf.beat_schedule = {
     "website-verify-domains": {
         "task": "website.verify_domains",
         "schedule": crontab(minute=17),
+    },
+    # Website Conversions API: Lead / InitiateCheckout / Purchase rows (website_tracking) to Meta.
+    "website-send-events": {
+        "task": "website.send_events",
+        "schedule": crontab(minute="2-59/5"),
     },
     "sync-retalwise-hourly": {
         "task": "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants",

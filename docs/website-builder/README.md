@@ -49,10 +49,38 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
 - **Missed webhook**: `payment_reconcile_service.reconcile_tenant` also asks Razorpay about website holds (held/expired, link
   lapsed less than a day ago) and books a paid one through `on_hold_link_paid`.
 
+## Phase 2: measurement (3 Nov 2026, migration 183)
+- **Settings** (Website page › What your website brought in › Tracking; owner/manager): Meta Pixel id, Google Analytics 4
+  id, and "Also send from HAIP" (Conversions API) with the owner's own CAPI token (Fernet-encrypted in
+  `sites.capi_token_enc`, never shown again) and an optional test event code. `GET/PUT /api/v1/websites/tracking`.
+- **Consent** (sites app `components/Consent.tsx`): a DPDP cookie banner appears only when a pixel or GA4 id is set.
+  Nothing from Meta or Google loads until the visitor taps Accept; "Only necessary" keeps the site cookie-less. The
+  page-view beacon never sets a cookie. A "Cookie choices" link lets the visitor change their mind. Previews never load
+  tracking.
+- **Events, counted once**: the browser and HAIP use the same event id, so Meta de-duplicates the pair.
+
+  | Event | When | event_id |
+  |---|---|---|
+  | Lead | enquiry form, or a booking request on a handoff/request site | `wl:<uuid>` (returned by the API) |
+  | InitiateCheckout | a hold with a Razorpay link | `wc:<hold id>` |
+  | Purchase | the paid hold became a booking | `stay:<stay id>` (the same id the ads Conversions API uses) |
+
+  HAIP sends an event (beat `website.send_events`, every 5 min) only for a guest whose latest marketing consent is
+  granted, re-checked at send; otherwise the row is `skipped` and nothing about the guest leaves HAIP. Phone, email and
+  guest id are SHA-256 hashed; `fbp`/`fbc` (Meta's cookies, present only after Accept) and the browser's user agent
+  help Meta match. GA4 gets `generate_lead` / `begin_checkout` / `purchase` from the browser only.
+- **WhatsApp buttons**: each v2 WhatsApp link prefills "(Ref PREFIX-PAGE-SECTION)". When a guest's first message carries
+  the live site's own prefix, the chat's lead stores `custom_fields.website_ref` and a lead created in the last 10
+  minutes becomes source WEBSITE (older leads keep their source). Shown as a website touch in the attribution chain.
+- **Report** (`GET /api/v1/websites/report?days=30`): visits -> enquiries -> bookings by source (utm_source or the
+  referring site, normalised: `l.instagram.com` = `instagram`), plus which WhatsApp buttons started chats and how many
+  booked. Booked value only for roles with `bookings.read`.
+- Not built: GA4 server-side (Measurement Protocol needs an API secret per property), Google Ads conversion tags.
+
 ## Celery
 `website.ai_job` (default), `website.after_booking` (whatsapp: invoice, email + WhatsApp confirmation, staff push),
 `website.expire_holds` (beat */5), `website.verify_domains` (beat hourly :17), `website.revalidate` (after publish),
-`website.send_manage_link` (whatsapp).
+`website.send_manage_link` (whatsapp), `website.send_events` (beat */5, default: Conversions API).
 
 ## Settings (backend)
 `SITES_BASE_DOMAIN`, `SITES_CNAME_TARGET`, `SITES_RENDERER_URL`, `SITES_REVALIDATE_SECRET`, `CLOUDFLARE_API_TOKEN`,

@@ -10,7 +10,7 @@
 // In a preview or the editor (no apiBase) the form shows but sends nothing.
 import { useEffect, useState, type FormEvent } from "react";
 import { callApi, hrefOf, inr, type SiteEnv } from "../types";
-import { readError } from "../util";
+import { adIds, readError, track } from "../util";
 import type { FromPrice } from "./types";
 
 export interface BookStay { id: string; name: string; sleeps: number; from?: FromPrice | null }
@@ -86,10 +86,11 @@ export function BookingForm({ env, stays, today, cta, path, terms }: { env: Site
       const r = await callApi(env, "/holds", { method: "POST", body: {
         quote: { property_id: stayId, check_in: ci, check_out: co, adults, children: 0, extras: [] },
         guest: { name, phone, email: String(f.get("email") || "").trim() || null, note: String(f.get("note") || "").trim() || null },
-        consent: { transactional: true, marketing: f.get("offers") === "on" }, website: f.get("website") || null, utm } }).catch(() => null);
+        consent: { transactional: true, marketing: f.get("offers") === "on" }, website: f.get("website") || null, utm, path, ...adIds() } }).catch(() => null);
       if (!r) { setBusy(false); return setErr("Couldn't reach us. Try again."); }
       if (!r.ok) { setBusy(false); return setErr(await readError(r, "We couldn't hold these dates. Try again.")); }
       const j = await r.json();
+      track(j.payment_url ? "InitiateCheckout" : "Lead", j.event_id, j.payment_url ? { value: Number(j.quote?.total) || undefined, currency: "INR" } : undefined);
       if (j.payment_url) { window.location.href = j.payment_url; return; }
       setBusy(false);
       return setSent(true);
@@ -97,10 +98,11 @@ export function BookingForm({ env, stays, today, cta, path, terms }: { env: Site
     const r = await callApi(env, "/enquiries", { method: "POST", body: {
       name, phone, property_id: stayId || null, check_in: ci, check_out: co, adults,
       message: [`Booking request for ${stay?.name || "a stay"}`, String(f.get("note") || "").trim()].filter(Boolean).join(". "),
-      website: f.get("website") || null, path } }).catch(() => null);
+      website: f.get("website") || null, path, ...adIds() } }).catch(() => null);
     setBusy(false);
     if (!r) return setErr("Couldn't reach us. Try again, or message us on WhatsApp.");
     if (!r.ok) return setErr(await readError(r, "We couldn't send that. Try again, or message us on WhatsApp."));
+    track("Lead", (await r.json().catch(() => ({})))?.event_id);
     setSent(true);
   };
 

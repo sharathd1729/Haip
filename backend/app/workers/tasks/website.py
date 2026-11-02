@@ -6,6 +6,7 @@
   website.expire_holds    every 5 min: lapsed holds free their dates; their Razorpay links are cancelled best-effort.
   website.verify_domains  hourly: pending custom domains re-check DNS.
   website.revalidate      after a publish: tell the sites renderer to refresh that site's pages.
+  website.send_events     every 5 min: website Conversions API events to Meta (website_tracking), queue default.
 Every task sets the tenant context before touching tenant rows, and uses one transaction per tenant.
 """
 from html import escape
@@ -266,3 +267,22 @@ def send_manage_link(tenant_id: str, stay_id: str, host: str):
         except Exception:  # noqa: BLE001
             log.info("website_manage_whatsapp_skipped", tenant_id=tenant_id, stay_id=stay_id)
         return ",".join(sent) or "nothing_sent"
+
+
+@shared_task(name="website.send_events")
+def send_events():
+    """Every 5 min: website Conversions API events (website_tracking) per tenant, one transaction each."""
+    from app.models.tenant import Tenant
+    from app.services import website_tracking
+
+    sent = 0
+    for tid in _tenant_ids():
+        with SessionLocal() as db:
+            set_tenant_context(db, tid)
+            tenant = db.get(Tenant, tid)
+            try:
+                sent += website_tracking.send_tenant(db, tenant).get("sent", 0)
+            except Exception as exc:  # noqa: BLE001 -- one tenant's failure must not stop the others
+                db.rollback()
+                log.error("website_send_events_failed", tenant_id=tid, error=type(exc).__name__)
+    return sent

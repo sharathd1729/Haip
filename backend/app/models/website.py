@@ -24,6 +24,8 @@ class Site(Base, TimestampMixin):
     draft_version_id = Column(String, nullable=True)
     live_version_id = Column(String, nullable=True)
     created_by = Column(String, nullable=True)
+    tracking = Column(JSON, nullable=True)                          # {pixel_id, ga4_id, capi_enabled, capi_test_code} (183)
+    capi_token_enc = Column(Text, nullable=True)                    # Fernet; never returned by any API
 
 
 class SiteVersion(Base, TimestampMixin):
@@ -141,3 +143,29 @@ class SitePageView(Base, TimestampMixin):
     path = Column(String(200), nullable=False)
     source = Column(String(60), nullable=False, default="direct")
     views = Column(Integer, nullable=False, default=0)
+
+
+class WebsiteEvent(Base, TimestampMixin):
+    """A Lead / InitiateCheckout / Purchase a website visitor caused, for Meta's Conversions API (migration 183).
+    event_id is the one the browser pixel used too, so Meta counts the pair once (website_tracking)."""
+    __tablename__ = "website_events"
+    __table_args__ = (UniqueConstraint("tenant_id", "event_id", name="uq_website_events_event"),)
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    site_id = Column(String, ForeignKey("sites.id"), nullable=False)
+    event_name = Column(String(30), nullable=False)
+    event_id = Column(String(80), nullable=False)
+    guest_id = Column(String, nullable=True)
+    inquiry_id = Column(String, nullable=True)
+    hold_id = Column(String, nullable=True)
+    value = Column(Numeric(12, 2), nullable=True)
+    currency = Column(String(3), nullable=True)
+    source_url = Column(String(500), nullable=True)
+    client_user_agent = Column(String(300), nullable=True)
+    fbp = Column(String(200), nullable=True)
+    fbc = Column(String(200), nullable=True)
+    status = Column(String(12), nullable=False, default="pending")   # pending | sent | skipped | failed
+    reason = Column(String(300), nullable=True)
+    tries = Column(Integer, nullable=False, default=0)
+    sent_at = Column(DateTime(timezone=True), nullable=True)

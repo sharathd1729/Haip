@@ -99,15 +99,23 @@ class ConsentIn(_Strict):
     notice_version: str = Field("website-v1", max_length=40)
 
 
-class HoldIn(_Strict):
+class _AdIds(_Strict):
+    """Meta's browser ids (_fbp / _fbc cookies), present only after the visitor accepted the cookie banner. Sent with the
+    server-side event so Meta can match it to the pixel's (website_tracking)."""
+    fbp: Optional[str] = Field(None, max_length=200)
+    fbc: Optional[str] = Field(None, max_length=200)
+
+
+class HoldIn(_AdIds):
     quote: QuoteIn
     guest: GuestIn
     consent: ConsentIn = ConsentIn()
     website: Optional[str] = Field(None, max_length=200)    # honeypot: bots fill every field
     utm: Optional[dict] = None
+    path: Optional[str] = Field(None, max_length=200)
 
 
-class EnquiryIn(_Strict):
+class EnquiryIn(_AdIds):
     name: str = Field(min_length=2, max_length=120)
     phone: str = Field(min_length=8, max_length=20)
     email: Optional[EmailStr] = None
@@ -125,6 +133,15 @@ class EnquiryIn(_Strict):
 class ManageLookupIn(_Strict):
     ref: str = Field(min_length=4, max_length=20)
     phone: str = Field(min_length=8, max_length=20)
+
+
+class TrackingIn(_Strict):
+    """Website › Tracking (owner/manager). capi_token: None = keep the stored one, "" = remove it."""
+    pixel_id: Optional[str] = Field(None, pattern=r"^\d{6,20}$")
+    ga4_id: Optional[str] = Field(None, pattern=r"^G-[A-Z0-9]{4,15}$")
+    capi_enabled: bool = False
+    capi_token: Optional[str] = Field(None, max_length=400)
+    capi_test_code: Optional[str] = Field(None, pattern=r"^[A-Z0-9]{3,20}$")
 
 
 class PageViewIn(_Strict):

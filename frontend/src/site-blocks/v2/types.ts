@@ -60,6 +60,7 @@ export interface LiveDataV2 {
   assets: LiveData["assets"];
   policies: LiveData["policies"];
   legal: LiveData["legal"];
+  tracking?: LiveData["tracking"];
 }
 
 /** Pages every v2 site has without a spec page: Razorpay returns guests to /book/done, confirmations link /my-booking, and

@@ -3,6 +3,7 @@
 // A v2 site also answers /policies, /book/done (Razorpay's return) and /my-booking (systemPage) when its spec has no such page.
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Consent } from "@/components/Consent";
 import { PageView } from "@/components/PageView";
 import { type AnyLive, envFor, getLive, getStay, queryOf } from "@/lib/haip";
 import { findPage, SiteRenderer } from "@/site-blocks/SiteRenderer";
@@ -80,6 +81,7 @@ export default async function SitePage({ params, searchParams }: { params: Promi
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(r, host)).replace(/</g, "<") }} />
       {r.v2 ? <SiteRendererV2 live={r.live} page={r.page} env={env} main={sys?.main} /> : <SiteRenderer live={r.live} page={r.page} env={env} />}
       <PageView path={p} />
+      <Consent pixel={r.live.tracking?.pixel_id} ga4={r.live.tracking?.ga4_id} />
     </>
   );
 }

@@ -223,6 +223,8 @@ def hold_status(db: Session, tenant_id: str, hold_id: str, session: str) -> dict
         stay = db.get(Stay, hold.stay_id)
         out["booking_ref"] = booking_ref(stay) if stay else None
         out["manage_token"] = issue_manage_token(db, tenant_id, hold.stay_id)
+        out["event_id"] = f"stay:{hold.stay_id}"          # the browser's Purchase uses the server's id (website_tracking)
+        out["value"] = str(hold.total)
     return out
 
 
@@ -290,6 +292,10 @@ def on_hold_link_paid(db: Session, tenant: Tenant, hold: BookingHold, pay_ent: d
                     f"details at check-in and file Form C within 24 hours.", priority="high", guest_id=hold.guest_id,
                     due_date=hold.check_in, commit=False)
     hold.status, hold.stay_id = "confirmed", stay.id
+    site = db.get(Site, hold.site_id)
+    if site is not None:
+        from app.services import website_tracking
+        website_tracking.purchase(db, site, hold, stay)
     append_audit(db, tenant_id=tenant.id, action="website.booking_confirmed", target_type="booking", target_id=stay.id,
                  payload={"hold_id": hold.id, "payment_id": pay_id, "amount": str(paid), "total": str(hold.total)})
     db.commit()
