@@ -24,6 +24,9 @@ export interface SpecV2 {
   tokens: { palette: { name: string; ink: string; surface: string; primary: string; accent: string }; display: string; body: string;
     radius: "soft" | "sharp" | "pill"; motion: "calm" };
   pages: PageV2[];
+  /** Other languages' words (website phase 6, i18n.ts): tagline, page titles/search texts by slug, section text by id. */
+  i18n?: Record<string, { tagline?: string; pages?: Record<string, { title?: string; seo_title?: string; seo_description?: string }>;
+    sections?: Record<string, Record<string, string>> }>;
 }
 
 export interface PackageItem {
@@ -33,7 +36,7 @@ export interface PackageItem {
 /** grounded price mode only: the lowest nightly tariff from HAIP's website price engine (website_pricing.from_price). */
 export interface FromPrice { amount: string; label: string }
 /** One bookable property (caravan, villa, room). `photo` is "asset:<id>" (approved library photo) or an https URL. */
-export interface StayItem { id: string; name: string; summary: string; sleeps: number; bedrooms: number | null; amenities: string[]; photo: string | null; from: FromPrice | null }
+export interface StayItem { id: string; slug?: string; bathrooms?: number | null; name: string; summary: string; sleeps: number; bedrooms: number | null; amenities: string[]; photo: string | null; from: FromPrice | null }
 export interface ItineraryDay { day: number; title: string; stops: string[]; overnight: string; notes: string }
 export interface Itinerary { name: string; nights: number; destination: string; about: string; packages: string[]; days: ItineraryDay[] }
 export interface Review { quote: string; name: string; rating: number | null; source: string; date: string }
@@ -68,6 +71,8 @@ export interface LiveDataV2 {
   business_kind?: string | null;
   /** Approved guides on this site (website_blog); the footer links /blog when > 0. */
   blog_count?: number;
+  /** Every stay the site offers (phase 6): /stays/<slug> pages and /compare. */
+  stays_index?: StayItem[];
 }
 
 /** Pages every v2 site has without a spec page: Razorpay returns guests to /book/done, confirmations link /my-booking, and

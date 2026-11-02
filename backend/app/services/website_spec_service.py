@@ -181,7 +181,9 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
     doc = version.doc
     data = website_bindings.resolve(db, tenant, doc, site=site)
     shown, mode = guest_terms(tenant, site, doc)
-    assets = pub.asset_urls(db, tenant.id, doc, extra=data["asset_ids"])
+    stays = website_bindings.stay_index(db, tenant, site)
+    extra = data["asset_ids"] | {i["photo"].split(":", 1)[1] for i in stays if (i.get("photo") or "").startswith("asset:")}
+    assets = pub.asset_urls(db, tenant.id, doc, extra=extra)
     return {
         "spec_version": 2,
         "site": {"id": site.id, "name": site.name, "status": site.status, "preview": preview, "booking_mode": mode,
@@ -198,6 +200,7 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "jsonld": website_seo.jsonld(tenant, doc, data["bound"], assets, host=host, grounded=shown) if host and not preview else {},
         "business_kind": website_seo.business_kind(tenant.business_type),
         "blog_count": len(website_blog.listing(db, tenant.id)),     # the footer links /blog only when there is a guide
+        "stays_index": stays,                                         # /stays/<slug> pages + /compare (phase 6)
         "policies": pub._policies(db, tenant),        # the built-in /policies page (sites app), same as v1
         "legal": pub._legal(tenant),
         "tracking": {} if preview else website_tracking.public(site),   # pixels never load in a draft preview
@@ -206,4 +209,6 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
 
 def media_ids(db: Session, tenant: Tenant, doc: dict) -> set[str]:
     """Photos a v2 page may show: the ones the spec names plus the ones bound to its hero, gallery and stays sections."""
-    return website_bindings.resolve(db, tenant, doc, types={"hero", "gallery", "stays"})["asset_ids"]
+    stays = website_bindings.stay_index(db, tenant)
+    return website_bindings.resolve(db, tenant, doc, types={"hero", "gallery", "stays"})["asset_ids"] | {
+        i["photo"].split(":", 1)[1] for i in stays if (i.get("photo") or "").startswith("asset:")}

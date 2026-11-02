@@ -7,6 +7,7 @@
   website.verify_domains  hourly: pending custom domains re-check DNS.
   website.revalidate      after a publish: tell the sites renderer to refresh that site's pages.
   website.blog_draft      a website guide drafted by the AI (website_blog; queue default, transient errors retried 2x).
+  website.translate       another language for a v2 site as a new draft (website_i18n; queue default, retries 2x).
   website.send_events     every 5 min: website Conversions API events to Meta (website_tracking), queue default.
 Every task sets the tenant context before touching tenant rows, and uses one transaction per tenant.
 """
@@ -319,3 +320,37 @@ def blog_draft(self, tenant_id: str, item_id: str, topic: str):
             db.rollback()
             failed(db, f"Couldn't write this guide ({type(exc).__name__}). Try again or write it yourself.")
             log.exception("website_blog_draft_failed", tenant_id=tenant_id, item_id=item_id)
+
+
+@shared_task(name="website.translate", bind=True, max_retries=MAX_RETRIES)
+def translate(self, tenant_id: str, job_id: str):
+    """Another language for a v2 site (website_i18n.run): a new draft for a person to check and publish."""
+    from app.models.website import Site, SiteAiJob
+    from app.services import website_i18n
+    from app.services.marketing_ai_service import LLMTransientError
+
+    def failed(db, why: str):
+        set_tenant_context(db, tenant_id)
+        job = db.query(SiteAiJob).filter_by(id=job_id, tenant_id=tenant_id).first()
+        if job is not None:
+            job.status, job.error = "failed", why
+        db.commit()
+
+    with SessionLocal() as db:
+        set_tenant_context(db, tenant_id)
+        job = db.query(SiteAiJob).filter_by(id=job_id, tenant_id=tenant_id).first()
+        if job is None or job.status not in ("pending", "running"):
+            return
+        try:
+            job.status = "running"
+            website_i18n.run(db, job, db.get(Site, job.site_id))
+            db.commit()
+        except LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            failed(db, "The AI service is busy right now. Try again in a few minutes.")
+        except Exception as exc:  # noqa: BLE001 -- never leave the job running
+            db.rollback()
+            failed(db, f"Couldn't translate your website ({type(exc).__name__}). Try again.")
+            log.exception("website_translate_failed", tenant_id=tenant_id, job_id=job_id)

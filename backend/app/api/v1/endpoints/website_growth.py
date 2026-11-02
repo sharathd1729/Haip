@@ -1,5 +1,5 @@
 """Website builder phases 2-6 (staff API, /api/v1/websites/...): tracking + report (phase 2), promo codes (phase 4),
-guides, Google reviews, video + Canva imports (phase 5).
+guides, Google reviews, video + Canva imports (phase 5), languages + launch report (phase 6).
 
 Same module + capabilities as endpoints/website.py: read = website.read, settings that change what guests' browsers
 load or what leaves HAIP = website.approve (owner/manager). Errors are {"detail": {"code", "message", "problems"}}.
@@ -294,3 +294,63 @@ def append_audit_import(db: Session, user: User, asset, origin: str) -> None:
     from app.core.audit import append_audit
     append_audit(db, tenant_id=user.tenant_id, actor_user_id=user.id, action="website.media_imported", target_type="media_asset",
                  target_id=asset.id, payload={"origin": origin, "mime_type": asset.mime_type})
+
+
+# ─── phase 6: languages ──────────────────────────────────────────────────────────────────────────────
+
+class _Lang(BaseModel):
+    language: str = Field(pattern="^[a-z]{2}$")
+
+
+@router.get("/languages")
+def languages(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.models.website import SiteVersion
+    from app.schemas.site_spec import LANGUAGES
+    site = _site(db, user)
+    live = db.get(SiteVersion, site.live_version_id) if site.live_version_id else None
+    on = set(((live.doc if live else {}) or {}).get("i18n") or {})
+    return [{"code": k, "name": v, "live": k in on} for k, v in LANGUAGES.items()]
+
+
+@router.post("/translate", status_code=202)
+def translate(body: _Lang, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_approve):
+    from app.services import website_i18n
+    site = _site(db, user)
+    try:
+        job = website_i18n.request(db, site, body.language, user)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+    db.commit()
+    from app.workers.tasks.website import translate as task
+    task.delay(user.tenant_id, job.id)
+    return website_i18n.out(job)
+
+
+@router.get("/translate/{job_id}")
+def translate_job(job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.services import website_i18n
+    job = website_i18n.get_job(db, user.tenant_id, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No such job.", "problems": []})
+    return website_i18n.out(job)
+
+
+# ─── phase 6: launch report ──────────────────────────────────────────────────────────────────────────
+
+@router.get("/launch-report")
+def launch_report(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.models.tenant import Tenant
+    from app.services import website_launch
+    return website_launch.build(db, db.get(Tenant, user.tenant_id), _site(db, user))
+
+
+@router.get("/launch-report.pdf")
+def launch_report_pdf(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from fastapi.responses import Response
+
+    from app.models.tenant import Tenant
+    from app.services import website_launch
+    tenant = db.get(Tenant, user.tenant_id)
+    pdf = website_launch.render(website_launch.build(db, tenant, _site(db, user)), brand=tenant.brand_name or tenant.name)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="website-launch-report.pdf"'})

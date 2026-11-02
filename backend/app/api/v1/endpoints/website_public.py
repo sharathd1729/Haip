@@ -67,9 +67,9 @@ def preview_bootstrap(token: str, db: Session = Depends(get_db)):
 
 @router.get("/sites/{host}/stays/{slug}")
 def stay(host: str, slug: str, db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, v = _live(db, host)
     try:
-        return pub.stay_detail(db, tenant, site, slug)
+        return pub.stay_detail(db, tenant, site, slug, v.doc)
     except WebsiteError as exc:
         _fail(exc)
 
@@ -77,8 +77,8 @@ def stay(host: str, slug: str, db: Session = Depends(get_db)):
 @router.get("/preview/{token}/stays/{slug}")
 def preview_stay(token: str, slug: str, db: Session = Depends(get_db)):
     try:
-        tenant, site, _ = pub.read_preview(db, token)
-        return pub.stay_detail(db, tenant, site, slug)
+        tenant, site, v = pub.read_preview(db, token)
+        return pub.stay_detail(db, tenant, site, slug, v.doc)
     except WebsiteError as exc:
         _fail(exc)
 

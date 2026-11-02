@@ -128,10 +128,25 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
   host a HAIP site and has no confirmed website-publish API). Marketing Studio's Canva brand-template fill (M2b) is
   unchanged.
 
+## Phase 6: scale (3 Nov 2026, no migration)
+- **A page per stay + compare**: every stay the site offers gets `/stays/<slug>` (photos, facts, extras, FAQs, its own
+  calendar and booking form) and, with two or more stays, `/compare` shows them side by side (stacked on a phone).
+  Stay cards link to both. Prices follow the same rule as everywhere (grounded only). All of it is in the sitemap.
+- **Languages**: English + Hindi (`hi`); more are added in `schemas/site_spec.LANGUAGES` and `site-blocks/v2/i18n.ts`.
+  "Add Hindi" (Website page › Languages and launch) queues a translation of the words a person wrote (headings, text,
+  buttons, page titles, search texts, tagline) into a NEW draft; stays, trips, reviews and prices are HAIP data and are
+  not translated. The owner checks it in the preview at `/hi/...` and publishes it like any change (that publish is the
+  human approval). Live: `/hi/<page>`, `lang="hi"`, hreflang alternates for search engines, a language switch at the
+  top. Menus and buttons HAIP draws itself are still English.
+- **Launch report** (Website page › Launch report, and as a PDF): pages and sections, speed / accessibility / search
+  scores, structured data per page, domains and HTTPS, tracking (pixel, GA4, Conversions API, last event), a dry-run
+  booking test per stay (priced 30 days out; nothing is held, charged or sent), Razorpay connected, last website
+  booking, guides / reviews / promo codes / languages, and what is still to do.
+
 ## Celery
 `website.ai_job` (default), `website.after_booking` (whatsapp: invoice, email + WhatsApp confirmation, staff push),
 `website.expire_holds` (beat */5), `website.verify_domains` (beat hourly :17), `website.revalidate` (after publish),
-`website.send_manage_link` (whatsapp), `website.send_events` (beat */5, default: Conversions API), `website.blog_draft` (default: AI guide draft).
+`website.send_manage_link` (whatsapp), `website.send_events` (beat */5, default: Conversions API), `website.blog_draft` (default: AI guide draft), `website.translate` (default: another language as a draft).
 
 ## Settings (backend)
 `SITES_BASE_DOMAIN`, `SITES_CNAME_TARGET`, `SITES_RENDERER_URL`, `SITES_REVALIDATE_SECRET`, `CLOUDFLARE_API_TOKEN`,
@@ -142,5 +157,5 @@ A v2 site books and pays on the SAME path as v1: `/availability` -> `/quote` -> 
 - `haip_manage_booking_v1` (UTILITY): "Hi {{1}}, here is the link to your booking {{2}}: {{3}}"
 
 ## Not built yet
-Reviews import from Airbnb, multi-language pages, Google free booking links, room-level
+Reviews import from Airbnb, more languages than Hindi (structure ready), Google free booking links, room-level
 inventory (one booking blocks a whole property, as in the rest of HAIP).

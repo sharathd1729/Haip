@@ -12,6 +12,7 @@ import { webApi, webError, type SiteOut, type SiteSettings } from "@/lib/website
 import { ChangeSheet } from "./ChangeSheet";
 import { ContentPanel } from "./ContentPanel";
 import { GrowthPanel } from "./GrowthPanel";
+import { LaunchPanel } from "./LaunchPanel";
 import { LookSheet, PhotosSheet, SectionsSheet, WordsSheet } from "./DirectEditors";
 import { useDraft } from "./useDraft";
 
@@ -131,6 +132,7 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
       </div>
 
       <ContentPanel canApprove={canApprove} draft={draft} />
+      <LaunchPanel canApprove={canApprove} isNew={isNew} onDraft={refresh} />
       {site.live && <GrowthPanel canApprove={canApprove} />}
 
       {doc && <ContactSheet open={sheet === "contact"} onClose={() => setSheet(null)} contact={doc.site.contact}

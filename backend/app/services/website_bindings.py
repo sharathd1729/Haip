@@ -207,7 +207,7 @@ def _gallery(ctx: _Ctx, s: dict) -> dict:
 
 
 def _stays(ctx: _Ctx, s: dict) -> dict:
-    from app.services.website_public_service import _photos
+    from app.services.website_public_service import _photos, stay_slug
     tagged: dict[str, str] = {}
     for a in ctx.library():
         if a.property_id and a.property_id not in tagged:
@@ -215,11 +215,18 @@ def _stays(ctx: _Ctx, s: dict) -> dict:
     items = []
     for p in ctx.properties()[: s["slots"].get("limit") or 6]:
         own = _photos(p)
-        items.append({"id": p.id, "name": (p.name or "")[:80], "summary": _clean((p.description or "").strip()[:280]),
+        items.append({"id": p.id, "slug": stay_slug(p), "name": (p.name or "")[:80], "bathrooms": p.bathrooms,
+                      "summary": _clean((p.description or "").strip()[:280]),
                       "sleeps": int(p.max_adults or 0) + int(p.max_children or 0), "bedrooms": p.bedrooms,
                       "amenities": [str(a)[:40] for a in (p.amenities or []) if isinstance(a, str)][:6],
                       "photo": tagged.get(p.id) or (own[0] if own else None), "from": ctx.from_price(p)})
     return {"items": items}
+
+
+def stay_index(db: Session, tenant: Tenant, site=None) -> list[dict]:
+    """Every stay the site offers (its chosen properties), for the per-stay pages and the compare view (website phase 6).
+    Same fields and price rule as the stays section."""
+    return _stays(_Ctx(db, tenant, site), {"slots": {"limit": 12}})["items"]
 
 
 def _booking(ctx: _Ctx, s: dict) -> dict:

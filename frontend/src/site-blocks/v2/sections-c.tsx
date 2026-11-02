@@ -52,7 +52,10 @@ function Body({ item, ctx, s }: { item: StayItem; ctx: Ctx; s: SectionV2 }) {
       {item.from && <p className="sv-meta">From <b>{inr(item.from.amount)}</b> {item.from.label}</p>}
       {item.summary && <p className="sv-muted">{item.summary}</p>}
       {item.amenities.length > 0 && <ul className="sv-ticks">{item.amenities.slice(0, 4).map(a => <li key={a}><Check aria-hidden="true" size={18} />{a}</li>)}</ul>}
-      <WaButton wa={bound(ctx, s).wa} label={`Ask about ${item.name}`} quiet />
+      <div className="sv-actions">
+        {item.slug && <a className="sv-btn sv-btn--sm" href={hrefOf(ctx.env, `/stays/${item.slug}`)}>See {item.name}</a>}
+        <WaButton wa={bound(ctx, s).wa} label={`Ask about ${item.name}`} quiet />
+      </div>
     </div>
   );
 }
@@ -98,6 +101,7 @@ export function Stays(s: SectionV2, ctx: Ctx) {
     <Section s={s}>
       <div className="sv-wrap">
         <Head ctx={ctx} s={s} />
+        {items.length > 1 && <p className="sv-meta"><a href={hrefOf(ctx.env, "/compare")}>Compare all {items.length} stays</a></p>}
         <div className="sv-cards sv-stay-grid">
           {items.map(item => (
             <article key={item.id} className="sv-stay sv-rise">

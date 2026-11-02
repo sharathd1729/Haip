@@ -21,7 +21,28 @@ export type SiteReview = { id: string; source: string; reviewer: string | null; 
   reviewed_at: string | null; shown: boolean; consent_note: string | null };
 export type LibraryItem = { id: string; ref: string; url: string; mime_type: string; duration_ms?: number | null; alt_text: string | null };
 
+export type Lang = { code: string; name: string; live: boolean };
+export type TranslateJob = { id: string; status: string; error: string | null; language: string; version_id: string | null;
+  result: { translated: number; left_in_english: string[] } | null };
+export type LaunchReport = {
+  site: { name: string; status: string; url: string }; published: { version: number; at: string | null } | null; problem?: string;
+  domain?: { host: string; kind: string; status: string; https: boolean }[];
+  pages?: { title: string; path: string; sections: string[]; languages: string[] }[]; extra_pages?: string[];
+  quality?: { scores: { performance: number; accessibility: number; seo: number }; to_improve: string[] };
+  schema?: Record<string, string[]>;
+  tracking?: { meta_pixel: boolean; ga4: boolean; conversions_api: boolean; cookie_banner: boolean; last_event_sent_at: string | null };
+  booking?: { mode: string; prices_shown: boolean; razorpay_connected: boolean | null; last_booking_at: string | null;
+    dry_run: { stay: string; ok: boolean; result: string }[] };
+  content?: { guides_live: number; reviews_shown: number; promo_codes_on: number; languages: string[] };
+  open_items?: string[];
+};
+
 export const growthApi = {
+  languages: () => api.get<Lang[]>(`${WEB}/languages`).then(r => r.data),
+  translate: (language: string) => api.post<TranslateJob>(`${WEB}/translate`, { language }).then(r => r.data),
+  translateJob: (id: string) => api.get<TranslateJob>(`${WEB}/translate/${id}`).then(r => r.data),
+  launch: () => api.get<LaunchReport>(`${WEB}/launch-report`).then(r => r.data),
+  launchPdf: () => api.get<Blob>(`${WEB}/launch-report.pdf`, { responseType: "blob", timeout: 120_000 }).then(r => r.data),
   guides: () => api.get<Guide[]>(`${WEB}/blog`).then(r => r.data),
   writeGuide: (topic: string) => api.post<Guide>(`${WEB}/blog`, { topic }).then(r => r.data),
   editGuide: (id: string, payload: NonNullable<Guide["payload"]>) => api.put<Guide>(`${WEB}/blog/${id}`, { payload }).then(r => r.data),

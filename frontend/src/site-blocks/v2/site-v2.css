@@ -373,3 +373,16 @@
 .sv .sv-blog__card a { display: grid; gap: .5rem; color: inherit; text-decoration: none; }
 .sv .sv-blog__card img, .sv .sv-article__photo { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: var(--v-r-media); }
 .sv .sv-article .sv-own h2 { margin-top: 1.6rem; }
+/* Multi-property (website phase 6): a page per stay and the compare view (stacks on phones) */
+.sv .sv-staypage__photos { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); margin: 1rem 0; }
+.sv .sv-staypage__photos img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: var(--v-r-media); }
+.sv .sv-staypage__photos img:first-child { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+.sv .sv-compare__grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.sv .sv-compare__col { display: grid; gap: .6rem; align-content: start; border: 1px solid var(--v-line); border-radius: var(--v-r-card); padding: 1rem; }
+.sv .sv-compare__col img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: var(--v-r-media); }
+.sv .sv-compare__facts { display: grid; gap: .25rem; margin: 0; }
+.sv .sv-compare__facts div { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--v-line); padding: .3rem 0; }
+.sv .sv-compare__facts dd { margin: 0; font-weight: 600; }
+/* Language switch (website phase 6) */
+.sv .sv-langbar { display: flex; justify-content: flex-end; gap: 1rem; margin: 0 auto; padding-top: .4rem; padding-bottom: .4rem; font-size: .9rem; }
+.sv .sv-langbar a { min-height: 44px; display: inline-flex; align-items: center; color: inherit; }

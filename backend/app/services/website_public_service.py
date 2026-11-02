@@ -191,12 +191,15 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
     }
 
 
-def stay_detail(db: Session, tenant: Tenant, site: Site, slug: str) -> dict:
+def stay_detail(db: Session, tenant: Tenant, site: Site, slug: str, doc: Optional[dict] = None) -> dict:
+    """`doc` = the live/preview version: a v2 site shows prices by the tenant's price policy (guest_terms), v1 by show_prices."""
     from app.services.business_data_service import tenant_today
+    from app.services.website_spec_service import guest_terms
     cfg = site_settings(site)
+    shown = guest_terms(tenant, site, doc)[0] if doc is not None else cfg.show_prices
     for p in bookable_properties(db, tenant.id, cfg.property_ids or None):
         if stay_slug(p) == slug:
-            return property_out(db, p, show_prices=cfg.show_prices, today=tenant_today(db, tenant.id), detail=True)
+            return property_out(db, p, show_prices=shown, today=tenant_today(db, tenant.id), detail=True)
     raise WebsiteError(404, "stay_not_found", "That stay isn't on this website.")
 
 
