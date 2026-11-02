@@ -23,6 +23,18 @@ def is_v2(doc) -> bool:
     return isinstance(doc, dict) and doc.get("spec_version") == 2
 
 
+def guest_terms(tenant: Tenant, site: Site, doc) -> tuple[bool, str]:
+    """(prices shown, booking mode) for guests of this live version. A v1 site keeps its own settings. A v2 site follows the
+    tenant's price policy: grounded shows engine prices; handoff shows no figure, so a paying mode (instant/deposit) becomes
+    "request" (the team confirms the price and sends the payment link). Used by bootstrap, /quote, /availability, /holds."""
+    from app.services.price_policy import price_mode
+    cfg = site_settings(site)
+    if not is_v2(doc):
+        return cfg.show_prices, cfg.booking_mode
+    shown = price_mode(tenant) == "grounded"
+    return shown, cfg.booking_mode if shown or cfg.booking_mode not in ("instant", "deposit") else "request"
+
+
 def _where(err: dict) -> str:
     return ".".join(str(x) for x in err.get("loc", ()) if not str(x).startswith("function-")) or "spec"
 
@@ -109,7 +121,6 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
     """The v2 publish checklist (same shape as website_version_service.checks)."""
     from app.services.invoice_service import get_profile
     tenant = db.get(Tenant, site.tenant_id)
-    cfg = site_settings(site)
     out: list[dict] = []
 
     def add(key: str, ok: bool, title: str, detail: str, level: str = "warn", fix: Optional[str] = None) -> None:
@@ -120,14 +131,12 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
     add("contact_details", bool(contact.get("phone") or contact.get("whatsapp") or contact.get("email")),
         "A phone, WhatsApp or email to reach you", "Shown in the header, footer and contact section.", "block", "site:contact")
     add("contact_section", "contact" in types, "A contact section", "Razorpay and guests look for a way to reach you.", "block")
-    paying = cfg.booking_mode in ("instant", "deposit")
-    add("policies_page", False, "Policies page", "The new builder adds the policies page in a later phase. Until then keep "
-        "booking on request or enquiry." if paying else "Arrives in a later phase; needed before taking payments.",
-        "block" if paying else "warn", "settings")
+    add("policies_page", True, "Policies page", "Every v2 site has /policies (cancellation, payments, house rules, terms), "
+        "plus /book/done and /my-booking for paid bookings.")
     bad = [p["title"] for p in doc.get("pages", []) if not p["seo"]["title"] or not 50 <= len(p["seo"]["description"]) <= 160]
     add("seo", not bad, "Search previews", "Needs a title and a 50–160 character description: " + ", ".join(bad) if bad
         else "Every page has a title and description.")
-    data = website_bindings.resolve(db, tenant, doc)
+    data = website_bindings.resolve(db, tenant, doc, site=site)
     empty = sorted({s["type"] for p in doc["pages"] for s in p["sections"] if _is_empty(s["type"], data["bound"].get(s["id"]) or {})})
     add("data", not empty, "Every section has something to show",
         "Hidden until HAIP has data for: " + ", ".join(empty) if empty else "Packages, photos, reviews and FAQs are all in.")
@@ -155,11 +164,12 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
     from app.services.business_data_service import tenant_today
     cfg = site_settings(site)
     doc = version.doc
-    data = website_bindings.resolve(db, tenant, doc)
+    data = website_bindings.resolve(db, tenant, doc, site=site)
+    shown, mode = guest_terms(tenant, site, doc)
     return {
         "spec_version": 2,
-        "site": {"id": site.id, "name": site.name, "status": site.status, "preview": preview, "booking_mode": cfg.booking_mode,
-                 "deposit_percent": cfg.deposit_percent, "show_prices": data["price_mode"] == "grounded",
+        "site": {"id": site.id, "name": site.name, "status": site.status, "preview": preview, "booking_mode": mode,
+                 "deposit_percent": cfg.deposit_percent, "show_prices": shown,
                  "hold_minutes": cfg.hold_minutes, "min_nights": cfg.min_nights, "prices_include_gst": cfg.prices_include_gst,
                  "today": tenant_today(db, tenant.id).isoformat()},
         "version": {"id": version.id, "number": version.number, "sha256": version.sha256},
@@ -169,6 +179,7 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "bound": data["bound"],
         "page_wa": data["page_wa"],
         "assets": pub.asset_urls(db, tenant.id, doc, extra=data["asset_ids"]),
+        "policies": pub._policies(db, tenant),        # the built-in /policies page (sites app), same as v1
         "legal": pub._legal(tenant),
     }
 

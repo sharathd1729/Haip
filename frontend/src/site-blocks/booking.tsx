@@ -209,7 +209,7 @@ function Flow({ p, env, live }: { p: Props; env: SiteEnv; live: LiveData }) {
   );
 }
 
-function Done({ env, holdId, session }: { env: SiteEnv; holdId: string; session: string }) {
+export function Done({ env, holdId, session }: { env: SiteEnv; holdId: string; session: string }) {
   const [st, setSt] = useState<{ status?: string; booking_ref?: string; manage_token?: string; error?: string }>({});
   useEffect(() => {
     if (!env.apiBase) return;

@@ -42,6 +42,8 @@ WANDERWHEEL_SPEC = {
              {"id": "journeys-hero", "type": "hero", "variant": "centered-minimal",
               "slots": {"eyebrow": "Journeys", "headline": "Two routes, *one* slow pace", "subhead": "Hills or coast. Pick one, we plan the rest."}},
              {"id": "fleet-rows", "type": "stays", "variant": "rows", "slots": {"heading": "Which caravan?"}},
+             {"id": "rates", "type": "booking", "variant": "with-rates",
+              "slots": {"heading": "Prices by date", "intro": "Tap your dates to see the price for your stay."}},
              {"id": "compare", "type": "packages", "variant": "comparison", "slots": {"heading": "Compare journeys"}},
              {"id": "coast", "type": "itinerary", "variant": "day-cards", "slots": {"eyebrow": "Sample route", "key": "coastal-1n"}},
              {"id": "strip", "type": "gallery", "variant": "filmstrip", "slots": {"heading": "Along the way", "limit": 8}},

@@ -2,18 +2,24 @@
 // are none, like every other section.
 import { BedDouble, Check, Users } from "lucide-react";
 import { BookingForm, type BookStay } from "./booking-v2";
+import { inr } from "../types";
 import { bound, Head, Img, Section, WaButton, type Ctx } from "./parts";
 import { txt, type SectionV2, type StayItem } from "./types";
 
-/** "Check dates": hidden when the owner chose "Guests just message you" (booking mode enquiry) or there's nothing to book. */
+/** "Check dates": hidden when the owner chose "Guests just message you" (booking mode enquiry) or there's nothing to book.
+ * Variant "with-rates" shows each day's nightly rate, only when the business shows prices (grounded). */
 export function Booking(s: SectionV2, ctx: Ctx) {
   const stays = (bound(ctx, s).items || []) as BookStay[];
-  if (!stays.length || ctx.live.site.booking_mode === "enquiry") return null;
+  const site = ctx.live.site;
+  if (!stays.length || site.booking_mode === "enquiry") return null;
+  const terms = { mode: site.booking_mode, rates: s.variant === "with-rates" && site.show_prices, holdMinutes: site.hold_minutes,
+    depositPercent: site.deposit_percent };
   return (
     <Section s={s} band>
       <div className="sv-wrap">
         <Head ctx={ctx} s={s} />
-        <BookingForm env={ctx.env} stays={stays} today={ctx.live.site.today} cta={txt(s.slots.cta_label) || "Send my dates"} path={ctx.page.slug} />
+        <BookingForm env={ctx.env} stays={stays} today={ctx.live.site.today} cta={txt(s.slots.cta_label) || "Send my dates"}
+          path={ctx.page.slug} terms={terms} />
       </div>
     </Section>
   );
@@ -43,6 +49,7 @@ function Body({ item, ctx, s }: { item: StayItem; ctx: Ctx; s: SectionV2 }) {
     <div className="sv-stay__body">
       <h3 className="sv-h3">{item.name}</h3>
       <Facts item={item} />
+      {item.from && <p className="sv-meta">From <b>{inr(item.from.amount)}</b> {item.from.label}</p>}
       {item.summary && <p className="sv-muted">{item.summary}</p>}
       {item.amenities.length > 0 && <ul className="sv-ticks">{item.amenities.slice(0, 4).map(a => <li key={a}><Check aria-hidden="true" size={18} />{a}</li>)}</ul>}
       <WaButton wa={bound(ctx, s).wa} label={`Ask about ${item.name}`} quiet />
