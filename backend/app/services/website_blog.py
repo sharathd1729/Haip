@@ -14,11 +14,13 @@ version with origin "ai"; a person submits and approves it.
 from __future__ import annotations
 
 import re
+from datetime import UTC
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.audit import append_audit
+from app.core.tenant_tz import get_tz
 from app.models.marketing import MarketingContent
 from app.models.tenant import Tenant
 
@@ -129,8 +131,17 @@ def _approved(db: Session, tenant_id: str) -> list[tuple[MarketingContent, dict]
     return out
 
 
+def _day(it: MarketingContent, tz) -> str | None:
+    """The guide's date in the business's own timezone (IST for most), not UTC."""
+    at = it.updated_at or it.created_at
+    if at is None:
+        return None
+    return (at if at.tzinfo else at.replace(tzinfo=UTC)).astimezone(tz).date().isoformat()
+
+
 def listing(db: Session, tenant_id: str) -> list[dict]:
     """What the website's /blog page lists: approved guides only, newest first, one per slug."""
+    tz = get_tz(db.get(Tenant, tenant_id))
     seen, out = set(), []
     for it, p in _approved(db, tenant_id):
         if p["slug"] in seen:
@@ -142,23 +153,20 @@ def listing(db: Session, tenant_id: str) -> list[dict]:
                 "title": p["title"],
                 "excerpt": p["excerpt"],
                 "media": (p.get("media") or {}).get("asset_id"),
-                "date": (it.updated_at or it.created_at).date().isoformat()
-                if (it.updated_at or it.created_at)
-                else None,
+                "date": _day(it, tz),
             }
         )
     return out
 
 
 def article(db: Session, tenant_id: str, slug: str) -> dict | None:
+    tz = get_tz(db.get(Tenant, tenant_id))
     for it, p in _approved(db, tenant_id):
         if p["slug"] == slug:
             return {
                 **{k: p[k] for k in ("slug", "title", "excerpt", "body", "seo_description")},
                 "media": (p.get("media") or {}).get("asset_id"),
-                "date": (it.updated_at or it.created_at).date().isoformat()
-                if (it.updated_at or it.created_at)
-                else None,
+                "date": _day(it, tz),
             }
     return None
 

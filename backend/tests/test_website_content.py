@@ -101,6 +101,22 @@ def test_guides_are_per_workspace_and_never_posted_to_social(client, db, wsite):
     assert r.status_code == 409 and r.json()["detail"]["code"] == "website_only", r.text
 
 
+def test_guide_date_is_the_business_day_not_utc(client, db, wsite):  # noqa: F811
+    from datetime import UTC, datetime
+
+    _v2_live(client, db, wsite)
+    g = _written(client, db, wsite)
+    seen = {"version_id": g["version_id"]}
+    client.post(f"{BASE}/blog/{g['id']}/submit", json=seen, headers=wsite["mkt_h"])
+    with patch("app.workers.tasks.website.revalidate.delay"):
+        client.post(f"{BASE}/blog/{g['id']}/approve", json=seen, headers=wsite["manager_h"])
+    item = db.get(MarketingContent, g["id"])
+    item.updated_at = datetime(2026, 11, 2, 22, 30, tzinfo=UTC)  # 04:00 IST on 3 Nov
+    db.commit()
+    assert website_blog.listing(db, wsite["tenant"].id)[0]["date"] == "2026-11-03"
+    assert website_blog.article(db, wsite["tenant"].id, g["payload"]["slug"])["date"] == "2026-11-03"
+
+
 def test_guide_text_follows_the_price_policy(db, wsite):  # noqa: F811
     item = content_svc.create_item(db, wsite["tenant"].id, kind="article", title="Prices", actor_id=wsite["owner"].id)
     with pytest.raises(MarketingError):  # handoff (default): no rupee figures in anything a guest reads
