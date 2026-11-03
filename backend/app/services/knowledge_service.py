@@ -461,7 +461,9 @@ def search_detailed(
         if python_vectors:
             scored = _score_in_python(db, qvec, params)
         else:
-            scored = _score_in_postgres(db, qvec, params, max(top_k * 3, top_k))
+            # Up to MAX_VECTORS_PER_ENTRY rows per entry: with only top_k * 3 rows, one entry with many close phrasings filled
+            # every row and pushed the next relevant entries out. Exact scan (no ANN index), so more rows cost little.
+            scored = _score_in_postgres(db, qvec, params, top_k * MAX_VECTORS_PER_ENTRY)
     except Exception as exc:
         log.warning("kb_search_failed", tenant_id=tenant_id, error=str(exc))
         return SearchOutcome(status="search_failed", detail=str(exc)[:300])

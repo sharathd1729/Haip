@@ -127,3 +127,12 @@ def test_a_wrong_sized_vector_is_recorded_as_a_failed_index_not_left_pending(db)
         assert ks.embed_entry(db, e) is False
     db.refresh(e)
     assert e.embedding_status == "failed" and e.embedding_attempts == 1 and e.embedding_error
+
+
+def test_an_entry_with_many_close_phrasings_does_not_crowd_out_the_others(db):
+    """Only top_k * 3 vector rows were read: one entry's 10 near-identical vectors filled them all, so it came back alone."""
+    t = _tenant(db)
+    _indexed(db, t.id, "Towels?", "Towels towels.", alt_phrasings=[f"Towels {'?' * i}" for i in range(1, 10)])
+    _indexed(db, t.id, "Towels and soap?", "Towels and soap are given.")
+    _indexed(db, t.id, "Towels and shampoo?", "Towels and shampoo are given.")
+    assert len(ks.search(db, t.id, "towels", top_k=3)) == 3
