@@ -104,7 +104,7 @@ export default function CompliancePage() {
   const LIMIT = 50;
 
   // ── Audit log ───────────────────────────────────────────────────────────────
-  const { data: auditEvents = [], isLoading: auditLoading } = useQuery<AuditEvent[]>({
+  const { data: auditEvents = [], isPending: auditLoading, isError: auditError } = useQuery<AuditEvent[]>({
     queryKey: ["audit-events", search, resourceFilter, offset],
     queryFn: () => api.get("/audit/events", {
       params: {
@@ -119,7 +119,7 @@ export default function CompliancePage() {
   });
 
   // ── Consents ────────────────────────────────────────────────────────────────
-  const { data: consents = [], isLoading: consentsLoading, isError: consentsError, refetch: refetchConsents } =
+  const { data: consents = [], isPending: consentsLoading, isError: consentsError, refetch: refetchConsents } =
     useQuery<ConsentRecord[]>({
       queryKey: ["consents"],
       queryFn: () => api.get("/guests/consents").then(r => r.data),
@@ -127,7 +127,7 @@ export default function CompliancePage() {
     });
 
   // ── DPDP deletion queue ─────────────────────────────────────────────────────
-  const { data: pendingDeletions = [], isLoading: dpdpLoading } = useQuery<PendingDeletion[]>({
+  const { data: pendingDeletions = [], isPending: dpdpLoading, isError: dpdpError } = useQuery<PendingDeletion[]>({
     queryKey: ["dpdp-pending"],
     queryFn: () => api.get("/guests/dpdp/pending-deletions").then(r => r.data),
     enabled: tab === "dpdp",
@@ -144,7 +144,7 @@ export default function CompliancePage() {
   });
 
   // ── Incidents ────────────────────────────────────────────────────────────────
-  const { data: incidents = [], isLoading: incidentsLoading } = useQuery<Incident[]>({
+  const { data: incidents = [], isPending: incidentsLoading, isError: incidentsError } = useQuery<Incident[]>({
     queryKey: ["incidents"],
     queryFn: () => api.get("/incidents").then(r => r.data),
     enabled: tab === "incidents",
@@ -238,7 +238,7 @@ export default function CompliancePage() {
               <Bot size={12} />
               MCP activity
             </button>
-            <span className="text-xs text-[var(--haip-fg-subtle)] ml-auto">{auditEvents.length} events</span>
+            {!auditLoading && <span className="text-xs text-[var(--haip-fg-subtle)] ml-auto">{auditEvents.length} events</span>}
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -251,6 +251,8 @@ export default function CompliancePage() {
                   </div>
                 ))}
               </div>
+            ) : auditError ? (
+              <div className="py-16 text-center text-sm text-[var(--haip-status-danger-fg)]">Couldn&apos;t load this list. Refresh to try again.</div>
             ) : auditEvents.length === 0 ? (
               <div className="py-16 text-center text-sm text-[var(--haip-fg-subtle)]">
                 {search || resourceFilter ? "No matching events" : "No audit events yet"}
@@ -378,6 +380,7 @@ export default function CompliancePage() {
           </div>
 
           {dpdpLoading ? <Skeleton className="h-48 rounded-2xl" />
+          : dpdpError ? <div className="py-16 text-center text-sm text-[var(--haip-status-danger-fg)]">Couldn&apos;t load this list. Refresh to try again.</div>
           : pendingDeletions.length === 0 ? (
             <div className="text-center py-16 text-sm text-[var(--haip-fg-subtle)]">
               <Trash2 size={32} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
@@ -458,6 +461,7 @@ export default function CompliancePage() {
           )}
 
           {incidentsLoading ? <Skeleton className="h-64 rounded-2xl" />
+          : incidentsError ? <div className="py-16 text-center text-sm text-[var(--haip-status-danger-fg)]">Couldn&apos;t load this list. Refresh to try again.</div>
           : incidents.length === 0 ? (
             <div className="text-center py-12 text-sm text-[var(--haip-fg-subtle)]">
               <Shield size={28} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />

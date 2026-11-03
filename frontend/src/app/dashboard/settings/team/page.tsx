@@ -397,13 +397,13 @@ export default function TeamPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const { data: members = [], isLoading: membersLoading } = useQuery<TeamMember[]>({
+  const { data: members = [], isPending: membersLoading } = useQuery<TeamMember[]>({
     queryKey: ["team-members"],
     queryFn: () => api.get("/users").then(r => r.data),
     staleTime: 30_000,
   });
 
-  const { data: invitations = [], isLoading: invitationsLoading } = useQuery<Invitation[]>({
+  const { data: invitations = [], isPending: invitationsLoading } = useQuery<Invitation[]>({
     queryKey: ["team-invitations"],
     queryFn: () => api.get("/users/invitations").then(r => r.data).catch(() => []),
     staleTime: 30_000,
@@ -507,7 +507,7 @@ export default function TeamPage() {
           <div>
             <h1 className="haip-page-title">Team</h1>
             <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
-              {activeMembers.length} active member{activeMembers.length !== 1 ? "s" : ""}
+              {membersLoading ? "Loading…" : `${activeMembers.length} active member${activeMembers.length !== 1 ? "s" : ""}`}
               {pendingInvitations.length > 0 && ` · ${pendingInvitations.length} pending invite${pendingInvitations.length !== 1 ? "s" : ""}`}
             </p>
           </div>
