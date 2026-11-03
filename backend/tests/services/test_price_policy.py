@@ -46,6 +46,8 @@ def test_detect_price_catches(text):
     "There are 3 caravans at that location.",
     "Pets are welcome, no extra charge.",
     "How many of you are travelling?",
+    "Free km per day: 300 km.",
+    "Max 8 hours of driving per day: 300 km included.",
 ])
 def test_detect_price_allows_legitimate_replies(text):
     assert pp.detect_price(text) is None, f"FALSE POSITIVE: {text!r}"
@@ -128,3 +130,18 @@ def test_special_requests_do_not_block_qualification():
     full = _I(ci="2026-09-01", co="2026-09-03", adults=2, prop="p1")
     assert pp.is_qualified(_G("Arjun"), full) is True
     assert "any special requests or occasion" in pp.missing_lead_details(_G("Arjun"), full)
+
+
+@pytest.mark.parametrize("text", [
+    "Free km per day: 300 km",          # a distance, not a rate (it was stripped out of KB passages)
+    "per day 250 kms included",
+    "2 per person towel set",           # a count
+    "1 per day housekeeping visit",
+])
+def test_strip_prices_keeps_distances_and_counts(text):
+    assert pp.strip_prices(text) == text
+
+
+@pytest.mark.parametrize("text", ["12000 per night", "per night 12000", "extra 1,500 per day", "12k per night", "Rs 8,500"])
+def test_strip_prices_still_removes_rates(text):
+    assert "[rate:" in pp.strip_prices(text)
