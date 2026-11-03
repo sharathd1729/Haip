@@ -8,6 +8,8 @@ POST   /sops/{id}/regenerate                     new version from the latest dat
 POST   /sops/{id}/steps/{key}/done|skip|undo     (sops.work, or sops.read on a checklist assigned to you)
 POST   /sops/{id}/steps/{key}/evidence           multipart screenshot · POST .../evidence-link {url} · GET .../evidence
 POST   /sops/{id}/check                          queue HAIP's automatic checks
+GET    /sops/signals                             Get found signals (AI Executive detectors)
+POST   /sops/templates                           the staff reminder WhatsApp template as a DRAFT (sops.manage)
 No LLM or platform call runs in a request handler: generation and checks are Celery tasks (queued after commit).
 """
 
@@ -55,6 +57,24 @@ def _queue_generate(tenant_id: str, instance_id: str, reason: str, actor_id: str
 @router.get("")
 def list_sops(user: User = Depends(_read), db: Session = Depends(get_db)):
     return svc.list_view(db, db.get(Tenant, user.tenant_id))
+
+
+@router.get("/signals")
+def get_signals(user: User = Depends(_read), db: Session = Depends(get_db)):
+    """Get found status for the AI Executive's detectors and Home (services/sops/signals.py)."""
+    from datetime import UTC, datetime
+
+    from app.services.sops import signals
+
+    return signals.signals(db, db.get(Tenant, user.tenant_id), datetime.now(UTC))
+
+
+@router.post("/templates", status_code=201)
+def draft_templates(user: User = Depends(_manage), db: Session = Depends(get_db)):
+    """The staff reminder template as a WhatsApp DRAFT; nothing is sent to Meta (the owner submits it)."""
+    from app.services import wa_lead_pack
+
+    return wa_lead_pack.create_sop_drafts(db, user.tenant_id, user.id)
 
 
 @router.post("", status_code=201)

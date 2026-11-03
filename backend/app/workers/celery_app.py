@@ -271,6 +271,10 @@ celery_app.conf.update(
         "marketing_studio.ota_copy":                 {"queue": "default"},
         "sops.generate_version":                     {"queue": "ai_scoring"},
         "sops.check_instance":                       {"queue": "default"},
+        "sops.tick_all_tenants":                     {"queue": "default"},
+        "sops.tick_tenant":                          {"queue": "whatsapp"},
+        "sops.refresh_all_tenants":                  {"queue": "default"},
+        "sops.refresh_tenant":                       {"queue": "default"},
         "marketing_studio.draft_profile":            {"queue": "default"},
         "marketing_studio.canva_design":             {"queue": "default"},
         "marketing_studio.video_submit":             {"queue": "default"},
@@ -622,6 +626,16 @@ celery_app.conf.beat_schedule = {
     "marketing-ads-evaluate": {
         "task": "marketing_ads.evaluate_all",
         "schedule": crontab(minute=20),
+    },
+    # Get found (dynamic SOPs, phase S3): next cycles, tasks and reminders hourly at :07; new versions where the data,
+    # platform rules or template changed, nightly 03:55 IST.
+    "sops-tick-hourly": {
+        "task": "sops.tick_all_tenants",
+        "schedule": crontab(minute=7),
+    },
+    "sops-refresh-nightly": {
+        "task": "sops.refresh_all_tenants",
+        "schedule": crontab(minute=55, hour=3),
     },
     "marketing-capi-sweep": {
         "task": "marketing_capi.sweep_all",

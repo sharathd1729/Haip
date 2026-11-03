@@ -276,12 +276,10 @@ def api(db, w, monkeypatch):
 def test_api_start_view_tick(client, db, w, api):
     listing = client.get("/api/v1/sops", headers=_h(api.mgr)).json()
     assert {a["template_key"] for a in listing["available"]} == {
-        "gbp_setup",
-        "instagram_profile",
-        "whatsapp_profile",
-        "facebook_page",
-        "tripadvisor_listing",
+        t.key for t in catalogue.TEMPLATES if catalogue.applies(t, "caravan") and t.per_property != "required"
     }
+    assert {"gbp_setup", "gbp_upkeep", "reviews_reply"} <= {a["template_key"] for a in listing["available"]}
+    assert "airbnb_listing" not in {a["template_key"] for a in listing["available"]}  # no OTA listing for a caravan
     r = client.post("/api/v1/sops", json={"template_key": "gbp_setup"}, headers=_h(api.mgr))
     assert r.status_code == 201
     sid = r.json()["id"]

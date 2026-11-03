@@ -5,7 +5,7 @@ never in a request handler, because some call Meta.
 """
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -87,11 +87,90 @@ def ical_import(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
     return _r("ok", f"HAIP reads the {f.name} calendar for this property.")
 
 
+def _since(days: int) -> datetime:
+    return datetime.now(UTC) - timedelta(days=days)
+
+
+def gbp_posted_7d(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+    """A Google post published FROM HAIP in the last 7 days (marketing_publish_attempts). Posts made in Google directly
+    are invisible to HAIP: those need a screenshot."""
+    from app.models.marketing import MarketingPublishAttempt
+
+    n = (
+        db.query(MarketingPublishAttempt)
+        .filter(
+            MarketingPublishAttempt.tenant_id == tenant.id,
+            MarketingPublishAttempt.channel == "google",
+            MarketingPublishAttempt.status == "published",
+            MarketingPublishAttempt.published_at >= _since(7),
+        )
+        .count()
+    )
+    if n:
+        return _r("ok", f"{n} Google post(s) from HAIP in the last 7 days.")
+    return _r("fail", "No Google post from HAIP in the last 7 days. Posted in Google directly? Add a screenshot.")
+
+
+def google_reviews_answered(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+    """Every Google review older than 2 days has a posted reply (marketing_guest_reviews, synced hourly)."""
+    from app.models.marketing import MarketingGuestReview
+
+    if _active(db, tenant.id, "google_business") is None:
+        return _r("unknown", "Connect Google to HAIP so it can see your reviews, or add a screenshot.")
+    cutoff = _since(2).isoformat()
+    n = (
+        db.query(MarketingGuestReview)
+        .filter(
+            MarketingGuestReview.tenant_id == tenant.id,
+            MarketingGuestReview.source == "google",
+            MarketingGuestReview.reply_status != "posted",
+            MarketingGuestReview.reviewed_at.isnot(None),
+            MarketingGuestReview.reviewed_at <= cutoff,
+        )
+        .count()
+    )
+    if n:
+        return _r("fail", f"{n} Google review(s) older than 2 days have no reply.")
+    return _r("ok", "Every Google review older than 2 days has a reply.")
+
+
+def instagram_posted_7d(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+    """A post on the account in the last 7 days, from the insights poller's copy of the latest posts (any app)."""
+    from app.models.marketing import InstagramPostMetricDaily
+
+    if _instagram_integration(db, tenant.id) is None:
+        return _r("unknown", "Connect Instagram to HAIP so it can see your posts, or add a screenshot.")
+    n = (
+        db.query(InstagramPostMetricDaily.media_id)
+        .filter(
+            InstagramPostMetricDaily.tenant_id == tenant.id, InstagramPostMetricDaily.posted_at >= _since(7).isoformat()
+        )
+        .distinct()
+        .count()
+    )
+    if n:
+        return _r("ok", f"{n} Instagram post(s) in the last 7 days.")
+    return _r("fail", "No Instagram post in the last 7 days.")
+
+
+def website_live(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+    from app.services import website_service
+
+    site = website_service.get_site(db, tenant.id)
+    if site is not None and site.live_version_id and site.status == "live":
+        return _r("ok", f"Your website is live at {website_service.primary_host(db, site)}.")
+    return _r("fail", "Your website is not live yet.")
+
+
 CHECKS: dict[str, Callable[[Session, Tenant, SopInstance], dict]] = {
     "connected:google_business": _connected("google_business", "Google Business Profile"),
     "connected:instagram": _connected("instagram", "Instagram"),
     "connected:facebook_page": _connected("facebook_page", "Facebook Page"),
     "ical_import": ical_import,
+    "gbp_posted_7d": gbp_posted_7d,
+    "google_reviews_answered": google_reviews_answered,
+    "instagram_posted_7d": instagram_posted_7d,
+    "website_live": website_live,
     "instagram_bio": instagram_bio,
     "whatsapp_name": whatsapp_name,
 }

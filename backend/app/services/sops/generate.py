@@ -287,6 +287,11 @@ def _fill(slot: str, t: Template, inp: dict, text: dict, step: dict) -> None:
     values[:] = [v for v in values if v]
 
 
+def inputs_sha(inp: dict) -> str:
+    """What a version was made from, minus the daily-changing season/free dates (upkeep.refresh compares this)."""
+    return _sha({k: v for k, v in inp.items() if k not in inputs_ota.VOLATILE})
+
+
 def build_steps(t: Template, inp: dict, text: dict, today: date) -> list[dict]:
     out = []
     for s in t.steps:
@@ -333,7 +338,7 @@ def make_version(
         version_no=(last.version_no + 1) if last else 1,
         template_version=t.version,
         rules_digest=rules.digest(),
-        inputs_sha=_sha({k: v for k, v in inp.items() if k not in inputs_ota.VOLATILE}),
+        inputs_sha=inputs_sha(inp),
         steps=steps,
         reason=reason if last else "first",
         model=model,

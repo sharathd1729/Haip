@@ -12,7 +12,7 @@ import { StepSheet } from "@/components/sops/StepSheet";
 import { useToast } from "@/components/ui/toast";
 import { errorMessage, fmtDate } from "@/lib/bookings";
 import { CheckCircle2 } from "@/lib/icons";
-import { SOPS_MANAGE_ROLES, sopsApi, type Step } from "@/lib/sops";
+import { REPEAT_WORDS, SOPS_MANAGE_ROLES, sopsApi, type Step } from "@/lib/sops";
 
 const REASON = { first: "first version", manual: "you asked for new steps", data_changed: "your details changed",
   catalogue_updated: "HAIP updated the platform rules", template_updated: "HAIP improved the steps" } as Record<string, string>;
@@ -55,6 +55,9 @@ export default function SopPage() {
             </div>} />
             <Card><CardBody className="grid gap-1 text-[15px]">
               <b className="text-lg">{d.done} of {d.total} done</b>
+              {d.recurrence !== "one_off" && <span className="text-sm text-[var(--haip-fg-muted)]">
+                {REPEAT_WORDS[d.recurrence]}{d.cycle_no > 1 ? ` · round ${d.cycle_no}` : ""}
+                {d.next_cycle_at ? ` · next round opens ${fmtDate(d.next_cycle_at)}` : ""}</span>}
               {d.preparing ? <span className="text-[var(--haip-fg-muted)]">Getting your steps ready from your details…</span>
                 : d.version && <span className="text-sm text-[var(--haip-fg-muted)]">
                   Version {d.version.no}{d.version.created_at ? `, ${fmtDate(d.version.created_at)}` : ""} ({REASON[d.version.reason] ?? d.version.reason}).

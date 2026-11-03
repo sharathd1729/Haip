@@ -29,7 +29,7 @@ export interface Step {
 export interface SopSummary {
   id: string; template_key: string; platform: Platform; title: string; recurrence: string;
   status: "active" | "paused" | "done" | "archived"; property_id: string | null; property_name: string | null; assignee_id: string | null;
-  preparing: boolean; next_due_at: string | null; done: number; total: number;
+  preparing: boolean; next_due_at: string | null; done: number; total: number; cycle_no: number; next_cycle_at: string | null;
 }
 export interface SopDetail extends SopSummary {
   summary: string; steps: Step[]; can_work: boolean;
@@ -57,6 +57,12 @@ export const sopsApi = {
   evidence: (id: string, key: string) => api.get<{ url: string }>(`${S}/${id}/steps/${key}/evidence`).then(r => r.data.url),
   check: (id: string) => api.post(`${S}/${id}/check`, {}).then(r => r.data),
   regenerate: (id: string) => api.post(`${S}/${id}/regenerate`, {}).then(r => r.data),
+  /** The staff reminder WhatsApp template as a DRAFT (nothing goes to Meta; the owner submits it in Templates). */
+  draftTemplates: () => api.post<{ created: string[] }>(`${S}/templates`, {}).then(r => r.data),
+};
+
+export const REPEAT_WORDS: Record<string, string> = {
+  one_off: "One-off", weekly: "Every week", monthly: "Every month", seasonal: "Before each busy season",
 };
 
 export const ruleWords = (r: { status: RuleRef["status"]; stale: boolean }) =>

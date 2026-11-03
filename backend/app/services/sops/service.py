@@ -9,7 +9,7 @@ never fetched.
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -101,6 +101,8 @@ def start(db: Session, tenant: Tenant, body: StartIn, actor_id: str) -> SopInsta
             db.flush()
     except IntegrityError:
         raise SopError(409, "already_started", "This checklist is already running. Open it from the list.") from None
+    from app.services.sops import upkeep
+
     now = _now()
     for s in t.steps:
         db.add(
@@ -109,9 +111,10 @@ def start(db: Session, tenant: Tenant, body: StartIn, actor_id: str) -> SopInsta
                 instance_id=inst.id,
                 cycle_no=1,
                 step_key=s.key,
-                due_at=now + timedelta(days=s.due_days),
+                due_at=upkeep.due_at(t, s.due_days, now),
             )
         )
+    inst.next_cycle_at = upkeep.next_cycle_at(db, tenant, t, now)
     db.flush()
     _audit(db, inst, "sop.started", actor_id, property_id=body.property_id, assignee_id=assignee)
     return inst
@@ -227,6 +230,8 @@ def summary(db: Session, inst: SopInstance, steps: list[dict] | None = None) -> 
         "property_name": (db.get(Property, inst.property_id).name if inst.property_id else None),
         "assignee_id": inst.assignee_id,
         "preparing": inst.generating == "queued" or inst.current_version_id is None,
+        "cycle_no": inst.cycle_no,
+        "next_cycle_at": inst.next_cycle_at.isoformat() if inst.next_cycle_at else None,
         "next_due_at": min(due) if due else None,
         **_counts(steps),
     }
@@ -281,6 +286,7 @@ def _step(db: Session, inst: SopInstance, key: str) -> tuple[dict, SopStepProgre
     if p is None:
         p = SopStepProgress(tenant_id=inst.tenant_id, instance_id=inst.id, cycle_no=inst.cycle_no, step_key=key)
         db.add(p)
+        db.flush()  # sessions run with autoflush=False: later reads must see this row
     return s, p
 
 
@@ -292,7 +298,27 @@ def _settle(inst: SopInstance, db: Session) -> None:
         inst.status = "active"
 
 
-def mark(db: Session, inst: SopInstance, key: str, action: str, actor_id: str) -> dict:
+def _close_task(db: Session, p: SopStepProgress) -> None:
+    from app.services.sops.upkeep import _close_task as close
+
+    close(db, p.task_id, _now())
+
+
+def on_task_toggled(db: Session, task, actor_id: str | None) -> None:
+    """A Get found task closed from Tasks / My day ticks its step when the step is a plain tick; a step that needs a
+    screenshot or HAIP's check stays open (the checklist says so). Called by task_service.toggle_task before commit."""
+    if task.kind != "sop" or not task.is_done:
+        return
+    p = db.query(SopStepProgress).filter_by(tenant_id=task.tenant_id, task_id=task.id).first()
+    inst = db.query(SopInstance).filter_by(id=p.instance_id, tenant_id=task.tenant_id).first() if p else None
+    if inst is None or p.cycle_no != inst.cycle_no or p.status != "todo" or inst.status not in ("active", "done"):
+        return
+    s = next((x for x in _steps(db, inst) if x["key"] == p.step_key), None)
+    if s is not None and s["verify"] == "manual":
+        mark(db, inst, p.step_key, "done", actor_id)
+
+
+def mark(db: Session, inst: SopInstance, key: str, action: str, actor_id: str | None) -> dict:
     if inst.status in ("archived", "paused"):
         raise SopError(409, inst.status, f"This checklist is {inst.status}.")
     s, p = _step(db, inst, key)
@@ -310,6 +336,8 @@ def mark(db: Session, inst: SopInstance, key: str, action: str, actor_id: str) -
         p.status, p.step_sha, p.done_by, p.done_at = "skipped", s["step_sha"], actor_id, _now()
     else:
         p.status, p.done_by, p.done_at = "todo", None, None
+    if action != "undo":
+        _close_task(db, p)
     db.flush()
     _settle(inst, db)
     _audit(
@@ -406,6 +434,7 @@ def run_checks(db: Session, tenant: Tenant, inst: SopInstance, actor_id: str | N
         p.check_result = r
         if r["result"] == "ok":
             p.status, p.step_sha, p.done_by, p.done_at = "done", s["step_sha"], None, _now()
+            _close_task(db, p)
         elif r["result"] == "fail" and p.status == "done" and p.done_by is None:
             p.status, p.done_at = "todo", None
         results.append({"step": s["key"], **r})

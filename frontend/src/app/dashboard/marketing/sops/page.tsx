@@ -4,12 +4,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Card, CompactRow, EmptyState, PageHeader, RowList, RowSection, RowTag } from "@/components/ui/kit";
+import Link from "next/link";
+import { Card, CardBody, CompactRow, EmptyState, PageHeader, RowList, RowSection, RowTag } from "@/components/ui/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { btn, btnPrimary } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { errorMessage, fmtDate } from "@/lib/bookings";
-import { PLATFORM_LABEL, PLATFORM_ORDER, SOPS_MANAGE_ROLES, sopsApi, type Available, type SopSummary } from "@/lib/sops";
+import { PLATFORM_LABEL, PLATFORM_ORDER, REPEAT_WORDS, SOPS_MANAGE_ROLES, sopsApi, type Available, type SopSummary } from "@/lib/sops";
 
 function statusWords(s: SopSummary) {
   if (s.preparing) return "Getting your steps ready";
@@ -29,6 +30,12 @@ export default function GetFoundPage() {
     mutationFn: (a: Available) => sopsApi.start(a.template_key, a.property_id),
     onSuccess: r => { qc.invalidateQueries({ queryKey: ["sops"] }); router.push(`/dashboard/marketing/sops/${r.id}`); },
     onError: e => toast({ variant: "error", title: errorMessage(e, "Could not start the checklist") }),
+  });
+  const tpl = useMutation({
+    mutationFn: sopsApi.draftTemplates,
+    onSuccess: r => toast({ variant: "success", title: r.created.length ? "Reminder template added as a draft"
+      : "The reminder template is already there", description: "Submit it in Messaging › Templates. Until Meta approves it, reminders go as app notifications." }),
+    onError: e => toast({ variant: "error", title: errorMessage(e, "Could not add the template") }),
   });
   const d = q.data;
   return (
@@ -50,7 +57,8 @@ export default function GetFoundPage() {
                       <CompactRow key={s.id} href={`/dashboard/marketing/sops/${s.id}`} title={s.title}
                         subtitle={s.property_name ? `${s.property_name} · ${statusWords(s)}` : statusWords(s)}
                         meta={`${s.done} of ${s.total}`} metaTone={s.status === "done" ? "success" : "neutral"}
-                        extra={s.status === "paused" ? <RowTag>Paused</RowTag> : undefined} />
+                        extra={<>{s.recurrence !== "one_off" && <RowTag tone="brand">{REPEAT_WORDS[s.recurrence]}</RowTag>}
+                          {s.status === "paused" && <RowTag>Paused</RowTag>}</>} />
                     ))}
                   </RowList>
                 </RowSection>
@@ -68,6 +76,17 @@ export default function GetFoundPage() {
                 </RowList>
                 {!canManage && <p className="px-0.5 text-sm text-[var(--haip-fg-muted)]">An owner or manager can start these.</p>}
               </RowSection>
+            )}
+            {canManage && (
+              <Card><CardBody className="grid gap-2 text-[15px]">
+                <b>Reminders</b>
+                <p className="text-[var(--haip-fg-muted)]">Overdue steps remind the person they are assigned to, then the managers 3 days later.
+                  Reminders come as app notifications; staff who turned on WhatsApp alerts also get a WhatsApp once the template is approved.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button className={btn} disabled={tpl.isPending} onClick={() => tpl.mutate()}>Add WhatsApp reminder template</button>
+                  <Link className={btn} href="/dashboard/messaging/templates">Open templates</Link>
+                </div>
+              </CardBody></Card>
             )}
           </>}
       </div>

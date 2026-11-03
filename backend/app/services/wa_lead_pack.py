@@ -160,6 +160,17 @@ ANALYST_PACK: list[dict] = [{
                                          "example": [APP_URL_TOKEN + "/r/analyst/sample"]}]},
     ],
 }]
+# Get found (dynamic SOPs, phase S3): overdue-step reminder to an opted-in staff member (services/sops/upkeep.py).
+SOP_DUE = "haip_staff_sop_due_v1"
+SOP_PACK: list[dict] = [{
+    "name": SOP_DUE, "label": "Get found reminder", "when": "A Get found checklist step is overdue (assignee, then managers).",
+    "components": [
+        _body("Hi {{1}}, {{2}} Get found step(s) are overdue, starting with: {{3}}. Open HAIP to see them.",
+              ["Asha", "2", "Reply to new reviews (Google profile)"]),
+        {"type": "BUTTONS", "buttons": [{"type": "URL", "text": "Open checklists",
+                                         "url": APP_URL_TOKEN + "/dashboard/marketing/sops"}]},
+    ],
+}]
 BY_NAME = {t["name"]: t for t in PACK}
 
 
@@ -239,19 +250,28 @@ def _with_app_url(component: dict) -> dict:
 def create_analyst_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
     """Add the analyst's delivery template as a DRAFT (same rules as the lead pack: nothing is submitted to Meta here; the
     DOCUMENT header gets its sample from the template editor's Submit step). Safe to repeat."""
+    return _create_pack_drafts(db, tenant_id, actor_id, ANALYST_PACK, "analyst.template_created")
+
+
+def create_sop_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
+    """Add the Get found reminder template as a DRAFT; the owner submits it in the template editor. Safe to repeat."""
+    return _create_pack_drafts(db, tenant_id, actor_id, SOP_PACK, "sops.template_created")
+
+
+def _create_pack_drafts(db: Session, tenant_id: str, actor_id: Optional[str], pack: list[dict], action: str) -> dict:
     WATemplate, TemplateStatus, TemplateCategory = _model()
-    names = [t["name"] for t in ANALYST_PACK]
+    names = [t["name"] for t in pack]
     existing = {r.name for r in db.query(WATemplate.name).filter(WATemplate.tenant_id == tenant_id, WATemplate.language == LANGUAGE,
                                                                  WATemplate.name.in_(names)).all()}
     created = []
-    for t in ANALYST_PACK:
+    for t in pack:
         if t["name"] in existing:
             continue
         db.add(WATemplate(tenant_id=tenant_id, name=t["name"], language=LANGUAGE, category=TemplateCategory.UTILITY,
                           status=TemplateStatus.DRAFT, components=[_with_app_url(c) for c in t["components"]]))
         created.append(t["name"])
     if created:
-        append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action="analyst.template_created",
+        append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action=action,
                      target_type="wa_template", target_id=None, payload={"created": created})
     db.commit()
     rows = db.query(WATemplate).filter(WATemplate.tenant_id == tenant_id, WATemplate.name.in_(names)).all()
