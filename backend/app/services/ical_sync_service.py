@@ -88,7 +88,8 @@ def _value_to_date(prop: str, params: dict, value: str, tz: ZoneInfo):
 
 
 def parse_ics(text: str, tz: ZoneInfo) -> list[dict]:
-    """[{uid, start, end, summary}] with start/end as YYYY-MM-DD, end exclusive.
+    """[{uid, start, end, summary, description, created}] with start/end as YYYY-MM-DD, end exclusive; created = the local day
+    the event was made in the source calendar (CREATED), or None.
     Cancelled events and events with no usable dates are dropped. Timed events
     cover every local day they touch."""
     events, current = [], None
@@ -120,9 +121,14 @@ def parse_ics(text: str, tz: ZoneInfo) -> list[dict]:
             if e_date <= s_date:
                 e_date = s_date + timedelta(days=1)
             uid = (ev.get("UID") or "").strip() or f"nouid-{s_date.isoformat()}"
+            try:
+                created = _value_to_date("CREATED", ev["_p"].get("CREATED", {}), ev["CREATED"], tz)[0] if "CREATED" in ev else None
+            except ValueError:
+                created = None
             events.append({"uid": uid, "start": s_date.isoformat(), "end": e_date.isoformat(),
                            "summary": ical_event_details.unescape(ev.get("SUMMARY", "")),
-                           "description": ical_event_details.unescape(ev.get("DESCRIPTION", ""))})
+                           "description": ical_event_details.unescape(ev.get("DESCRIPTION", "")),
+                           "created": created})
         elif current is not None and ":" in line:
             head, _, value = line.partition(":")
             parts = head.split(";")
