@@ -125,7 +125,7 @@ def executive_dashboard(
     # analytics_sections.py's channels endpoint already uses. Only "valid"
     # category stages that aren't a closed-won/closed-lost terminal count,
     # per CLAUDE.md: "only valid stages count as real leads."
-    def active_inq(start):
+    def active_inq(start, end):
         q = db.query(func.count(Inquiry.id)).join(
             PipelineStage, PipelineStage.id == Inquiry.stage_id,
         ).filter(
@@ -134,20 +134,23 @@ def executive_dashboard(
             PipelineStage.is_closed_won.is_(False),
             PipelineStage.is_closed_lost.is_(False),
             Inquiry.created_at >= start.isoformat(),
+            Inquiry.created_at < end.isoformat(),
         )
         if prop_ids:
             q = q.filter(Inquiry.property_id.in_(prop_ids))
         return q.scalar() or 0
 
-    active_inquiries      = active_inq(period_start)
-    active_inquiries_prev = active_inq(prev_period_start)
+    # previous window is [prev_period_start, period_start): it used to run to now, overlapping the current one
+    active_inquiries      = active_inq(period_start, now)
+    active_inquiries_prev = active_inq(prev_period_start, period_start)
 
     # ── QA avg score ──────────────────────────────────────────────────────────
-    def qa_avg(start):
+    def qa_avg(start, end):
         q = db.query(func.avg(Call.ai_score)).filter(
             Call.tenant_id == tid,
             Call.ai_score.isnot(None),
             Call.started_at >= start.isoformat(),
+            Call.started_at < end.isoformat(),
         )
         # Calls from a disconnected IVR provider (e.g. Mcube, replaced by
         # Vobiz for Ratha) must stay out of every calls-derived executive
@@ -158,15 +161,16 @@ def executive_dashboard(
             q = q.filter(Call.property_id.in_(prop_ids))
         return round(float(q.scalar() or 0), 1)
 
-    qa_score      = qa_avg(period_start)
-    qa_score_prev = qa_avg(prev_period_start)
+    qa_score      = qa_avg(period_start, now)
+    qa_score_prev = qa_avg(prev_period_start, period_start)
 
     # ── SLA compliance % ──────────────────────────────────────────────────────
-    def sla(start):
+    def sla(start, end):
         total = db.query(func.count(Inquiry.id)).filter(
             Inquiry.tenant_id == tid,
             Inquiry.first_response_at.isnot(None),
             Inquiry.created_at >= start.isoformat(),
+            Inquiry.created_at < end.isoformat(),
         ).scalar() or 0
         if total == 0:
             return 100.0
@@ -174,18 +178,20 @@ def executive_dashboard(
             Inquiry.tenant_id == tid,
             Inquiry.sla_breached == True,
             Inquiry.created_at >= start.isoformat(),
+            Inquiry.created_at < end.isoformat(),
         ).scalar() or 0
         return round((1 - breached / total) * 100, 1)
 
-    sla_compliance = sla(period_start)
-    sla_prev       = sla(prev_period_start)
+    sla_compliance = sla(period_start, now)
+    sla_prev       = sla(prev_period_start, period_start)
 
     # ── AI draft rate % ───────────────────────────────────────────────────────
-    def ai_rate(start):
+    def ai_rate(start, end):
         outbound = db.query(func.count(Message.id)).filter(
             Message.tenant_id == tid,
             Message.direction == MessageDirection.OUTBOUND,
             Message.created_at >= start.isoformat(),
+            Message.created_at < end.isoformat(),
         ).scalar() or 0
         if outbound == 0:
             return 0.0
@@ -194,11 +200,12 @@ def executive_dashboard(
             Message.direction == MessageDirection.OUTBOUND,
             Message.is_ai_generated == True,
             Message.created_at >= start.isoformat(),
+            Message.created_at < end.isoformat(),
         ).scalar() or 0
         return round(ai_gen / outbound * 100, 1)
 
-    ai_draft_rate = ai_rate(period_start)
-    ai_draft_prev = ai_rate(prev_period_start)
+    ai_draft_rate = ai_rate(period_start, now)
+    ai_draft_prev = ai_rate(prev_period_start, period_start)
 
     # ── Revenue chart (daily, range_days) ─────────────────────────────────────
     rev_rows = db.query(
