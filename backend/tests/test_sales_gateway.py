@@ -226,3 +226,19 @@ def test_a_package_capacity_is_a_known_capacity_for_the_reply_guard(ws, db):
     facts = gw.concierge_business_facts(db, ws.t.id, {})
     assert _check_grounding("The Coorg package sleeps up to 4 guests.", facts)[0] is True
     assert _check_grounding("The Coorg package sleeps up to 7 guests.", facts)[0] is False
+
+
+def test_the_prompt_shows_km_per_day_at_cost_items_best_months_notes_and_day_stops():
+    """concierge-reply-v20: these published fields reached the facts but were never written into the prompt."""
+    bd = {"packages": [{"name": "Kabini Escape", "product": "caravan_trip", "max_guests": 4, "included_km_per_day": 300,
+                        "billed_at_actuals": ["JLR safari", "meals"], "inclusions": [], "exclusions": []}],
+          "destinations": [{"name": "Kabini", "distance_km_from_base": 210, "travel_hours_from_base": 5, "best_months": [10, 11],
+                            "notes": "Forest gate shuts at 6 pm.", "stops": [{"name": "Mysuru", "distance_km_from_previous": 145, "overnight": False},
+                                                                          {"name": "Kabini", "distance_km_from_previous": 65, "overnight": True}]}],
+          "itineraries": [{"name": "Kabini 2N", "nights": 2, "days": [{"day": 1, "title": "Drive", "stops": ["Mysuru", "Kabini"],
+                                                                       "overnight_location": "Kabini", "notes": "Leave by 7 am"}]}]}
+    out = _render([{"tool": "business_data", "result": bd, "flags": []}], "handoff")
+    assert "300 km per day included" in out
+    assert "Paid separately at actual cost, never part of the package price: JLR safari, meals" in out
+    assert "Mysuru (145 km) → Kabini (65 km) (overnight)" in out and "best months Oct, Nov" in out and "Note: Forest gate shuts at 6 pm." in out
+    assert "Day 1 Drive: Mysuru, Kabini (night at Kabini) [Leave by 7 am]" in out
