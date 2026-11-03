@@ -1,8 +1,10 @@
 {#---
-version: 18
-changed_at: 2026-10-24
+version: 19
+changed_at: 2026-11-04
 purpose: Draft a WhatsApp/Instagram reply as the AI Concierge
-changes: v18 -- RECENT CONVERSATION lines name their author (GUEST, US: TEAM MEMBER / AI ASSISTANT / AUTOMATED MESSAGE /
+changes: v19 -- a knowledge snippet about one property says which ("about Ratha 1 only"): a chat with no property now gets a
+         property's passage when only that property matches (it was never offered before).
+         v18 -- RECENT CONVERSATION lines name their author (GUEST, US: TEAM MEMBER / AI ASSISTANT / AUTOMATED MESSAGE /
          CAMPAIGN BROADCAST) and a campaign broadcast is never the guest's request: our own "8 guests each, tell us your
          dates" campaign was read back as "open weekend dates for 8 adults" to a guest who only asked about a barter
          collaboration (Rathaa, Oct 2026). v16/v17: sales playbook, proven lessons (see prompt_versions.py).
@@ -120,7 +122,7 @@ RECENT CALL SUMMARIES
 
 KNOWLEDGE BASE (most relevant snippets -- prices in them have been removed on purpose)
 {% for s in kb_snippets %}
-- [{{ s.source }}{% if s.updated %}, updated {{ s.updated }}{% endif %}] {{ s.text }}
+- [{{ s.source }}{% if s.property %}, about {{ s.property }} only{% endif %}{% if s.updated %}, updated {{ s.updated }}{% endif %}] {{ s.text }}
 {% endfor %}
 {% if not kb_snippets %}- (nothing relevant found{% if kb_unavailable %}; the knowledge base could not be searched just now, so do not say it has no answer -- say the team will confirm{% endif %})
 {% endif %}

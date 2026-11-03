@@ -210,6 +210,10 @@ def build_concierge_context(
                 property_id=((conversation.property_id if conversation else None) or (inquiry.property_id if inquiry else None)),
             )
             kb_status = outcome.status
+            # A passage about one property says which (a chat with no property can now get one: knowledge_service).
+            from app.models.property import Property
+            pids = {h["property_id"] for h in outcome.hits if h.get("property_id")}
+            names = dict(db.query(Property.id, Property.name).filter(Property.tenant_id == tenant_id, Property.id.in_(pids)).all()) if pids else {}
             kb_snippets = [
                 {
                     "text": (f"Q: {h['question']}\nA: {h['content']}" if h.get("question") else h["content"]),
@@ -218,6 +222,7 @@ def build_concierge_context(
                     # Shown to the model so it can tell a current passage from an old one (and from what we said earlier).
                     "updated": h.get("updated_at"),
                     "origin": h.get("source"),
+                    "property": names.get(h.get("property_id")),
                 }
                 for h in outcome.hits
             ]

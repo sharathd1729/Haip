@@ -488,6 +488,12 @@ def search_detailed(
                 "updated_at": _iso_day(getattr(r, "updated_at", None)),
             }
     hits = list(best.values())
+    if not property_id:
+        # No property known (most WhatsApp chats). One property's passage is used when it is the only property that matches,
+        # so it is no longer invisible; when two properties both match ("check-in at Goa 2 pm" / "at Coorg 11 am") neither
+        # is offered: the reply must never guess between two properties.
+        if len({h["property_id"] for h in hits if h["property_id"]}) > 1:
+            hits = [h for h in hits if not h["property_id"]]
     # Human-authored content wins ties against scraped/mined content of similar relevance; `priority` is the tenant's
     # explicit thumb on the scale. Score still dominates -- this only reorders near-equals.
     # Then the NEWER entry wins: when the owner adds "Mysore route now open" beside an older passage on the same topic, the
@@ -526,6 +532,12 @@ _SELECT_COLUMNS = """
 """
 
 
+def _scope_sql(params: dict) -> str:
+    """A known property: tenant-wide entries + that property's. None: every usable entry (search_detailed then drops
+    property entries when more than one property matches)."""
+    return _ELIGIBLE_SQL if params.get("pid") else _USABLE_SQL
+
+
 def _score_in_postgres(db: Session, qvec: list[float], params: dict, limit: int):
     vec_literal = "[" + ",".join(repr(float(x)) for x in qvec) + "]"
     rows = db.execute(
@@ -536,7 +548,7 @@ def _score_in_postgres(db: Session, qvec: list[float], params: dict, limit: int)
             JOIN knowledge_entries k ON k.id = e.ref_id
             WHERE e.tenant_id = :tid
               AND e.namespace = :ns
-              AND {_ELIGIBLE_SQL}
+              AND {_scope_sql(params)}
             ORDER BY e.embedding <=> CAST(:vec AS vector)
             LIMIT :lim
         """),
@@ -553,7 +565,7 @@ def _score_in_python(db: Session, qvec: list[float], params: dict):
             JOIN knowledge_entries k ON k.id = e.ref_id
             WHERE e.tenant_id = :tid
               AND e.namespace = :ns
-              AND {_ELIGIBLE_SQL}
+              AND {_scope_sql(params)}
         """),
         params,
     ).fetchall()

@@ -167,6 +167,17 @@ def test_property_scoped_knowledge_is_not_offered_for_another_property(db):
     assert _contents(db, t.id, "what is the check-in time") == []
 
 
+def test_with_no_property_known_a_passage_only_one_property_has_is_offered(db):
+    """Most WhatsApp chats have no property: a property's passage used to be invisible to all of them."""
+    t = _tenant(db)
+    a, b = _property(db, t.id, "Goa Caravan"), _property(db, t.id, "Coorg Caravan")
+    _indexed(db, t.id, "Is there a bunk bed?", "Goa Caravan has a bunk bed for kids.", property_id=a.id)
+    _indexed(db, t.id, "What is the check-in time?", "Check-in at Coorg is 11 am.", property_id=b.id)
+    assert _contents(db, t.id, "is there a bunk bed") == ["Goa Caravan has a bunk bed for kids."]
+    hit = ks.search(db, t.id, "is there a bunk bed")[0]
+    assert hit["property_id"] == a.id
+
+
 def test_one_tenants_knowledge_is_invisible_to_another(db):
     t1, t2 = _tenant(db, "Ratha"), _tenant(db, "Jade")
     _indexed(db, t1.id, "Is there a bonfire?", "Bonfire costs 1500.")
