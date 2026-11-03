@@ -14,6 +14,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   partial: { label: "Part paid", cls: "bg-amber-50 text-amber-800 border-amber-100" },
   due:     { label: "Upcoming", cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]" },
   overdue: { label: "Overdue",  cls: "bg-red-50 text-red-700 border-red-100" },
+  cancelled: { label: "Not owed", cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]" },   // booking cancelled
 };
 
 interface Row { label: string; amount: string; due_date: string }

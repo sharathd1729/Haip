@@ -135,6 +135,16 @@ def test_properties_and_bookings_shape_and_isolation(pub, db, tenant_and_user):
     assert pub.get(f"{BASE}/bookings/{other.id}", headers=h).status_code == 404
 
 
+def test_unpriced_booking_keeps_the_public_three_payment_states(pub, db, tenant_and_user):
+    """Inside HAIP a booking with no price is "not_set"; the public contract only has unpaid/partial/paid."""
+    tid = tenant_and_user["tenant"].id
+    _, _, stay = _stay(db, tid)
+    stay.total_amount = 0
+    db.commit()
+    b = pub.get(f"{BASE}/bookings", headers=_h(_key(db, tid, ALL))).json()["data"][0]
+    assert b["financials"]["payment_status"] == "unpaid" and b["financials"]["total"] == 0
+
+
 def test_booking_filters_and_updated_since_sees_payment_only_changes(pub, db, tenant_and_user):
     tid = tenant_and_user["tenant"].id
     prop, _, stay = _stay(db, tid)

@@ -111,7 +111,7 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
         "inquiry_id": stay.inquiry_id,
         "calendar_sync": ical_booking_service.sync_info(db, tenant_id, stay.id),
         "schedule": schedule, "next_due": bsvc.next_due(schedule),
-        "deposit": _deposit_out(deposit),
+        "deposit": bsvc.shown_deposit(stay.status, _deposit_out(deposit)),
         "service_requests": [_request_out(r, team_names) for r in reqs],
         "assignees": [{"id": u.id, "name": u.name} for u in team],
         "created_at": stay.created_at.isoformat() if stay.created_at else None,

@@ -354,7 +354,8 @@ def manage_view(db: Session, tenant_id: str, stay: Stay) -> dict:
     prop = db.get(Property, stay.property_id)
     fin = financials_for(db, tenant_id, [stay]).get(stay.id, {})
     inst = db.query(StayInstalment).filter_by(tenant_id=tenant_id, stay_id=stay.id).order_by(StayInstalment.due_date).all()
-    sched = allocate_schedule(inst, float(fin.get("paid") or 0), today=today_for(db, tenant_id)) if inst else []
+    sched = allocate_schedule(inst, float(fin.get("paid") or 0), today=today_for(db, tenant_id),
+                              cancelled=stay.status == "cancelled") if inst else []
     return {"booking_ref": booking_ref(stay), "status": stay.status, "property": prop.name if prop else "",
             "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat(), "adults": stay.adults,
             "children": stay.children, "total": str(fin.get("total") or stay.total_amount or 0),
