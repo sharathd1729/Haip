@@ -80,6 +80,7 @@ def _journey(db, tid, received_days_ago, contact_after_min=None):
 
     inq = Inquiry(id=str(uuid.uuid4()), tenant_id=tid, guest_id=_guest(db, tid), source=InquirySource.WA_DIRECT)
     db.add(inq)
+    db.flush()  # the journey's FK needs the enquiry first (PostgreSQL enforces it)
     received = datetime.now(UTC) - timedelta(days=received_days_ago)
     db.add(
         LeadJourney(
@@ -141,6 +142,7 @@ def test_revenue_chart_is_zero_filled_by_ist_day_and_ignores_cancelled_stays(cli
         )
     inq = Inquiry(id=str(uuid.uuid4()), tenant_id=tid, guest_id=gid, source=InquirySource.WA_DIRECT)
     db.add(inq)
+    db.flush()
     group = str(uuid.uuid4())
     # 2 options of one quote 2 days ago: only the primary counts; a quote awaiting approval is not issued
     issued = datetime.now(UTC) - timedelta(days=2)
