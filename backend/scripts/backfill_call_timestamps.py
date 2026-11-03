@@ -14,10 +14,11 @@ Usage (inside the API container):
     python3 scripts/backfill_call_timestamps.py [--tenant-slug rathaa]
     ... same command with --apply to write.
 """
+
 import argparse
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -35,13 +36,27 @@ def _numeric(value) -> bool:
 
 
 def run(db, tenant_id: str, *, apply: bool = False) -> dict:
-    out = {"calls_checked": 0, "ended_at_converted": 0, "started_at_converted": 0,
-           "started_from_end_minus_duration": 0, "started_from_created_at": 0, "unfixable": 0}
-    rows = db.query(Call).filter(
-        Call.tenant_id == tenant_id,
-        or_(Call.started_at.is_(None), Call.started_at == "",
-            ~Call.started_at.contains("-"), ~Call.ended_at.contains("-")),
-    ).all()
+    out = {
+        "calls_checked": 0,
+        "ended_at_converted": 0,
+        "started_at_converted": 0,
+        "started_from_end_minus_duration": 0,
+        "started_from_created_at": 0,
+        "unfixable": 0,
+    }
+    rows = (
+        db.query(Call)
+        .filter(
+            Call.tenant_id == tenant_id,
+            or_(
+                Call.started_at.is_(None),
+                Call.started_at == "",
+                ~Call.started_at.contains("-"),
+                ~Call.ended_at.contains("-"),
+            ),
+        )
+        .all()
+    )
     for call in rows:
         out["calls_checked"] += 1
         ended, started = call.ended_at, call.started_at
@@ -54,14 +69,16 @@ def run(db, tenant_id: str, *, apply: bool = False) -> dict:
         if not (started or "").strip():
             if ended and "-" in ended:
                 try:
-                    started = (datetime.fromisoformat(ended.replace("Z", "+00:00"))
-                               - timedelta(seconds=call.duration_seconds or 0)).isoformat()
+                    started = (
+                        datetime.fromisoformat(ended.replace("Z", "+00:00"))
+                        - timedelta(seconds=call.duration_seconds or 0)
+                    ).isoformat()
                     out["started_from_end_minus_duration"] += 1
                 except ValueError:
                     started = None
             if not started and call.created_at:
-                created = call.created_at if call.created_at.tzinfo else call.created_at.replace(tzinfo=timezone.utc)
-                started = created.astimezone(timezone.utc).isoformat()
+                created = call.created_at if call.created_at.tzinfo else call.created_at.replace(tzinfo=UTC)
+                started = created.astimezone(UTC).isoformat()
                 out["started_from_created_at"] += 1
             if not started:
                 out["unfixable"] += 1

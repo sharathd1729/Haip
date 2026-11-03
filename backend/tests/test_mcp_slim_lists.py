@@ -3,6 +3,7 @@
 list_leads returned 112k characters for 50 rows (list_calls 50k), so AI readers were cut off.
 Totals and pagination must survive the slimming.
 """
+
 import json
 import uuid
 from datetime import date, timedelta
@@ -17,21 +18,55 @@ from app.models.property import Property, Stay
 
 def _seed(db, tid):
     guest = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="Asha Rao", phone="+919876543210")
-    prop = Property(id=str(uuid.uuid4()), tenant_id=tid, name="Ratha 1", slug=f"r-{uuid.uuid4().hex[:6]}",
-                    type="caravan", is_active=True)
+    prop = Property(
+        id=str(uuid.uuid4()),
+        tenant_id=tid,
+        name="Ratha 1",
+        slug=f"r-{uuid.uuid4().hex[:6]}",
+        type="caravan",
+        is_active=True,
+    )
     db.add_all([guest, prop])
     db.flush()
     inq = Inquiry(id=str(uuid.uuid4()), tenant_id=tid, guest_id=guest.id, source=InquirySource.WA_DIRECT)
     db.add(inq)
-    db.add(Stay(id=str(uuid.uuid4()), tenant_id=tid, guest_id=guest.id, property_id=prop.id, status="confirmed",
-                check_in=date.today() + timedelta(days=3), check_out=date.today() + timedelta(days=5),
-                total_amount=25000))
-    db.add(Call(id=str(uuid.uuid4()), tenant_id=tid, ivr_provider="vobiz", ivr_call_id=str(uuid.uuid4()),
-                direction=CallDirection.INBOUND, from_number="+919876543210", to_number="+912271264296",
-                guest_id=guest.id, duration_seconds=42, ai_summary="long summary " * 50,
-                started_at="2026-11-02T04:53:20+00:00"))
-    db.add(Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=guest.id, inquiry_id=inq.id,
-                        channel=ChannelType.WHATSAPP, is_open=True))
+    db.add(
+        Stay(
+            id=str(uuid.uuid4()),
+            tenant_id=tid,
+            guest_id=guest.id,
+            property_id=prop.id,
+            status="confirmed",
+            check_in=date.today() + timedelta(days=3),
+            check_out=date.today() + timedelta(days=5),
+            total_amount=25000,
+        )
+    )
+    db.add(
+        Call(
+            id=str(uuid.uuid4()),
+            tenant_id=tid,
+            ivr_provider="vobiz",
+            ivr_call_id=str(uuid.uuid4()),
+            direction=CallDirection.INBOUND,
+            from_number="+919876543210",
+            to_number="+912271264296",
+            guest_id=guest.id,
+            duration_seconds=42,
+            ai_summary="long summary " * 50,
+            started_at="2026-11-02T04:53:20+00:00",
+        )
+    )
+    db.add(
+        Conversation(
+            id=str(uuid.uuid4()),
+            tenant_id=tid,
+            guest_id=guest.id,
+            inquiry_id=inq.id,
+            channel=ChannelType.WHATSAPP,
+            is_open=True,
+        )
+    )
     db.commit()
 
 
