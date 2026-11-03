@@ -175,7 +175,7 @@ function WorkspaceSettings() {
       name: tenant.name || "",
       brand_name: tenant.brand_config?.brand_name || tenant.name || "",
       slug: tenant.slug || "",
-      timezone: tenant.brand_config?.timezone || "Asia/Kolkata",
+      timezone: tenant.timezone || "Asia/Kolkata",
       language: tenant.brand_config?.language || "en",
     }));
   }, [tenant]);
