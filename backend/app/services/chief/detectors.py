@@ -419,6 +419,34 @@ def it_ical_failing(ctx: Ctx) -> list[dict]:
     ]
 
 
+def it_ivr_silent(ctx: Ctx) -> list[dict]:
+    """TE2: the IVR is active but no call reached HAIP for far longer than this business's normal gap during business
+    hours, while guests kept writing on WhatsApp / Instagram (integration_health.ivr_silence: the shared rule)."""
+    from app.services import integration_health
+    from app.services.date_presets import IST
+
+    s = integration_health.ivr_silence(ctx.db, ctx.tenant, ctx.now)
+    if s is None:
+        return []
+    t = s["last_call_at"].astimezone(IST)
+    since = f"{t.day} {t:%b}, {t.hour % 12 or 12}:{t:%M} {'am' if t.hour < 12 else 'pm'}"  # no %-d: Windows lacks it
+    hours = int(s["silent_hours"])
+    name = s["label"].replace("IVR (", "").rstrip(")") if s["label"].startswith("IVR (") else s["label"]
+    return [
+        _hit(
+            "critical" if hours >= 12 else "high",
+            f"No calls have reached HAIP for {hours} business hours",
+            f"No calls have reached HAIP since {since}, but {s['messages']} guest messages came in. Check the {name} "
+            "account balance and number.",
+            {"silent_hours": hours, "messages": s["messages"], "normal_calls_per_day": s["normal_calls_per_day"]},
+            [{"type": "integration", "id": s["provider"]}],
+            target_id=s["provider"],
+            cta_label="Open integrations",
+            cta_href="/dashboard/settings/integrations",
+        )
+    ]
+
+
 def it_auto_messages_failing(ctx: Ctx) -> list[dict]:
     """TE6: >= 20% of >= 10 automatic guest messages failed in 24 h (wa_automatic_analytics, Meta delivery receipts)."""
     from app.services import wa_automatic_analytics

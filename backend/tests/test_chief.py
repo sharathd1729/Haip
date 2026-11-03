@@ -300,3 +300,54 @@ def test_celery_tasks_run_and_respect_the_switch(db):
             out = chief_tasks.detect_tenant(w.t.id, "urgent")
     assert w.t.id in queued and off.t.id not in queued
     assert out["open"] >= 1 and e.call_count == 1
+
+
+# ── TE2: IVR silent while guests keep writing (integration_health.ivr_silence) ──────────────────────────────────
+
+
+def _ivr(db, w, *, baseline_calls=24, last_days_ago=5, messages=3, integration=True):
+    from app.models.call import Call, CallDirection
+    from app.models.conversation import ChannelType, Message, MessageDirection
+    from app.models.integration import Integration
+
+    now = datetime.now(UTC)
+    db.query(Call).filter_by(tenant_id=w.t.id).delete()
+    db.query(Message).filter_by(tenant_id=w.t.id).delete()      # the world's own guest messages from yesterday
+    w.t.ivr_provider = "vobiz"
+    if integration:
+        db.add(Integration(tenant_id=w.t.id, kind="vobiz", status="active", config={}))
+    for i in range(baseline_calls):
+        db.add(Call(id=str(uuid.uuid4()), tenant_id=w.t.id, ivr_provider="vobiz", ivr_call_id=uuid.uuid4().hex,
+                    direction=CallDirection.INBOUND, from_number="+919845600000", to_number="+918000000000",
+                    created_at=now - timedelta(days=last_days_ago + i)))
+    for i in range(messages):
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=w.t.id, conversation_id=w.convs[0].id,
+                       direction=MessageDirection.INBOUND, channel=ChannelType.WHATSAPP, body=f"hi {i}",
+                       created_at=now - timedelta(hours=2 + i)))
+    db.commit()
+    return now
+
+
+def test_ivr_silent_while_guests_write_is_raised_in_plain_words(db):
+    w = world(db, brand_config=ON)
+    _ivr(db, w)
+    hits = detectors.it_ivr_silent(detectors.Ctx(db, w.t))
+    assert len(hits) == 1 and hits[0]["target_id"] == "vobiz" and hits[0]["severity"] == "critical"
+    assert hits[0]["numbers"]["messages"] == 3 and hits[0]["numbers"]["silent_hours"] >= 42
+    assert "No calls have reached HAIP since" in hits[0]["body"] and "Check the Vobiz account balance" in hits[0]["body"]
+
+
+def test_ivr_quiet_is_not_silent(db):
+    from app.services import integration_health
+    for kw in ({"messages": 2}, {"last_days_ago": 0}, {"integration": False}, {"baseline_calls": 10}):
+        w = world(db, brand_config=ON)
+        _ivr(db, w, **kw)
+        assert integration_health.ivr_silence(db, w.t) is None, kw
+
+
+def test_only_business_hours_count():
+    from app.services import integration_health
+    from app.services.date_presets import IST
+    a = datetime(2026, 11, 3, 20, 0, tzinfo=IST)
+    b = datetime(2026, 11, 4, 10, 0, tzinfo=IST)
+    assert integration_health._business_hours_between(a, b) == 2.0      # 20-21 and 9-10, never the night

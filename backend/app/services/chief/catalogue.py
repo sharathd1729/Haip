@@ -120,6 +120,14 @@ CATALOGUE: tuple[Detector, ...] = (
         d.it_ical_failing,
     ),
     Detector(
+        "TE2",
+        "it_monitor",
+        "urgent",
+        "quality",
+        "Check the IVR account balance (Vobiz / Acefone) and that the number still forwards calls to HAIP.",
+        d.it_ivr_silent,
+    ),
+    Detector(
         "TE6",
         "it_monitor",
         "urgent",
