@@ -335,6 +335,30 @@ def test_reimporting_a_page_skips_duplicates_and_marks_removed_passages_out_of_d
     assert _contents(db, t.id, "weekend rate") == []       # the removed price is no longer retrievable
 
 
+def test_a_small_page_edit_keeps_the_approval_of_text_already_approved(db):
+    """A page edit shifts every chunk boundary: every approved passage went out of date and every new chunk waited for
+    approval, so the bot lost the whole page. Re-cut approved text keeps its approval; a chunk with new text still waits."""
+    t = _tenant(db)
+    url = "https://ratha.example/faq"
+    places = ["Kabini", "Coorg", "Hampi", "Gokarna", "Chikmagalur", "Mysuru", "Ooty", "Wayanad"]
+    paras = [f"The {p} trip runs through quiet forest roads and small villages, with stops for tea, short walks and a long "
+             f"lunch by the river. Guests sleep in the caravan at a private camp site near {p}, and the driver stays nearby."
+             for p in places]
+    first = knowledge_ingest.ingest_chunks_report(db, t.id, "\n\n".join(paras), source="website", source_url=url)
+    assert len(first.created) >= 2
+    for e in first.created:
+        e.review_status = "approved"
+    db.commit()
+
+    edited = ["New this season: the weekend rate is 9500 and kids under five travel free on every route."] + paras
+    second = knowledge_ingest.ingest_chunks_report(db, t.id, "\n\n".join(edited), source="website", source_url=url)
+    kept = [e for e in second.created if e.review_status == "approved"]
+    waiting = [e for e in second.created if e.review_status == "pending"]
+    assert second.kept_approved == len(kept) >= 1
+    assert all("9500" not in e.content for e in kept)
+    assert any("9500" in e.content for e in waiting)
+
+
 def test_a_passage_that_returns_to_the_page_is_current_again(db):
     t = _tenant(db)
     url = "https://ratha.example/faq"
