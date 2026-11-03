@@ -250,6 +250,38 @@ def test_the_sweep_stops_after_repeated_provider_failures(db):
     assert len(calls) == task._CIRCUIT_BREAKER
 
 
+def test_given_up_entries_never_crowd_newer_ones_out_of_the_sweep(db):
+    """The sweep took the `limit` oldest pending/failed rows and only then dropped the given-up ones."""
+    from app.workers.tasks import embed_knowledge as task
+
+    t = _tenant(db)
+    old = datetime.now(timezone.utc) - timedelta(days=3)
+    for i in range(3):
+        dead = _entry(db, t.id, f"Old question {i}?", f"Old answer {i}.")
+        dead.embedding_status, dead.embedding_attempts, dead.updated_at = "failed", ks.MAX_AUTO_ATTEMPTS, old
+    new = _entry(db, t.id, "Do you have towels?", "Towels are provided.")
+    new.updated_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db.commit()
+
+    with patch.object(task, "SessionLocal", return_value=db), patch.object(db, "close"):
+        result = task.embed_pending.run(t.id, limit=3, min_age_seconds=120)
+    db.refresh(new)
+    assert result["attempted"] == 1 and new.embedding_status == "done"
+
+
+def test_the_sweep_also_writes_alternate_phrasings(db):
+    from app.workers.tasks import embed_knowledge as task
+
+    t = _tenant(db)
+    e = _entry(db, t.id, "Do you have towels?", "Towels are provided.")
+    e.updated_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db.commit()
+    with patch.object(task, "SessionLocal", return_value=db), patch.object(db, "close"),          patch("app.services.phrasing_service.generate_phrasings_sync", return_value=["Towels provided?"]):
+        task.embed_pending.run(t.id, limit=50, min_age_seconds=120)
+    db.refresh(e)
+    assert e.alt_phrasings == ["Towels provided?"] and e.embedding_status == "done"
+
+
 # ─── re-importing a page or file ──────────────────────────────────────────────
 
 def test_reimporting_a_page_skips_duplicates_and_marks_removed_passages_out_of_date(db):

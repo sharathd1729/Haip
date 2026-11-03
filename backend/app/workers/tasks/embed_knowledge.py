@@ -8,6 +8,7 @@ only once this task marks it "done".
 
 import structlog
 from celery import shared_task
+from sqlalchemy import or_
 
 from datetime import datetime, timezone
 
@@ -99,22 +100,26 @@ def embed_pending(tenant_id: str, limit: int = 200, min_age_seconds: int = 0, fo
     db = SessionLocal()
     try:
         set_tenant_context(db, tenant_id)
-        candidates = (
-            db.query(KnowledgeEntry)
-            .filter(
-                KnowledgeEntry.tenant_id == tenant_id,
-                KnowledgeEntry.is_active.is_(True),
-                KnowledgeEntry.embedding_status.in_(["pending", "failed"]),
-            )
-            .order_by(KnowledgeEntry.updated_at.asc())
-            .limit(limit)
-            .all()
+        q = db.query(KnowledgeEntry).filter(
+            KnowledgeEntry.tenant_id == tenant_id,
+            KnowledgeEntry.is_active.is_(True),
+            KnowledgeEntry.embedding_status.in_(["pending", "failed"]),
         )
+        if not force:
+            # Leave out entries the sweep gave up on BEFORE the limit: picking the oldest `limit` rows first let a pile of
+            # given-up entries fill every slot, so newer pending entries were never indexed by the sweep.
+            q = q.filter(or_(KnowledgeEntry.embedding_status == "pending",
+                             KnowledgeEntry.embedding_attempts < knowledge_service.MAX_AUTO_ATTEMPTS))
+        candidates = q.order_by(KnowledgeEntry.updated_at.asc()).limit(limit).all()
         now = datetime.now(timezone.utc)
         due = [e for e in candidates if _due(e, now, min_age_seconds, force)]
         done = failed_in_a_row = attempted = 0
         for entry in due:
             attempted += 1
+            if not failed_in_a_row:
+                # As the single-entry task does (fewer guest wordings match without them). Skipped right after a failure:
+                # the provider is likely down and each phrasing call can take 30 s+.
+                _ensure_phrasings(db, entry)
             if knowledge_service.embed_entry(db, entry):
                 done += 1
                 failed_in_a_row = 0
