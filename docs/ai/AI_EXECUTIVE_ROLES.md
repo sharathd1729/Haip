@@ -238,8 +238,11 @@ shared sources named here.
   (`wa_health_service.check :145`, `quality_rating :175`), personal bridge (`whatsapp_personal_service.apply_status_update :169`),
   iCal errors, outbound webhooks (`webhook_service.py:36` auto-off after 100 failures), Celery DLQ (`list_dlq_tasks`), LLM
   failures (consult `model_failure`), Meta / Instagram tokens.
-- **Insights**: integration red; IVR silent (no calls in 4 business hours vs baseline ≥5/day — push providers have no
-  staleness rule today); bridge disconnected > 15 min; quality YELLOW/RED; webhook endpoint switched off; DLQ growing.
+- **Insights**: integration red; IVR silent while leads keep arriving (no Call row, by `created_at`, for N business hours against the tenant's own call rate while >= M enquiries / inbound messages came in; real case Ratha 6 Oct and 27-30 Oct 2026, 43-69 h, likely the Vobiz wallet; webhook channels never age in `integration_health` today; count calls by `created_at`, since
+  `started_at` was empty for Vobiz until `scripts/backfill_call_timestamps.py` ran); bridge disconnected > 15 min; quality
+  YELLOW/RED; webhook endpoint switched off; DLQ growing. Alert in plain words: "No calls have reached HAIP since <time>,
+  but <n> leads came in. Check the Vobiz account balance and number." Optional: a low Vobiz balance, if Vobiz's
+  Plivo-style `/Account/{auth_id}/` returns one (not verified; creds are in the `vobiz` Integration).
 - **Recommends**: exact fix steps; pause scheduled campaigns when quality drops.
 - **Actions**: alert owner/dev (R0); pause scheduled campaigns (R2).
 - **Checks**: back to green. **Status**: ✅ red/iCal · 🔌 IVR silence (into `integration_health`, not a parallel check), bridge, quality history, DLQ.
