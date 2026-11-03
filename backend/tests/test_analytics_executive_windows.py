@@ -82,3 +82,37 @@ def test_sla_no_data_is_none_not_100(client, tenant_and_user, db):
     db.commit()
     data = _get(client, tenant_and_user, range_days=7)
     assert data["sla_compliance_pct"] is None and data["sla_prev"] is None
+
+
+def test_revenue_chart_is_zero_filled_by_ist_day_and_ignores_cancelled_stays(client, tenant_and_user, db):
+    from app.models.inquiry import Inquiry, InquirySource
+    from app.models.inquiry_360 import InquiryQuote
+    from app.models.property import Property, Stay
+    from app.services.date_presets import IST
+    tid = tenant_and_user["tenant"].id
+    today = datetime.now(IST).date()
+    prop = Property(id=str(uuid.uuid4()), tenant_id=tid, name="Ratha 1", slug="r1", type="caravan", is_active=True)
+    db.add(prop)
+    gid = _guest(db, tid)
+    for status, amount, days_ago in (("confirmed", 40000, 1), ("cancelled", 10, 2), ("blocked", 0, 3)):
+        db.add(Stay(id=str(uuid.uuid4()), tenant_id=tid, guest_id=gid, property_id=prop.id, status=status,
+                    total_amount=amount, check_in=today - timedelta(days=days_ago), check_out=today))
+    inq = Inquiry(id=str(uuid.uuid4()), tenant_id=tid, guest_id=gid, source=InquirySource.WA_DIRECT)
+    db.add(inq)
+    group = str(uuid.uuid4())
+    # 2 options of one quote 2 days ago: only the primary counts; a quote awaiting approval is not issued
+    issued = datetime.now(timezone.utc) - timedelta(days=2)
+    for rank, amount, status in ((1, 30000, "issued"), (2, 25000, "issued")):
+        db.add(InquiryQuote(id=str(uuid.uuid4()), tenant_id=tid, inquiry_id=inq.id, amount=amount, status=status,
+                            option_rank=rank, option_group_id=group, created_at=issued))
+    db.add(InquiryQuote(id=str(uuid.uuid4()), tenant_id=tid, inquiry_id=inq.id, amount=99000, status="pending_approval",
+                        created_at=issued))
+    db.commit()
+
+    chart = _get(client, tenant_and_user, range_days=7)["revenue_chart"]
+    assert [p["date"] for p in chart] == [(today - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
+    by_day = {p["date"]: p for p in chart}
+    assert by_day[(today - timedelta(days=1)).isoformat()]["confirmed"] == 40000.0
+    assert sum(p["confirmed"] for p in chart) == 40000.0   # cancelled / blocked stays add nothing
+    assert by_day[issued.astimezone(IST).date().isoformat()]["quoted"] == 30000.0
+    assert sum(p["quoted"] for p in chart) == 30000.0

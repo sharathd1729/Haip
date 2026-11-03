@@ -106,8 +106,8 @@ class LostInquiryPage(BaseModel):
 
 class RevenueChartPoint(BaseModel):
     date: str           # YYYY-MM-DD
-    confirmed: float = 0.0   # revenue from confirmed+checked_in stays
-    quoted: float = 0.0      # revenue from quoted stays/inquiries
+    confirmed: float = 0.0   # stays checking in that IST day (kpi_metrics.OCCUPYING_STATUSES)
+    quoted: float = 0.0      # quotes issued that IST day (primary option per group)
 
 
 class FunnelStage(BaseModel):

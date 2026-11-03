@@ -9,18 +9,20 @@ POST /analytics/insights/{id}/dismiss
 
 from datetime import datetime, timezone, timedelta
 from datetime import date as date_cls
+from datetime import time as dt_time
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status as http_status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_module
 from app.services.authz_service import require_capability
 from app.models.user import User
 from app.models.call import Call
-from app.models.inquiry import Inquiry, InquiryStage
+from app.models.inquiry import Inquiry
+from app.models.inquiry_360 import InquiryQuote
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay, Property
 from app.models.conversation import Message, MessageDirection
@@ -31,6 +33,7 @@ from app.schemas.analytics import (
 )
 from app.core.cache import cache_key, get_cached, set_cached
 from app.services import kpi_metrics
+from app.services.date_presets import IST
 from app.services.work_queue_service import severity_for
 from app.models.lead_workflow import LeadJourney
 
@@ -80,7 +83,7 @@ def executive_dashboard(
         [p.strip() for p in property_ids.split(",") if p.strip()] if property_ids else None
     )
 
-    ck = cache_key("executive", tid, v=2, range_days=range_days, prop_ids=property_ids or "all")
+    ck = cache_key("executive", tid, v=3, range_days=range_days, prop_ids=property_ids or "all")
     cached = get_cached(ck)
     if cached is not None:
         return ExecutiveDashboardStats(**cached)
@@ -216,39 +219,45 @@ def executive_dashboard(
     ai_draft_prev = ai_rate(prev_period_start, period_start)
 
     # ── Revenue chart (daily, range_days) ─────────────────────────────────────
-    rev_rows = db.query(
-        Stay.check_in.label("d"),
-        func.sum(Stay.total_amount).label("total"),
-        Stay.status,
-    ).filter(
+    # One point per IST day of the range, zeros included. confirmed = stays checking in that day in the occupying
+    # statuses (kpi_metrics, the same set the revenue card uses: cancelled/blocked stays never make a 0-value day);
+    # quoted = quotes issued that day (one per option group, the primary), not the retired QUOTED stage enum.
+    today = datetime.now(IST).date()
+    days = [today - timedelta(days=i) for i in range(range_days - 1, -1, -1)]
+    rev_by_day = {d.isoformat(): {"confirmed": 0.0, "quoted": 0.0} for d in days}
+    stay_q = db.query(Stay.check_in, func.sum(Stay.total_amount)).filter(
         Stay.tenant_id == tid,
-        Stay.check_in >= period_start.date().isoformat(),
-        Stay.check_in <= now.date().isoformat(),
-    ).group_by(Stay.check_in, Stay.status).order_by(Stay.check_in).all()
+        Stay.status.in_(kpi_metrics.OCCUPYING_STATUSES),
+        Stay.check_in >= days[0],
+        Stay.check_in <= today,
+    )
+    if prop_ids:
+        stay_q = stay_q.filter(Stay.property_id.in_(prop_ids))
+    for d, total in stay_q.group_by(Stay.check_in).all():
+        if str(d) in rev_by_day:
+            rev_by_day[str(d)]["confirmed"] += float(total or 0)
 
-    rev_by_day: dict = {}
-    for r in rev_rows:
-        d = str(r.d) if r.d else "unknown"
-        rv = rev_by_day.setdefault(d, {"confirmed": 0.0, "quoted": 0.0})
-        if r.status in ("confirmed", "checked_in", "checked_out"):
-            rv["confirmed"] += float(r.total or 0)
-
-    inq_rev = db.query(
-        func.date(Inquiry.created_at).label("d"),
-        func.sum(Inquiry.quoted_amount).label("total"),
-    ).filter(
-        Inquiry.tenant_id == tid,
-        Inquiry.stage == InquiryStage.QUOTED,
-        Inquiry.quoted_at >= period_start.isoformat(),
-        Inquiry.quoted_amount.isnot(None),
-    ).group_by(func.date(Inquiry.created_at)).all()
-    for r in inq_rev:
-        d = str(r.d) if r.d else "unknown"
-        rev_by_day.setdefault(d, {"confirmed": 0.0, "quoted": 0.0})["quoted"] += float(r.total or 0)
+    quote_q = db.query(InquiryQuote).filter(
+        InquiryQuote.tenant_id == tid,
+        InquiryQuote.created_at >= datetime.combine(days[0], dt_time.min, IST).astimezone(timezone.utc),
+        or_(InquiryQuote.status.is_(None), InquiryQuote.status != "pending_approval"),  # not issued until approved
+    )
+    if prop_ids:
+        quote_q = quote_q.join(Inquiry, Inquiry.id == InquiryQuote.inquiry_id).filter(Inquiry.property_id.in_(prop_ids))
+    primaries: dict = {}
+    for q in quote_q.all():
+        g = q.option_group_id or q.id
+        if g not in primaries or (q.option_rank or 1) < (primaries[g].option_rank or 1):
+            primaries[g] = q
+    for q in primaries.values():
+        created = q.created_at if q.created_at.tzinfo else q.created_at.replace(tzinfo=timezone.utc)
+        key = created.astimezone(IST).date().isoformat()
+        if key in rev_by_day:
+            rev_by_day[key]["quoted"] += float(q.amount or 0)
 
     revenue_chart = [
         RevenueChartPoint(date=d, confirmed=v["confirmed"], quoted=v["quoted"])
-        for d, v in sorted(rev_by_day.items())
+        for d, v in rev_by_day.items()
     ]
 
     # ── Inquiry funnel ────────────────────────────────────────────────────────
