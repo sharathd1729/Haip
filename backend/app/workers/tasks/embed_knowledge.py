@@ -59,8 +59,9 @@ def embed_entry(self, tenant_id: str, entry_id: str):
             return {"entry_id": entry_id, "status": "missing"}
 
         _ensure_phrasings(db, entry)
-        ok = knowledge_service.embed_entry(db, entry)
-        if not ok and self.request.retries < self.max_retries:
+        will_retry = self.request.retries < self.max_retries
+        ok = knowledge_service.embed_entry(db, entry, count_failure=not will_retry)    # the retries are one attempt
+        if not ok and will_retry:
             # embed_entry() already recorded the failure on the row; retry with
             # backoff in case the provider was briefly unavailable.
             raise self.retry(countdown=30 * (self.request.retries + 1))

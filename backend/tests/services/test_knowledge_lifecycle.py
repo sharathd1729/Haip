@@ -189,6 +189,25 @@ def test_a_failed_indexing_is_recorded_with_its_error_and_attempt_count(db):
     assert e.embedded_at is not None
 
 
+def test_one_save_uses_one_indexing_attempt_however_often_the_task_retries(db):
+    """The task retries 3 times within minutes; counting each try let one save use 4 of the sweep's 6 attempts."""
+    from app.workers.tasks import embed_knowledge as task
+
+    t = _tenant(db)
+    e = _entry(db, t.id, "Is there a kitchen?", "There is a kitchenette.")
+    calls = []
+
+    def boom(texts, kind):
+        calls.append(1)
+        raise EmbeddingError("NIM 504")
+
+    with patch.object(task, "SessionLocal", return_value=db), patch.object(db, "close"),          patch.object(ks, "embed_texts_sync", boom), patch.object(task, "_ensure_phrasings"):
+        task.embed_entry.apply(args=(t.id, e.id))
+    db.refresh(e)
+    assert len(calls) == task.embed_entry.max_retries + 1
+    assert (e.embedding_status, e.embedding_attempts) == ("failed", 1)
+
+
 def test_a_storage_error_is_recorded_not_left_as_silent_pending(db):
     t = _tenant(db)
     e = _entry(db, t.id, "Is there a deck?", "There is a deck.")
