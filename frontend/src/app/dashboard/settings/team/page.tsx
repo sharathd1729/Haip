@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -388,6 +388,9 @@ export default function TeamPage() {
   const [newInvitation, setNewInvitation] = useState<Invitation | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [tab, setTab] = useState<"members" | "invitations">("members");
+  // ?member=<id> (the audit log's link to a user): highlight that person. Read in an effect, not during render (hydration).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => { setFocusId(new URLSearchParams(window.location.search).get("member")); }, []);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -560,6 +563,7 @@ export default function TeamPage() {
                         <MemberRow
                           key={member.id}
                           member={member}
+                          focused={member.id === focusId}
                           onRoleChanged={() => queryClient.invalidateQueries({ queryKey: ["team-members"] })}
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
@@ -580,6 +584,7 @@ export default function TeamPage() {
                         <MemberRow
                           key={member.id}
                           member={member}
+                          focused={member.id === focusId}
                           onRoleChanged={() => queryClient.invalidateQueries({ queryKey: ["team-members"] })}
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
@@ -651,8 +656,9 @@ export default function TeamPage() {
 
 // ─── Member Row ───────────────────────────────────────────────────────────────
 
-function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, onUpdatePhone, onUpdateEmail, onUpdateName, onSendPasswordReset }: {
+function MemberRow({ member, focused, onRoleChanged, onToggleActive, onToggleIvrRouting, onUpdatePhone, onUpdateEmail, onUpdateName, onSendPasswordReset }: {
   member: TeamMember;
+  focused?: boolean;
   onRoleChanged: () => void;
   onToggleActive: (active: boolean) => void;
   onToggleIvrRouting: (enabled: boolean) => void;
@@ -665,10 +671,14 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
   const hasPhone = !!member.phone;
 
   return (
-    <div className={cn(
+    <div
+      id={`member-${member.id}`}
+      ref={focused ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}
+      className={cn(
       // Wraps on narrow screens: the controls drop to a second line instead of squeezing the name to nothing.
       "haip-card px-4 py-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 hover:shadow-sm transition-shadow",
-      !member.is_active && "opacity-60"
+      !member.is_active && "opacity-60",
+      focused && "ring-2 ring-primary"
     )}>
       <Avatar name={member.name} photoUrl={member.avatar_url} />
       <div className="min-w-[11rem] flex-1">

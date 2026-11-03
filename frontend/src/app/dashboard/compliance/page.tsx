@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { resourceLink } from "@/lib/auditLinks";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,20 +72,6 @@ const ACTION_COLORS: Record<string, string> = {
   "incident.created":"text-red-700 bg-red-50",
   property_create:   "text-green-600 bg-green-50",
 };
-
-// D7: resource type → dashboard URL prefix
-const RESOURCE_LINKS: Record<string, string> = {
-  guest:    "/dashboard/guests/",
-  call:     "/dashboard/calls/",
-  inquiry:  "/dashboard/leads/",
-  user:     "/dashboard/settings/team/",
-};
-
-function resourceLink(type?: string, id?: string): string | null {
-  if (!type || !id) return null;
-  const prefix = RESOURCE_LINKS[type];
-  return prefix ? `${prefix}${id}` : null;
-}
 
 function shortId(id?: string) {
   return id ? id.slice(0, 8) + "…" : null;
