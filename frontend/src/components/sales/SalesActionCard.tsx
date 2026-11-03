@@ -3,6 +3,7 @@
 // Shown in the inbox thread (by conversation) and on the lead page (by lead). Renders nothing when there is nothing pending,
 // or when the caller may not read leads. Approve sends THAT quote + its payment link (the same path as the quote builder's
 // "Send quote"); the server re-checks everything and answers 409 if someone already decided.
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "@/lib/icons";
 import api from "@/lib/api";
@@ -44,6 +45,31 @@ function Option({ title, o }: { title: string; o: QuoteOption }) {
       </p>
       {o.at_actuals.length > 0 && <p className="text-[12px] text-[var(--haip-fg-subtle)]">At actuals, outside the total: {o.at_actuals.join(", ")}</p>}
       {o.valid_until && <p className="text-[12px] text-[var(--haip-fg-subtle)]">Valid until {day(o.valid_until)}</p>}
+    </div>
+  );
+}
+
+// An overnight quote can be sent only once a person has confirmed where the guests sleep (the AI confirms only plans marked
+// auto-bookable). POST /sales-actions/{id}/confirm-stay records it on the quote; only its meta changes, never the price.
+function ConfirmStay({ actionId }: { actionId: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const confirm = useMutation({
+    mutationFn: () => api.post(`/sales-actions/${actionId}/confirm-stay`, { stay_name: name || null }).then(r => r.data),
+    onSuccess: () => { toast({ variant: "success", title: "Stay confirmed", description: "You can send the quote now." }); qc.invalidateQueries({ queryKey: ["sales-actions"] }); },
+    onError: e => toast({ variant: "error", title: "Couldn't confirm", description: errorText(e) }),
+  });
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-lg bg-[var(--haip-primary-tint)] p-3">
+      <label className="min-w-0 flex-1 text-[13px] text-[var(--haip-fg-2)]">
+        Where do they stay overnight? (optional)
+        <input value={name} onChange={e => setName(e.target.value)} maxLength={120} placeholder="e.g. Riverside camp, Kabini"
+          className="mt-1 block min-h-11 w-full rounded-lg border border-[var(--haip-border)] bg-white px-3 text-base sm:min-h-9 sm:text-sm" />
+      </label>
+      <button type="button" className={BTN} disabled={confirm.isPending} onClick={() => confirm.mutate()}>
+        {confirm.isPending ? <Loader2 size={14} className="animate-spin" /> : "I've confirmed the stay"}
+      </button>
     </div>
   );
 }
@@ -98,6 +124,7 @@ export function SalesActionCard({ conversationId, inquiryId }: { conversationId?
                   {a.hold_reasons.filter(r => !blockers.some(b => b.message === r)).map(r => <li key={r}>{r}</li>)}
                 </ul>
               )}
+              {a.can_decide && blockers.some(b => b.code === "stay_not_confirmed") && <ConfirmStay actionId={a.id} />}
               {a.can_decide ? (
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className={BTN_PRIMARY} disabled={busy || blockers.length > 0}

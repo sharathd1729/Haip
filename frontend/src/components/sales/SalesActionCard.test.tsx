@@ -56,4 +56,17 @@ describe("SalesActionCard", () => {
     expect(await screen.findByText(/A teammate who can send quotes/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /send quote/i })).toBeNull();
   });
+
+  it("lets a person confirm the overnight stay when that is what blocks sending", async () => {
+    show([action({ readiness: { can_send: false, blockers: [{ code: "stay_not_confirmed", message: "Confirm the overnight stay before sending the price." }], warnings: [] } })]);
+    await userEvent.type(await screen.findByLabelText(/Where do they stay overnight/), "Riverside camp");
+    await userEvent.click(screen.getByRole("button", { name: "I've confirmed the stay" }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/sales-actions/a1/confirm-stay", { stay_name: "Riverside camp" }));
+  });
+
+  it("offers no stay confirmation when the stay is not what blocks it", async () => {
+    show([action()]);
+    await screen.findByText(/Quote ready to send/);
+    expect(screen.queryByRole("button", { name: "I've confirmed the stay" })).toBeNull();
+  });
 });
