@@ -255,7 +255,7 @@ brand DNA draft (suggests, never saves), brand-kit suggest, invoice logo fallbac
 3. Leads list date presets (K2).
 4. STOP false positives (R16).
 5. KB sweep starvation (R4).
-6. MCP `get_dashboard_metrics` calls `executive_dashboard` as a plain function, so its `revenue.read` check never runs (`analytics_executive.py:68`; *read, not tested*).
+6. ~~MCP `get_dashboard_metrics` skips the `revenue.read` check.~~ Checked 4 Nov: not a bug. The MCP tool registry requires `revenue.read` for `get_revenue_summary` (`mcp/tools.py:692`), and `get_dashboard_metrics` (`analytics.read`) withholds every money field without it (`mcp/tools.py:279-286`); both covered by `tests/api/test_money_access.py`. Occupancy and funnel are shown to `analytics.read` holders on purpose.
 7. iCal "advance" payments get `paid_on = sync day` (`ical_booking_service.py:111`), so cash received jumps on import days.
 
 ---
@@ -263,7 +263,7 @@ brand DNA draft (suggests, never saves), brand-kit suggest, invoice logo fallbac
 ## 7. Proposed plan (Part B), smallest useful steps first
 Each phase = one commit + tests + CLAUDE.md update. Nothing pushed.
 
-- **B0. Quick fixes (bugs in §6)**, one commit each: STOP whole-message only; Leads date presets via the IST helper; timezone field; dynamic-price; sweep filter + phrasings; iCal `paid_on`; MCP capability. Low risk, owner-visible.
+- **B0. Quick fixes (bugs in §6)**, one commit each: STOP whole-message only; Leads date presets via the IST helper; timezone field; dynamic-price; sweep filter + phrasings; iCal `paid_on`. Low risk, owner-visible. **Done 4 Nov** (the MCP item turned out not to be a bug).
 - **B1. One read layer for business facts.** A thin `business_facts` module over `get_effective`/`sales_gateway` for: price (package), advance, GST, discount cap, check-in time, add-ons. Point the website stays pricing, staff Calculator, calendar rate, `POST /bookings` total, MCP and concierge `get_quote` at it. World A (RatePlan/SeasonalRate/PropertyAddOn) stays read-only as a fallback only where no package is published, then is retired later. Quote snapshots stay immutable. Quote defaults stop writing resolved values back (store only what the owner changed).
 - **B2. Write once, flow everywhere.** `core/events.emit_event` is the guest event ledger (needs entity/guest context), so it is the wrong hook. Instead one `business_data_changed(tenant, kind, key)` call at publish/approve/profile-save that: re-indexes the KB entry, marks the website draft "data changed" (never publishes), refreshes Marketing inputs, and clears the concierge facts cache. A "Used by" list on each record/entry from a static map (which module reads which kind).
 - **B3. One definition per number.** Route OperationsHome, executive, Impact, Since HAIP, marketing monthly, revenue report and the Leads list through `kpi_metrics`/`lead_metrics`; rename the record count "Enquiries". A consistency test: one fixture, every screen's endpoint, same New leads / Bookings / Booked value / Qualified. Open D-02, D-03, D-04, D-06/07, D-15 need **your decision** first (I will bring a one-page choice list).
