@@ -61,6 +61,32 @@ def _dump(obj) -> Any:
     return obj
 
 
+# ── Slim list rows ──────────────────────────────────────────────────────────
+# The list tools return these keys per row unless the caller asks for fields="full": the full payloads ran past
+# 100k characters for 50 leads, so AI readers were cut off. Totals and pagination are always kept.
+_SLIM_LEAD = ("inquiry_id", "guest_id", "display_name", "stage_key", "source", "lead_type", "assigned_agent_name",
+              "assigned_agent_id", "last_touch_at", "created_at", "check_in", "check_out", "adults", "children",
+              "quoted_amount", "quoted_at", "sla_breached", "response_time_status")
+_SLIM_CALL = ("id", "direction", "started_at", "duration_seconds", "is_missed", "called_back", "guest_id",
+              "guest_name", "agent_id", "agent_name", "inquiry_id", "disposition", "qa_score")
+_SLIM_CONVERSATION = ("id", "guest_id", "guest_name", "inquiry_id", "channel", "is_open", "stage_key", "stage_label",
+                      "assigned_to", "assigned_owner_name", "last_message_at", "last_inbound_at", "is_waiting_reply",
+                      "waiting_since", "sla_status")
+_SLIM_BOOKING = ("id", "inquiry_id", "raw_status", "status", "checkin", "checkout", "created_at", "channel",
+                 "payment_status", "total", "total_paid", "total_outstanding", "next_payment_due_date",
+                 "next_payment_amount", "payment_overdue")
+_FIELDS_PROP = {"fields": {"type": "string", "enum": ["slim", "full"], "default": "slim",
+                           "description": "slim (default): ids, names, stage, dates, totals. full: every field"}}
+
+
+def _full(args: dict) -> bool:
+    return args.get("fields") == "full"
+
+
+def _pick(row: dict, keys: tuple) -> dict:
+    return {k: row[k] for k in keys if k in row}
+
+
 # ── Read tools ──────────────────────────────────────────────────────────────
 
 def _list_recent_conversations(db: Session, user: User, tenant_id: str, args: dict) -> Any:
@@ -74,7 +100,8 @@ def _list_recent_conversations(db: Session, user: User, tenant_id: str, args: di
         current_user=user,
         db=db,
     )
-    return _dump(result)
+    rows = _dump(result)
+    return rows if _full(args) else [_pick(r, _SLIM_CONVERSATION) for r in rows]
 
 
 def _get_conversation_thread(db: Session, user: User, tenant_id: str, args: dict) -> Any:
@@ -133,7 +160,10 @@ def _list_leads(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         page_size=min(int(args.get("page_size", 25)), 100),
         scope_user_id=_visibility_scope(user),
     )
-    return _dump(result)
+    out = _dump(result)
+    if not _full(args):
+        out["leads"] = [_pick(r, _SLIM_LEAD) for r in out.get("leads") or []]
+    return out
 
 
 def _get_lead_detail(db: Session, user: User, tenant_id: str, args: dict) -> Any:
@@ -201,7 +231,10 @@ def _list_calls(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         date_preset=args.get("date_preset"), date_from=args.get("date_from"), date_to=args.get("date_to"),
         db=db, current_user=user,
     )
-    return _dump(result)
+    out = _dump(result)
+    if not _full(args):
+        out["items"] = [_pick(r, _SLIM_CALL) for r in out.get("items") or []]
+    return out
 
 
 def _get_call_analysis(db: Session, user: User, tenant_id: str, args: dict) -> Any:
@@ -252,7 +285,14 @@ def _list_bookings(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         check_in_from=args.get("check_in_from"), check_in_to=args.get("check_in_to"),
         current_user=user, db=db,
     )
-    return _dump(result)
+    out = _dump(result)
+    if not _full(args):
+        out["data"] = [{**_pick(r, _SLIM_BOOKING),
+                        "property_name": (r.get("property") or {}).get("name"),
+                        "guest_name": " ".join(filter(None, [(r.get("main_guest") or {}).get("first_name"),
+                                                             (r.get("main_guest") or {}).get("last_name")])) or None}
+                       for r in out.get("data") or []]
+    return out
 
 
 def _get_revenue_summary(db: Session, user: User, tenant_id: str, args: dict) -> Any:
@@ -497,6 +537,7 @@ TOOLS: list[dict] = [
                 "channel": {"type": "string", "description": "Filter by channel, e.g. whatsapp, instagram"},
                 "is_open": {"type": "boolean", "description": "Filter by open/resolved status"},
                 "limit": {"type": "integer", "default": 20},
+                **_FIELDS_PROP,
             },
         },
         "annotations": {"readOnlyHint": True},
@@ -555,6 +596,7 @@ TOOLS: list[dict] = [
                 "checkin_date_to": {"type": "string", "description": "YYYY-MM-DD, with checkin_date_preset=custom"},
                 "page": {"type": "integer", "default": 1},
                 "page_size": {"type": "integer", "default": 25, "maximum": 100},
+                **_FIELDS_PROP,
             },
         },
         "annotations": {"readOnlyHint": True},
@@ -621,6 +663,7 @@ TOOLS: list[dict] = [
                 },
                 "date_from": {"type": "string", "description": "YYYY-MM-DD, with date_preset=custom"},
                 "date_to": {"type": "string", "description": "YYYY-MM-DD, with date_preset=custom"},
+                **_FIELDS_PROP,
             },
         },
         "annotations": {"readOnlyHint": True},
@@ -672,6 +715,7 @@ TOOLS: list[dict] = [
                 "sort": {"type": "string", "default": "newest"},
                 "page": {"type": "integer", "default": 1},
                 "per_page": {"type": "integer", "default": 25},
+                **_FIELDS_PROP,
             },
         },
         "annotations": {"readOnlyHint": True},
