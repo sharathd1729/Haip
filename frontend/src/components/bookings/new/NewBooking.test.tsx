@@ -245,3 +245,17 @@ describe("package length", () => {
     expect(packageLength({ ...setup.packages[1], nights: null }, "2026-11-12", f)).toEqual({ checkOut: "2026-11-13" });
   });
 });
+
+describe("new booking defaults", () => {
+  it("start from the published payment terms and stay rules, not 50% and 12:00", () => {
+    const f = defaultForm({ ...setup, settings: { ...setup.settings, advance_percent: "30.00" }, stay_times: { check_in: "14:00", check_out: "11:00" } });
+    expect([f.advance, f.checkInTime, f.checkOutTime]).toEqual(["30", "14:00", "11:00"]);
+    expect(toPayload(f).advance).toEqual({ percent: "30" });
+  });
+
+  it("keep 12:00 when no stay rules are published", () => {
+    const f = defaultForm({ ...setup, stay_times: null });
+    expect([f.checkInTime, f.checkOutTime]).toEqual(["12:00", "12:00"]);
+  });
+});
+

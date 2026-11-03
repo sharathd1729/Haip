@@ -3,7 +3,7 @@
 // (WhatsApp now with the exact text, or later).
 import { Chip, Field, INPUT } from "@/components/quotes/ui";
 import { cn } from "@/lib/utils";
-import { cleanNumber, day, firstName, masked, money } from "./helpers";
+import { cleanNumber, day, firstName, masked, money, termsAdvance } from "./helpers";
 import type { BookingForm, ComposeSetup, Preview } from "./types";
 import { HINT, Note, Opt } from "./ui";
 
@@ -22,7 +22,7 @@ export function PaymentSection({ form, set, setup, preview }: { form: BookingFor
       <div className="grid gap-1">
         <span className="text-xs font-semibold text-[var(--haip-fg-2)]">Advance to confirm</span>
         <div className="flex flex-wrap gap-1.5">
-          {(["25", "50", "100", "other"] as const).map(x => (
+          {[...new Set(["25", "50", termsAdvance(setup), "100"])].sort((a, b) => Number(a) - Number(b)).concat("other").map(x => (
             <Chip key={x} on={form.advance === x} onClick={() => set({ advance: x })}>{x === "other" ? "Other" : x === "100" ? "Full" : `${x}%`}</Chip>
           ))}
         </div>

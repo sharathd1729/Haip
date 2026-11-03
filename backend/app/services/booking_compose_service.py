@@ -78,6 +78,7 @@ class Plan:
     total: Decimal = ZERO
     gst: Decimal = ZERO
     advance: Decimal = ZERO
+    advance_percent: Optional[Decimal] = None          # the percent used when no fixed amount was typed
     advance_due: Optional[date] = None
     balance: Decimal = ZERO
     balance_due: Optional[date] = None
@@ -120,7 +121,18 @@ def setup(db: Session, user: User) -> dict:
                      "confirmation_template": statuses.get(pack.BOOKING_CONFIRMED)},
         "user": {"id": user.id, "name": user.name, "privileged": privileged(user)},
         "advance_days": ADVANCE_DAYS,
+        "stay_times": _stay_times(db, tenant.id, today),
     }
+
+
+def _stay_times(db: Session, tenant_id: str, today) -> Optional[dict]:
+    """Pickup / return times from the PUBLISHED stay rules (what the bot tells guests), so a new booking does not default to
+    12:00 when the rules say otherwise. None = no stay rules published (the form keeps 12:00)."""
+    rec = bds.get_effective(db, tenant_id, "stay_rules", bds.SINGLETON_KEY, today)
+    if rec is None:
+        return None
+    rules = bds.parse(rec)
+    return {"check_in": rules.check_in_time, "check_out": rules.check_out_time}
 
 
 def package_nights(pkg) -> Optional[int]:
@@ -310,7 +322,9 @@ def _payment(db: Session, tid: str, body: ComposeIn, p: Plan) -> None:
             p.need("pay", f"Enter an advance between ₹1 and the total{' of ' + send.inr(total) if total else ''}.", True)
         p.advance = min(adv.amount or ZERO, total)
     else:
-        p.advance = rc.rupee(total * (adv.percent if adv.percent is not None else Decimal("50")) / 100)
+        # No percent sent: the quote defaults' advance (published payment terms, else 50), never a fixed 50.
+        pct = adv.percent if adv.percent is not None else cat.settings(db, _tenant(db, tid), p.today)["advance_percent"]
+        p.advance, p.advance_percent = rc.rupee(total * pct / 100), pct
     p.balance = max(ZERO, total - p.advance)
     ci = body.check_in
     if body.advance_due is not None:

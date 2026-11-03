@@ -67,18 +67,22 @@ export const digits = (v: string) => v.replace(/\D/g, "");
 export const masked = (last4: string | null | undefined) => (last4 ? `•••• ${last4}` : "no number");
 export const firstName = (name: string | null | undefined) => (name || "").trim().split(" ")[0] || "the guest";
 
+/** The published payment terms' advance (via the quote defaults), else 50: what a new booking starts with. */
+export const termsAdvance = (setup: ComposeSetup) =>
+  setup.settings.advance_percent != null ? String(Number(setup.settings.advance_percent)) : "50";
+
 export function defaultForm(setup: ComposeSetup): BookingForm {
   const gst = String(Number(setup.settings.gst_percent));
   return {
     guest: null, newGuest: null, adding: false, ng: { phone: "", name: "", source: "" }, guestQ: "", inquiryId: null, fromLead: false,
     start: null, mode: setup.packages.length ? "fixed" : "custom", packageKey: "", customTitle: "Custom trip",
     ratePerDay: setup.custom.rate_per_day ? String(Number(setup.custom.rate_per_day)) : "",
-    checkIn: "", checkInTime: "12:00", checkOut: "", checkOutTime: "12:00", guests: 2, pickup: "",
+    checkIn: "", checkInTime: setup.stay_times?.check_in ?? "12:00", checkOut: "", checkOutTime: setup.stay_times?.check_out ?? "12:00", guests: 2, pickup: "",
     vehicle: "auto", interior: "", notes: "",
     addons: setup.addons.map(a => ({ id: rowId(), name: a.name, price: String(Number(a.price)), unit: a.unit, on: false, custom: false })),
     discount: "0", slab: setup.gst_slabs.includes(gst) ? gst : "18", inclusive: setup.settings.prices_include_gst,
     overrideOn: false, overridePrice: "", overrideReason: "",
-    advance: "50", advanceAmount: "", advanceDue: "", balanceRule: "pickup", deposit: "10000", depositCollect: "pickup",
+    advance: termsAdvance(setup), advanceAmount: "", advanceDue: "", balanceRule: "pickup", deposit: "10000", depositCollect: "pickup",
     payNow: "none", payMethod: "upi", payAmount: "", payRef: "", confirm: "now", invoice: true,
   };
 }
