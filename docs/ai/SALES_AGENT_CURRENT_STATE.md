@@ -34,7 +34,7 @@ Rating — **Reuse** (works, build on it) · **Extend** (right place, missing a 
 These exist now and are small, separate fixes; they are scheduled as increment I-0 in the plan rather than mixed into the reliability branch.
 
 1. `POST /bookings` and the won-lead stay creation skip the double-booking guard.
-2. WhatsApp opt-out matches ordinary words ("cancel", "end", "yes") so "cancel my booking" opts the guest out; Instagram has no opt-out handling at all.
+2. ~~WhatsApp opt-out matches ordinary words ("cancel", "end", "yes") so "cancel my booking" opts the guest out~~ fixed 4 Nov 2026 (whole message or an unambiguous phrase only); Instagram has no opt-out handling at all.
 3. AI send paths never read consent / opt-out.
 4. Approving a draft twice, or approving a rejected draft, is not blocked.
 5. AI mode, kill switch, thresholds, escalation keywords and rate limits change without an audit row.
