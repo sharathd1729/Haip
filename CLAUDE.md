@@ -373,6 +373,8 @@ wholesale by migration `049` — do not write new code against it.
 - WhatsApp verify token uses `secrets.compare_digest` not `==`
 - **Agent-added phone/email signals**: auto-write `Consent` row with `consent_source="agent_manual"`, `collected_by=user_id`, `collected_at=now`, `signal_type=type` (handled in `identity_service.add_signal()`)
 
+**Settings › Security (4 Nov)** reads `GET /security/status` (owner/manager, `services/security_status.py`): storage + encryption from config (R2 when `AWS_S3_ENDPOINT_URL` is set = Cloudflare's own at-rest encryption, SSE-KMS only on real AWS S3, one KMS key per server, never per tenant), key names set/missing/not_used (Deepgram/Groq not used unless they are the transcription provider), session facts that code enforces (no lockout, no device limit, MFA only for users who turned it on). Never values.
+
 ## AUTH & IAM — PHASE 0 (July 2026)
 
 Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` — **not** Supabase Auth (evaluated, explicitly declined; see below). NextAuth v5 on the frontend (`frontend/src/lib/auth.ts`) is a thin client that exchanges credentials for these backend tokens — never trusts its own session data for authorization. **What changed this phase (all live, verified against Supabase prod schema):**
