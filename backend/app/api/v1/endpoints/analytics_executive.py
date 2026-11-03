@@ -31,6 +31,8 @@ from app.schemas.analytics import (
 )
 from app.core.cache import cache_key, get_cached, set_cached
 from app.services import kpi_metrics
+from app.services.work_queue_service import severity_for
+from app.models.lead_workflow import LeadJourney
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -78,7 +80,7 @@ def executive_dashboard(
         [p.strip() for p in property_ids.split(",") if p.strip()] if property_ids else None
     )
 
-    ck = cache_key("executive", tid, range_days=range_days, prop_ids=property_ids or "all")
+    ck = cache_key("executive", tid, v=2, range_days=range_days, prop_ids=property_ids or "all")
     cached = get_cached(ck)
     if cached is not None:
         return ExecutiveDashboardStats(**cached)
@@ -165,22 +167,28 @@ def executive_dashboard(
     qa_score_prev = qa_avg(prev_period_start, period_start)
 
     # ── SLA compliance % ──────────────────────────────────────────────────────
+    # Inquiry.first_response_at / sla_breached are never written (the card read 100% while 24 of 30 chats had
+    # breached). Same rule as My day: an enquiry is on time when a PERSON contacted the guest (lead_journeys'
+    # first_human_contact_at, the touch_rows contact rule) while work_queue_service.severity_for("new_lead") was
+    # still "fresh". A still-waiting enquiry counts once it is past that SLA. Nothing due = None ("No data").
     def sla(start, end):
-        total = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tid,
-            Inquiry.first_response_at.isnot(None),
-            Inquiry.created_at >= start.isoformat(),
-            Inquiry.created_at < end.isoformat(),
-        ).scalar() or 0
-        if total == 0:
-            return 100.0
-        breached = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tid,
-            Inquiry.sla_breached == True,
-            Inquiry.created_at >= start.isoformat(),
-            Inquiry.created_at < end.isoformat(),
-        ).scalar() or 0
-        return round((1 - breached / total) * 100, 1)
+        q = db.query(LeadJourney.received_at, LeadJourney.first_human_contact_at).filter(
+            LeadJourney.tenant_id == tid,
+            LeadJourney.received_at >= start,
+            LeadJourney.received_at < end,
+        )
+        if prop_ids:
+            q = q.join(Inquiry, Inquiry.id == LeadJourney.inquiry_id).filter(Inquiry.property_id.in_(prop_ids))
+        met = due = 0
+        for received, contacted in q.all():
+            if contacted is not None and contacted.tzinfo is None:
+                contacted = contacted.replace(tzinfo=timezone.utc)  # SQLite returns naive datetimes
+            on_time = severity_for("new_lead", received, contacted or now) == "fresh"
+            if contacted is None and on_time:
+                continue  # not due yet
+            due += 1
+            met += on_time
+        return round(met / due * 100, 1) if due else None
 
     sla_compliance = sla(period_start, now)
     sla_prev       = sla(prev_period_start, period_start)

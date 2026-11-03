@@ -50,3 +50,35 @@ def test_ai_draft_rate_previous_window_is_bounded(client, tenant_and_user, db):
     data = _get(client, tenant_and_user, range_days=7)
     assert data["ai_draft_rate_pct"] == 50.0
     assert data["ai_draft_prev"] == 0.0  # was 33.3
+
+
+def _journey(db, tid, received_days_ago, contact_after_min=None):
+    from app.models.inquiry import Inquiry, InquirySource
+    from app.models.lead_workflow import LeadJourney
+    inq = Inquiry(id=str(uuid.uuid4()), tenant_id=tid, guest_id=_guest(db, tid), source=InquirySource.WA_DIRECT)
+    db.add(inq)
+    received = datetime.now(timezone.utc) - timedelta(days=received_days_ago)
+    db.add(LeadJourney(id=str(uuid.uuid4()), tenant_id=tid, inquiry_id=inq.id, received_at=received,
+                       first_human_contact_at=(received + timedelta(minutes=contact_after_min)
+                                               if contact_after_min is not None else None)))
+
+
+def test_sla_uses_first_human_contact_and_the_work_queue_new_lead_sla(client, tenant_and_user, db):
+    tid = tenant_and_user["tenant"].id
+    _journey(db, tid, 2, contact_after_min=5)     # on time (new_lead SLA: 15 min)
+    _journey(db, tid, 2, contact_after_min=90)    # late
+    _journey(db, tid, 3)                          # never contacted, long past the SLA: breached
+    _journey(db, tid, 1, contact_after_min=10)    # on time
+    _journey(db, tid, 0.001)                      # 1.4 min old, not contacted: not due yet, left out
+    _journey(db, tid, 10, contact_after_min=120)  # previous window: late
+    db.commit()
+    data = _get(client, tenant_and_user, range_days=7)
+    assert data["sla_compliance_pct"] == 50.0
+    assert data["sla_prev"] == 0.0
+
+
+def test_sla_no_data_is_none_not_100(client, tenant_and_user, db):
+    _journey(db, tenant_and_user["tenant"].id, 0.001)
+    db.commit()
+    data = _get(client, tenant_and_user, range_days=7)
+    assert data["sla_compliance_pct"] is None and data["sla_prev"] is None
