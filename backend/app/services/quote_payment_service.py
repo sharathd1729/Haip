@@ -73,15 +73,32 @@ def _stop(db: Session, tenant: Tenant, inquiry: Optional[Inquiry], *, action: st
     return result
 
 
+def _package_vehicles(db: Session, tenant_id: str, quote: InquiryQuote) -> Optional[list[str]]:
+    """The vehicles the quoted package allows, from the package version the quote pinned (record_refs; that version never
+    changes). None = no limit (no package, or it names no vehicles)."""
+    from app.models.business_record import BusinessRecord
+    from app.schemas.business_data import PackageData
+    refs = quote.record_refs or (quote.snapshot or {}).get("record_refs") or []
+    ids = [r.get("record_id") for r in refs if isinstance(r, dict) and r.get("kind") == "package" and r.get("record_id")]
+    rec = db.query(BusinessRecord).filter_by(id=ids[0], tenant_id=tenant_id).first() if ids else None
+    try:
+        allowed = list(PackageData.model_validate(rec.data).vehicle_property_ids) if rec is not None else []
+    except Exception:  # noqa: BLE001 -- an unreadable record: no limit, as before
+        allowed = []
+    return allowed or None
+
+
 def _vehicle(db: Session, tenant_id: str, quote: InquiryQuote) -> Optional[Property]:
-    """The quote's vehicle when it is still free on the quote's dates; with no vehicle chosen, the first free one."""
+    """The quote's vehicle when it is still free on the quote's dates; with no vehicle chosen, the first free one OF THE
+    VEHICLES THE PACKAGE ALLOWS (the AI agent's quotes name no vehicle, so they used to land on any free vehicle)."""
     wanted = ((quote.snapshot or {}).get("inputs") or {}).get("vehicle_property_id")
     if wanted:
         prop = db.query(Property).filter_by(id=wanted, tenant_id=tenant_id, is_active=True).first()
         if prop is None or bsvc.find_conflicts(db, tenant_id, prop.id, quote.check_in, quote.check_out):
             return None
         return prop
-    return bsvc.pick_free_property(db, tenant_id, quote.check_in, quote.check_out)
+    return bsvc.pick_free_property(db, tenant_id, quote.check_in, quote.check_out,
+                                   candidate_ids=_package_vehicles(db, tenant_id, quote))
 
 
 def _claim(db: Session, tenant_id: str, rows: list[InquiryQuote], paid: InquiryQuote) -> bool:
