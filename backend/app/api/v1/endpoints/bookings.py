@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.audit import append_audit
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_roles
+from app.services import price_policy
 from app.services.authz_service import require_capability
 from app.models.property import Property, RatePlan, Stay
 from app.models.guest import Guest
@@ -331,15 +332,17 @@ def list_bookable_properties(
         .all()
     ) if props else []
     plans_by_property: dict[str, list] = {}
+    caravans = {p.id for p in props if price_policy.package_priced(p)}
     for rp in plans:
-        plans_by_property.setdefault(rp.property_id, []).append(rp)
+        if rp.property_id not in caravans:      # a caravan is priced from its published packages, never a rate plan
+            plans_by_property.setdefault(rp.property_id, []).append(rp)
 
     return [
         {
             "id": p.id,
             "name": p.name,
             "type": p.type,
-            "price_per_day": float(p.price_per_day) if p.price_per_day is not None else None,
+            "price_per_day": float(p.price_per_day) if p.price_per_day is not None and p.id not in caravans else None,
             "rate_plans": [
                 {
                     "id": rp.id,
@@ -442,7 +445,9 @@ def create_booking(
     # Suggested total if the caller didn't supply one: rate plan's flat
     # package price, else the property's per-day rate x nights.
     total_amount = payload.total_amount
-    if total_amount is None:
+    # A caravan's price comes only from its published packages (price_policy.package_priced): no rate-plan / day-rate guess;
+    # New booking prices it with the rate calculator.
+    if total_amount is None and not price_policy.package_priced(prop):
         if rate_plan and rate_plan.base_price_per_night:
             total_amount = float(rate_plan.base_price_per_night)
         elif prop.price_per_day:

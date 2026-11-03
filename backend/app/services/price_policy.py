@@ -36,6 +36,28 @@ from typing import Optional
 PRICE_MODES = ("handoff", "grounded")
 
 
+# Owner decision 4 Nov 2026: a caravan is priced ONLY from its published packages (business_records); rate plans, seasonal rates
+# and price_per_day are the villa price source. Readers of those legacy tables leave caravans out (calendar rate, POST /bookings
+# total, the bot's and MCP's legacy quote); availability from calculator_service is still used.
+PACKAGE_PRICED_TYPES = ("caravan",)
+
+
+def package_priced(prop) -> bool:
+    """True when this property's price comes only from published packages (a caravan)."""
+    return (getattr(prop, "type", None) or "").lower() in PACKAGE_PRICED_TYPES
+
+
+def packages_only(db, tenant) -> bool:
+    """True when the workspace sells caravans (its business type says so, or it has an active caravan): then no rate-plan price
+    ever reaches a guest or a quote."""
+    bt = (getattr(tenant, "business_type", None) or "").lower()
+    if "caravan" in bt or "camper" in bt:
+        return True
+    from app.models.property import Property
+    return db.query(Property.id).filter(Property.tenant_id == tenant.id, Property.is_active.is_(True),
+                                        Property.type.in_(PACKAGE_PRICED_TYPES)).first() is not None
+
+
 def price_mode(tenant) -> str:
     """How this tenant lets the AI talk about price. Anything unrecognised means the safe default, "handoff"."""
     cfg = getattr(tenant, "brand_config", None) or {}

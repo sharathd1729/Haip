@@ -267,7 +267,7 @@ Each phase = one commit + tests + CLAUDE.md update. Nothing pushed.
 - **B1. One read layer for business facts.** A thin `business_facts` module over `get_effective`/`sales_gateway` for: price (package), advance, GST, discount cap, check-in time, add-ons. Point the website stays pricing, staff Calculator, calendar rate, `POST /bookings` total, MCP and concierge `get_quote` at it. World A (RatePlan/SeasonalRate/PropertyAddOn) stays read-only as a fallback only where no package is published, then is retired later. Quote snapshots stay immutable. Quote defaults stop writing resolved values back (store only what the owner changed).
   **B1 part 1 done 4 Nov**: quote defaults no longer pin GST / advance (M3); a new booking's advance and pickup/return times
   come from the published payment terms / stay rules (M3, M6); the staff calculator needs an OK under a package's floor (M5).
-  **Waiting for the owner**: (a) which price source each business type uses (caravans: published packages; villas: rate plans
+  **Price source decided 4 Nov** (caravans: published packages only; villas: rate plans) and applied to the calendar rate, `POST /bookings`, MCP and the bot's facts. **Still waiting**: (a, done) which price source each business type uses (caravans: published packages; villas: rate plans
   and seasonal rates, since packages have no nightly villa rate) before the staff Calculator, calendar rate, `POST /bookings`
   total and MCP quote move; (b) one GST rule (rate and inclusive vs on top, M4: accountant); (c) website stays pricing waits
   for PR 111 / PR 112, which both rewrite `website_pricing.py`.

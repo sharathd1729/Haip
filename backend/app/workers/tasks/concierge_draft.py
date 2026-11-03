@@ -1096,7 +1096,9 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             db.rollback()
             log.warning("sales_agent_turn_failed", conversation_id=conversation_id, error=str(exc))
             sales_turn = sales_agent_service.SalesTurn(mode=sales_agent_settings.mode(tenant), status="error")
-        grounded_facts = sales_agent_service.merge_facts(tenant, grounded_facts, sales_turn)
+        from app.services.price_policy import packages_only as _packages_only
+        grounded_facts = sales_agent_service.merge_facts(tenant, grounded_facts, sales_turn,
+                                                         packages_only=_packages_only(db, tenant))
 
         # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
         # beyond price_quote-only. One query, checked alongside the rest of

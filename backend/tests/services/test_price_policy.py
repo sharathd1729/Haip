@@ -145,3 +145,23 @@ def test_strip_prices_keeps_distances_and_counts(text):
 @pytest.mark.parametrize("text", ["12000 per night", "per night 12000", "extra 1,500 per day", "12k per night", "Rs 8,500"])
 def test_strip_prices_still_removes_rates(text):
     assert "[rate:" in pp.strip_prices(text)
+
+
+def test_packages_only_for_a_caravan_business_or_a_workspace_with_a_caravan(db):
+    import uuid
+
+    from app.models.property import Property
+    from app.models.tenant import Tenant
+
+    def tenant(bt=None):
+        t = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth", business_type=bt)
+        db.add(t)
+        db.flush()
+        return t
+
+    villas, vans, typed = tenant("villa_resort"), tenant(), tenant("caravan")
+    db.add(Property(id=str(uuid.uuid4()), tenant_id=villas.id, name="V", slug="v", type="villa"))
+    db.add(Property(id=str(uuid.uuid4()), tenant_id=vans.id, name="R", slug="r", type="caravan"))
+    db.flush()
+    assert (pp.packages_only(db, villas), pp.packages_only(db, vans), pp.packages_only(db, typed)) == (False, True, True)
+    assert pp.package_priced(Property(type="caravan")) and not pp.package_priced(Property(type="villa"))
