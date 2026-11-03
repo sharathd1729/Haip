@@ -1,0 +1,11 @@
+[
+  {
+    "key": "wa.profile_photo",
+    "platform": "whatsapp",
+    "kind": "advice",
+    "value": "Your logo, square, readable when small",
+    "status": "haip_advice",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP advice. WhatsApp's own size rules are not in this catalogue yet: check in the platform."
+  }
+]

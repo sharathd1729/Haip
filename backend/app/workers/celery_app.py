@@ -79,6 +79,8 @@ celery_app = Celery(
         "app.workers.tasks.ops_intake",
         "app.workers.tasks.ops_files",
         "app.workers.tasks.gps",
+        # Dynamic SOPs / Get found: version generation + automatic checks
+        "app.workers.tasks.sops",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -267,6 +269,8 @@ celery_app.conf.update(
         "marketing_studio.tag_photo":                {"queue": "default"},
         "marketing_studio.render_reel":              {"queue": "default"},
         "marketing_studio.ota_copy":                 {"queue": "default"},
+        "sops.generate_version":                     {"queue": "ai_scoring"},
+        "sops.check_instance":                       {"queue": "default"},
         "marketing_studio.draft_profile":            {"queue": "default"},
         "marketing_studio.canva_design":             {"queue": "default"},
         "marketing_studio.video_submit":             {"queue": "default"},

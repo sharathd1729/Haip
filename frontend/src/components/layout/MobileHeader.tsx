@@ -27,6 +27,7 @@ const ROUTE_LABELS: Record<string, string> = {
   marketing:    "Marketing",
   studio:       "Marketing Studio",
   website:      "Website",
+  sops:         "Get found",
   inbox:        "Inbox",
   calls:        "Calls",
   leads:        "Leads",
@@ -85,7 +86,6 @@ const ROUTE_LABELS: Record<string, string> = {
 const PATH_LABELS: Record<string, string> = {
   "/dashboard/bookings/new": "New booking",
   "/dashboard/marketing/website/edit": "Edit website",
-  "/dashboard/marketing/website/google": "Google profile",
   "/dashboard/marketing/website/launch": "Launch report",
   "/dashboard/marketing/website/builder": "Art director",
 };

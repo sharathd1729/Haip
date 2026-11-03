@@ -1,0 +1,89 @@
+[
+  {
+    "key": "gbp.category.recreational_vehicle_rental_agency",
+    "platform": "google_business",
+    "kind": "category",
+    "value": "Recreational vehicle rental agency",
+    "ranks": {"caravan": 1},
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP team belief (team meeting, Nov 2026), under Vehicle rental. Not yet checked in Google's category picker."
+  },
+  {
+    "key": "gbp.category.vacation_home_rental_agency",
+    "platform": "google_business",
+    "kind": "category",
+    "value": "Vacation home rental agency",
+    "ranks": {"villa": 1, "farmhouse": 1, "homestay": 2},
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Example in HAIP's website Google checklist (3 Nov 2026). Not yet checked in Google's category picker."
+  },
+  {
+    "key": "gbp.category.resort_hotel",
+    "platform": "google_business",
+    "kind": "category",
+    "value": "Resort hotel",
+    "ranks": {"resort": 1, "villa": 3},
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Example in HAIP's website Google checklist (3 Nov 2026). Not yet checked in Google's category picker."
+  },
+  {
+    "key": "gbp.category.guest_house",
+    "platform": "google_business",
+    "kind": "category",
+    "value": "Guest house",
+    "ranks": {"homestay": 1, "farmhouse": 2},
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Example in HAIP's website Google checklist (3 Nov 2026). Not yet checked in Google's category picker."
+  },
+  {
+    "key": "gbp.category.serviced_apartment",
+    "platform": "google_business",
+    "kind": "category",
+    "value": "Serviced apartment",
+    "ranks": {"service_apartments": 1},
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Example in HAIP's website Google checklist (3 Nov 2026). Not yet checked in Google's category picker."
+  },
+  {
+    "key": "gbp.category.travel_agency",
+    "platform": "google_business",
+    "kind": "category",
+    "value": "Travel agency",
+    "ranks": {"travel_agency": 1, "caravan": 2},
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Example in HAIP's website Google checklist (3 Nov 2026). Not yet checked in Google's category picker."
+  },
+  {
+    "key": "gbp.description_max",
+    "platform": "google_business",
+    "kind": "text_limit",
+    "value": 750,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's website Google checklist said 750 characters. Not yet checked against Google's help pages."
+  },
+  {
+    "key": "gbp.photo_order",
+    "platform": "google_business",
+    "kind": "photo_spec",
+    "value": ["exterior", "vehicle", "bedroom", "living_room", "bathroom", "view", "pool", "garden", "dining", "food", "activity", "local_area"],
+    "status": "haip_advice",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP advice (website Google checklist): outside first, then rooms, bathroom, view, food. Not a Google rule."
+  },
+  {
+    "key": "gbp.photo_min",
+    "platform": "google_business",
+    "kind": "advice",
+    "value": 10,
+    "status": "haip_advice",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP advice (website Google checklist): at least 10 real photos, new ones every month. Not a Google rule."
+  }
+]

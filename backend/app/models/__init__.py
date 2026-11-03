@@ -62,8 +62,10 @@ from app.models.ops import (
 from app.models.ops_files import OpsChecklistTemplate, OpsExpense, OpsExtra, OpsFile, OpsFileEvent, OpsJob, OpsJobItem
 from app.models.ops_fleet import OpsAutoMessage, OpsDefect, OpsGuestForm, OpsInventoryItem, OpsPaper, OpsService
 from app.models.gps import GpsAlertEpisode, GpsDevice, GpsPosition
+from app.models.sop import SopInstance, SopStepProgress, SopVersion
 
 __all__ = [
+    "SopInstance", "SopVersion", "SopStepProgress",
     "GpsDevice", "GpsPosition", "GpsAlertEpisode",
     "BusinessRecord",
     "Site", "SiteVersion", "SiteDomain", "BookingHold", "GuestAccessToken", "SiteAiJob", "SitePageView", "WebsiteEvent", "WebsitePromoCode",
