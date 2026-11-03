@@ -52,7 +52,7 @@ class OptOutResult:
 
 
 def _normalize(text: str) -> str:
-    """Lower case, punctuation to spaces, single spaces. Punctuation only: a \W class would also strip Devanagari vowel signs."""
+    """Lower case, punctuation to spaces, single spaces. Punctuation only: a non-word class would also strip Devanagari vowel signs."""
     text = text.lower().replace("’", "'")
     return " ".join(re.sub(r"[!-&(-/:-@\[-`{-~…।]+", " ", text).split())
 

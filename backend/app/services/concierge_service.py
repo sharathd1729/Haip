@@ -161,6 +161,15 @@ def _get_call_summaries(db: Session, tenant_id: str, guest_id: str, limit: int =
     return [{"summary": c.ai_summary, "duration": c.duration_seconds} for c in calls if c.ai_summary]
 
 
+def kb_record(ctx: dict) -> dict:
+    """What a reply had from the knowledge base, kept on the draft (Message.channel_metadata["kb"]): the search status
+    (ok | no_match | embedding_unavailable | search_failed | unsupported | empty_query) and each passage's id and score."""
+    return {
+        "status": ctx.get("kb_status"),
+        "hits": [{"id": s.get("id"), "score": round(float(s.get("score") or 0), 3)} for s in ctx.get("kb_snippets") or []],
+    }
+
+
 def build_concierge_context(
     db: Session,
     tenant_id: str,
@@ -223,6 +232,7 @@ def build_concierge_context(
                     "updated": h.get("updated_at"),
                     "origin": h.get("source"),
                     "property": names.get(h.get("property_id")),
+                    "id": h["id"],
                 }
                 for h in outcome.hits
             ]
