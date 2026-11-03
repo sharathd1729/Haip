@@ -54,6 +54,8 @@ interface Queue {
   total: number;
   people: number;
   people_waiting?: number;
+  /** Follow-ups as people (D-31): `all` = this page's Follow-ups list, `open_lead_due` = Home's card. */
+  followup_people?: { all: number; open_lead_due: number };
   unowned: number;
   items: Item[];
   scope: "mine" | "team";
@@ -370,7 +372,8 @@ function DesktopMyDay() {
         <FilterBar className="flex-nowrap overflow-x-auto pb-1 sm:flex-wrap">
           <FilterChip active={kind === "all"} onClick={() => { setKind("all"); setCursor(0); }} count={data?.people}>Everyone</FilterChip>
           {KINDS.map(k => (
-            <FilterChip key={k.id} active={kind === k.id} count={data?.counts[k.id] ?? 0}
+            <FilterChip key={k.id} active={kind === k.id}
+              count={k.id === "followup" ? (data?.followup_people?.all ?? data?.counts.followup) : data?.counts[k.id]}
               onClick={() => { setKind(kind === k.id ? "all" : k.id); setCursor(0); }}>
               {k.label}
             </FilterChip>
