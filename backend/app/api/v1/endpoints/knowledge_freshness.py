@@ -2,6 +2,7 @@
 
 GET  /knowledge/freshness        per source: used by the bot / waiting approval / indexing / failed / out of date, last updated and
                                  indexed; business data published vs drafts; Instagram sync and website re-crawl state; warnings
+GET  /knowledge/health           every entry the bot cannot use and why, entries no reply used, replies per search status
 POST /knowledge/refresh          re-index everything not indexed (or indexed from older wording) and read Instagram now (audited)
 PUT  /knowledge/source-settings  auto_approve_social / social_sync / website_recrawl (audited, kb.settings_updated)
 
@@ -11,7 +12,7 @@ from typing import Optional
 
 import structlog
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,7 @@ from app.api.v1.deps import require_module, require_roles
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.services import knowledge_freshness
+from app.services import knowledge_freshness, knowledge_health
 
 log = structlog.get_logger()
 
@@ -48,6 +49,16 @@ def knowledge_freshness_report(
     _module=Depends(require_module("ai_concierge")),
 ):
     return knowledge_freshness.report(db, _tenant(db, current_user))
+
+
+@router.get("/health")
+def knowledge_health_report(
+    days: int = Query(30, ge=1, le=90),
+    current_user: User = Depends(_owner_or_manager),
+    db: Session = Depends(get_db),
+    _module=Depends(require_module("ai_concierge")),
+):
+    return knowledge_health.report(db, current_user.tenant_id, days=days)
 
 
 @router.post("/refresh")

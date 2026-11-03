@@ -11,6 +11,7 @@ import { KnowledgeTestBox } from "@/components/knowledge/KnowledgeTestBox";
 import { StructuredDataTab } from "@/components/knowledge/StructuredDataTab";
 import { KnowledgeHistoryDrawer } from "@/components/knowledge/KnowledgeHistoryDrawer";
 import { KnowledgeFreshnessPanel } from "@/components/knowledge/KnowledgeFreshnessPanel";
+import { KnowledgeHealthCard } from "@/components/knowledge/KnowledgeHealthCard";
 import { SocialApprovalQueue } from "@/components/knowledge/SocialApprovalQueue";
 import { FlagBadges, SourceBadge } from "@/components/knowledge/SourceBadge";
 
@@ -370,6 +371,7 @@ function KnowledgeAndTrainingTab() {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl space-y-5">
           <KnowledgeFreshnessPanel />
+          <KnowledgeHealthCard />
           <SocialApprovalQueue />
           <KnowledgeTestBox properties={properties} />
 
