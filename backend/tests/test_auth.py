@@ -196,6 +196,27 @@ def test_refresh_reuse_after_the_successor_was_used_revokes_family(client, tenan
     assert audit_row is not None, "genuine reuse must write an audit event"
 
 
+def test_reuse_audit_says_who_presented_the_token_without_any_token_value(client, tenant_and_user, db):
+    """Six reuse events a day with no context (Shrii, 3 Nov 2026): the payload now names the presenter."""
+    from app.models.audit_event import AuditEvent
+
+    original_refresh = tenant_and_user["refresh_token"]
+    _rotate_twice_then_backdate(client, db, original_refresh, seconds_ago=120)
+    r = client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh},
+                    headers={"User-Agent": "Shrii-check/1.0 " + "x" * 300, "X-Forwarded-For": "203.0.113.7, 10.0.0.1",
+                             "X-Request-ID": "req-abc-123"})
+    assert r.status_code == 401
+    row = db.query(AuditEvent).filter_by(action="auth.refresh_token_reuse_detected",
+                                         target_id=tenant_and_user["user"].id).first()
+    p = row.payload
+    assert p["ip"] == "203.0.113.7"
+    assert p["user_agent"].startswith("Shrii-check/1.0") and len(p["user_agent"]) == 120
+    assert p["request_id"] == "req-abc-123"
+    assert p["token_issued_at"] and p["seconds_since_issued"] is not None
+    assert original_refresh not in str(p)
+    assert hashlib.sha256(original_refresh.encode()).hexdigest() not in str(p)
+
+
 # Real incident (Ratha, Sep 2026): the "Rathaa" login was logged out over and
 # over. The backend log showed one token, issued ~20 min earlier and replaced
 # ~7 min earlier, presented again and again. A rotated token's response can be

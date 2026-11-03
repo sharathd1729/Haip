@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -13,6 +13,7 @@ from app.core.security import (
 from app.models.user import User, RefreshToken, UserInvitation, UserRole
 from app.models.tenant import Tenant
 from app.core.audit import append_audit
+from app.core.request_id import get_request_id
 import uuid, hashlib, secrets
 from datetime import datetime, timezone, timedelta
 import structlog
@@ -225,8 +226,16 @@ def _revoke_lineage(db: Session, stored: "RefreshToken", now: datetime) -> int:
     return revoked
 
 
+def _client_ip(request: Request) -> Optional[str]:
+    """Same rule as RateLimitMiddleware (first X-Forwarded-For hop, else the socket peer)."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    return request.client.host if request.client else None
+
+
 @router.post("/refresh")
-def refresh_token(body: dict, db: Session = Depends(get_db)):
+def refresh_token(body: dict, request: Request, db: Session = Depends(get_db)):
     token = body.get("refresh_token", "")
     decoded = decode_token(token)
     if not decoded or decoded.get("type") != "refresh":
@@ -320,7 +329,13 @@ def refresh_token(body: dict, db: Session = Depends(get_db)):
         actor_user_id=decoded.get("sub"),
         target_type="user",
         target_id=decoded.get("sub"),
-        payload={"revoked_count": revoked_count, "age_since_revoked": age_since_revoked},
+        # Who presented it, so a stale stored session (e.g. a scheduled checker using an old login) can be told apart
+        # from theft. No token values: the issue time and the presenter's ip / short user-agent / request id only.
+        payload={"revoked_count": revoked_count, "age_since_revoked": age_since_revoked,
+                 "token_issued_at": created_at.isoformat() if created_at else None,
+                 "seconds_since_issued": seconds_since_issued,
+                 "ip": _client_ip(request), "user_agent": (request.headers.get("user-agent") or "")[:120] or None,
+                 "request_id": get_request_id() or None},
     )
     db.commit()
 
