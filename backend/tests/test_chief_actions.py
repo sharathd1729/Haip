@@ -13,7 +13,7 @@ from app.models.conversation import ChannelType, Conversation
 from app.models.insight import Insight
 from app.models.knowledge import KnowledgeEntry
 from app.services import lead_alert_service, lead_playbook_settings, wa_lead_pack
-from app.services.chief import approvals, detectors, executor, plans
+from app.services.chief import approvals, detectors, detectors_more, executor, plans
 from app.services.lead_playbook_catalog import NEW_LEAD_ALERT, SLA_ESCALATION
 from tests.analyst_world import world
 from tests.test_increment1_defect_specs import _h
@@ -357,7 +357,7 @@ def _consults(db, w, n=3):
 def test_repeat_question_becomes_a_pending_kb_entry(db):
     w = world(db, brand_config=ON)
     rows = _consults(db, w)
-    hits = detectors.concierge_repeat_questions(detectors.Ctx(db, w.t))
+    hits = detectors_more.concierge_repeat_questions(detectors.Ctx(db, w.t))
     assert len(hits) == 1 and hits[0]["numbers"] == {"asked": 3} and "pet" not in hits[0]["title"].lower()
     _finding(db, w, "CO1", evidence=hits[0]["evidence"], target_id=hits[0]["target_id"], role="concierge")
     p = plans.propose_for_tenant(db, w.t)[0]
@@ -369,7 +369,7 @@ def test_repeat_question_becomes_a_pending_kb_entry(db):
     assert entry.review_status == "pending" and entry.question.startswith("Is a pet") and "bedding" in entry.content
     rows[0].saved_to_kb_entry_id = entry.id
     db.commit()
-    assert detectors.concierge_repeat_questions(detectors.Ctx(db, w.t)) == []
+    assert detectors_more.concierge_repeat_questions(detectors.Ctx(db, w.t)) == []
 
 
 def test_ignored_autopilot_suggestions_plan(db):

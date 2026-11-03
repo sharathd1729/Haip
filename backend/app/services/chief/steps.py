@@ -10,6 +10,11 @@ approved the plan; a step is never run twice once done, and every step is safe t
   settings.lead_autopilot     lead_autopilot_service.update_settings (audited)
   kb.create_pending           a PENDING knowledge entry (unused until the owner approves it in the KB)
   payments.balance_reminders  balance_reminder_service.send_for_stays (idempotent per instalment)
+  automation.comment_rule     marketing_comment_dm.reply_all_rule: every comment on that post gets the DM (+ public reply)
+  marketing.agency_run        Marketing Studio's weekly run (marketing_agency.run_week): drafts only, posting keeps its approval
+  reviews.draft_replies       the Studio's AI review-reply drafts (marketing_studio.draft_review_reply); a person posts
+  website.change_draft        the Website page's "Change something" (website_change.request + website.builder_step): edits
+                              the DRAFT only; going live stays the site's own sha-bound approval
 """
 
 from __future__ import annotations
@@ -197,6 +202,62 @@ def balance_reminders(db: Session, tenant, proposal, step: dict, actor_id: str, 
     return _done({"sent": out["sent"], "skipped": out["skipped"]})
 
 
+def comment_rule(db: Session, tenant, proposal, step: dict, actor_id: str, now: datetime) -> Result:
+    from app.services import marketing_comment_dm
+
+    a = step["args"]
+    rule = marketing_comment_dm.reply_all_rule(
+        db, tenant.id, a["media_id"], a["message"], a.get("public_reply"), actor_id=actor_id
+    )
+    return _done({"rule_id": rule.id})
+
+
+def agency_run(db: Session, tenant, proposal, step: dict, actor_id: str, now: datetime) -> Result:
+    from app.services import marketing_agency_service
+    from app.workers.tasks.marketing_studio import agency_run_week
+
+    if marketing_agency_service.get_agency(tenant)["paused"]:
+        return _failed("Marketing Studio's agency is paused.")
+    agency_run_week.delay(tenant.id, "chief", actor_id)
+    return _done({"queued": True})
+
+
+def review_drafts(db: Session, tenant, proposal, step: dict, actor_id: str, now: datetime) -> Result:
+    from app.models.marketing import MarketingGuestReview
+    from app.workers.tasks.marketing_studio import draft_review_reply
+
+    rows = (
+        db.query(MarketingGuestReview)
+        .filter(
+            MarketingGuestReview.tenant_id == tenant.id,
+            MarketingGuestReview.id.in_(step["args"]["review_ids"]),
+            MarketingGuestReview.reply_status.in_(("none", "failed")),
+        )
+        .all()
+    )
+    for r in rows:
+        draft_review_reply.delay(tenant.id, r.id)
+    return _done({"queued": len(rows)})
+
+
+def website_change(db: Session, tenant, proposal, step: dict, actor_id: str, now: datetime) -> Result:
+    from app.models.user import User
+    from app.services import website_change as wc
+    from app.services.website_service import WebsiteError, get_site
+    from app.workers.tasks.website import builder_step
+
+    site, user = get_site(db, tenant.id), db.get(User, actor_id)
+    if site is None or user is None:
+        return _failed("There is no website to change.")
+    try:
+        job = wc.request(db, site, user, step["args"]["text"])
+    except WebsiteError as exc:
+        return _failed(getattr(exc, "message", None) or str(exc))
+    db.commit()
+    builder_step.delay(tenant.id, job.id)
+    return _done({"job_id": job.id})
+
+
 RUNNERS = {
     "templates.create_drafts": create_drafts,
     "templates.submit": submit,
@@ -206,6 +267,10 @@ RUNNERS = {
     "settings.lead_autopilot": lead_autopilot,
     "kb.create_pending": kb_pending,
     "payments.balance_reminders": balance_reminders,
+    "automation.comment_rule": comment_rule,
+    "marketing.agency_run": agency_run,
+    "reviews.draft_replies": review_drafts,
+    "website.change_draft": website_change,
 }
 # Waiting is not an action: it never counts against the daily cap.
 NOT_ACTIONS = {"wait.templates_approved"}

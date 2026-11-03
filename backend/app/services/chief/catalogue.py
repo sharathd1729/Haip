@@ -13,6 +13,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.services.chief import detectors as d
+from app.services.chief import detectors_growth as g
+from app.services.chief import detectors_more as m
 
 
 @dataclass(frozen=True)
@@ -64,7 +66,7 @@ CATALOGUE: tuple[Detector, ...] = (
         "daily",
         "revenue",
         "Apply the waiting suggestions, or let the autopilot move clear cases itself.",
-        d.sales_autopilot_ignored,
+        m.sales_autopilot_ignored,
     ),
     Detector(
         "CO1",
@@ -72,7 +74,7 @@ CATALOGUE: tuple[Detector, ...] = (
         "daily",
         "quality",
         "Save the team's answer to the knowledge base so the AI can reply itself.",
-        d.concierge_repeat_questions,
+        m.concierge_repeat_questions,
     ),
     Detector(
         "CO5",
@@ -131,7 +133,7 @@ CATALOGUE: tuple[Detector, ...] = (
         "daily",
         "quality",
         "Replace the token in Meta Business Settings before it ends.",
-        d.ads_token_expiring,
+        m.ads_token_expiring,
     ),
     Detector(
         "MK5",
@@ -139,7 +141,7 @@ CATALOGUE: tuple[Detector, ...] = (
         "daily",
         "revenue",
         "Subscribe the Meta app to messaging_referral so every ad chat is traced.",
-        d.ads_attribution_gap,
+        m.ads_attribution_gap,
     ),
     Detector(
         "OW3",
@@ -147,7 +149,7 @@ CATALOGUE: tuple[Detector, ...] = (
         "daily",
         "revenue",
         "Ask the analyst why, then check where leads usually come from.",
-        d.owner_leads_down,
+        m.owner_leads_down,
     ),
     Detector(
         "OW3B",
@@ -155,7 +157,73 @@ CATALOGUE: tuple[Detector, ...] = (
         "daily",
         "revenue",
         "Check quotes and follow-ups for the leads of the last two weeks.",
-        d.owner_bookings_down,
+        m.owner_bookings_down,
+    ),
+    # E3: marketing, social, ads, website, partnerships, platform (detectors_growth.py)
+    Detector(
+        "MK1",
+        "social_media",
+        "urgent",
+        "revenue",
+        "Turn on an automatic DM for everyone who comments on that post.",
+        g.social_comment_spike,
+    ),
+    Detector(
+        "MK4",
+        "marketing_manager",
+        "daily",
+        "revenue",
+        "Let Marketing Studio draft this week's posts for your approval.",
+        g.marketing_cadence_drop,
+    ),
+    Detector(
+        "MK7",
+        "guest_relations",
+        "daily",
+        "quality",
+        "Let the AI draft replies; a person reads and posts each one.",
+        g.reviews_unanswered,
+    ),
+    Detector(
+        "MK2",
+        "ads_analyst",
+        "daily",
+        "revenue",
+        "Check the campaign's audience and message in Ads Manager, or pause it.",
+        g.ads_spend_no_leads,
+    ),
+    Detector(
+        "WB1",
+        "website",
+        "daily",
+        "revenue",
+        "Make the enquiry button easier to find on the busiest page.",
+        g.website_traffic_not_converting,
+    ),
+    Detector(
+        "WB3",
+        "website",
+        "daily",
+        "revenue",
+        "Add a short section about the long weekend so visitors know you are free.",
+        g.website_peak_weekend,
+    ),
+    Detector(
+        "WB5",
+        "website",
+        "daily",
+        "quality",
+        "Publish the drafts so the website and the AI can offer them.",
+        g.website_drafts_unpublished,
+    ),
+    Detector("PA1", "partnerships", "daily", "quality", "Reply yes or no to each request.", g.partnerships_unanswered),
+    Detector(
+        "API1",
+        "it_monitor",
+        "urgent",
+        "quality",
+        "Check the receiving system's address and that it is up.",
+        g.api_webhooks_failing,
     ),
 )
 BY_CODE = {det.code: det for det in CATALOGUE}

@@ -245,6 +245,10 @@ def _kb(db: Session, tenant, row: Insight) -> dict | None:
 
 
 PLANNERS = {"SA1": _sa1, "A4": _missed_calls, "C2": _quote_followups, "SA9": _autopilot, "OP1": _arrivals, "CO1": _kb}
+# E3 (marketing, social media, reviews, website): plans_growth.py
+from app.services.chief import plans_growth as _growth  # noqa: E402
+
+PLANNERS.update(_growth.PLANNERS)
 
 
 def _recently_rejected(db: Session, tenant_id: str, row: Insight, now: datetime) -> bool:
