@@ -58,6 +58,7 @@ celery_app = Celery(
         "app.workers.tasks.lead_playbooks",
         "app.workers.tasks.agent_consults",
         "app.workers.tasks.analyst_tasks",
+        "app.workers.tasks.chief_tasks",
         "app.workers.tasks.learning_tasks",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
@@ -394,6 +395,10 @@ celery_app.conf.update(
         "analyst.tick":                               {"queue": "ai_scoring"},
         "analyst.run_report":                         {"queue": "ai_scoring"},
         "analyst.answer_followup":                    {"queue": "ai_scoring"},
+        # AI Executive (chief_tasks.py): detection reads shared sources (default); explanations call the LLM router.
+        "chief.detect_all_tenants":                   {"queue": "default"},
+        "chief.detect_tenant":                        {"queue": "default"},
+        "chief.explain_tenant":                       {"queue": "ai_scoring"},
         # Learning loop (learning_tasks.py): daily evaluation of half-and-half tests, the bench gate + start.
         "learning.evaluate_all":                      {"queue": "ai_scoring"},
         "learning.evaluate_tenant":                   {"queue": "ai_scoring"},
@@ -416,6 +421,18 @@ celery_app.conf.beat_schedule = {
     "analyst-tick-15min": {
         "task": "analyst.tick",
         "schedule": crontab(minute="3,18,33,48"),
+    },
+    # AI Executive (services/chief): urgent detectors every 5 minutes (minutes 1/6/11/...), the full daily pass at 06:30 IST
+    # before the analyst's daily pulse. Each workspace runs only while brand_config.chief.enabled is on.
+    "chief-detect-urgent-5min": {
+        "task": "chief.detect_all_tenants",
+        "schedule": crontab(minute="1-59/5"),
+        "kwargs": {"cadence": "urgent"},
+    },
+    "chief-detect-daily": {
+        "task": "chief.detect_all_tenants",
+        "schedule": crontab(hour=6, minute=30),
+        "kwargs": {"cadence": "daily"},
     },
     # Learning loop: decide running experiments once a day (keep / roll back / stop), 07:15 IST, before the 08:00 briefs.
     "learning-evaluate-daily": {

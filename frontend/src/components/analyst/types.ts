@@ -80,3 +80,33 @@ export function periodText(p: { from: string; to: string }): string {
   const f = (s: string) => new Date(`${s}T00:00:00+05:30`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
   return p.from === p.to ? f(p.from) : `${f(p.from)} – ${f(p.to)}`;
 }
+
+// ── AI Executive (backend: app/services/chief, GET /chief/home) ─────────────────────────────────────────────────
+export type Severity = "critical" | "high" | "medium" | "low" | "info";
+export const SEVERITY_TONE: Record<Severity, Tone> = { critical: "danger", high: "danger", medium: "warning", low: "info", info: "neutral" };
+export const SEVERITY_LABEL: Record<Severity, string> = { critical: "Critical", high: "Act today", medium: "Watch", low: "Low", info: "Note" };
+export type DismissReason = "not_now" | "already_handled" | "wrong" | "not_worth_it" | "too_risky";
+export const DISMISS_LABEL: Record<DismissReason, string> = {
+  not_now: "Not now", already_handled: "Already handled", wrong: "This is wrong", not_worth_it: "Not worth it", too_risky: "Too risky",
+};
+
+export interface ChiefFinding {
+  id: string; code: string; role: string; role_label: string; severity: Severity; title: string; body: string | null;
+  why: string | null; next_step: string | null; explained_by: "ai" | "rule"; numbers: Record<string, number>;
+  evidence: { type: string; id: string; href?: string | null }[]; cta_label: string | null; cta_href: string | null;
+  status: "open" | "resolved" | "dismissed"; first_seen_at: string | null; last_seen_at: string | null;
+}
+export interface ChiefSettings { enabled: boolean; paused: boolean; roles_off: string[]; detectors_off: string[] }
+export interface ChiefHome {
+  settings: ChiefSettings;
+  counts: Record<Severity, number> & { open: number; resolved_7d: number };
+  roles: { key: string; label: string; findings: ChiefFinding[] }[];
+  top: ChiefFinding[];
+  brief: ReportSummary | null;
+  last_checked_at: string | null;
+}
+
+export function sinceText(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+}
