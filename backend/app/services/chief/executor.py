@@ -82,7 +82,27 @@ def approve(db: Session, tenant, p: ChiefProposal, user_id: str, plan_sha: str, 
     p.decided_by, p.decided_at, p.decided_via = user_id, _now(), via
     p.baseline = {"numbers": finding.numbers or {}, "at": _now().isoformat()}
     _audit(db, p, "chief.proposal_approved", user_id, via=via, tier=p.risk_tier, plan_sha=p.plan_sha)
+    from app.services.chief import tuning
+
+    tuning.on_decision(db, p.tenant_id, p.code, "approved")
     return p
+
+
+def auto_approve(db: Session, tenant, p: ChiefProposal, owner_id: str) -> bool:
+    """E4 autopilot: an owner opted this detector in (tuning.start_autopilot) and the plan is internal drafts only (every
+    step R1). Recorded as that owner's standing approval, via "autopilot"; never counted as a new approval for learning."""
+    from app.services.chief import tuning
+
+    cfg = chief_settings.get(tenant)
+    if not cfg.enabled or cfg.paused or p.risk_tier != "R1" or not tuning.all_r1(p.steps):
+        return False
+    if not _claim(db, p, ("awaiting_approval",), "approved"):
+        return False
+    finding = db.query(Insight).filter_by(id=p.finding_id, tenant_id=p.tenant_id).first()
+    p.decided_by, p.decided_at, p.decided_via = owner_id, _now(), "autopilot"
+    p.baseline = {"numbers": (finding.numbers if finding else None) or {}, "at": _now().isoformat()}
+    _audit(db, p, "chief.proposal_auto_approved", None, owner=owner_id, tier=p.risk_tier)
+    return True
 
 
 def reject(
@@ -93,6 +113,9 @@ def reject(
     p.decided_by, p.decided_at, p.decided_via = user_id, _now(), via
     p.decision_reason, p.decision_note, p.finished_at = reason, note, _now()
     _audit(db, p, "chief.proposal_rejected", user_id, via=via, reason=reason)
+    from app.services.chief import tuning
+
+    tuning.on_decision(db, p.tenant_id, p.code, "rejected", reason)
     return p
 
 

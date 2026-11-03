@@ -70,7 +70,7 @@ def social_comment_spike(ctx: Ctx) -> list[dict]:
             cta_href="/dashboard/inbox",
         )
         for media, n in per_media.most_common(5)
-        if n >= COMMENT_SPIKE and media not in covered
+        if n >= ctx.level("MK1", COMMENT_SPIKE) and media not in covered
     ]
 
 
@@ -142,9 +142,10 @@ def ads_spend_no_leads(ctx: Ctx) -> list[dict]:
     if row is None or (row.config or {}).get("ad_account_id") is None:
         return []
     out = []
+    limit = ctx.level("MK2", AD_SPEND_NO_LEADS)
     for c in meta_ads_service.summary(ctx.db, ctx.tid, days=7)["campaigns"]:
         spend = float(c.get("spend") or 0)
-        if spend < AD_SPEND_NO_LEADS or c.get("haip_leads"):
+        if spend < limit or c.get("haip_leads"):
             continue
         name = (c.get("campaign_name") or "A campaign")[:80]
         out.append(
@@ -325,7 +326,7 @@ def api_webhooks_failing(ctx: Ctx) -> list[dict]:
         .filter(
             WebhookEndpoint.tenant_id == ctx.tid,
             WebhookEndpoint.is_active.is_(True),
-            WebhookEndpoint.consecutive_failures >= WEBHOOK_FAILURES,
+            WebhookEndpoint.consecutive_failures >= ctx.level("API1", WEBHOOK_FAILURES),
         )
         .all()
     )

@@ -143,7 +143,7 @@ def sales_autopilot_ignored(ctx: Ctx) -> list[dict]:
         .scalar()
         or 0
     )
-    if n < 15:
+    if n < ctx.level("SA9", 15):
         return []
     return [
         _hit(

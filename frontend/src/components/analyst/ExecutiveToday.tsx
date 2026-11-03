@@ -16,6 +16,7 @@ import {
   type ChiefFinding, type ChiefHome, type DismissReason,
 } from "./types";
 import { DoneThisWeek, NeedsYourOk } from "./ExecutiveProposals";
+import { ExecutiveLearning } from "./ExecutiveLearning";
 
 const REASONS: DismissReason[] = ["not_now", "already_handled", "wrong", "not_worth_it", "too_risky"];
 const pill = "inline-flex min-h-[44px] items-center gap-2 rounded-full px-4 text-sm font-semibold disabled:opacity-60";
@@ -49,6 +50,9 @@ function FindingDrawer({ f, onClose }: { f: ChiefFinding | null; onClose: () => 
             </section>
           )}
           {f.why !== f.body && f.body && <p className="text-xs text-[var(--haip-fg-muted)]">What HAIP measured: {f.body}</p>}
+          {(f.learning?.reason || f.learning?.history) && (
+            <p className="text-xs text-[var(--haip-fg-muted)]">{[f.learning?.reason, f.learning?.history].filter(Boolean).join(" ")}</p>
+          )}
           <p className="text-[11px] text-[var(--haip-fg-subtle)]">
             {f.explained_by === "ai" ? "Found by a rule in HAIP; the AI wrote the explanation from the same numbers." : "Found and written by a rule in HAIP."}
           </p>
@@ -218,6 +222,7 @@ export function ExecutiveToday({ isOwner, onOpenBrief }: { isOwner: boolean; onO
         </Card>
       ))}
       <DoneThisWeek items={h.activity ?? []} isOwner={isOwner} />
+      <ExecutiveLearning isOwner={isOwner} />
       <FindingDrawer f={open} onClose={() => setOpen(null)} />
     </div>
   );

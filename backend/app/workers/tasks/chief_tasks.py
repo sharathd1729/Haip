@@ -7,6 +7,8 @@
   chief.explain_tenant       grounded explanations for new / changed findings (router ``chief_explain``)
   chief.execute_proposal     run an APPROVED proposal's steps (services/chief/executor.run); queue whatsapp (steps may
                              submit to Meta or message guests, only after an owner's approval)
+  chief.outcomes_all_tenants beat 06:50 IST: did each finished fix work (services/chief/outcomes.py), then offer autopilot
+                             to the owners for detectors that earned it
   chief.advance_all_tenants  beat every 5 min: approved proposals not started / held by the daily cap, and waiting ones
                              whose re-check time has come (e.g. a template Meta has not decided yet)
 
@@ -60,9 +62,13 @@ def detect_tenant(tenant_id: str, cadence: str = "urgent") -> dict:
             new = plans.propose_for_tenant(db, tenant)
             db.commit()
             out["proposed"] = len(new)
-            if new:
-                approvals.notify_new(db, tenant, new)
+            asking = [p for p in new if p.status == "awaiting_approval"]
+            if asking:
+                approvals.notify_new(db, tenant, asking)
                 db.commit()
+            for p in new:  # autopilot (E4): the owner's standing OK, internal drafts only
+                if p.status == "approved":
+                    execute_proposal.delay(tenant_id, p.id)
         if out["open"] and not cfg.paused:
             explain_tenant.delay(tenant_id)
         return out
@@ -131,3 +137,26 @@ def advance_all_tenants() -> dict:
     finally:
         db.close()
     return {"queued": queued}
+
+
+@shared_task(name="chief.outcomes_all_tenants")
+def outcomes_all_tenants() -> dict:
+    from app.services.chief import outcomes
+    from app.services.chief import settings as s
+
+    checked = 0
+    db = SessionLocal()
+    try:
+        for tenant in db.query(Tenant).all():
+            if not s.get(tenant).enabled:
+                continue
+            set_tenant_context(db, tenant.id)
+            try:
+                checked += outcomes.check_tenant(db, tenant)["checked"]
+                db.commit()
+            except Exception:  # noqa: BLE001 -- one workspace never stops the others
+                db.rollback()
+                log.exception("chief_outcomes_failed", tenant_id=tenant.id)
+    finally:
+        db.close()
+    return {"checked": checked}

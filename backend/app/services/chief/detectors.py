@@ -34,6 +34,7 @@ class Ctx:
         self.now = now or datetime.now(UTC)
         self._queue: dict | None = None
         self._today = None
+        self._tuning: dict | None = None
 
     @property
     def tid(self) -> str:
@@ -45,6 +46,17 @@ class Ctx:
 
             self._queue = work_queue_service.build(self.db, self.tenant, None)
         return self._queue
+
+    def level(self, code: str, default):
+        """This detector's threshold for this workspace: the step it learned on tuning.LADDERS, else ``default``."""
+        if self._tuning is None:
+            from app.services.chief import tuning
+
+            self._tuning = tuning.all_for(self.db, self.tid)
+        from app.services.chief import tuning
+
+        value = tuning.threshold(code, self._tuning.get(code))
+        return default if value is None else value
 
     def today(self):
         if self._today is None:
@@ -101,7 +113,7 @@ def sales_unattended(ctx: Ctx) -> list[dict]:
         for i in ctx.queue()["items"]
         if i["kind"] in ("new_lead", "reply") and i["severity"] in ("urgent", "critical")
     ]
-    if len(late) < 3:
+    if len(late) < ctx.level("SA1", 3):
         return []
     from app.services import lead_alert_service, lead_playbook_settings, wa_lead_pack
     from app.services.lead_playbook_catalog import NEW_LEAD_ALERT, SLA_ESCALATION
@@ -140,7 +152,7 @@ def sales_unattended(ctx: Ctx) -> list[dict]:
 def sales_unowned(ctx: Ctx) -> list[dict]:
     """SA2: people on the queue that nobody owns (work_queue_service.unowned), not yet gone cold."""
     rows = [i for i in ctx.queue()["items"] if i.get("unowned") and i["severity"] != "stale"]
-    if len(rows) < 5:
+    if len(rows) < ctx.level("SA2", 5):
         return []
     return [
         _hit(
@@ -158,7 +170,7 @@ def sales_unowned(ctx: Ctx) -> list[dict]:
 def sales_at_risk(ctx: Ctx) -> list[dict]:
     """SA8: warm leads travelling within 30 days and quiet for 48 h (the queue's ``at_risk`` flag)."""
     rows = [i for i in ctx.queue()["items"] if "at_risk" in (i.get("flags") or [])]
-    if len(rows) < 3:
+    if len(rows) < ctx.level("SA8", 3):
         return []
     return [
         _hit(
@@ -266,7 +278,7 @@ def concierge_drafts_expired(ctx: Ctx) -> list[dict]:
         .scalar()
         or 0
     )
-    if n < 10:
+    if n < ctx.level("CO2", 10):
         return []
     return [
         _hit(

@@ -12,11 +12,15 @@ POST /chief/proposals/{id}/approve     {plan_sha} owner only; queues the run (Ce
 POST /chief/proposals/{id}/reject      {reason, note} owner only (not proposed again for 7 days)
 GET  /chief/approvals                  one inbox: AI Executive + Marketing Studio + learning-loop items waiting for a yes
 POST /chief/templates                  add the WhatsApp approval template as a DRAFT (nothing is submitted)
+GET  /chief/learning                   E4: per detector what it learned (confidence, threshold, mute, why, history, autopilot)
+PUT  /chief/autopilot/{code}           {on} owner only; on = only once it earned it (5 approved fixes that worked, R1 only)
+POST /chief/tuning/{code}/reset        owner only: back to the catalogue defaults (audited chief.tuning_reset)
 
 Nothing here calls a language model. Only an approved proposal acts, in Celery. Another tenant's record is a 404.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import require_roles
@@ -176,3 +180,54 @@ def create_template_drafts(current_user: User = Depends(_readers), db: Session =
     from app.services import wa_lead_pack
 
     return wa_lead_pack.create_chief_drafts(db, current_user.tenant_id, current_user.id)
+
+
+class AutopilotIn(BaseModel):
+    on: bool
+
+
+@router.get("/learning")
+def learning(current_user: User = Depends(_readers), db: Session = Depends(get_db)):
+    from app.services.chief import tuning
+
+    learned = tuning.all_for(db, current_user.tenant_id)
+    return [
+        {
+            **tuning.view(d.code, learned.get(d.code)),
+            "role": d.role,
+            "role_label": ROLE_LABELS.get(d.role, d.role),
+            "next_step": d.next_step,
+            "eligible": tuning.eligible(db, current_user.tenant_id, d.code),
+        }
+        for d in catalogue.CATALOGUE
+    ]
+
+
+@router.put("/autopilot/{code}")
+def set_autopilot(code: str, body: AutopilotIn, current_user: User = Depends(_owner), db: Session = Depends(get_db)):
+    from app.services.chief import tuning
+
+    if code not in catalogue.BY_CODE:
+        raise HTTPException(status_code=404, detail="Unknown detector")
+    if body.on:
+        try:
+            t = tuning.start_autopilot(db, current_user.tenant_id, code, current_user.id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    else:
+        t = tuning.get(db, current_user.tenant_id, code)
+        if t is not None and t.autopilot_by:
+            tuning.stop_autopilot(db, t, "Switched off by the owner.", user_id=current_user.id)
+    db.commit()
+    return tuning.view(code, tuning.get(db, current_user.tenant_id, code))
+
+
+@router.post("/tuning/{code}/reset")
+def reset_tuning(code: str, current_user: User = Depends(_owner), db: Session = Depends(get_db)):
+    from app.services.chief import tuning
+
+    if code not in catalogue.BY_CODE:
+        raise HTTPException(status_code=404, detail="Unknown detector")
+    tuning.reset(db, current_user.tenant_id, code, current_user.id)
+    db.commit()
+    return tuning.view(code, None)

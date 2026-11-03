@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import append_audit
 from app.models.chief import OPEN_STATUSES, ChiefProposal
 from app.models.insight import Insight
+from app.services.chief import executor, tuning
 from app.services.chief.steps import step
 
 log = structlog.get_logger()
@@ -352,5 +353,8 @@ def propose_for_tenant(db: Session, tenant, now: datetime | None = None) -> list
             target_id=p.id,
             payload={"actor": "chief", "code": p.code, "tier": tier, "steps": [s["type"] for s in p.steps]},
         )
+        t = tuning.get(db, tenant.id, p.code)
+        if t is not None and t.autopilot_by and executor.auto_approve(db, tenant, p, t.autopilot_by):
+            log.info("chief_proposal_auto_approved", tenant_id=tenant.id, proposal_id=p.id, code=p.code)
         created.append(p)
     return created

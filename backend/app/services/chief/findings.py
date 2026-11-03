@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import append_audit
 from app.models.insight import Insight
 from app.schemas.chief import ROLE_LABELS
-from app.services.chief import catalogue
+from app.services.chief import catalogue, tuning
 from app.services.chief import settings as chief_settings
 from app.services.chief.detectors import Ctx
 
@@ -114,8 +114,12 @@ def run(db: Session, tenant, cadence: str = "urgent", now: datetime | None = Non
         return out
     now = now or datetime.now(UTC)
     ctx = Ctx(db, tenant, now)
+    learned = tuning.all_for(db, tenant.id)
     for det in catalogue.CATALOGUE:
         if not catalogue.runs_in(det, cadence) or det.code in cfg.detectors_off or det.role in cfg.roles_off:
+            continue
+        if tuning.muted(learned.get(det.code), now):  # paused for 30 days after the owner kept turning it down
+            out.setdefault("muted", []).append(det.code)
             continue
         try:
             with db.begin_nested():
@@ -137,7 +141,8 @@ def run(db: Session, tenant, cadence: str = "urgent", now: datetime | None = Non
 # ── reading ───────────────────────────────────────────────────────────────────────────────────────────────────
 
 
-def view(row: Insight) -> dict:
+def view(row: Insight, learned: dict | None = None) -> dict:
+    """``learned`` = tuning.all_for(...): adds what the Executive learned about this detector (confidence, threshold, why)."""
     det = catalogue.BY_CODE.get(row.category_code)
     role = catalogue.role_of(row.category_code, row.role)
     exp = row.explanation if isinstance(row.explanation, dict) else {}
@@ -163,14 +168,20 @@ def view(row: Insight) -> dict:
         "resolved_at": row.auto_resolved_at,
         "dismiss_reason": row.dismiss_reason,
         "snoozed_until": row.snoozed_until,
+        "learning": tuning.view(row.category_code, (learned or {}).get(row.category_code))
+        if learned is not None
+        else None,
     }
 
 
-def _sorted(rows: list[Insight]) -> list[Insight]:
+def _sorted(rows: list[Insight], learned: dict | None = None) -> list[Insight]:
+    """Worst first; equal severity: the detector whose fixes the owner approves and that work (tuning.confidence)."""
+    learned = learned or {}
     return sorted(
         rows,
         key=lambda r: (
             SEVERITY_ORDER.get(r.severity, 9),
+            -tuning.confidence(learned.get(r.category_code)),
             -(_aware(r.last_seen_at or r.updated_at) or datetime.min.replace(tzinfo=UTC)).timestamp(),
         ),
     )
@@ -187,7 +198,8 @@ def list_findings(
     else:
         q = q.filter(Insight.is_dismissed.is_(True))
     rows = q.order_by(Insight.updated_at.desc()).limit(500).all()
-    out = [view(r) for r in _sorted(rows)]
+    learned = tuning.all_for(db, tenant_id)
+    out = [view(r, learned) for r in _sorted(rows, learned)]
     return [f for f in out if role is None or f["role"] == role][:limit]
 
 
@@ -216,7 +228,8 @@ def dismiss(
         target_id=row.id,
         payload={"code": row.category_code, "reason": reason, **({"note": note} if note else {})},
     )
-    return view(row)
+    tuning.on_decision(db, tenant_id, row.category_code, "dismissed", reason)
+    return view(row, tuning.all_for(db, tenant_id))
 
 
 def home(db: Session, tenant) -> dict:
@@ -288,4 +301,19 @@ def brief_block(db: Session, tenant) -> dict | None:
         "open": len(open_),
         "by_role": by_role,
         "top": [{"role": f["role_label"], "severity": f["severity"], "title": f["title"]} for f in open_[:5]],
+        "worked_7d": _outcomes_since(db, tenant.id, datetime.now(UTC) - timedelta(days=7)),
     }
+
+
+def _outcomes_since(db: Session, tenant_id: str, since: datetime) -> dict:
+    """E4 "what worked": outcome verdicts recorded since then (services/chief/outcomes.py)."""
+    from app.models.chief import ChiefProposal
+
+    counts = {"improved": 0, "no_change": 0, "worse": 0}
+    for (outcome,) in db.query(ChiefProposal.outcome).filter(
+        ChiefProposal.tenant_id == tenant_id, ChiefProposal.status == "done", ChiefProposal.updated_at >= since
+    ):
+        v = (outcome or {}).get("verdict")
+        if v in counts:
+            counts[v] += 1
+    return counts

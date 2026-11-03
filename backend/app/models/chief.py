@@ -57,3 +57,32 @@ class ChiefProposal(Base, TimestampMixin, TenantMixin):
     check_due_at = Column(DateTime(timezone=True), nullable=True)
     failure = Column(Text, nullable=True)
     outcome = Column(JSON, nullable=True)
+
+
+class ChiefDetectorTuning(Base, TimestampMixin, TenantMixin):
+    """What the AI Executive learned about one detector in one workspace (migration 187, services/chief/tuning.py): the
+    decision and outcome counts, the threshold step on the detector's ladder, a mute, and autopilot (offered / opted in).
+    Only WHEN and HOW OFTEN a detector proposes changes; never what an action does, never across risk tiers."""
+
+    __tablename__ = "chief_detector_tuning"
+    __table_args__ = (Index("uq_chief_detector_tuning_code", "tenant_id", "code", unique=True),)
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    code = Column(String(10), nullable=False)
+    step = Column(Integer, nullable=False, default=1)  # index on tuning.LADDERS[code]; 1 = the catalogue default
+    approved = Column(Integer, nullable=False, default=0)
+    rejected = Column(Integer, nullable=False, default=0)
+    dismissed = Column(Integer, nullable=False, default=0)
+    improved = Column(Integer, nullable=False, default=0)
+    no_change = Column(Integer, nullable=False, default=0)
+    worse = Column(Integer, nullable=False, default=0)
+    rejections_in_row = Column(Integer, nullable=False, default=0)
+    wins_in_row = Column(Integer, nullable=False, default=0)
+    muted_until = Column(DateTime(timezone=True), nullable=True)
+    last_reason = Column(Text, nullable=True)  # why the step / mute last changed, in plain words
+    autopilot_offered_at = Column(DateTime(timezone=True), nullable=True)
+    autopilot_by = Column(
+        String, ForeignKey("users.id"), nullable=True
+    )  # the owner who opted in (also the steps' actor)
+    autopilot_at = Column(DateTime(timezone=True), nullable=True)

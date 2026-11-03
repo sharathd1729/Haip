@@ -401,6 +401,7 @@ celery_app.conf.update(
         "chief.explain_tenant":                       {"queue": "ai_scoring"},
         "chief.execute_proposal":                     {"queue": "whatsapp"},
         "chief.advance_all_tenants":                  {"queue": "default"},
+        "chief.outcomes_all_tenants":                 {"queue": "default"},
         # Learning loop (learning_tasks.py): daily evaluation of half-and-half tests, the bench gate + start.
         "learning.evaluate_all":                      {"queue": "ai_scoring"},
         "learning.evaluate_tenant":                   {"queue": "ai_scoring"},
@@ -435,6 +436,11 @@ celery_app.conf.beat_schedule = {
     "chief-advance-5min": {
         "task": "chief.advance_all_tenants",
         "schedule": crontab(minute="3-59/5"),
+    },
+    # E4: did each finished AI Executive fix work (14 days on), and which detectors earned an autopilot offer. 06:50 IST.
+    "chief-outcomes-daily": {
+        "task": "chief.outcomes_all_tenants",
+        "schedule": crontab(hour=6, minute=50),
     },
     "chief-detect-daily": {
         "task": "chief.detect_all_tenants",

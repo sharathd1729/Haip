@@ -90,11 +90,19 @@ export const DISMISS_LABEL: Record<DismissReason, string> = {
   not_now: "Not now", already_handled: "Already handled", wrong: "This is wrong", not_worth_it: "Not worth it", too_risky: "Too risky",
 };
 
+export interface ChiefLearning {
+  code: string; confidence: number; threshold: number | null; default_threshold: number | null; step: number; muted: boolean;
+  muted_until: string | null; reason: string | null; history: string | null;
+  counts: { approved: number; rejected: number; dismissed: number; improved: number; no_change: number; worse: number };
+  autopilot: boolean; autopilot_offered: boolean;
+}
+export interface ChiefLearningRow extends ChiefLearning { role: string; role_label: string; next_step: string; eligible: boolean }
 export interface ChiefFinding {
   id: string; code: string; role: string; role_label: string; severity: Severity; title: string; body: string | null;
   why: string | null; next_step: string | null; explained_by: "ai" | "rule"; numbers: Record<string, number>;
   evidence: { type: string; id: string; href?: string | null }[]; cta_label: string | null; cta_href: string | null;
   status: "open" | "resolved" | "dismissed"; first_seen_at: string | null; last_seen_at: string | null;
+  learning?: ChiefLearning | null;
 }
 export interface ChiefSettings {
   enabled: boolean; paused: boolean; roles_off: string[]; detectors_off: string[]; whatsapp_approvals: boolean; daily_action_cap: number;
