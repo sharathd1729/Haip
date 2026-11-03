@@ -219,13 +219,17 @@ def _staff_reply(db, tenant: Tenant, msg: dict, msg_type: str, from_number: str)
     from app.core.cache import get_cached, set_cached
     from app.services import lead_alert_service
     payload = _button_payload(msg, msg_type)
-    is_alert_tap = bool(payload and payload.startswith("la:"))
+    is_alert_tap = bool(payload and payload.startswith(("la:", "ex:")))   # ex: = an AI Executive approval (owner)
     if not is_alert_tap and lead_alert_service.staff_by_phone(db, tenant.id, from_number) is None:
         return False
     key = f"haip:lead_alert:inbound:{msg.get('id', '')}"
     if msg.get("id") and get_cached(key):           # Meta redelivers webhooks; a tap is handled once
         return True
-    outcome = lead_alert_service.handle_staff_inbound(db, tenant.id, from_number, payload)
+    if payload and payload.startswith("ex:"):
+        from app.services.chief import approvals as chief_approvals
+        outcome = chief_approvals.handle_tap(db, tenant.id, from_number, payload)
+    else:
+        outcome = lead_alert_service.handle_staff_inbound(db, tenant.id, from_number, payload)
     if msg.get("id"):
         set_cached(key, "1", ttl=86400)
     log.info("wa_staff_reply", tenant_id=tenant.id, outcome=outcome, type=msg_type)

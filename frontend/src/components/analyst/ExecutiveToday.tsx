@@ -1,7 +1,8 @@
 "use client";
 // AI Executive, phase E1 (read-only): today's brief headline, what needs the founder now (findings by role, worst first), and
-// each finding's evidence, next step and a "not needed" reason. Backend: GET /chief/home, POST /chief/run,
-// POST /chief/findings/{id}/dismiss, PUT /chief/settings (owner). The Executive never acts on anything in this phase.
+// each finding's evidence, next step and a "not needed" reason; E2: plans waiting for the owner's OK and what was done.
+// Backend: GET /chief/home, POST /chief/run, POST /chief/findings/{id}/dismiss, PUT /chief/settings (owner),
+// POST /chief/templates. Nothing runs without an owner's approval.
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,6 +15,7 @@ import {
   DISMISS_LABEL, KIND_LABEL, SEVERITY_LABEL, SEVERITY_TONE, periodText, sinceText,
   type ChiefFinding, type ChiefHome, type DismissReason,
 } from "./types";
+import { DoneThisWeek, NeedsYourOk } from "./ExecutiveProposals";
 
 const REASONS: DismissReason[] = ["not_now", "already_handled", "wrong", "not_worth_it", "too_risky"];
 const pill = "inline-flex min-h-[44px] items-center gap-2 rounded-full px-4 text-sm font-semibold disabled:opacity-60";
@@ -97,6 +99,11 @@ export function ExecutiveToday({ isOwner, onOpenBrief }: { isOwner: boolean; onO
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["chief-home"] }); setTimeout(() => qc.invalidateQueries({ queryKey: ["chief-home"] }), 15000); },
     onError: () => toast({ variant: "error", title: "Couldn't save", description: "Try again." }),
   });
+  const template = useMutation({
+    mutationFn: () => api.post("/chief/templates").then(r => r.data),
+    onSuccess: () => toast({ variant: "success", title: "Approval template added as a draft", description: "Submit it to Meta from Messaging > Templates. WhatsApp approvals start once Meta approves it." }),
+    onError: () => toast({ variant: "error", title: "Couldn't add the template", description: "Try again." }),
+  });
   const run = useMutation({
     mutationFn: () => api.post("/chief/run").then(r => r.data),
     onSuccess: () => {
@@ -114,7 +121,7 @@ export function ExecutiveToday({ isOwner, onOpenBrief }: { isOwner: boolean; onO
     return (
       <Card>
         <EmptyState title="The AI Executive is off"
-          hint="When it is on, it checks sales, the front desk, ops, payments, ads and integrations every few minutes and tells you what needs you. In this first version it only reads and explains; it never acts."
+          hint="When it is on, it checks sales, the front desk, ops, payments, ads and integrations every few minutes, tells you what needs you, and suggests fixes. Nothing is changed until you approve it."
           action={isOwner
             ? <button type="button" disabled={save.isPending} onClick={() => save.mutate({ enabled: true })} className={cn(pill, "mt-3 bg-primary text-primary-foreground")}>
                 {save.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Turn it on
@@ -153,6 +160,22 @@ export function ExecutiveToday({ isOwner, onOpenBrief }: { isOwner: boolean; onO
           </div>
         </CardBody>
       </Card>
+
+      {isOwner && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" disabled={save.isPending} onClick={() => save.mutate({ whatsapp_approvals: !h.settings.whatsapp_approvals })}
+            className={cn(pill, "border border-[var(--haip-border)] text-[var(--haip-fg)]")} aria-pressed={h.settings.whatsapp_approvals}>
+            Ask me on WhatsApp too: {h.settings.whatsapp_approvals ? "On" : "Off"}
+          </button>
+          {h.settings.whatsapp_approvals && (
+            <button type="button" disabled={template.isPending} onClick={() => template.mutate()} className={cn(pill, "text-primary")}>
+              Add the WhatsApp approval template
+            </button>
+          )}
+        </div>
+      )}
+
+      <NeedsYourOk proposals={h.proposals ?? []} approvals={h.approvals ?? []} isOwner={isOwner} />
 
       <Card>
         <CardHeader title="Today's brief" tone="plain" description={h.brief ? `${KIND_LABEL[h.brief.kind]} · ${periodText(h.brief.period)}` : undefined} />
@@ -194,6 +217,7 @@ export function ExecutiveToday({ isOwner, onOpenBrief }: { isOwner: boolean; onO
           </CardBody>
         </Card>
       ))}
+      <DoneThisWeek items={h.activity ?? []} isOwner={isOwner} />
       <FindingDrawer f={open} onClose={() => setOpen(null)} />
     </div>
   );

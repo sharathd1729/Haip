@@ -248,6 +248,31 @@ def home(db: Session, tenant) -> dict:
             default=None,
             key=lambda d: _aware(d),
         ),
+        **_proposals_block(db, tenant, week),
+    }
+
+
+def _proposals_block(db: Session, tenant, since: datetime) -> dict:
+    """E2: plans waiting for the owner, everything else that needs a yes (one inbox), and what was done this week."""
+    from app.models.chief import ChiefProposal
+    from app.services.chief import approvals
+
+    rows = (
+        db.query(ChiefProposal)
+        .filter(ChiefProposal.tenant_id == tenant.id)
+        .filter(
+            (ChiefProposal.status.in_(("awaiting_approval", "approved", "executing", "waiting")))
+            | (ChiefProposal.updated_at >= since)
+        )
+        .order_by(ChiefProposal.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    inbox = approvals.pending(db, tenant)
+    return {
+        "proposals": [approvals.view(p) for p in rows if p.status == "awaiting_approval"],
+        "activity": [approvals.view(p) for p in rows if p.status != "awaiting_approval"][:20],
+        "approvals": [a for a in inbox if a["source"] != "executive"],
     }
 
 

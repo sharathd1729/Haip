@@ -541,3 +541,102 @@ def owner_bookings_down(ctx: Ctx) -> list[dict]:
     cur, _ = kpi_metrics.booked_totals(ctx.db, ctx.tid, c_lo, c_hi)
     prev, _ = kpi_metrics.booked_totals(ctx.db, ctx.tid, p_lo, p_hi)
     return _drop_hit("bookings", cur, prev, "Bookings are down this week", "/dashboard/analyst")
+
+
+# ── E2 detectors (each has a plan in plans.py) ─────────────────────────────────────────────────────────────────
+
+
+def sales_autopilot_ignored(ctx: Ctx) -> list[dict]:
+    """SA9: >= 15 lead-stage suggestions older than 3 days nobody applied, while the lead autopilot is in "suggest"."""
+    from sqlalchemy import func
+
+    from app.models.lead_autopilot import LeadAutopilotEvent
+    from app.services import lead_autopilot_service
+
+    if lead_autopilot_service.get_settings(ctx.db, ctx.tid).get("mode") != "suggest":
+        return []
+    n = int(
+        ctx.db.query(func.count(LeadAutopilotEvent.id))
+        .filter(
+            LeadAutopilotEvent.tenant_id == ctx.tid,
+            LeadAutopilotEvent.status == "suggested",
+            LeadAutopilotEvent.created_at <= ctx.now - timedelta(days=3),
+        )
+        .scalar()
+        or 0
+    )
+    if n < 15:
+        return []
+    return [
+        _hit(
+            "medium",
+            f"{n} lead-stage suggestions nobody applied",
+            f"The lead autopilot suggested {n} stage moves more than 3 days ago and nobody applied them, so the pipeline "
+            "is out of date.",
+            {"suggestions": n},
+            [],
+            cta_label="Lead autopilot settings",
+            cta_href="/dashboard/settings/lead-autopilot",
+        )
+    ]
+
+
+CLUSTER_SIMILARITY = 0.5  # agent_escalation_rules.similar: the same bar its repeat-question trigger uses
+
+
+def concierge_repeat_questions(ctx: Ctx) -> list[dict]:
+    """CO1: the same guest question went to a manager >= 3 times in 14 days and the team answered it, with nothing saved
+    to the knowledge base yet. One finding per question (target = the earliest consult in the group)."""
+    from app.models.agent_consult import AgentConsult
+    from app.models.knowledge import KnowledgeEntry
+    from app.services.agent_escalation_rules import similar
+
+    rows = (
+        ctx.db.query(AgentConsult)
+        .filter(
+            AgentConsult.tenant_id == ctx.tid,
+            AgentConsult.status == "answered",
+            AgentConsult.answered_at >= ctx.now - timedelta(days=14),
+        )
+        .order_by(AgentConsult.answered_at.asc())
+        .limit(300)
+        .all()
+    )
+    groups: list[list] = []
+    for c in rows:
+        home = next((g for g in groups if similar(c.question or "", g[0].question or "") >= CLUSTER_SIMILARITY), None)
+        if home is None:
+            groups.append([c])
+        else:
+            home.append(c)
+    saved = {
+        ref
+        for (ref,) in ctx.db.query(KnowledgeEntry.source_ref).filter(
+            KnowledgeEntry.tenant_id == ctx.tid, KnowledgeEntry.source_ref.like("consult:%")
+        )
+    }
+    out = []
+    for g in groups:
+        if len(g) < 3 or any(c.saved_to_kb_entry_id or f"consult:{c.id}" in saved for c in g):
+            continue
+        out.append(
+            _hit(
+                "medium",
+                f"The same guest question went to a manager {len(g)} times",
+                f"Guests asked the same thing {len(g)} times in 14 days; each time the AI had to ask a manager. "
+                "Saving the team's answer lets the AI reply itself.",
+                {"asked": len(g)},
+                [
+                    {
+                        "type": "consult",
+                        "id": c.id,
+                        "href": f"/dashboard/inbox?conversation={c.conversation_id}&consult={c.id}",
+                    }
+                    for c in g
+                ],
+                target_id=g[0].id,
+                cta_label="Open the knowledge base",
+                cta_href="/dashboard/settings/knowledge",
+            )
+        )
+    return out

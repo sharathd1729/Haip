@@ -59,6 +59,22 @@ CATALOGUE: tuple[Detector, ...] = (
         d.sales_lost_cluster,
     ),
     Detector(
+        "SA9",
+        "sales_manager",
+        "daily",
+        "revenue",
+        "Apply the waiting suggestions, or let the autopilot move clear cases itself.",
+        d.sales_autopilot_ignored,
+    ),
+    Detector(
+        "CO1",
+        "concierge",
+        "daily",
+        "quality",
+        "Save the team's answer to the knowledge base so the AI can reply itself.",
+        d.concierge_repeat_questions,
+    ),
+    Detector(
         "CO5",
         "concierge",
         "urgent",

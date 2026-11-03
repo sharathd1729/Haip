@@ -5,8 +5,12 @@
   chief.detect_tenant        run the due detectors for one workspace (services/chief/findings.run), commit, then queue the
                              explanations when the kill switch is off
   chief.explain_tenant       grounded explanations for new / changed findings (router ``chief_explain``)
+  chief.execute_proposal     run an APPROVED proposal's steps (services/chief/executor.run); queue whatsapp (steps may
+                             submit to Meta or message guests, only after an owner's approval)
+  chief.advance_all_tenants  beat every 5 min: approved proposals not started / held by the daily cap, and waiting ones
+                             whose re-check time has come (e.g. a template Meta has not decided yet)
 
-Read-only: nothing here sends a message or changes a booking, lead or setting.
+Detection, proposals and explanations never act. Only execute_proposal does, and only for a proposal an owner approved.
 """
 
 from __future__ import annotations
@@ -49,7 +53,17 @@ def detect_tenant(tenant_id: str, cadence: str = "urgent") -> dict:
             return {"status": "no_tenant"}
         out = findings.run(db, tenant, cadence)
         db.commit()
-        if out["open"] and not s.get(tenant).paused:
+        cfg = s.get(tenant)
+        if cfg.enabled and not cfg.paused:  # the kill switch stops new proposals too
+            from app.services.chief import approvals, plans
+
+            new = plans.propose_for_tenant(db, tenant)
+            db.commit()
+            out["proposed"] = len(new)
+            if new:
+                approvals.notify_new(db, tenant, new)
+                db.commit()
+        if out["open"] and not cfg.paused:
             explain_tenant.delay(tenant_id)
         return out
     except Exception:
@@ -75,3 +89,45 @@ def explain_tenant(tenant_id: str) -> dict:
         return out
     finally:
         db.close()
+
+
+@shared_task(name="chief.execute_proposal")
+def execute_proposal(tenant_id: str, proposal_id: str) -> dict:
+    from app.models.chief import ChiefProposal
+    from app.services.chief import executor
+
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+        p = db.query(ChiefProposal).filter_by(id=proposal_id, tenant_id=tenant_id).first()
+        if tenant is None or p is None:
+            return {"status": "not_found"}
+        return {"status": executor.run(db, tenant, p)}
+    except Exception:
+        db.rollback()
+        log.exception("chief_execute_failed", tenant_id=tenant_id, proposal_id=proposal_id)
+        raise
+    finally:
+        db.close()
+
+
+@shared_task(name="chief.advance_all_tenants")
+def advance_all_tenants() -> dict:
+    from app.services.chief import executor
+    from app.services.chief import settings as s
+
+    queued = 0
+    db = SessionLocal()
+    try:
+        for tenant in db.query(Tenant).all():
+            cfg = s.get(tenant)
+            if not cfg.enabled or cfg.paused:
+                continue
+            set_tenant_context(db, tenant.id)
+            for p in executor.due(db, tenant.id):
+                execute_proposal.delay(tenant.id, p.id)
+                queued += 1
+    finally:
+        db.close()
+    return {"queued": queued}

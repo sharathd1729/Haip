@@ -33,6 +33,7 @@ REENGAGE = "haip_reengage_v1"                 # MARKETING: only to guests who ag
 PACKAGE_SHARE = "haip_package_share_v1"
 # To owners / managers (analyst.delivery): the report PDF as the header, the signed view-only page as the URL button.
 ANALYST_BRIEF = "haip_analyst_brief_v1"
+CHIEF_APPROVAL = "haip_chief_approval_v1"     # the AI Executive asks the owner (quick replies Approve / Reject)
 APP_URL_TOKEN = "{APP_URL}"                    # replaced with FRONTEND_URL when the draft is created
 
 # Quick-reply button texts. The webhook matches a tap on these (lead_playbook_engine.on_guest_button).
@@ -48,6 +49,8 @@ BTN_NOT_NOW = "Not now"
 BTN_STILL_PLANNING = "Still planning"
 BTN_SHOW_OPTIONS = "Show me options"
 BTN_STOP_PROMOS = "Stop promotions"
+BTN_APPROVE = "Approve"
+BTN_REJECT = "Reject"
 ACK_INDEX, TAKE_INDEX = 0, 1
 
 
@@ -160,6 +163,17 @@ ANALYST_PACK: list[dict] = [{
                                          "example": [APP_URL_TOKEN + "/r/analyst/sample"]}]},
     ],
 }]
+# The AI Executive's approval request (services/chief/approvals.py): only for changes to staff tools / AI settings / Meta
+# submissions; anything a guest or the public sees is approved in the app only. Buttons in this order: Approve, Reject.
+CHIEF_PACK: list[dict] = [{
+    "name": CHIEF_APPROVAL, "label": "AI Executive approval", "when": "The AI Executive asks the owner to approve a change.",
+    "components": [
+        _body("AI Executive needs your OK: {{1}}. Why: {{2}}. If you approve: {{3}}.",
+              ["Switch on team alerts for new leads", "5 leads waited past the reply target",
+               "the alert template goes to Meta, then alerts start"]),
+        _quick(BTN_APPROVE, BTN_REJECT),
+    ],
+}]
 BY_NAME = {t["name"]: t for t in PACK}
 
 
@@ -239,19 +253,28 @@ def _with_app_url(component: dict) -> dict:
 def create_analyst_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
     """Add the analyst's delivery template as a DRAFT (same rules as the lead pack: nothing is submitted to Meta here; the
     DOCUMENT header gets its sample from the template editor's Submit step). Safe to repeat."""
+    return _create_extra_drafts(db, tenant_id, actor_id, ANALYST_PACK, "analyst.template_created")
+
+
+def create_chief_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
+    """The AI Executive's approval template as a DRAFT; the owner submits it from the template editor. Safe to repeat."""
+    return _create_extra_drafts(db, tenant_id, actor_id, CHIEF_PACK, "chief.template_created")
+
+
+def _create_extra_drafts(db: Session, tenant_id: str, actor_id: Optional[str], pack: list[dict], action: str) -> dict:
     WATemplate, TemplateStatus, TemplateCategory = _model()
-    names = [t["name"] for t in ANALYST_PACK]
+    names = [t["name"] for t in pack]
     existing = {r.name for r in db.query(WATemplate.name).filter(WATemplate.tenant_id == tenant_id, WATemplate.language == LANGUAGE,
                                                                  WATemplate.name.in_(names)).all()}
     created = []
-    for t in ANALYST_PACK:
+    for t in pack:
         if t["name"] in existing:
             continue
         db.add(WATemplate(tenant_id=tenant_id, name=t["name"], language=LANGUAGE, category=TemplateCategory.UTILITY,
                           status=TemplateStatus.DRAFT, components=[_with_app_url(c) for c in t["components"]]))
         created.append(t["name"])
     if created:
-        append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action="analyst.template_created",
+        append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action=action,
                      target_type="wa_template", target_id=None, payload={"created": created})
     db.commit()
     rows = db.query(WATemplate).filter(WATemplate.tenant_id == tenant_id, WATemplate.name.in_(names)).all()

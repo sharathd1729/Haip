@@ -96,7 +96,32 @@ export interface ChiefFinding {
   evidence: { type: string; id: string; href?: string | null }[]; cta_label: string | null; cta_href: string | null;
   status: "open" | "resolved" | "dismissed"; first_seen_at: string | null; last_seen_at: string | null;
 }
-export interface ChiefSettings { enabled: boolean; paused: boolean; roles_off: string[]; detectors_off: string[] }
+export interface ChiefSettings {
+  enabled: boolean; paused: boolean; roles_off: string[]; detectors_off: string[]; whatsapp_approvals: boolean; daily_action_cap: number;
+}
+export type ProposalStatus = "awaiting_approval" | "approved" | "executing" | "waiting" | "done" | "failed" | "rejected" | "expired";
+export interface ChiefProposal {
+  id: string; finding_id: string; code: string; title: string; why: string; risk_tier: "R1" | "R2" | "R3"; app_only: boolean;
+  preview: string[]; plan_sha: string; status: ProposalStatus; step_index: number;
+  steps: { type: string; label: string; tier: string; status: "pending" | "done" | "waiting" | "failed" | null; reason: string | null; at: string | null }[];
+  created_at: string | null; decided_at: string | null; decided_via: "app" | "whatsapp" | null; finished_at: string | null;
+  failure: string | null; next_check_at: string | null;
+}
+export interface ApprovalItem {
+  source: "executive" | "marketing" | "learning"; id: string; title: string; detail: string; risk_tier: string;
+  waiting_since: string | null; href: string | null;
+}
+export const TIER_LABEL: Record<ChiefProposal["risk_tier"], string> = {
+  R1: "Internal only", R2: "Changes team tools or AI settings", R3: "Reaches guests or money",
+};
+export const PROPOSAL_STATUS_LABEL: Record<ProposalStatus, string> = {
+  awaiting_approval: "Needs your OK", approved: "Approved, starting", executing: "Working on it", waiting: "Waiting",
+  done: "Done", failed: "Stopped", rejected: "You said no", expired: "No longer needed",
+};
+export const PROPOSAL_STATUS_TONE: Record<ProposalStatus, Tone> = {
+  awaiting_approval: "highlight", approved: "info", executing: "info", waiting: "warning", done: "success", failed: "danger",
+  rejected: "neutral", expired: "neutral",
+};
 export interface ChiefHome {
   settings: ChiefSettings;
   counts: Record<Severity, number> & { open: number; resolved_7d: number };
@@ -104,6 +129,9 @@ export interface ChiefHome {
   top: ChiefFinding[];
   brief: ReportSummary | null;
   last_checked_at: string | null;
+  proposals: ChiefProposal[];
+  activity: ChiefProposal[];
+  approvals: ApprovalItem[];
 }
 
 export function sinceText(iso: string | null): string {

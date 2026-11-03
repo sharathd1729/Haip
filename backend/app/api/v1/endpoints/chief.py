@@ -1,4 +1,4 @@
-"""The AI Executive, phase E1: read-only findings for the founders (owner / manager).
+"""The AI Executive for the founders (owner / manager reads; only an OWNER approves or rejects).
 
 GET  /chief/home                       open findings by role (older insights included), counts, the latest daily pulse
 GET  /chief/findings?status=&role=     open | resolved | dismissed
@@ -6,8 +6,14 @@ POST /chief/findings/{id}/dismiss      {reason, note}: hidden and snoozed 7 days
 POST /chief/run                        queue a full check now (Celery)                                                202
 GET  /chief/settings                   brand_config.chief (+ defaults, roles, detectors)
 PUT  /chief/settings                   owner only, audited ``chief.settings_changed``
+GET  /chief/proposals?status=          E2: plans made from findings (awaiting_approval | open | done | ...)
+GET  /chief/proposals/{id}
+POST /chief/proposals/{id}/approve     {plan_sha} owner only; queues the run (Celery chief.execute_proposal)
+POST /chief/proposals/{id}/reject      {reason, note} owner only (not proposed again for 7 days)
+GET  /chief/approvals                  one inbox: AI Executive + Marketing Studio + learning-loop items waiting for a yes
+POST /chief/templates                  add the WhatsApp approval template as a DRAFT (nothing is submitted)
 
-Nothing here calls a language model or acts on anything. Another tenant's finding is a 404.
+Nothing here calls a language model. Only an approved proposal acts, in Celery. Another tenant's record is a 404.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,8 +23,8 @@ from app.api.v1.deps import require_roles
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.schemas.chief import ROLE_LABELS, ChiefSettings, DismissIn
-from app.services.chief import catalogue, findings
+from app.schemas.chief import ROLE_LABELS, ApproveIn, ChiefSettings, DismissIn, RejectIn
+from app.services.chief import approvals, catalogue, executor, findings
 from app.services.chief import settings as settings_svc
 
 router = APIRouter(prefix="/chief", tags=["chief"])
@@ -97,3 +103,76 @@ def put_settings(
 
         detect_tenant.delay(tenant.id, "daily")  # the first findings show up within a minute, not at the next tick
     return {"settings": settings_svc.get(tenant).model_dump(), "changed": sorted(changes)}
+
+
+_owner = require_roles(UserRole.OWNER)
+_PROPOSAL_STATUSES = ("awaiting_approval", "open", "done", "failed", "rejected", "expired", "all")
+
+
+def _proposal(db: Session, user: User, proposal_id: str):
+    from app.models.chief import ChiefProposal
+
+    p = db.query(ChiefProposal).filter_by(id=proposal_id, tenant_id=user.tenant_id).first()
+    if p is None:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    return p
+
+
+@router.get("/proposals")
+def list_proposals(
+    status: str = Query("open", pattern="^(" + "|".join(_PROPOSAL_STATUSES) + ")$"),
+    current_user: User = Depends(_readers),
+    db: Session = Depends(get_db),
+):
+    from app.models.chief import OPEN_STATUSES, ChiefProposal
+
+    q = db.query(ChiefProposal).filter(ChiefProposal.tenant_id == current_user.tenant_id)
+    if status == "open":
+        q = q.filter(ChiefProposal.status.in_(OPEN_STATUSES))
+    elif status != "all":
+        q = q.filter(ChiefProposal.status == status)
+    return [approvals.view(p) for p in q.order_by(ChiefProposal.created_at.desc()).limit(100)]
+
+
+@router.get("/proposals/{proposal_id}")
+def get_proposal(proposal_id: str, current_user: User = Depends(_readers), db: Session = Depends(get_db)):
+    return approvals.view(_proposal(db, current_user, proposal_id))
+
+
+@router.post("/proposals/{proposal_id}/approve")
+def approve(proposal_id: str, body: ApproveIn, current_user: User = Depends(_owner), db: Session = Depends(get_db)):
+    p = _proposal(db, current_user, proposal_id)
+    try:
+        executor.approve(db, _tenant(db, current_user), p, current_user.id, body.plan_sha, via="app")
+    except executor.DecisionError as exc:
+        db.commit()  # an expiry found on the way is kept
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+    db.commit()
+    from app.workers.tasks.chief_tasks import execute_proposal
+
+    execute_proposal.delay(current_user.tenant_id, p.id)
+    return approvals.view(p)
+
+
+@router.post("/proposals/{proposal_id}/reject")
+def reject(proposal_id: str, body: RejectIn, current_user: User = Depends(_owner), db: Session = Depends(get_db)):
+    p = _proposal(db, current_user, proposal_id)
+    try:
+        executor.reject(db, _tenant(db, current_user), p, current_user.id, body.reason, body.note, via="app")
+    except executor.DecisionError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+    db.commit()
+    return approvals.view(p)
+
+
+@router.get("/approvals")
+def approvals_inbox(current_user: User = Depends(_readers), db: Session = Depends(get_db)):
+    return approvals.pending(db, _tenant(db, current_user))
+
+
+@router.post("/templates")
+def create_template_drafts(current_user: User = Depends(_readers), db: Session = Depends(get_db)):
+    """The approval template is added as a DRAFT; the owner submits it from the template editor."""
+    from app.services import wa_lead_pack
+
+    return wa_lead_pack.create_chief_drafts(db, current_user.tenant_id, current_user.id)
