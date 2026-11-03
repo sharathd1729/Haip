@@ -224,6 +224,7 @@ def summary(db: Session, inst: SopInstance, steps: list[dict] | None = None) -> 
         "recurrence": t.recurrence,
         "status": inst.status,
         "property_id": inst.property_id,
+        "property_name": (db.get(Property, inst.property_id).name if inst.property_id else None),
         "assignee_id": inst.assignee_id,
         "preparing": inst.generating == "queued" or inst.current_version_id is None,
         "next_due_at": min(due) if due else None,
@@ -240,22 +241,36 @@ def list_view(db: Session, tenant: Tenant) -> dict:
         .all()
     )
     running = {(i.template_key, i.target_key) for i in insts}
-    return {
-        "kind": kind,
-        "instances": [summary(db, i) for i in insts],
-        "available": [
-            {
-                "template_key": t.key,
-                "platform": t.platform,
-                "title": t.title,
-                "summary": t.summary,
-                "per_property": t.per_property,
-                "steps": len(t.steps),
-            }
-            for t in TEMPLATES
-            if applies(t, kind) and (t.key, "") not in running
-        ],
-    }
+    from app.services.vehicle_pool import is_placeholder_name
+
+    props = [
+        p
+        for p in db.query(Property)
+        .filter(Property.tenant_id == tenant.id, Property.is_active.is_(True))
+        .order_by(Property.name)
+        if not is_placeholder_name(p.name)
+    ]
+    available = []
+    for t in TEMPLATES:
+        if not applies(t, kind):
+            continue
+        # a per-listing SOP is offered once per property; the others once for the whole business
+        targets = [(p.id, p.name) for p in props] if t.per_property == "required" else [("", None)]
+        for pid, pname in targets:
+            if (t.key, pid) not in running:
+                available.append(
+                    {
+                        "template_key": t.key,
+                        "platform": t.platform,
+                        "title": t.title,
+                        "summary": t.summary,
+                        "per_property": t.per_property,
+                        "property_id": pid or None,
+                        "property_name": pname,
+                        "steps": len(t.steps),
+                    }
+                )
+    return {"kind": kind, "instances": [summary(db, i) for i in insts], "available": available}
 
 
 def _step(db: Session, inst: SopInstance, key: str) -> tuple[dict, SopStepProgress]:
@@ -386,7 +401,7 @@ def run_checks(db: Session, tenant: Tenant, inst: SopInstance, actor_id: str | N
     for s in _steps(db, inst):
         if s["verify"] != "auto" or not s.get("check") or s["check"] not in checks.CHECKS:
             continue
-        r = checks.run(s["check"], db, tenant)
+        r = checks.run(s["check"], db, tenant, inst)
         _s, p = _step(db, inst, s["key"])
         p.check_result = r
         if r["result"] == "ok":

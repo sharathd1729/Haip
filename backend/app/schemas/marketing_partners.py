@@ -11,11 +11,12 @@ from typing import Literal, Optional
 from pydantic import Field, field_validator, model_validator
 
 from app.schemas.marketing import _Strict
+from app.services.sops.rules import limit
 
 ASCI_LABELS = ("#ad", "#advertisement", "#sponsored", "#collab", "#collaboration", "#partnership", "#gifted",
                "#freegift", "#barter", "paid partnership", "sponsored")
 DELIVERABLE_KINDS = ("reel", "post", "story", "video")
-OTA_PLATFORMS = ("airbnb", "booking", "makemytrip")
+OTA_PLATFORMS = ("airbnb", "booking", "makemytrip", "agoda")
 _HANDLE = re.compile(r"^@?[A-Za-z0-9._]{1,30}$")
 
 
@@ -84,29 +85,36 @@ class ReviewPostIn(_Strict):
 
 class OtaCopyIn(_Strict):
     property_id: str = Field(min_length=1, max_length=64)
-    platform: Literal["airbnb", "booking", "makemytrip"]
+    platform: Literal["airbnb", "booking", "makemytrip", "agoda"]
 
 
+# Field limits come from the SOP platform-rules catalogue (app/data/sop_rules/<platform>.json, dated and sourced), so the
+# Get found listing steps and this copy use the same numbers.
 class AirbnbCopy(_Strict):
-    title: str = Field(min_length=1, max_length=50)
-    summary: str = Field(min_length=1, max_length=500)
-    the_space: str = Field(min_length=1, max_length=1500)
-    guest_access: Optional[str] = Field(default=None, max_length=500)
-    neighbourhood: Optional[str] = Field(default=None, max_length=700)
-    getting_around: Optional[str] = Field(default=None, max_length=500)
+    title: str = Field(min_length=1, max_length=limit("ota.airbnb.title_max"))
+    summary: str = Field(min_length=1, max_length=limit("ota.airbnb.summary_max"))
+    the_space: str = Field(min_length=1, max_length=limit("ota.airbnb.the_space_max"))
+    guest_access: Optional[str] = Field(default=None, max_length=limit("ota.airbnb.guest_access_max"))
+    neighbourhood: Optional[str] = Field(default=None, max_length=limit("ota.airbnb.neighbourhood_max"))
+    getting_around: Optional[str] = Field(default=None, max_length=limit("ota.airbnb.getting_around_max"))
 
 
 class BookingCopy(_Strict):
-    headline: str = Field(min_length=1, max_length=100)
-    description: str = Field(min_length=1, max_length=2000)
-    highlights: list[str] = Field(default_factory=list, max_length=8)
+    headline: str = Field(min_length=1, max_length=limit("ota.booking.headline_max"))
+    description: str = Field(min_length=1, max_length=limit("ota.booking.description_max"))
+    highlights: list[str] = Field(default_factory=list, max_length=limit("ota.booking.highlights_max"))
 
 
 class MakeMyTripCopy(_Strict):
-    title: str = Field(min_length=1, max_length=80)
-    about: str = Field(min_length=1, max_length=2000)
-    highlights: list[str] = Field(default_factory=list, max_length=8)
-    house_rules: Optional[str] = Field(default=None, max_length=1000)
+    title: str = Field(min_length=1, max_length=limit("ota.makemytrip.title_max"))
+    about: str = Field(min_length=1, max_length=limit("ota.makemytrip.about_max"))
+    highlights: list[str] = Field(default_factory=list, max_length=limit("ota.makemytrip.highlights_max"))
+    house_rules: Optional[str] = Field(default=None, max_length=limit("ota.makemytrip.house_rules_max"))
 
 
-OTA_MODELS = {"airbnb": AirbnbCopy, "booking": BookingCopy, "makemytrip": MakeMyTripCopy}
+class AgodaCopy(_Strict):
+    description: str = Field(min_length=1, max_length=limit("ota.agoda.description_max"))
+    highlights: list[str] = Field(default_factory=list, max_length=limit("ota.agoda.highlights_max"))
+
+
+OTA_MODELS = {"airbnb": AirbnbCopy, "booking": BookingCopy, "makemytrip": MakeMyTripCopy, "agoda": AgodaCopy}

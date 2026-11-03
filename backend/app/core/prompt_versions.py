@@ -195,8 +195,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.
     "marketing_review_reply": "marketing-review-reply-v1",
     # Agency M7: OTA listing copy drafts (marketing_reputation); a person pastes them into the OTA.
-    "marketing_ota_copy": "marketing-ota-copy-v2",
-    "sop_generate": "sop-generate-v1",           # services/sops/generate.py SYSTEM (Get found profile texts)
+    "marketing_ota_copy": "marketing-ota-copy-v3",  # v3: Agoda (Get found S2)
+    "sop_generate": "sop-generate-v2",  # v2: OTA/Facebook/TripAdvisor + offer names           # services/sops/generate.py SYSTEM (Get found profile texts)
     # Studio plan phase 1: creative tags from a post's / ad's own text (marketing_tagging) and the weekly Insights
     # report's plain-English lines over code-computed facts (marketing_insights_report).
     "marketing_tagging": "marketing-tagging-v1",

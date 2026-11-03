@@ -24,7 +24,7 @@ const DEAL: Record<string, { label: string; tone: Tone }> = {
   requested: { label: "Waiting for approval", tone: "warning" }, approved: { label: "Approved: book the stay", tone: "info" },
   booked: { label: "Stay booked", tone: "success" }, delivered: { label: "Delivered", tone: "success" }, cancelled: { label: "Cancelled", tone: "neutral" },
 };
-const PLATFORM: Record<string, string> = { airbnb: "Airbnb", booking: "Booking.com", makemytrip: "MakeMyTrip" };
+const PLATFORM: Record<string, string> = { airbnb: "Airbnb", booking: "Booking.com", makemytrip: "MakeMyTrip", agoda: "Agoda" };
 
 function useFail() {
   const { toast } = useToast();

@@ -49,7 +49,7 @@ export default function SopPage() {
           : q.isError ? <Card><EmptyState title="Couldn't load this checklist" hint={errorMessage(q.error, "Try again in a moment.")}
             action={<button className={btn} onClick={() => q.refetch()}>Try again</button>} /></Card>
           : d && <>
-            <PageHeader keepOnPhone title={d.title} subtitle={d.summary} actions={<div className="flex flex-wrap gap-2">
+            <PageHeader keepOnPhone title={d.title} subtitle={d.property_name ? `${d.property_name} · ${d.summary}` : d.summary} actions={<div className="flex flex-wrap gap-2">
               {hasAuto && d.can_work && <button className={btn} onClick={() => act(() => sopsApi.check(id), "HAIP is checking")}>Check now</button>}
               {canManage && <button className={btn} disabled={d.preparing} onClick={() => act(() => sopsApi.regenerate(id), "Making new steps")}>Update steps</button>}
             </div>} />

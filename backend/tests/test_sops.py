@@ -11,11 +11,26 @@ from app.models.sop import SopInstance, SopStepProgress, SopVersion
 from app.models.user import UserRole
 from app.schemas.sops import StartIn
 from app.services import marketing_ai_service as ai
-from app.services.sops import catalogue, checks, generate, rules
+from app.services.sops import catalogue, checks, generate, inputs_ota, rules
 from app.services.sops import service as svc
 from tests.conftest import seed_capabilities
 from tests.ops_helpers import prop, tenant
 from tests.test_increment1_defect_specs import _h, _user
+
+KNOWN_SLOTS = {
+    "categories",
+    "photos",
+    "nap",
+    "website",
+    "links_url",
+    "whatsapp_number",
+    "amenities",
+    "ig_name",
+    "highlights",
+    "logo",
+    *generate.AI_SLOTS,
+    *inputs_ota.SLOTS,
+}
 
 
 @pytest.fixture()
@@ -57,23 +72,7 @@ def test_rules_load_and_every_template_reference_exists():
             assert s.verify in catalogue.VERIFY
             assert all(rules.get(k) for k in s.rules), (t.key, s.key)
             assert s.verify != "auto" or s.check in checks.CHECKS, (t.key, s.key)
-            assert all(
-                slot
-                in {
-                    "categories",
-                    "photos",
-                    "nap",
-                    "website",
-                    "links_url",
-                    "whatsapp_number",
-                    "amenities",
-                    "ig_name",
-                    "highlights",
-                    "logo",
-                    *generate.AI_SLOTS,
-                }
-                for slot in s.slots
-            )
+            assert all(slot in KNOWN_SLOTS for slot in s.slots), (t.key, s.key, s.slots)
 
 
 def test_categories_come_only_from_the_catalogue_and_say_when_not_confirmed():
@@ -170,7 +169,7 @@ def test_ai_text_is_guarded_by_price_policy_and_grounding(db, w, monkeypatch):
     assert "15,000" not in desc["text"] and not desc["ai"]  # fell back to the owner's own words
     qa = _step(db, w, inst, "qa")["values"]
     assert [q["label"] for q in qa] == ["Where do trips start?"]
-    assert v.model == "gpt-oss-20b" and v.prompt_version == "sop-generate-v1" and "description" in v.ai_note
+    assert v.model == "gpt-oss-20b" and v.prompt_version == "sop-generate-v2" and "description" in v.ai_note
 
 
 def test_new_version_keeps_ticks_on_unchanged_steps(db, w):
@@ -276,7 +275,13 @@ def api(db, w, monkeypatch):
 
 def test_api_start_view_tick(client, db, w, api):
     listing = client.get("/api/v1/sops", headers=_h(api.mgr)).json()
-    assert {a["template_key"] for a in listing["available"]} == {"gbp_setup", "instagram_profile", "whatsapp_profile"}
+    assert {a["template_key"] for a in listing["available"]} == {
+        "gbp_setup",
+        "instagram_profile",
+        "whatsapp_profile",
+        "facebook_page",
+        "tripadvisor_listing",
+    }
     r = client.post("/api/v1/sops", json={"template_key": "gbp_setup"}, headers=_h(api.mgr))
     assert r.status_code == 201
     sid = r.json()["id"]

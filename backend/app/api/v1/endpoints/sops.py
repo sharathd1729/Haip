@@ -96,10 +96,29 @@ def _photo_urls(db: Session, tenant_id: str, data: dict) -> dict:
     return data
 
 
+def _hide_money(db: Session, user: User, steps: list[dict]) -> list[dict]:
+    """Values marked `restricted` (the discount policy in promotion steps) only for people with revenue.read (CLAUDE.md money rule)."""
+    from app.services.authz_service import has_capability
+
+    if has_capability(db, user, "revenue.read"):
+        return steps
+    hidden = {"text": "Only people who can see revenue see this.", "hidden": True}
+    return [
+        {**s, "values": [{**v, **hidden} if v.get("restricted") else v for v in s.get("values") or []]} for s in steps
+    ]
+
+
+def _out(db: Session, user: User, inst) -> dict:
+    data = svc.view(db, db.get(Tenant, user.tenant_id), inst)
+    data["steps"] = _hide_money(db, user, data["steps"])
+    return data
+
+
 @router.get("/{instance_id}")
 def get_sop(instance_id: str, user: User = Depends(_read), db: Session = Depends(get_db)):
     inst = _inst(db, user, instance_id)
     data = svc.view(db, db.get(Tenant, user.tenant_id), inst)
+    data["steps"] = _hide_money(db, user, data["steps"])
     return {**_photo_urls(db, user.tenant_id, data), "can_work": svc.can_work(db, user, inst)}
 
 
@@ -120,7 +139,13 @@ def get_version(instance_id: str, no: int, user: User = Depends(_read), db: Sess
     v = db.query(SopVersion).filter_by(tenant_id=user.tenant_id, instance_id=inst.id, version_no=no).first()
     if v is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No such version."})
-    return {"no": v.version_no, "reason": v.reason, "steps": v.steps, "ai_note": v.ai_note, "created_at": v.created_at}
+    return {
+        "no": v.version_no,
+        "reason": v.reason,
+        "steps": _hide_money(db, user, v.steps),
+        "ai_note": v.ai_note,
+        "created_at": v.created_at,
+    }
 
 
 @router.patch("/{instance_id}")
@@ -131,7 +156,7 @@ def patch_sop(instance_id: str, body: PatchIn, user: User = Depends(_manage), db
     except svc.SopError as exc:
         _fail(exc)
     db.commit()
-    return svc.view(db, db.get(Tenant, user.tenant_id), inst)
+    return _out(db, user, inst)
 
 
 @router.post("/{instance_id}/regenerate", status_code=202)
@@ -156,7 +181,7 @@ def step_action(instance_id: str, key: str, action: str, user: User = Depends(_r
     except svc.SopError as exc:
         _fail(exc)
     db.commit()
-    return svc.view(db, db.get(Tenant, user.tenant_id), inst)
+    return _out(db, user, inst)
 
 
 @router.post("/{instance_id}/steps/{key}/evidence")

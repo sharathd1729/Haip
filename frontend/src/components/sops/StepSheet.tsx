@@ -49,13 +49,13 @@ export function StepSheet({ sopId, step, canWork, onClose, onChanged }: {
         <div key={v.label} className="grid gap-1">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-[var(--haip-fg-muted)]">{v.label}{v.ai ? " · written by AI, read it first" : ""}</span>
-            <button className={btn} onClick={() => copy(v.text)} aria-label={`Copy ${v.label}`}><Copy size={15} /> Copy</button>
+            {!v.hidden && <button className={btn} onClick={() => copy(v.text)} aria-label={`Copy ${v.label}`}><Copy size={15} /> Copy</button>}
           </div>
           <p className="whitespace-pre-wrap rounded-xl bg-[var(--haip-surface)] p-3">{v.text}</p>
         </div>))}
       {step.categories && step.categories.length > 0 && (
         <div className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--haip-fg-muted)]">Suggested, best first</span>
+          <span className="text-sm font-semibold text-[var(--haip-fg-muted)]">{step.key === "programmes" ? "Programmes HAIP knows of" : "Suggested, best first"}</span>
           {step.categories.map(c => (
             <div key={c.key} className="grid gap-1 rounded-xl bg-[var(--haip-surface)] p-3">
               <div className="flex flex-wrap items-center gap-2">

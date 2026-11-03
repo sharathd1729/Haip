@@ -168,7 +168,7 @@ def test_sop_generate_routes_to_the_structured_output_tier_with_gemini_fallback(
 
     assert _TASK_ROUTES["sop_generate"] == ("nvidia", "openai/gpt-oss-20b")
     assert _GEMINI_FALLBACK_TASKS["sop_generate"] == 60
-    assert get_version("sop_generate") == "sop-generate-v1"
+    assert get_version("sop_generate") == "sop-generate-v2"
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     adapter = get_llm("sop_generate")
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"

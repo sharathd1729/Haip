@@ -9,7 +9,9 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.models.ical_feed import ICalFeed
 from app.models.integration import Integration
+from app.models.sop import SopInstance
 from app.models.tenant import Tenant
 from app.services.knowledge_sources import _instagram_integration
 
@@ -22,8 +24,8 @@ def _active(db: Session, tenant_id: str, kind: str):
     return db.query(Integration).filter_by(tenant_id=tenant_id, kind=kind, status="active").first()
 
 
-def _connected(kind: str, label: str) -> Callable[[Session, Tenant], dict]:
-    def check(db: Session, tenant: Tenant) -> dict:
+def _connected(kind: str, label: str) -> Callable[[Session, Tenant, SopInstance], dict]:
+    def check(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
         if _active(db, tenant.id, kind) is not None:
             return _r("ok", f"{label} is connected to HAIP.")
         return _r("fail", f"{label} is not connected to HAIP yet.")
@@ -31,7 +33,7 @@ def _connected(kind: str, label: str) -> Callable[[Session, Tenant], dict]:
     return check
 
 
-def instagram_bio(db: Session, tenant: Tenant) -> dict:
+def instagram_bio(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
     from app.adapters.instagram.meta_graph import InstagramGraphAdapter
     from app.core.encryption import decrypt_credentials
 
@@ -51,7 +53,7 @@ def instagram_bio(db: Session, tenant: Tenant) -> dict:
     return _r("fail", "Your Instagram bio is empty.")
 
 
-def whatsapp_name(db: Session, tenant: Tenant) -> dict:
+def whatsapp_name(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
     from app.services import wa_health_service
     from app.services.lead_alert_sender import wa_credentials
 
@@ -69,13 +71,31 @@ def whatsapp_name(db: Session, tenant: Tenant) -> dict:
     return _r("fail", f"WhatsApp shows “{shown or 'no name'}”, your brand is “{brand}”.")
 
 
-CHECKS: dict[str, Callable[[Session, Tenant], dict]] = {
+def ical_import(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+    """The OTA's own calendar link is added in HAIP for this property and its last read worked (ical_feeds)."""
+    from app.services.sops.catalogue import BY_KEY
+    from app.services.sops.inputs_ota import matching_feed
+
+    feeds = db.query(ICalFeed).filter_by(tenant_id=tenant.id, property_id=inst.property_id, is_active=True).all()
+    f = matching_feed(feeds, BY_KEY[inst.template_key].platform)
+    if f is None:
+        return _r("fail", "This platform's calendar link is not added in HAIP yet (name the link after the platform).")
+    if f.last_status == "error":
+        return _r("fail", f"HAIP could not read that calendar link: {f.last_error or 'unknown error'}")
+    if f.last_status != "ok":
+        return _r("unknown", "HAIP has not read that calendar link yet. Check again in 30 minutes.")
+    return _r("ok", f"HAIP reads the {f.name} calendar for this property.")
+
+
+CHECKS: dict[str, Callable[[Session, Tenant, SopInstance], dict]] = {
     "connected:google_business": _connected("google_business", "Google Business Profile"),
     "connected:instagram": _connected("instagram", "Instagram"),
+    "connected:facebook_page": _connected("facebook_page", "Facebook Page"),
+    "ical_import": ical_import,
     "instagram_bio": instagram_bio,
     "whatsapp_name": whatsapp_name,
 }
 
 
-def run(key: str, db: Session, tenant: Tenant) -> dict:
-    return {**CHECKS[key](db, tenant), "at": datetime.now(UTC).isoformat()}
+def run(key: str, db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+    return {**CHECKS[key](db, tenant, inst), "at": datetime.now(UTC).isoformat()}

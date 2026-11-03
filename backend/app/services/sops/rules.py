@@ -44,6 +44,14 @@ def get(key: str) -> RuleEntry | None:
     return all_rules().get(key)
 
 
+def limit(key: str) -> int:
+    """A text_limit rule's number. Raises KeyError if the catalogue lost it (a test pins every key the code uses)."""
+    e = all_rules()[key]
+    if e.kind != "text_limit" or not isinstance(e.value, int):
+        raise KeyError(f"{key} is not a numeric text_limit")
+    return e.value
+
+
 def ref(e: RuleEntry, today: date | None = None) -> dict:
     today = today or date.today()
     return {

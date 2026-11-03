@@ -1,6 +1,6 @@
 # Dynamic SOPs — plan (Part A, code reading only)
 
-**Status**: S1 built 4 Nov 2026 (branch `claude/mystifying-blackwell-9e8258`, on PR #112; S2-S4 not built) · **Owner idea**: team meeting Nov 2026 · **Written**: 3 Nov 2026 against `master` @ `4e0a7d56`
+**Status**: S1 + S2 built 4 Nov 2026 (branch `claude/mystifying-blackwell-9e8258`, on PR #112; S3-S4 not built) · **Owner idea**: team meeting Nov 2026 · **Written**: 3 Nov 2026 against `master` @ `4e0a7d56`
 (Alembic head `182`), also reading the open branches `feat/website-phases-2-6` (PR #112, website phases 2–6),
 `claude/bold-merkle-6878b5` (AI Executive E1–E4) and `claude/focused-ramanujan-cacf4f` (`docs/architecture/DATA_BRIDGES_AUDIT.md`).
 

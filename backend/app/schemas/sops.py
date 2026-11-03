@@ -9,8 +9,29 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
-PLATFORMS = ("google_business", "instagram", "whatsapp")
-RULE_KINDS = ("category", "text_limit", "photo_spec", "advice")
+PLATFORMS = (
+    "google_business",
+    "instagram",
+    "whatsapp",
+    "facebook_page",
+    "airbnb",
+    "booking",
+    "makemytrip",
+    "agoda",
+    "tripadvisor",
+)
+PLATFORM = Literal[
+    "google_business",
+    "instagram",
+    "whatsapp",
+    "facebook_page",
+    "airbnb",
+    "booking",
+    "makemytrip",
+    "agoda",
+    "tripadvisor",
+]
+RULE_KINDS = ("category", "text_limit", "photo_spec", "advice", "programme")
 # business_kind() values (website_seo.KINDS): the one segment rule
 KIND = Literal[
     "boutique_hotel", "resort", "service_apartments", "homestay", "villa", "farmhouse", "caravan", "travel_agency"
@@ -23,8 +44,8 @@ class _Strict(BaseModel):
 
 class RuleEntry(_Strict):
     key: str = Field(min_length=3, max_length=80, pattern=r"^[a-z0-9_.]+$")
-    platform: Literal["google_business", "instagram", "whatsapp"]
-    kind: Literal["category", "text_limit", "photo_spec", "advice"]
+    platform: PLATFORM
+    kind: Literal["category", "text_limit", "photo_spec", "advice", "programme"]
     value: str | int | list[str]
     ranks: dict[KIND, int] = Field(default_factory=dict)  # category: which kinds it fits, 1 = best
     status: Literal["verified", "unverified", "haip_advice"]
@@ -74,9 +95,10 @@ class QA(_Strict):
 
 
 class SopText(_Strict):
-    """What the model may write (sop-generate-v1). Every field optional; code checks lengths against the rules."""
+    """What the model may write (prompt key sop_generate). Every field optional; code checks lengths against the rules."""
 
     description: str | None = Field(default=None, max_length=2000)
     short_bio: str | None = Field(default=None, max_length=300)
     wa_about: str | None = Field(default=None, max_length=300)
+    offer_text: str | None = Field(default=None, max_length=200)  # an OTA promotion's name/line: never a figure
     qa: list[QA] = Field(default_factory=list, max_length=8)

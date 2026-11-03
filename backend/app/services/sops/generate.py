@@ -28,13 +28,13 @@ from app.models.website import SiteVersion
 from app.schemas.marketing import PhotoTags
 from app.schemas.sops import SopText
 from app.services import marketing_lint, website_seo
-from app.services.sops import rules
+from app.services.sops import inputs_ota, rules
 from app.services.sops.catalogue import BY_KEY, Template
 
 log = structlog.get_logger()
 
 TASK = "sop_generate"
-AI_SLOTS = ("description", "short_bio", "wa_about", "qa")
+AI_SLOTS = ("description", "short_bio", "wa_about", "qa", "offer_text")
 MAX_PHOTOS = 20
 KIND_WORDS = {
     "caravan": "Caravan holidays",
@@ -49,11 +49,12 @@ KIND_WORDS = {
 STUDIO_PROFILE = "/dashboard/marketing/studio?tab=profile"
 STUDIO_LIBRARY = "/dashboard/marketing/studio?tab=library"
 
-SYSTEM = """You write the text a hospitality business pastes into its own Google Business Profile, Instagram profile and
-WhatsApp Business profile. Fill only the fields the tool asks for, from the business facts given. Plain, warm, specific:
+SYSTEM = """You write the text a hospitality business pastes into its own Google Business Profile, Instagram, WhatsApp
+Business, Facebook, TripAdvisor and travel-site (OTA) listings. Fill only the fields the tool asks for, from the business facts given. Plain, warm, specific:
 what the place is, where it is, who it suits, what is nearby. No hashtags, no emoji, no capital-letter shouting, no
 "best"/"#1", no guarantees, no links. Questions and answers come only from the facts (knowledge base and published
-records); leave the list empty rather than guess. Answer only by calling the tool.
+records); leave the list empty rather than guess. An offer name is a few words naming the season or who it suits, never a
+number, a price or a discount. Answer only by calling the tool.
 """
 
 
@@ -107,6 +108,7 @@ def collect(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
     from app.services import marketing_ai_service as ai
     from app.services import marketing_brand_kit
 
+    t = BY_KEY[inst.template_key]
     facts = ai._facts(db, tenant, inst.property_id)
     prop_q = db.query(Property).filter(Property.tenant_id == tenant.id, Property.is_active.is_(True))
     if inst.property_id:
@@ -120,6 +122,7 @@ def collect(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
         "site": _site(db, tenant.id),
         "photos": _photos(db, tenant.id, inst.property_id),
         "logo": marketing_brand_kit.logo_id(tenant),
+        **inputs_ota.collect(db, tenant, inst, t.platform, {s for st in t.steps for s in st.slots}),
     }
 
 
@@ -152,7 +155,10 @@ def _clean(db: Session, tenant: Tenant, data: dict, facts_text: str) -> tuple[di
             notes.append(f"{where}: {problems[0]}")
         return not problems
 
-    for slot in ("description", "short_bio", "wa_about"):
+    for slot in ("description", "short_bio", "wa_about", "offer_text"):
+        if slot == "offer_text" and data.get(slot) and any(c.isdigit() for c in data[slot]):
+            notes.append("offer_text: has a figure; numbers go in the platform's own fields")
+            continue
         if data.get(slot) and ok(slot, data[slot]):
             kept[slot] = data[slot]
     kept["qa"] = [p for i, p in enumerate(data.get("qa") or []) if ok(f"qa {i + 1}", f"{p['q']} {p['a']}")]
@@ -196,6 +202,9 @@ def ai_text(db: Session, tenant: Tenant, slots: set[str], facts: dict) -> tuple[
 
 
 def _fill(slot: str, t: Template, inp: dict, text: dict, step: dict) -> None:
+    if slot in inputs_ota.SLOTS:
+        inputs_ota.fill(slot, t.platform, inp, text, step)
+        return
     profile = inp["facts"].get("profile") or {}
     contact = inp["site"]["contact"] or {}
     phone = profile.get("contact_phone") or contact.get("phone") or contact.get("whatsapp")
@@ -324,7 +333,7 @@ def make_version(
         version_no=(last.version_no + 1) if last else 1,
         template_version=t.version,
         rules_digest=rules.digest(),
-        inputs_sha=_sha(inp),
+        inputs_sha=_sha({k: v for k, v in inp.items() if k not in inputs_ota.VOLATILE}),
         steps=steps,
         reason=reason if last else "first",
         model=model,

@@ -4,7 +4,8 @@ verify: auto = HAIP checks it (services/sops/checks.py; a check that cannot run 
         evidence = a screenshot or https link is needed before it can be ticked
         manual = a tick
 slots: values filled for this workspace (services/sops/generate.py). rules: platform-rule keys shown with the step.
-applies_to: business_kind() values; None = every kind. Phase S1 = Google Business Profile, Instagram, WhatsApp profile.
+applies_to: business_kind() values; None = every kind. Phase S1 = Google Business Profile, Instagram, WhatsApp profile;
+S2 (catalogue_ota.py) = Facebook Page, OTA listings + promotions per property, TripAdvisor.
 The Google steps are the 12 items of the website phase 3 checklist (frontend .../marketing/website/google), folded in here.
 """
 
@@ -236,7 +237,9 @@ WHATSAPP_PROFILE = Template(
     ),
 )
 
-TEMPLATES: tuple[Template, ...] = (GBP_SETUP, INSTAGRAM_PROFILE, WHATSAPP_PROFILE)
+from app.services.sops.catalogue_ota import OTA_TEMPLATES  # noqa: E402 -- needs Step/Template above (phase S2)
+
+TEMPLATES: tuple[Template, ...] = (GBP_SETUP, INSTAGRAM_PROFILE, WHATSAPP_PROFILE, *OTA_TEMPLATES)
 BY_KEY = {t.key: t for t in TEMPLATES}
 VERIFY = ("auto", "evidence", "manual")
 
