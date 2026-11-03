@@ -89,8 +89,31 @@ def retrieval_query_text(db: Session, tenant_id: str, conversation_id: str) -> s
         .all()
     )
     lines = [m.body for m in reversed(earlier) if m.body and not m.body.startswith("[")]
-    context = "\n".join(lines)
-    return (context or burst)[-600:]
+    context = ("\n".join(lines) or burst)[-600:]
+    if not context:
+        return context
+    # A short reply answers OUR last question: "yes, what's included?" after "Want the Coorg route?" names no route. Put that
+    # question first so the search sees what is being talked about. An unsent AI draft never counts (the guest never saw it),
+    # the same rule as the prompt's recent messages.
+    ours = (
+        db.query(Message.body)
+        .filter(Message.conversation_id == conversation_id, Message.direction == MessageDirection.OUTBOUND,
+                or_(Message.is_ai_generated.is_(False), Message.was_approved.is_(True)))
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    question = _last_question(ours.body if ours else "")
+    return question + "\n" + context[-(599 - len(question)):] if question else context
+
+
+def _last_question(text: "str | None") -> str:
+    """The last sentence of our message that asks something (at most 200 characters), else ''."""
+    text = text or ""
+    if "?" not in text or text.startswith("["):
+        return ""
+    head = text[: text.rindex("?") + 1]
+    start = max(head.rfind(c, 0, len(head) - 1) for c in ".!?\n") + 1
+    return head[start:].strip()[-200:]
 
 
 def _get_recent_messages(db: Session, conversation_id: str, limit: int = 20) -> list:
