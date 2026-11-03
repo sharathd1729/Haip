@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, X, History, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen, Upload, Globe } from "@/lib/icons";
 import api from "@/lib/api";
@@ -823,6 +823,10 @@ type Tab = "knowledge" | "structured";
 
 export default function KnowledgePage() {
   const [tab, setTab] = useState<Tab>("knowledge");
+  // ?tab=structured (the sales agent checklist's Fix links). Read after mount: the first render must match the server's.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "structured") setTab("structured");
+  }, []);
   return (
     <div className="flex h-full flex-col">
       <div className="flex-shrink-0 border-b border-[var(--haip-border)] bg-[var(--haip-card)] px-4 pt-3 sm:px-6">
