@@ -128,6 +128,21 @@ describe("v2 site renderer", () => {
     expect(html(l)).not.toContain('data-section="text"');
   });
 
+  it("keeps the language bar visible: inside the header when the header floats over a full-bleed photo", () => {
+    const l = live(false);
+    const bar = <p className="sv-langbar"><a href="/hi">हिन्दी में देखें</a></p>;
+    const draw = (variant: string) => {
+      const page = { ...l.doc.pages[0], sections: [{ ...l.doc.pages[0].sections[0], variant }] };
+      return renderToString(<SiteRendererV2 live={l} page={page} env={env(l)} banner={bar} />);
+    };
+    const over = draw("fullbleed-image");
+    expect(over).toContain("sv--over-hero");
+    expect(over.indexOf("sv-langbar")).toBeGreaterThan(over.indexOf('<header class="sv-top">'));
+    const plain = draw("split");
+    expect(plain).not.toContain("sv--over-hero");
+    expect(plain.indexOf("sv-langbar")).toBeLessThan(plain.indexOf('<header class="sv-top">'));
+  });
+
   it("hides a section HAIP has no data for and keeps one h1", () => {
     const out = html(live(false, { packages: { items: [] }, faq: { items: [] }, itinerary: { itinerary: null }, gallery: { media: [] },
       reviews: { items: [], average: null, count: 0 } }));

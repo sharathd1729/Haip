@@ -3,7 +3,7 @@
 // Every price shown comes from POST /quote; the browser never sends an amount. /book/done?hold=&s= is where
 // Razorpay returns the guest: it polls the hold until the signed webhook has confirmed the booking.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { readError } from "./util";
+import { adIds, readError, track } from "./util";
 import { callApi, hrefOf, inr, str, type LiveData, type Props, type SiteEnv, type Stay } from "./types";
 
 interface Quote {
@@ -108,11 +108,12 @@ function Flow({ p, env, live }: { p: Props; env: SiteEnv; live: LiveData }) {
       quote: { property_id: stayId, check_in: ci, check_out: co, adults, children, extras: extrasList },
       guest: { name, phone, email: f.get("email") || null, note: f.get("note") || null, arrival: f.get("arrival") || null,
         gstin: f.get("gstin") || null, company: f.get("company") || null, nationality: f.get("nationality") || null },
-      consent: { transactional: true, marketing: f.get("offers") === "on" }, website: f.get("website") || null, utm } }).catch(() => null);
+      consent: { transactional: true, marketing: f.get("offers") === "on" }, website: f.get("website") || null, utm, ...adIds() } }).catch(() => null);
     setBusy(false);
     if (!r) return setErr("Couldn't reach us. Try again.");
     if (!r.ok) return setErr(await readError(r, "We couldn't hold these dates. Try again."));
     const j = await r.json();
+    track(j.payment_url ? "InitiateCheckout" : "Lead", j.event_id, j.payment_url ? { value: Number(j.quote?.total) || undefined, currency: "INR" } : undefined);
     if (j.payment_url) window.location.href = j.payment_url;
     else setRequested(true);
   };
@@ -220,6 +221,7 @@ export function Done({ env, holdId, session }: { env: SiteEnv; holdId: string; s
       if (r && r.ok) {
         const j = await r.json();
         setSt(j);
+        if (j.status === "confirmed") track("Purchase", j.event_id, { value: Number(j.value) || undefined, currency: "INR" });
         if (j.status === "confirmed" || j.status === "paid_conflict" || j.status === "expired") return;
       } else if (r && r.status === 404) return setSt({ error: "We couldn't find this booking." });
       if (++tries < 30) setTimeout(tick, 2000);

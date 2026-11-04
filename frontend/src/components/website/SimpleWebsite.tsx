@@ -10,6 +10,9 @@ import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { webApi, webError, type SiteOut, type SiteSettings } from "@/lib/website";
 import { ChangeSheet } from "./ChangeSheet";
+import { ContentPanel } from "./ContentPanel";
+import { GrowthPanel } from "./GrowthPanel";
+import { LaunchPanel } from "./LaunchPanel";
 import { LookSheet, PhotosSheet, SectionsSheet, WordsSheet } from "./DirectEditors";
 import { useDraft } from "./useDraft";
 
@@ -47,6 +50,7 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
   const host = site.url.replace("https://", "");
   const trips = (missing.data?.drafts || []).filter(d => d.kind !== "destination");
   const blocking = draft.checks.filter(c => c.level === "block");
+  const scores = draft.checks.filter(c => c.key.startsWith("score_"));   // speed / accessibility / search (warn only)
   const unpublished = !!v && v.status === "draft" && v.id !== site.live?.id;
 
   return (
@@ -127,6 +131,10 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
         </div>
       </div>
 
+      <ContentPanel canApprove={canApprove} draft={draft} />
+      <LaunchPanel canApprove={canApprove} isNew={isNew} onDraft={refresh} />
+      {site.live && <GrowthPanel canApprove={canApprove} />}
+
       {doc && <ContactSheet open={sheet === "contact"} onClose={() => setSheet(null)} contact={doc.site.contact}
         onSave={async c => { draft.update(d => { (d as unknown as { site: { contact: Contact } }).site.contact = c; }); await draft.flush(); setSheet(null); toast({ variant: "success", title: "Saved. Publish to show it to guests." }); }} />}
       <PhotosSheet open={sheet === "photos"} onClose={() => setSheet(null)} draft={draft} />
@@ -143,6 +151,9 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
           <div className="grid gap-3 text-[15px]"><p>Fix these first:</p>
             <ul className="grid gap-2">{blocking.map(c => <li key={c.key} className="rounded-xl border border-[var(--haip-border)] p-3"><b className="font-semibold">{c.title}</b><span className="block text-sm text-[var(--haip-fg-muted)]">{c.detail}</span></li>)}</ul></div>
         ) : <p className="text-[15px]">Guests will see this version at <b className="font-semibold">{host}</b>. You can change it and publish again any time.</p>}
+        {scores.length > 0 && <ul className="mt-4 grid gap-2" aria-label="Website check">{scores.map(c => (
+          <li key={c.key} className="rounded-xl border border-[var(--haip-border)] p-3"><b className="font-semibold">{c.ok ? "✓ " : ""}{c.title}</b>
+            <span className="block text-sm text-[var(--haip-fg-muted)]">{c.detail}</span></li>))}</ul>}
       </Drawer>
     </div>
   );

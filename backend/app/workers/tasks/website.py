@@ -6,6 +6,9 @@
   website.expire_holds    every 5 min: lapsed holds free their dates; their Razorpay links are cancelled best-effort.
   website.verify_domains  hourly: pending custom domains re-check DNS.
   website.revalidate      after a publish: tell the sites renderer to refresh that site's pages.
+  website.blog_draft      a website guide drafted by the AI (website_blog; queue default, transient errors retried 2x).
+  website.translate       another language for a v2 site as a new draft (website_i18n; queue default, retries 2x).
+  website.send_events     every 5 min: website Conversions API events to Meta (website_tracking), queue default.
 Every task sets the tenant context before touching tenant rows, and uses one transaction per tenant.
 """
 from html import escape
@@ -266,3 +269,88 @@ def send_manage_link(tenant_id: str, stay_id: str, host: str):
         except Exception:  # noqa: BLE001
             log.info("website_manage_whatsapp_skipped", tenant_id=tenant_id, stay_id=stay_id)
         return ",".join(sent) or "nothing_sent"
+
+
+@shared_task(name="website.send_events")
+def send_events():
+    """Every 5 min: website Conversions API events (website_tracking) per tenant, one transaction each."""
+    from app.models.tenant import Tenant
+    from app.services import website_tracking
+
+    sent = 0
+    for tid in _tenant_ids():
+        with SessionLocal() as db:
+            set_tenant_context(db, tid)
+            tenant = db.get(Tenant, tid)
+            try:
+                sent += website_tracking.send_tenant(db, tenant).get("sent", 0)
+            except Exception as exc:  # noqa: BLE001 -- one tenant's failure must not stop the others
+                db.rollback()
+                log.error("website_send_events_failed", tenant_id=tid, error=type(exc).__name__)
+    return sent
+
+
+@shared_task(name="website.blog_draft", bind=True, max_retries=MAX_RETRIES)
+def blog_draft(self, tenant_id: str, item_id: str, topic: str):
+    """A guide for the website (website_blog.run_draft). A transient provider error retries (2x, backoff); any other
+    failure marks the item failed so the screen says so (never stuck on "writing")."""
+    from app.models.marketing import MarketingContent
+    from app.models.tenant import Tenant
+    from app.services import website_blog
+    from app.services.marketing_ai_service import LLMTransientError
+
+    def failed(db, why: str):
+        set_tenant_context(db, tenant_id)
+        item = db.query(MarketingContent).filter_by(id=item_id, tenant_id=tenant_id).first()
+        if item is not None:
+            item.generation_status, item.generation_error = "failed", why
+        db.commit()
+
+    with SessionLocal() as db:
+        set_tenant_context(db, tenant_id)
+        try:
+            website_blog.run_draft(db, db.get(Tenant, tenant_id), item_id, topic)
+            db.commit()
+        except LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            failed(db, "The AI service is busy right now. Try again in a few minutes.")
+        except Exception as exc:  # noqa: BLE001 -- never leave the item stuck on "writing"
+            db.rollback()
+            failed(db, f"Couldn't write this guide ({type(exc).__name__}). Try again or write it yourself.")
+            log.exception("website_blog_draft_failed", tenant_id=tenant_id, item_id=item_id)
+
+
+@shared_task(name="website.translate", bind=True, max_retries=MAX_RETRIES)
+def translate(self, tenant_id: str, job_id: str):
+    """Another language for a v2 site (website_i18n.run): a new draft for a person to check and publish."""
+    from app.models.website import Site, SiteAiJob
+    from app.services import website_i18n
+    from app.services.marketing_ai_service import LLMTransientError
+
+    def failed(db, why: str):
+        set_tenant_context(db, tenant_id)
+        job = db.query(SiteAiJob).filter_by(id=job_id, tenant_id=tenant_id).first()
+        if job is not None:
+            job.status, job.error = "failed", why
+        db.commit()
+
+    with SessionLocal() as db:
+        set_tenant_context(db, tenant_id)
+        job = db.query(SiteAiJob).filter_by(id=job_id, tenant_id=tenant_id).first()
+        if job is None or job.status not in ("pending", "running"):
+            return
+        try:
+            job.status = "running"
+            website_i18n.run(db, job, db.get(Site, job.site_id))
+            db.commit()
+        except LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            failed(db, "The AI service is busy right now. Try again in a few minutes.")
+        except Exception as exc:  # noqa: BLE001 -- never leave the job running
+            db.rollback()
+            failed(db, f"Couldn't translate your website ({type(exc).__name__}). Try again.")
+            log.exception("website_translate_failed", tenant_id=tenant_id, job_id=job_id)

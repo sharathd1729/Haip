@@ -24,6 +24,7 @@ from app.models.tenant import Tenant
 from app.models.website import Site, SiteDomain, SitePageView, SiteVersion
 from app.services import website_blocks as wb
 from app.services import website_pricing as pricing
+from app.services import website_tracking
 from app.services.website_service import WebsiteError, bookable_properties, site_settings
 
 PREVIEW_TTL = 60 * 60 * 24
@@ -166,11 +167,12 @@ def asset_urls(db: Session, tenant_id: str, doc: dict, extra: Optional[set] = No
     return {a.id: {"src": f"/_haip/media/{a.id}", "alt": (a.alt_text or "")[:200], "w": a.width, "h": a.height} for a in rows}
 
 
-def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False) -> dict:
+def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False,
+              host: Optional[str] = None) -> dict:
     from app.services import website_spec_service as wspec
     from app.services.business_data_service import tenant_today
     if wspec.is_v2(version.doc):
-        return wspec.bootstrap(db, tenant, site, version, preview=preview)
+        return wspec.bootstrap(db, tenant, site, version, preview=preview, host=normalise_host(host) if host else None)
     cfg = site_settings(site)
     today = tenant_today(db, tenant.id)
     props = bookable_properties(db, tenant.id, cfg.property_ids or None)
@@ -185,15 +187,19 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "assets": asset_urls(db, tenant.id, version.doc),
         "policies": _policies(db, tenant),
         "legal": _legal(tenant),
+        "tracking": {} if preview else website_tracking.public(site),
     }
 
 
-def stay_detail(db: Session, tenant: Tenant, site: Site, slug: str) -> dict:
+def stay_detail(db: Session, tenant: Tenant, site: Site, slug: str, doc: Optional[dict] = None) -> dict:
+    """`doc` = the live/preview version: a v2 site shows prices by the tenant's price policy (guest_terms), v1 by show_prices."""
     from app.services.business_data_service import tenant_today
+    from app.services.website_spec_service import guest_terms
     cfg = site_settings(site)
+    shown = guest_terms(tenant, site, doc)[0] if doc is not None else cfg.show_prices
     for p in bookable_properties(db, tenant.id, cfg.property_ids or None):
         if stay_slug(p) == slug:
-            return property_out(db, p, show_prices=cfg.show_prices, today=tenant_today(db, tenant.id), detail=True)
+            return property_out(db, p, show_prices=shown, today=tenant_today(db, tenant.id), detail=True)
     raise WebsiteError(404, "stay_not_found", "That stay isn't on this website.")
 
 
@@ -202,7 +208,8 @@ def media_url(db: Session, tenant_id: str, doc: dict, asset_id: str) -> str:
     from app.services.media_storage import get_presigned_media_url
     allowed = wb.asset_ids(doc)
     if asset_id not in allowed and wspec.is_v2(doc):
-        allowed = allowed | wspec.media_ids(db, db.get(Tenant, tenant_id), doc)
+        from app.services.website_blog import media_ids as blog_media
+        allowed = allowed | wspec.media_ids(db, db.get(Tenant, tenant_id), doc) | blog_media(db, tenant_id)
     if asset_id not in allowed:
         raise WebsiteError(404, "not_found", "Not found")
     a = db.query(MediaAsset).filter_by(id=asset_id, tenant_id=tenant_id, status="active").first()

@@ -80,6 +80,7 @@ class QuoteIn(_Strict):
     adults: int = Field(2, ge=1, le=30)
     children: int = Field(0, ge=0, le=20)
     extras: list[dict] = Field(default_factory=list, max_length=20)   # [{id, quantity}]
+    promo_code: Optional[str] = Field(None, max_length=30)            # website_promos; the server checks and applies it
 
 
 class GuestIn(_Strict):
@@ -99,15 +100,23 @@ class ConsentIn(_Strict):
     notice_version: str = Field("website-v1", max_length=40)
 
 
-class HoldIn(_Strict):
+class _AdIds(_Strict):
+    """Meta's browser ids (_fbp / _fbc cookies), present only after the visitor accepted the cookie banner. Sent with the
+    server-side event so Meta can match it to the pixel's (website_tracking)."""
+    fbp: Optional[str] = Field(None, max_length=200)
+    fbc: Optional[str] = Field(None, max_length=200)
+
+
+class HoldIn(_AdIds):
     quote: QuoteIn
     guest: GuestIn
     consent: ConsentIn = ConsentIn()
     website: Optional[str] = Field(None, max_length=200)    # honeypot: bots fill every field
     utm: Optional[dict] = None
+    path: Optional[str] = Field(None, max_length=200)
 
 
-class EnquiryIn(_Strict):
+class EnquiryIn(_AdIds):
     name: str = Field(min_length=2, max_length=120)
     phone: str = Field(min_length=8, max_length=20)
     email: Optional[EmailStr] = None
@@ -125,6 +134,37 @@ class EnquiryIn(_Strict):
 class ManageLookupIn(_Strict):
     ref: str = Field(min_length=4, max_length=20)
     phone: str = Field(min_length=8, max_length=20)
+
+
+class TrackingIn(_Strict):
+    """Website › Tracking (owner/manager). capi_token: None = keep the stored one, "" = remove it."""
+    pixel_id: Optional[str] = Field(None, pattern=r"^\d{6,20}$")
+    ga4_id: Optional[str] = Field(None, pattern=r"^G-[A-Z0-9]{4,15}$")
+    capi_enabled: bool = False
+    capi_token: Optional[str] = Field(None, max_length=400)
+    capi_test_code: Optional[str] = Field(None, pattern=r"^[A-Z0-9]{3,20}$")
+
+
+class PromoIn(_Strict):
+    """Website › Promo codes (owner/manager). percent = 1-90 % off the nights; flat = rupees off the stay."""
+    code: str = Field(pattern=r"^[A-Za-z0-9]{3,30}$")
+    kind: Literal["percent", "flat"]
+    value: float = Field(gt=0, le=1_000_000)
+    starts_on: Optional[date] = None
+    ends_on: Optional[date] = None
+    min_nights: int = Field(1, ge=1, le=60)
+    max_uses: Optional[int] = Field(None, ge=1, le=100_000)
+    property_ids: list[str] = Field(default_factory=list, max_length=50)
+    label: Optional[str] = Field(None, max_length=80)
+    active: bool = True
+
+    @model_validator(mode="after")
+    def _sane(self):
+        if self.kind == "percent" and self.value > 90:
+            raise ValueError("a percent discount is at most 90")
+        if self.starts_on and self.ends_on and self.ends_on < self.starts_on:
+            raise ValueError("the end date is before the start date")
+        return self
 
 
 class PageViewIn(_Strict):
