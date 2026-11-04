@@ -50,6 +50,19 @@ def _load_stay(db: Session, tenant_id: str, stay_id: Optional[str]) -> Optional[
             .filter(Stay.id == stay_id, Stay.tenant_id == tenant_id).first())
 
 
+def _ops_file(db: Session, tenant_id: str, stay: Stay) -> None:
+    """The team's trip / stay file as soon as the booking is paid (it used to wait for the 06:10 sync or someone opening Ops
+    today). Idempotent; businesses without an ops pack get none. Never blocks the invoice or the guest's confirmation."""
+    stay_id = stay.id
+    try:
+        from app.services import ops_trip_service
+        with db.begin_nested():                     # a failure undoes only the ops rows, never the payment's own work
+            ops_trip_service.ensure_file(db, tenant_id, stay)
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 -- the daily ops.sync_files_tenant makes it later
+        log.warning("ops_file_after_payment_failed", tenant_id=tenant_id, stay_id=stay_id, error=str(exc)[:200])
+
+
 def after_payment(db: Session, tenant_id: str, payment_id: str) -> dict:
     tenant = db.query(Tenant).filter_by(id=tenant_id).first()
     payment = db.query(StayPayment).filter_by(id=payment_id, tenant_id=tenant_id).first()
@@ -58,6 +71,7 @@ def after_payment(db: Session, tenant_id: str, payment_id: str) -> dict:
     stay = _load_stay(db, tenant_id, payment.stay_id)
     if not stay:
         return {"status": "ignored"}
+    _ops_file(db, tenant_id, stay)
 
     doc = db.query(Invoice).filter_by(tenant_id=tenant_id, payment_id=payment.id).first()
     if doc is None:

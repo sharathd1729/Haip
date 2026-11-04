@@ -146,10 +146,31 @@ class IngestReport:
     created: list[KnowledgeEntry] = field(default_factory=list)
     unchanged: int = 0          # passages already in the knowledge base from this same page/file; not added again
     marked_out_of_date: int = 0  # earlier passages from this page/file that the new version no longer contains
+    kept_approved: int = 0       # new passages made only of text a person already approved from this page/file
 
 
 def _norm(text: str) -> str:
     return " ".join((text or "").split())
+
+
+_GRAM = 8          # words; chunks overlap by ~150 characters (about 25 words), so every 8-word run of a page sits inside one chunk
+
+
+def _grams(text: str) -> set[tuple[str, ...]]:
+    words = text.lower().split()
+    return {tuple(words[i:i + _GRAM]) for i in range(max(0, len(words) - _GRAM + 1))}
+
+
+def _only_approved_text(chunk: str, approved: set[tuple[str, ...]]) -> bool:
+    """True when every 8-word run of the chunk was already in a passage a person approved from the same page/file.
+
+    A small edit to a page shifts every chunk boundary, so its old approved passages went out of date and every new chunk
+    waited for approval: the bot lost the whole page. A chunk that only re-cuts approved text says nothing new; one with any
+    new or changed sentence (a new price) still waits. The first and last word are left out: the overlap cuts mid-word."""
+    words = chunk.lower().split()[1:-1]
+    if len(words) < _GRAM or not approved:
+        return False
+    return all(g in approved for g in _grams(" ".join(words)))
 
 
 def ingest_chunks_report(
@@ -166,7 +187,9 @@ def ingest_chunks_report(
 ) -> IngestReport:
     """Chunk `text` and store each NEW piece as a pending KnowledgeEntry, queuing embedding for each.
 
-    Never marks anything approved -- a human must review machine-sourced content before the AI can use it.
+    Never approves new text -- a human must review machine-sourced content before the AI can use it. The one exception is a
+    passage made only of text a person already approved from this same page/file (`_only_approved_text`): it keeps that
+    approval, so re-reading a page after a small edit does not hide the whole page again.
 
     Re-importing the same page or file is safe: a passage that is already there (same words) is not added a second time, and
     an earlier passage from that page/file that the new version no longer contains is marked out of date, so an old price or
@@ -187,8 +210,11 @@ def ingest_chunks_report(
         q = q.filter(KnowledgeEntry.id == "")      # no stable origin: nothing to compare with
     earlier = q.all()
     by_text = {}
+    approved: set[tuple[str, ...]] = set()
     for e in earlier:
         by_text.setdefault(_norm(e.content), e)
+        if e.review_status == "approved":
+            approved |= _grams(e.content or "")
 
     seen_texts: set[str] = set()
     for chunk in chunks:
@@ -202,6 +228,8 @@ def ingest_chunks_report(
             if match.stale_since is not None:
                 match.stale_since = None              # it is back on the page
             continue
+        keep = _only_approved_text(chunk, approved)
+        report.kept_approved += keep
         entry = KnowledgeEntry(
             id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -214,7 +242,7 @@ def ingest_chunks_report(
             file_s3_key=file_s3_key,
             priority=0,
             is_active=True,
-            review_status="pending",
+            review_status="approved" if keep else "pending",
             embedding_status="pending",
             created_by=created_by,
         )

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
+from app.services import price_policy
 from app.services.authz_service import has_capability, require_capability
 from app.models.property import Property, Stay, BlockedDate, SeasonalRate, RatePlan
 # Guest is imported lazily inside the handler to avoid any startup mapper issues
@@ -263,39 +264,41 @@ def get_calendar(
 
         # Nightly rates from SeasonalRate → RatePlan fallback
         rates: dict[str, float] = {}
-        try:
-            base_rate: Optional[float] = None
-            base_plan = (
-                db.query(RatePlan)
-                .filter_by(property_id=prop.id, is_active=True)
-                .order_by(RatePlan.base_price_per_night)
-                .first()
-            )
-            if base_plan:
-                base_rate = float(base_plan.base_price_per_night)
-
-            seasonal = (
-                db.query(SeasonalRate)
-                .filter(
-                    SeasonalRate.property_id == prop.id,
-                    SeasonalRate.is_active == True,
-                    SeasonalRate.date_to >= from_date,
-                    SeasonalRate.date_from <= to_date,
+        # A caravan's price is its published packages', never a rate plan's (price_policy.package_priced): no nightly rate.
+        if not price_policy.package_priced(prop):
+            try:
+                base_rate: Optional[float] = None
+                base_plan = (
+                    db.query(RatePlan)
+                    .filter_by(property_id=prop.id, is_active=True)
+                    .order_by(RatePlan.base_price_per_night)
+                    .first()
                 )
-                .order_by(SeasonalRate.priority.desc(), SeasonalRate.date_from)
-                .all()
-            )
-            for day in days:
-                matched: Optional[float] = None
-                for sr in seasonal:
-                    if sr.date_from <= day <= sr.date_to:
-                        matched = float(sr.price_per_night)
-                        break
-                rate_val = matched if matched is not None else base_rate
-                if rate_val:
-                    rates[day] = rate_val
-        except Exception:
-            pass
+                if base_plan:
+                    base_rate = float(base_plan.base_price_per_night)
+
+                seasonal = (
+                    db.query(SeasonalRate)
+                    .filter(
+                        SeasonalRate.property_id == prop.id,
+                        SeasonalRate.is_active == True,
+                        SeasonalRate.date_to >= from_date,
+                        SeasonalRate.date_from <= to_date,
+                    )
+                    .order_by(SeasonalRate.priority.desc(), SeasonalRate.date_from)
+                    .all()
+                )
+                for day in days:
+                    matched: Optional[float] = None
+                    for sr in seasonal:
+                        if sr.date_from <= day <= sr.date_to:
+                            matched = float(sr.price_per_night)
+                            break
+                    rate_val = matched if matched is not None else base_rate
+                    if rate_val:
+                        rates[day] = rate_val
+            except Exception:
+                pass
 
         # Monthly revenue for this property in the window
         monthly_revenue = sum(

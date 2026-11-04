@@ -103,3 +103,12 @@ def test_autopilot_holds_for_a_guest_who_said_stop(db, monkeypatch):
     assert len(holds) == 1 and "STOP" in holds[0]
     other = ratha(db)                                                                      # another workspace's STOP never counts
     assert sas.guest_said_stop(db, other.t.id, guest.id) is False
+
+
+def test_a_caravan_workspace_never_sees_a_rate_plan_price():
+    """Owner decision 4 Nov: caravans are priced only from their published packages, in every price mode."""
+    facts = [{"tool": "check_availability", "args": {"checkin": "2026-11-01"}, "result": [{"property_name": "A", "price_per_night": "9000"}]},
+             {"tool": "get_quote", "result": {"total": "18000"}}]
+    for t in (Tenant(brand_config={}), Tenant(brand_config={"price_disclosure": "grounded"})):
+        out = merge_facts(t, facts, SalesTurn(), packages_only=True)
+        assert [f["tool"] for f in out] == ["check_availability"] and "9000" not in str(out) and "18000" not in str(out)

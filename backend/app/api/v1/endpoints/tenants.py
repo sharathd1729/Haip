@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from pydantic import BaseModel, field_validator
+from app.core.audit import append_audit
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
@@ -89,6 +90,10 @@ def update_my_tenant(
         merged.update(incoming)
         tenant.brand_config = merged
 
+    if "timezone" in data and data["timezone"] != tenant.timezone:
+        # Business days, quiet hours and reminders all follow it.
+        append_audit(db, tenant_id=tenant.id, action="tenant.timezone_changed", actor_user_id=current_user.id,
+                     target_type="tenant", target_id=tenant.id, payload={"from": tenant.timezone, "to": data["timezone"]})
     for field, value in data.items():
         setattr(tenant, field, value)
 

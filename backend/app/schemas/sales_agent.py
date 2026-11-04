@@ -18,3 +18,10 @@ class SalesActionRejectIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: Optional[str] = Field(default=None, max_length=300)
+
+
+class SalesActionStayIn(BaseModel):
+    """POST /sales-actions/{id}/confirm-stay: a person confirmed where the guests sleep on an overnight trip."""
+    model_config = ConfigDict(extra="forbid")
+
+    stay_name: Optional[str] = Field(default=None, max_length=120)

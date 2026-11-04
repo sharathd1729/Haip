@@ -2,7 +2,7 @@
 // Settings > Quotes (owner / manager): the packages and routes the rate calculator prices from (versioned business records:
 // a change is a new version, drafts wait for approval), the WhatsApp quote templates, and the quote defaults (GST, advance,
 // validity, the owner-OK limit). Moved here from the old Quotes page tabs so the calculator stays one simple page.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -24,6 +24,11 @@ export default function QuoteSettingsPage() {
   const role = (session?.user as { role?: string } | undefined)?.role;
   const allowed = role === "owner" || role === "manager";
   const [tab, setTab] = useState<Tab>("packages");
+  // ?tab=messages etc. (the sales agent checklist's Fix links). Read after mount: the first render must match the server's.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t === "packages" || t === "routes" || t === "messages" || t === "defaults") setTab(t);
+  }, []);
   const catalog = useQuery<Catalog>({ queryKey: ["quote-catalog"], queryFn: () => api.get("/quotes/catalog").then(r => r.data), retry: 1, enabled: allowed });
 
   if (session && !allowed) {

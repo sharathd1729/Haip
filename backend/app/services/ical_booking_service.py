@@ -101,15 +101,18 @@ def _close_tasks(db: Session, stay: Stay, prefix: str) -> None:
         t.is_done, t.completed_at = True, now
 
 
-def _advance(db: Session, link: ICalEventBooking, stay: Stay, advance: float, today: date) -> None:
+def _advance(db: Session, link: ICalEventBooking, stay: Stay, advance: float, today: date, created: Optional[date] = None) -> None:
     pay = db.query(StayPayment).filter_by(id=link.payment_id, tenant_id=stay.tenant_id).first() if link.payment_id else None
     if pay is not None:
         if float(pay.amount) != advance and advance > 0:
             pay.amount = advance
         return
     if advance > 0 and not link.payment_id:
+        # The event never says when the advance was paid. Dating it on the sync day made "cash received" jump on every
+        # import; the day the event was made (or, for a trip already started, its check-in) is as close as we can get.
+        paid_on = min(d for d in (today, created, stay.check_in) if d is not None)
         pay = StayPayment(tenant_id=stay.tenant_id, stay_id=stay.id, kind="payment", amount=advance, method="other",
-                          reference="Google Calendar", paid_on=today, notes="Advance written in the calendar event")
+                          reference="Google Calendar", paid_on=paid_on, notes="Advance written in the calendar event")
         db.add(pay)
         db.flush()
         link.payment_id = pay.id
@@ -230,7 +233,7 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
         db.flush()
         link = ICalEventBooking(tenant_id=feed.tenant_id, feed_id=feed.id, event_key=key[:300], stay_id=stay.id)
         db.add(link)
-        _advance(db, link, stay, cand["advance"], today)
+        _advance(db, link, stay, cand["advance"], today, ev.get("created"))
         lead_id = link_lead(db, stay, today)
         append_audit(db, tenant_id=feed.tenant_id, action="booking.created_from_calendar", target_type="booking", target_id=stay.id,
                      payload={"feed_id": feed.id, "property_id": target, "check_in": start, "check_out": end, "inquiry_id": lead_id})
@@ -263,7 +266,7 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
             stay.property_id, changed = target, True
     if moved_dates and bsvc.find_conflicts(db, feed.tenant_id, stay.property_id, check_in, check_out, exclude_stay_id=stay.id):
         _task(db, feed.tenant_id, f"Dates changed in Google overlap another booking ({start} to {end})"[:255], stay, check_in)
-    _advance(db, link, stay, cand["advance"], today)
+    _advance(db, link, stay, cand["advance"], today, ev.get("created"))
     if changed:
         append_audit(db, tenant_id=feed.tenant_id, action="booking.updated_from_calendar", target_type="booking", target_id=stay.id,
                      payload={"feed_id": feed.id, "check_in": start, "check_out": end})

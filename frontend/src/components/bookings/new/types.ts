@@ -22,6 +22,8 @@ export interface ComposeSetup {
   payments: { razorpay_connected: boolean; confirmation_template: string | null };
   user: { id: string; name: string; privileged: boolean };
   advance_days: number;
+  /** Pickup / return times from the published stay rules; null = none published (12:00). */
+  stay_times?: { check_in: string; check_out: string } | null;
 }
 
 export interface LeadView {
@@ -132,7 +134,7 @@ export interface BookingForm {
   overrideOn: boolean;
   overridePrice: string;
   overrideReason: string;
-  advance: "25" | "50" | "100" | "other";
+  advance: string;                 // a percent ("25", "50", "100", the payment terms' own) | "other" (a typed amount)
   advanceAmount: string;
   advanceDue: string;              // "" = HAIP's default (2 days, never after check-in)
   balanceRule: "pickup" | "7_days";

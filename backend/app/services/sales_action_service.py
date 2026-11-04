@@ -130,6 +130,30 @@ def approve(db: Session, user: User, action_id: str) -> dict:
     return out(db, _get(db, user.tenant_id, action_id))
 
 
+def confirm_stay(db: Session, user: User, action_id: str, stay_name: Optional[str] = None) -> dict:
+    """A person confirmed the overnight stay of a PENDING agent quote, so it can be sent (quote_send_service.readiness wants
+    meta.stay_check == "confirmed"; the agent marks only auto-bookable plans confirmed). Only the quote's meta changes, never its
+    amounts. Every option of the group gets it. Audited quote.stay_confirmed."""
+    row = _get(db, user.tenant_id, action_id)
+    if not _visible(db, user, row):
+        raise ActionError("not_found", "Sales action not found.", 404)
+    if row.status != "pending":
+        raise ActionError("not_pending", f"This action is already {row.status}.", 409)
+    primary = db.query(InquiryQuote).filter_by(id=row.quote_id, tenant_id=user.tenant_id).first()
+    if primary is None:
+        raise ActionError("not_found", "Quote not found.", 404)
+    stamp = {"stay_check": "confirmed", "stay_name": (stay_name or "").strip() or None, "stay_confirmed_by": user.id,
+             "stay_confirmed_at": _now().isoformat()}
+    for q in qss.group_rows(db, user.tenant_id, primary):
+        snap = dict(q.snapshot or {})
+        snap["meta"] = {**(snap.get("meta") or {}), **stamp}
+        q.snapshot = snap                              # a new dict: JSON columns do not track in-place mutation
+    append_audit(db, tenant_id=user.tenant_id, actor_user_id=user.id, action="quote.stay_confirmed", target_type="sales_action",
+                 target_id=action_id, payload={"quote_id": row.quote_id, "stay_name": stamp["stay_name"]})
+    db.commit()
+    return out(db, _get(db, user.tenant_id, action_id), can_decide=True)
+
+
 def reject(db: Session, user: User, action_id: str, reason: Optional[str] = None) -> dict:
     row = _get(db, user.tenant_id, action_id)
     if not _visible(db, user, row):

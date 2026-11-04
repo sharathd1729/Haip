@@ -94,7 +94,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v17: PROVEN FOR THIS BUSINESS block (learning.lessons).
     # v18 (2026-10-24): RECENT CONVERSATION lines name their author (message_author: GUEST / US: TEAM MEMBER / AI ASSISTANT /
     # AUTOMATED MESSAGE / CAMPAIGN BROADCAST); a campaign broadcast is never the guest's request.
-    "concierge_reply": "concierge-reply-v18",   # concierge_reply.jinja
+    # v19 (2026-11-04): a knowledge snippet about one property says which ("about Ratha 1 only").
+    # v20 (2026-11-04): published records show km per day, at-cost items, best months, notes, km per stop, day stops.
+    "concierge_reply": "concierge-reply-v20",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja

@@ -291,3 +291,33 @@ class TestAuditTargetsProperty:
         assert len(events) == 1
         assert events[0].target_type == "property"
         assert events[0].target_id == prop.id
+
+
+class TestCaravanPriceSource:
+    """Owner decision 4 Nov: a caravan is priced only from its published packages, never a rate plan."""
+
+    def _setup(self, db):
+        tenant = _make_tenant(db)
+        owner = _make_user(db, tenant.id, role=UserRole.OWNER)
+        db.commit()
+        _seed_capabilities(db, tenant.id)
+        prop = _make_property(db, tenant.id, name="Ratha 1")
+        prop.type, prop.price_per_day = "caravan", 9000      # a legacy day price: still never shown for a caravan
+        db.commit()
+        raw_pat, _ = token_service.generate_token(db, tenant.id, owner.id, "Claude")
+        db.commit()
+        return prop, raw_pat
+
+    def test_availability_shows_the_caravan_without_a_rate_plan_price(self, client, db):
+        prop, pat = self._setup(db)
+        resp = _jsonrpc(client, db, pat, "tools/call", {
+            "name": "check_availability", "arguments": {"from_date": "2026-12-10", "to_date": "2026-12-12", "adults": 2}})
+        text = resp.json()["result"]["content"][0]["text"]
+        assert prop.id in text and "price_per_night" not in text and "9000" not in text and "rate calculator" in text
+
+    def test_quote_for_a_caravan_points_to_the_rate_calculator(self, client, db):
+        prop, pat = self._setup(db)
+        resp = _jsonrpc(client, db, pat, "tools/call", {
+            "name": "get_quote", "arguments": {"property_id": prop.id, "from_date": "2026-12-10", "to_date": "2026-12-12", "adults": 2}})
+        result = resp.json()["result"]
+        assert result["isError"] is True and "rate calculator" in result["content"][0]["text"]

@@ -341,3 +341,19 @@ def test_package_nights_come_from_the_package_and_a_different_length_warns(clien
         any("is usually 2 nights. These dates are 3 nights." in x["message"] for x in out["warnings"])
     ok = client.post(f"{API}/preview", json=body(guest_id=g.id), headers=_h(w.res)).json()
     assert not any("is usually" in x["message"] for x in ok["warnings"])
+
+
+def test_defaults_follow_the_published_payment_terms_and_stay_rules(client, db, w):
+    """A new booking used to default to a 50% advance and 12:00 pickup/return whatever the published terms said."""
+    from tests.test_quote_builder_pricing import pub
+    pub(db, w, "payment_policy", None, {"advance_percent": 30, "balance_due_days_before_checkin": 1, "confirmed_by_ratha": True})
+    pub(db, w, "stay_rules", None, {"check_in_time": "14:00", "check_out_time": "11:00"})
+    db.commit()
+    setup = client.get(f"{API}/setup", headers=_h(w.res)).json()
+    assert setup["stay_times"] == {"check_in": "14:00", "check_out": "11:00"} and Decimal(setup["settings"]["advance_percent"]) == 30
+    out = client.post(f"{API}/preview", json=body(guest_id=person(db, w.t.id).id), headers=_h(w.res)).json()
+    assert Decimal(out["schedule"]["advance"]) == rc.rupee(Decimal(out["price"]["total"]) * 30 / 100)
+
+
+def test_no_stay_rules_published_keeps_12_noon(client, db, w):
+    assert client.get(f"{API}/setup", headers=_h(w.res)).json()["stay_times"] is None

@@ -176,7 +176,7 @@ function WorkspaceSettings() {
       name: tenant.name || "",
       brand_name: tenant.brand_config?.brand_name || tenant.name || "",
       slug: tenant.slug || "",
-      timezone: tenant.brand_config?.timezone || "Asia/Kolkata",
+      timezone: tenant.timezone || "Asia/Kolkata",
       language: tenant.brand_config?.language || "en",
     }));
   }, [tenant]);
@@ -589,15 +589,16 @@ function AISettings() {
 
       <AiScorecardCard />
 
-      <SalesAgentSettingsCard />
+      <div id="sales-agent" className="scroll-mt-4"><SalesAgentSettingsCard /></div>
 
       <AgentConsultSettingsCard />
 
-      <AgentPolicyCard />
+      <div id="agent-policy" className="scroll-mt-4"><AgentPolicyCard /></div>
 
       <SalesPlaybookCard />
 
       {/* WhatsApp */}
+      <div id="whatsapp-ai-mode" className="scroll-mt-4" />
       <Card title="WhatsApp — AI mode">
         <div className="space-y-2 mb-4">
           {MODE_OPTIONS.map(m => (
