@@ -233,7 +233,34 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
 _SINGLE_PRIMARY_ATTEMPT = {"analyst_followup"}
 
 
+# LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.
+_CLAUDE_FAST_TASKS = frozenset({
+    "quick_classify", "bulk_batch", "ask_haip_intent", "concierge_rewrite", "lead_stage_classify",
+    "marketing_tagging", "marketing_review_reply", "website_copy", "website_change",
+})
+# The guest reply and the rewrite think least: a person is waiting, and chat does well at low effort.
+_CLAUDE_LOW_EFFORT = _CLAUDE_FAST_TASKS | {"concierge_draft"}
+# Claude's bound where the caller's own outer bound is tighter than 60 s, so the fallback still has time to answer
+# (concierge_draft: 60 s outer for provider "claude"; rewrite_draft: 30 s outer).
+_CLAUDE_TIMEOUTS = {"concierge_draft": 30, "concierge_rewrite": 12}
+
+
 def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
+    """The routed adapter for `task`; with LLM_FORCE_PROVIDER=claude, Claude first and that adapter as the fallback."""
+    adapter = _routed_llm(task, tenant_id)
+    if settings.LLM_FORCE_PROVIDER.strip().lower() != "claude" or not settings.ANTHROPIC_API_KEY:
+        return adapter
+    from app.adapters.llm.anthropic_claude import MODEL_HAIKU, MODEL_SONNET, ClaudeAdapter
+    from app.adapters.llm.fallback import FallbackAdapter
+    timeout = _CLAUDE_TIMEOUTS.get(task) or _GEMINI_FALLBACK_TASKS.get(task) or 60
+    claude = ClaudeAdapter(default_model=MODEL_HAIKU if task in _CLAUDE_FAST_TASKS else MODEL_SONNET,
+                           effort="low" if task in _CLAUDE_LOW_EFFORT else "medium", timeout=timeout)
+    claude.provider = "claude"
+    # One Claude attempt (paid): a failure goes straight to the normal route.
+    return FallbackAdapter(primary=claude, secondary=adapter, task=task, primary_timeout=timeout, primary_attempts=1)
+
+
+def _routed_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     """
     Return the correct LLMAdapter for a given task.
 

@@ -182,6 +182,8 @@ MAX_REPLY_SECONDS_BY_PROVIDER = {
     # or back to Gemini (once billing clears), not get a further bump.
     "nvidia": 45,
     "gemini": 40,   # no known hang bug; paid tier; give real latency room
+    # LLM_FORCE_PROVIDER=claude: Claude gets 30 s (adapters/llm/__init__.py), then the normal route answers in the rest.
+    "claude": 60,
 }
 MAX_REPLY_SECONDS_DEFAULT = 20
 MAX_REPLY_ATTEMPTS = 2  # worst case ~2x the per-provider bound before falling back

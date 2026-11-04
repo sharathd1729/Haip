@@ -114,8 +114,8 @@ class TestAdapterWiring:
         captured = {}
 
         class _FakeContent:
-            type = "text"
-            text = "ok"
+            type = "tool_use"   # a tool was offered; a text-only reply would raise ClaudeNoToolCall
+            input = {"reply": "ok"}
 
         class _FakeUsage:
             input_tokens = 10
@@ -126,7 +126,7 @@ class TestAdapterWiring:
             usage = _FakeUsage()
 
         class _FakeMessages:
-            def create(self, **kwargs):
+            async def create(self, **kwargs):
                 captured.update(kwargs)
                 return _FakeResponse()
 

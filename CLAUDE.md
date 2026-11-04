@@ -148,6 +148,7 @@ reliability). Revisit bigger models with a direct trivial-prompt call, not just 
 - `mistral-nemotron` answers tool-call prompts in prose; route structured output to `gpt-oss-20b`
   or the 49B/ultra models. `kimi-k3` and `gpt-oss-120b` tool-call correctly but cold-start 90s+.
 
+**Claude switch (4 Nov, all workspaces)**: `LLM_FORCE_PROVIDER=claude` + `ANTHROPIC_API_KEY` = `get_llm(task)` returns `FallbackAdapter(primary=ClaudeAdapter, secondary=the task's normal route, 1 attempt, timeout = the task's Gemini-fallback bound else 60 s; concierge_draft 30, concierge_rewrite 12)`; `claude-sonnet-5-5` (effort medium; guest reply low) for everything except quick_classify/bulk/intent/rewrite/lead_stage_classify/small Studio+website steps on `claude-haiku-5-5` (low); tool_choice auto (forced is a 400 on 5.5), a reply without the tool call / a refusal = fallback; system prompt cached only when the data is in the user message. Empty flag = the table below, unchanged. Transcription and embeddings never move. SDK `anthropic==0.125.0`.
 Per-tenant override: `tenants.llm_provider_override` (cached 300s) is NOT applied today: no `get_llm` caller passes `tenant_id` (and an override would also drop the routed model). Check a tenant's real route with `GET /ai/routing` (owner) or `scripts/diagnose_llm_routing.py --tenant-slug` (keys present/absent only).
 
 All AI calls go through `backend/app/adapters/llm/` router.
