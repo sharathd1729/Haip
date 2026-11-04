@@ -163,6 +163,17 @@ ANALYST_PACK: list[dict] = [{
                                          "example": [APP_URL_TOKEN + "/r/analyst/sample"]}]},
     ],
 }]
+# Get found (dynamic SOPs, phase S3): overdue-step reminder to an opted-in staff member (services/sops/upkeep.py).
+SOP_DUE = "haip_staff_sop_due_v1"
+SOP_PACK: list[dict] = [{
+    "name": SOP_DUE, "label": "Get found reminder", "when": "A Get found checklist step is overdue (assignee, then managers).",
+    "components": [
+        _body("Hi {{1}}, {{2}} Get found step(s) are overdue, starting with: {{3}}. Open HAIP to see them.",
+              ["Asha", "2", "Reply to new reviews (Google profile)"]),
+        {"type": "BUTTONS", "buttons": [{"type": "URL", "text": "Open checklists",
+                                         "url": APP_URL_TOKEN + "/dashboard/marketing/sops"}]},
+    ],
+}]
 # The AI Executive's approval request (services/chief/approvals.py): only for changes to staff tools / AI settings / Meta
 # submissions; anything a guest or the public sees is approved in the app only. Buttons in this order: Approve, Reject.
 CHIEF_PACK: list[dict] = [{
@@ -253,15 +264,20 @@ def _with_app_url(component: dict) -> dict:
 def create_analyst_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
     """Add the analyst's delivery template as a DRAFT (same rules as the lead pack: nothing is submitted to Meta here; the
     DOCUMENT header gets its sample from the template editor's Submit step). Safe to repeat."""
-    return _create_extra_drafts(db, tenant_id, actor_id, ANALYST_PACK, "analyst.template_created")
+    return _create_pack_drafts(db, tenant_id, actor_id, ANALYST_PACK, "analyst.template_created")
+
+
+def create_sop_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
+    """Add the Get found reminder template as a DRAFT; the owner submits it in the template editor. Safe to repeat."""
+    return _create_pack_drafts(db, tenant_id, actor_id, SOP_PACK, "sops.template_created")
 
 
 def create_chief_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
     """The AI Executive's approval template as a DRAFT; the owner submits it from the template editor. Safe to repeat."""
-    return _create_extra_drafts(db, tenant_id, actor_id, CHIEF_PACK, "chief.template_created")
+    return _create_pack_drafts(db, tenant_id, actor_id, CHIEF_PACK, "chief.template_created")
 
 
-def _create_extra_drafts(db: Session, tenant_id: str, actor_id: Optional[str], pack: list[dict], action: str) -> dict:
+def _create_pack_drafts(db: Session, tenant_id: str, actor_id: Optional[str], pack: list[dict], action: str) -> dict:
     WATemplate, TemplateStatus, TemplateCategory = _model()
     names = [t["name"] for t in pack]
     existing = {r.name for r in db.query(WATemplate.name).filter(WATemplate.tenant_id == tenant_id, WATemplate.language == LANGUAGE,

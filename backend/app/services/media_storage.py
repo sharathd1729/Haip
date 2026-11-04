@@ -196,6 +196,17 @@ def upload_ops_photo(tenant_id: str, file_id: str, message_id: str, content: byt
     return s3_key
 
 
+def upload_sop_evidence(tenant_id: str, instance_id: str, step_key: str, sha256: str, content: bytes, content_type: str,
+                        extension: str) -> str:
+    """Store an SOP step's screenshot (services/sops/service.py, type and size already checked). Keyed by content hash, so
+    the same file uploaded twice is one object. Read back with get_presigned_media_url."""
+    safe = "".join(c for c in f"{instance_id}-{step_key}" if c.isalnum() or c in "-_")[:100] or "step"
+    s3_key = f"{tenant_id}/sops/{safe}-{sha256[:16]}.{extension}"
+    _put(s3_key, content, content_type)
+    log.info("sop_evidence_stored", tenant_id=tenant_id, instance_id=instance_id, bytes=len(content))
+    return s3_key
+
+
 def upload_ops_paper(tenant_id: str, paper_id: str, content: bytes, content_type: str, extension: str) -> str:
     """Store a scanned vehicle/staff paper (ops_fleet_service.attach_file, type and size already checked). One object per
     paper id and extension: uploading again replaces it. Read back with get_presigned_media_url."""

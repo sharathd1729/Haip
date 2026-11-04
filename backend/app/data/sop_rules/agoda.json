@@ -1,0 +1,20 @@
+[
+  {
+    "key": "ota.agoda.description_max",
+    "platform": "agoda",
+    "kind": "text_limit",
+    "value": 2000,
+    "status": "haip_advice",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's own cap for the description. Agoda's real limit is not in this catalogue: check in the platform."
+  },
+  {
+    "key": "ota.agoda.highlights_max",
+    "platform": "agoda",
+    "kind": "text_limit",
+    "value": 8,
+    "status": "haip_advice",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's own cap for the number of highlights. Not an Agoda rule."
+  }
+]

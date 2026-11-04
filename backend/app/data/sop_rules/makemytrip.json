@@ -1,0 +1,56 @@
+[
+  {
+    "key": "ota.makemytrip.title_max",
+    "platform": "makemytrip",
+    "kind": "text_limit",
+    "value": 80,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the title field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.makemytrip.about_max",
+    "platform": "makemytrip",
+    "kind": "text_limit",
+    "value": 2000,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the about field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.makemytrip.highlights_max",
+    "platform": "makemytrip",
+    "kind": "text_limit",
+    "value": 8,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the number of highlights field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.makemytrip.house_rules_max",
+    "platform": "makemytrip",
+    "kind": "text_limit",
+    "value": 1000,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the house rules field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "mmt.programme.mmt_black",
+    "platform": "makemytrip",
+    "kind": "programme",
+    "value": "MMT Black",
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Named by the HAIP team (meeting, Nov 2026). Who can join, what it costs and what it gives are not in this catalogue yet: check in the platform."
+  },
+  {
+    "key": "mmt.programme.mmt_biz",
+    "platform": "makemytrip",
+    "kind": "programme",
+    "value": "MMT Biz (business travellers)",
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Named by the HAIP team (meeting, Nov 2026). Who can join, what it costs and what it gives are not in this catalogue yet: check in the platform."
+  }
+]

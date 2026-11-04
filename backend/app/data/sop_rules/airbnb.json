@@ -1,0 +1,56 @@
+[
+  {
+    "key": "ota.airbnb.title_max",
+    "platform": "airbnb",
+    "kind": "text_limit",
+    "value": 50,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the title field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.airbnb.summary_max",
+    "platform": "airbnb",
+    "kind": "text_limit",
+    "value": 500,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the summary field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.airbnb.the_space_max",
+    "platform": "airbnb",
+    "kind": "text_limit",
+    "value": 1500,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the the space field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.airbnb.guest_access_max",
+    "platform": "airbnb",
+    "kind": "text_limit",
+    "value": 500,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the guest access field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.airbnb.neighbourhood_max",
+    "platform": "airbnb",
+    "kind": "text_limit",
+    "value": 700,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the neighbourhood field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.airbnb.getting_around_max",
+    "platform": "airbnb",
+    "kind": "text_limit",
+    "value": 500,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the getting around field (Studio M7, Oct 2026). Not yet checked against the platform."
+  }
+]

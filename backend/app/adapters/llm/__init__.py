@@ -163,6 +163,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # route (it used ask_haip_freeform_summary, which has no Gemini fallback and timed out in production at 60 s); the Ask
     # HAIP summary route stays without one because it reads raw query rows.
     "analyst_followup": ("nvidia", "openai/gpt-oss-20b"),
+    # Get found SOP texts (services/sops/generate.py): description, Instagram bio, WhatsApp About, Q&A from the shared facts
+    # block. A person pastes them; price policy + grounding lint run first. A reply with no tool output gets one Gemini try
+    # (marketing_ai_service._call), errors/timeouts the fallback below.
+    "sop_generate": ("nvidia", "openai/gpt-oss-20b"),
     # AI Executive (services/chief/explain.py): two grounded sentences per finding that code already detected. Internal,
     # structured JSON; a sentence with a number not in the finding is dropped and the rule's own text stands on any failure.
     "chief_explain": ("nvidia", "openai/gpt-oss-20b"),
@@ -225,6 +229,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "outcome_reason":              45,
     "analyst_brief":               90,
     "analyst_followup":            40,
+    "sop_generate":                60,
     "chief_explain":               45,
     "website_content":             90,
 }
