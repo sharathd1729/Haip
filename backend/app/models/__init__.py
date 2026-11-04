@@ -55,6 +55,7 @@ from app.models.roi_benchmark import RoiBenchmarkVersion
 from app.models.agent_consult import AgentConsult
 from app.models.lead_evidence import LeadEvidenceImport
 from app.models.analyst import AgentExperiment, AgentExperimentAssignment, AgentLesson, AnalystReport
+from app.models.chief import ChiefDetectorTuning, ChiefProposal
 from app.models.ops import (
     StaffProfile, StaffDuty, ShiftPattern, ShiftOverride, EscalationChain, OpsSettings, OpsItem, OpsEscalationEvent,
     OpsAlertSend,
@@ -64,6 +65,8 @@ from app.models.ops_fleet import OpsAutoMessage, OpsDefect, OpsGuestForm, OpsInv
 from app.models.gps import GpsAlertEpisode, GpsDevice, GpsPosition
 
 __all__ = [
+    "ChiefDetectorTuning",
+    "ChiefProposal",
     "GpsDevice", "GpsPosition", "GpsAlertEpisode",
     "BusinessRecord",
     "Site", "SiteVersion", "SiteDomain", "BookingHold", "GuestAccessToken", "SiteAiJob", "SitePageView", "WebsiteEvent", "WebsitePromoCode",

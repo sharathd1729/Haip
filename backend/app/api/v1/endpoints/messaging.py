@@ -552,7 +552,14 @@ def submit_template(
     tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=current_user.tenant_id).first()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
+    out = submit_to_meta(db, tmpl, template_id)
+    db.commit()
+    return out
 
+
+def submit_to_meta(db: Session, tmpl: "WATemplate", template_id: str) -> dict:
+    """The submit itself, shared with the AI Executive's approved ``templates.submit`` step (services/chief/steps.py).
+    Raises HTTPException for a template that can't be submitted; the caller commits."""
     if tmpl.status not in _EDITABLE_STATUSES:
         raise HTTPException(
             status_code=409,
@@ -575,7 +582,7 @@ def submit_template(
     # back from kind="whatsapp_meta" to "whatsapp" like every other WhatsApp
     # code path -- without that, submission silently skipped Meta for tenants
     # on the "whatsapp" kind and the template sat at "Pending" forever.
-    wa_int, access_token = _wa_integration_and_token(db, current_user.tenant_id)
+    wa_int, access_token = _wa_integration_and_token(db, tmpl.tenant_id)
 
     if not wa_int or not access_token or not wa_int.config.get("waba_id"):
         # Fail loudly instead of silently marking the template "Pending" --
@@ -626,7 +633,6 @@ def submit_template(
         tmpl.status = TemplateStatus.SUBMISSION_FAILED
         tmpl.rejection_reason = f"Submission request failed: {e}"[:500]
 
-    db.commit()
     return {"status": tmpl.status.value, "meta_template_id": tmpl.meta_template_id, "rejection_reason": tmpl.rejection_reason}
 
 

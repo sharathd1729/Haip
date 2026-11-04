@@ -47,8 +47,12 @@ def parse_payload(payload: Optional[str]) -> Optional[tuple[str, str]]:
     return parts[0], parts[1]
 
 
-def components(action: PlaybookAction, values: list[str], with_buttons: bool = True) -> list[dict]:
+def components(action: PlaybookAction, values: list[str], with_buttons: bool = True,
+               payloads: Optional[list[str]] = None) -> list[dict]:
     out = [{"type": "body", "parameters": [{"type": "text", "text": clean(v)} for v in values]}]
+    if payloads:                # another template's quick replies, in button order (AI Executive approvals: ex: ...)
+        return out + [{"type": "button", "sub_type": "quick_reply", "index": str(i),
+                       "parameters": [{"type": "payload", "payload": p}]} for i, p in enumerate(payloads)]
     if with_buttons:
         out += [
             {"type": "button", "sub_type": "quick_reply", "index": str(pack.ACK_INDEX),
@@ -101,7 +105,8 @@ def _adapter(phone_number_id: str, token: str):
     return get_wa_adapter(phone_number_id, token)
 
 
-def deliver(db: Session, action: PlaybookAction, phone_e164: str, values: list[str], *, with_buttons: bool = True) -> bool:
+def deliver(db: Session, action: PlaybookAction, phone_e164: str, values: list[str], *, with_buttons: bool = True,
+            payloads: Optional[list[str]] = None) -> bool:
     """Send this alert now. True = Meta accepted it (status "done", wa_message_id kept); False = failed with the reason in
     ``action.reason``. Flushes; the caller commits."""
     template = action.template_name or ""
@@ -114,7 +119,7 @@ def deliver(db: Session, action: PlaybookAction, phone_e164: str, values: list[s
     try:
         result = _run(_adapter(phone_number_id, token).send_template(
             to=phone_e164, template_name=template, language_code=language,
-            components=components(action, values, with_buttons)))
+            components=components(action, values, with_buttons, payloads)))
     except Exception as exc:  # noqa: BLE001 -- the reason is kept on the row and the person is pushed instead
         code, reason = meta_error(exc)
         if code in _META_BILLING_CODES:

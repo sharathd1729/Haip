@@ -69,7 +69,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { title: "Insights", links: [
     { label: "Reports", href: "/dashboard/reports", icon: I["/dashboard/reports"], resource: "reports" },
     { label: "Impact", href: "/dashboard/impact", icon: TrendingUp, resource: "analytics", onlyRoles: ["owner", "manager"] },
-    { label: "Analyst", href: "/dashboard/analyst", icon: Sparkles, resource: "analytics", onlyRoles: ["owner", "manager"] },
+    { label: "AI Executive", href: "/dashboard/analyst", icon: Sparkles, resource: "analytics", onlyRoles: ["owner", "manager"] },
     { label: "Instagram insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
     { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "Website", href: "/dashboard/marketing/website", icon: Globe, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },

@@ -58,7 +58,22 @@ def build(db: Session, tenant, kind: str, today: date, *, lessons: Optional[list
         "conversion": conversion.safe_build(db, tenant, cur_w.d_from, cur_w.d_to, lo, hi),
     }
     facts["health"] = health.build(db, tenant.id, lo, hi, facts)
+    executive = _executive(db, tenant)
+    if executive:
+        facts["executive"] = executive
     return _strip(facts)
+
+
+def _executive(db: Session, tenant) -> Optional[dict]:
+    """The AI Executive's open findings (services/chief), only when it is switched on. Never fails the report."""
+    try:
+        with db.begin_nested():
+            from app.services.chief import findings as chief_findings
+            return chief_findings.brief_block(db, tenant)
+    except Exception:  # noqa: BLE001
+        import structlog
+        structlog.get_logger().warning("analyst_executive_block_failed", tenant_id=tenant.id)
+        return None
 
 
 def _core_out(c: dict) -> dict:

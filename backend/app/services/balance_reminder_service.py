@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
+from typing import Optional
+
 import structlog
 from sqlalchemy.orm import Session, joinedload
 
@@ -37,15 +39,23 @@ def _open_link(db: Session, tenant_id: str, stay_id: str, amount: float):
     return None
 
 
+def blocker(db: Session, tenant: Tenant) -> Optional[str]:
+    """Why reminders cannot go out at all (template_not_approved | no_razorpay), or None."""
+    if wa_booking_pack.statuses(db, tenant.id).get(wa_booking_pack.BALANCE_DUE) != "approved":
+        log.info("balance_reminders_template_not_approved", tenant_id=tenant.id)
+        return "template_not_approved"
+    if not pls.razorpay_credentials(db, tenant.id):
+        log.info("balance_reminders_no_razorpay", tenant_id=tenant.id)
+        return "no_razorpay"
+    return None
+
+
 def run_for_tenant(db: Session, tenant: Tenant, today: date) -> dict:
     if not payment_automation(tenant).auto_balance_reminder:
         return {"status": "off"}
-    if wa_booking_pack.statuses(db, tenant.id).get(wa_booking_pack.BALANCE_DUE) != "approved":
-        log.info("balance_reminders_template_not_approved", tenant_id=tenant.id)
-        return {"status": "template_not_approved"}
-    if not pls.razorpay_credentials(db, tenant.id):
-        log.info("balance_reminders_no_razorpay", tenant_id=tenant.id)
-        return {"status": "no_razorpay"}
+    blocked = blocker(db, tenant)
+    if blocked:
+        return {"status": blocked}
 
     horizon = today + timedelta(days=DAYS_AHEAD)
     stay_ids = [sid for (sid,) in db.query(StayInstalment.stay_id).filter(
@@ -55,6 +65,12 @@ def run_for_tenant(db: Session, tenant: Tenant, today: date) -> dict:
     stays = (db.query(Stay).options(joinedload(Stay.guest), joinedload(Stay.property))
              .filter(Stay.tenant_id == tenant.id, Stay.id.in_(stay_ids), Stay.status.in_(bsvc.ACTIVE_STATUSES),
                      Stay.check_in >= today).all())
+    return send_for_stays(db, tenant, stays, today, today, horizon)
+
+
+def send_for_stays(db: Session, tenant: Tenant, stays: list, today: date, lo: date, hi: date) -> dict:
+    """One reminder per unpaid instalment due in [lo, hi] for these stays (the daily beat's window, or an approved AI
+    Executive step for arrivals: lo = date.min). Idempotent per instalment: the same key as the beat, so never twice."""
     fins = bsvc.financials_for(db, tenant.id, stays)
     schedules = bsvc.schedules_for(db, tenant.id, fins)
     sent = skipped = 0
@@ -62,7 +78,7 @@ def run_for_tenant(db: Session, tenant: Tenant, today: date) -> dict:
         for row in schedules.get(stay.id, []):
             due = date.fromisoformat(row["due_date"])
             left = round(row["amount"] - row["paid"], 2)
-            if row["status"] == "paid" or left <= 0 or not (today <= due <= horizon):
+            if row["status"] == "paid" or left <= 0 or not (lo <= due <= hi):
                 continue
             event = f"bal:{row['id'][:16]}"
             key = wa_booking_messages.idempotency_key(stay.id, event)
