@@ -27,6 +27,8 @@ def _f(v) -> float:
 
 
 def payment_status(owed: float, paid: float) -> str:
+    if owed <= 0 and paid <= 0:
+        return "not_set"   # no price yet (e.g. a booking made from a calendar feed): "amount not set", never "unpaid"
     if paid <= 0:
         return "unpaid"
     if owed > 0 and paid + 0.005 >= owed:
@@ -280,8 +282,9 @@ def create_booking(db: Session, tenant_id: str, *, guest_id: str, prop: Property
 
 # ── Payment schedule ─────────────────────────────────────────────────────────
 
-def allocate_schedule(instalments: list, paid: float, today: Optional[date] = None) -> list[dict]:
-    """Apply what has been received to the instalments in due-date order."""
+def allocate_schedule(instalments: list, paid: float, today: Optional[date] = None, cancelled: bool = False) -> list[dict]:
+    """Apply what has been received to the instalments in due-date order. On a cancelled booking nothing is owed any
+    more: an instalment not fully paid is "cancelled", never "overdue" or "due"."""
     today = today or date.today()
     remaining = _f(paid)
     out = []
@@ -291,6 +294,8 @@ def allocate_schedule(instalments: list, paid: float, today: Optional[date] = No
         remaining -= applied
         if applied + 0.005 >= amount:
             status = "paid"
+        elif cancelled:
+            status = "cancelled"
         elif i.due_date < today:
             status = "overdue"
         else:
@@ -302,7 +307,7 @@ def allocate_schedule(instalments: list, paid: float, today: Optional[date] = No
 
 def next_due(schedule: list[dict]) -> Optional[dict]:
     for row in schedule:
-        if row["status"] != "paid":
+        if row["status"] not in ("paid", "cancelled"):
             return {"amount": round(row["amount"] - row["paid"], 2), "due_date": row["due_date"],
                     "overdue": row["status"] == "overdue", "label": row["label"]}
     return None
@@ -315,4 +320,14 @@ def schedules_for(db: Session, tenant_id: str, fins: dict[str, dict]) -> dict[st
     by_stay: dict[str, list] = {}
     for i in db.query(StayInstalment).filter(StayInstalment.tenant_id == tenant_id, StayInstalment.stay_id.in_(list(fins))).all():
         by_stay.setdefault(i.stay_id, []).append(i)
-    return {sid: allocate_schedule(rows, fins[sid]["paid"]) for sid, rows in by_stay.items()}
+    cancelled = {sid for (sid,) in db.query(Stay.id).filter(Stay.tenant_id == tenant_id, Stay.id.in_(list(by_stay)),
+                                                             Stay.status == "cancelled")} if by_stay else set()
+    return {sid: allocate_schedule(rows, fins[sid]["paid"], cancelled=sid in cancelled) for sid, rows in by_stay.items()}
+
+
+def shown_deposit(stay_status: Optional[str], deposit: Optional[dict]) -> Optional[dict]:
+    """A deposit never collected on a cancelled booking is not "pending": nothing is owed, so it is not shown.
+    A collected (held/released/forfeited) one still is: it may have to be handed back."""
+    if deposit and stay_status == "cancelled" and deposit.get("status") == "pending":
+        return None
+    return deposit

@@ -2,7 +2,7 @@
 // Shapes mirror backend/app/api/v1/endpoints/booking_detail.py and bookings.py.
 
 export type BookingStatus = "confirmed" | "checked_in" | "checked_out" | "cancelled";
-export type PaymentStatus = "unpaid" | "partial" | "paid";
+export type PaymentStatus = "unpaid" | "partial" | "paid" | "not_set";   // not_set = no price yet (e.g. from a calendar feed)
 export type PayMethod = "upi" | "cash" | "card" | "bank_transfer" | "razorpay" | "other";
 
 export const STATUS_OPTIONS: { value: BookingStatus; label: string }[] = [
@@ -17,7 +17,7 @@ export type PillTone = "neutral" | "info" | "success" | "warning" | "danger" | "
 export const STATUS_TONE: Record<string, PillTone> = {
   confirmed: "info", checked_in: "success", checked_out: "neutral", cancelled: "danger",
 };
-export const PAYMENT_TONE: Record<string, PillTone> = { unpaid: "danger", partial: "warning", paid: "success" };
+export const PAYMENT_TONE: Record<string, PillTone> = { unpaid: "danger", partial: "warning", paid: "success", not_set: "neutral" };
 
 export const STATUS_STYLE: Record<string, { label: string; cls: string }> = {
   confirmed:   { label: "Confirmed",   cls: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]" },
@@ -30,6 +30,7 @@ export const PAYMENT_STYLE: Record<string, { label: string; cls: string }> = {
   unpaid:  { label: "Unpaid",       cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
   partial: { label: "Part paid",    cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]" },
   paid:    { label: "Paid",         cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+  not_set: { label: "Amount not set", cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]" },
 };
 
 export const METHOD_LABEL: Record<string, string> = {
