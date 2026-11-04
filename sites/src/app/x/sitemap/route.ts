@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
-import { getLive, siteHost } from "@/lib/haip";
+import { getBlog, getLive, siteHost } from "@/lib/haip";
+import { languagesOf } from "@/site-blocks/v2/i18n";
 import { isV2 } from "@/site-blocks/v2/types";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -9,7 +10,15 @@ export async function GET(req: NextRequest) {
   const live = host ? await getLive(host).catch(() => null) : null;
   if (!live) return new Response("Not found", { status: 404 });
   const paths: string[] = [];
-  if (isV2(live)) paths.push(...live.doc.pages.map(p => p.slug));
+  if (isV2(live)) {
+    const stays = live.stays_index || [];
+    const base = [...live.doc.pages.map(p => p.slug), ...(stays.length > 1 ? ["/compare"] : []),
+      ...stays.filter(s => s.slug).map(s => `/stays/${s.slug}`)];
+    paths.push(...base);
+    for (const l of languagesOf(live)) paths.push(...base.map(p => `/${l}${p === "/" ? "" : p}`));   // website phase 6
+    const blog = (await getBlog(host).catch(() => null)) as { items?: { slug: string }[] } | null;
+    if (blog?.items?.length) paths.push("/blog", ...blog.items.map(i => `/blog/${i.slug}`));
+  }
   else {
     paths.push(...live.doc.pages.filter(p => !["stay", "book", "manage"].includes(p.key)).map(p => p.path));
     if (live.doc.pages.some(p => p.key === "stay")) paths.push(...live.stays.map(s => `/stays/${s.slug}`));

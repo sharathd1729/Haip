@@ -2,18 +2,24 @@
 // are none, like every other section.
 import { BedDouble, Check, Users } from "lucide-react";
 import { BookingForm, type BookStay } from "./booking-v2";
+import { hrefOf, inr } from "../types";
 import { bound, Head, Img, Section, WaButton, type Ctx } from "./parts";
 import { txt, type SectionV2, type StayItem } from "./types";
 
-/** "Check dates": hidden when the owner chose "Guests just message you" (booking mode enquiry) or there's nothing to book. */
+/** "Check dates": hidden when the owner chose "Guests just message you" (booking mode enquiry) or there's nothing to book.
+ * Variant "with-rates" shows each day's nightly rate, only when the business shows prices (grounded). */
 export function Booking(s: SectionV2, ctx: Ctx) {
   const stays = (bound(ctx, s).items || []) as BookStay[];
-  if (!stays.length || ctx.live.site.booking_mode === "enquiry") return null;
+  const site = ctx.live.site;
+  if (!stays.length || site.booking_mode === "enquiry") return null;
+  const terms = { mode: site.booking_mode, rates: s.variant === "with-rates" && site.show_prices, holdMinutes: site.hold_minutes,
+    depositPercent: site.deposit_percent };
   return (
     <Section s={s} band>
       <div className="sv-wrap">
         <Head ctx={ctx} s={s} />
-        <BookingForm env={ctx.env} stays={stays} today={ctx.live.site.today} cta={txt(s.slots.cta_label) || "Send my dates"} path={ctx.page.slug} />
+        <BookingForm env={ctx.env} stays={stays} today={ctx.live.site.today} cta={txt(s.slots.cta_label) || "Send my dates"}
+          path={ctx.page.slug} terms={terms} />
       </div>
     </Section>
   );
@@ -43,9 +49,13 @@ function Body({ item, ctx, s }: { item: StayItem; ctx: Ctx; s: SectionV2 }) {
     <div className="sv-stay__body">
       <h3 className="sv-h3">{item.name}</h3>
       <Facts item={item} />
+      {item.from && <p className="sv-meta">From <b>{inr(item.from.amount)}</b> {item.from.label}</p>}
       {item.summary && <p className="sv-muted">{item.summary}</p>}
       {item.amenities.length > 0 && <ul className="sv-ticks">{item.amenities.slice(0, 4).map(a => <li key={a}><Check aria-hidden="true" size={18} />{a}</li>)}</ul>}
-      <WaButton wa={bound(ctx, s).wa} label={`Ask about ${item.name}`} quiet />
+      <div className="sv-actions">
+        {item.slug && <a className="sv-btn sv-btn--sm" href={hrefOf(ctx.env, `/stays/${item.slug}`)}>See {item.name}</a>}
+        <WaButton wa={bound(ctx, s).wa} label={`Ask about ${item.name}`} quiet />
+      </div>
     </div>
   );
 }
@@ -91,6 +101,7 @@ export function Stays(s: SectionV2, ctx: Ctx) {
     <Section s={s}>
       <div className="sv-wrap">
         <Head ctx={ctx} s={s} />
+        {items.length > 1 && <p className="sv-meta"><a href={hrefOf(ctx.env, "/compare")}>Compare all {items.length} stays</a></p>}
         <div className="sv-cards sv-stay-grid">
           {items.map(item => (
             <article key={item.id} className="sv-stay sv-rise">
@@ -105,6 +116,31 @@ export function Stays(s: SectionV2, ctx: Ctx) {
 }
 
 /** "Your own text": the owner's own words (house rules, their story, how to reach them), with an optional photo. */
+/** "Seasonal offer": a band with the owner's words and, while its promo code is usable, the code to type at checkout.
+ * The amount ("15% off") comes from HAIP and shows only when the business shows prices. */
+export function OfferSection(s: SectionV2, ctx: Ctx) {
+  const promo = bound(ctx, s).promo;
+  const until = promo?.until ? new Date(promo.until + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : null;
+  const line = promo ? [promo.label, `use code ${promo.code}`, promo.min_nights > 1 ? `stays of ${promo.min_nights}+ nights` : "",
+    until ? `until ${until}` : ""].filter(Boolean).join(" · ") : "";
+  const card = s.variant === "card";
+  const label = txt(s.slots.cta_label) || "Check dates";
+  const book = ctx.live.doc.pages.flatMap(p => p.sections.filter(x => x.type === "booking").map(x => ({ slug: p.slug, id: x.id })))[0];
+  return (
+    <Section s={s} className={card ? undefined : "sv-inverse"}>
+      <div className={`sv-wrap sv-rise ${card ? "sv-offer-card" : "sv-banner"}`}>
+        <div>
+          <Head ctx={ctx} s={s} />
+          {txt(s.slots.text) && <p className="sv-lede">{txt(s.slots.text)}</p>}
+          {line && <p className="sv-offer__code">{line.charAt(0).toUpperCase() + line.slice(1)}</p>}
+        </div>
+        <div className="sv-actions">{book ? <a className="sv-btn" href={hrefOf(ctx.env, `${book.slug}#${book.id}`)}>{label}</a>
+          : <WaButton wa={bound(ctx, s).wa} label={label} />}</div>
+      </div>
+    </Section>
+  );
+}
+
 export function TextSection(s: SectionV2, ctx: Ctx) {
   const body = txt(s.slots.body).split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   if (!txt(s.slots.heading) && !body.length) return null;

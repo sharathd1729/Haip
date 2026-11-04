@@ -1,9 +1,11 @@
 """SiteSpec v2 data bindings: what each section shows, read from HAIP at render time (never typed into the spec).
 
   packages / itinerary  business_data_service.list_effective (PUBLISHED records in effect today only; b2b packages never)
-  booking               the bookable properties to pick dates for (free nights come live from GET /availability)
-  stays                 bookable properties (website_service.bookable_properties): name, summary, sleeps, amenities and a
-                        photo (an approved library photo tagged to the property, else the property's own https photo)
+  booking               the bookable properties to pick dates for (free nights, and in grounded mode the nightly rates, come
+                        live from GET /availability)
+  stays                 bookable properties (website_service.bookable_properties, limited to the site's chosen ones): name,
+                        summary, sleeps, amenities and a photo (an approved library photo tagged to the property, else the
+                        property's own https photo)
   hero / gallery        approved library photos (marketing_photos.library: active, not AI-pending, no unconsented people)
   reviews               marketing_guest_reviews the owner recorded consent for (consent_at set), 4 stars and up
   faq                   knowledge_entries: category faq, active, approved, not stale, workspace-wide
@@ -13,7 +15,9 @@ PRICE POLICY (tenant brand_config.price_disclosure, price_policy.price_mode):
   handoff  (default)  no figure anywhere: a package shows "Get the price on WhatsApp" and every bound text that looks like a
                       price (price_policy.detect_price) is dropped before it leaves the server.
   grounded            a package may show ONE figure: package_pricing_service.quote for a stated sample (the package's shortest
-                      stay, 2 adults, 14 days out). A refused quote shows no price. Hand-typed figures are dropped in both modes.
+                      stay, 2 adults, 14 days out). A refused quote shows no price. A stay shows "from" = the lowest nightly
+                      tariff website_pricing.from_price finds (the engine the website's quote and payment use). Hand-typed
+                      figures are dropped in both modes.
 
 WhatsApp: every section gets a wa.me link whose prefilled text ends with a reference code PREFIX-PAGE-SECTION (e.g.
 WW-HOME-HERO). The code is deterministic (ref_code) so a later phase can map an inbound message back to the page and section.
@@ -79,11 +83,28 @@ def _clean(obj):
 class _Ctx:
     """Reads each source at most once per render."""
 
-    def __init__(self, db: Session, tenant: Tenant):
+    def __init__(self, db: Session, tenant: Tenant, site=None):
+        from app.services.website_service import site_settings
         self.db, self.tenant = db, tenant
         self.today = bds.tenant_today(db, tenant.id)
         self.grounded = price_mode(tenant) == "grounded"
+        cfg = site_settings(site) if site is not None else None
+        self.property_ids = (cfg.property_ids or None) if cfg else None
+        self.inclusive = bool(cfg and cfg.prices_include_gst)
         self._cache: dict = {}
+
+    def properties(self) -> list:
+        """The site's bookable properties: the same list website_booking_service.property_for accepts."""
+        from app.services.website_service import bookable_properties
+        return self.once("bookable", lambda: bookable_properties(self.db, self.tenant.id, self.property_ids))
+
+    def from_price(self, prop) -> Optional[dict]:
+        """grounded only: the lowest nightly tariff in the next 60 days, from the website's own price engine."""
+        if not self.grounded:
+            return None
+        from app.services.website_pricing import from_price
+        amount = from_price(self.db, prop, self.today)
+        return {"amount": str(amount), "label": "per night" + (", incl. GST" if self.inclusive else " + GST")} if amount else None
 
     def once(self, key: str, fn):
         if key not in self._cache:
@@ -186,29 +207,33 @@ def _gallery(ctx: _Ctx, s: dict) -> dict:
 
 
 def _stays(ctx: _Ctx, s: dict) -> dict:
-    from app.services.website_public_service import _photos
-    from app.services.website_service import bookable_properties
+    from app.services.website_public_service import _photos, stay_slug
     tagged: dict[str, str] = {}
     for a in ctx.library():
         if a.property_id and a.property_id not in tagged:
             tagged[a.property_id] = f"asset:{a.id}"
     items = []
-    for p in bookable_properties(ctx.db, ctx.tenant.id)[: s["slots"].get("limit") or 6]:
+    for p in ctx.properties()[: s["slots"].get("limit") or 6]:
         own = _photos(p)
-        items.append({"id": p.id, "name": (p.name or "")[:80], "summary": _clean((p.description or "").strip()[:280]),
+        items.append({"id": p.id, "slug": stay_slug(p), "name": (p.name or "")[:80], "bathrooms": p.bathrooms,
+                      "summary": _clean((p.description or "").strip()[:280]),
                       "sleeps": int(p.max_adults or 0) + int(p.max_children or 0), "bedrooms": p.bedrooms,
                       "amenities": [str(a)[:40] for a in (p.amenities or []) if isinstance(a, str)][:6],
-                      "photo": tagged.get(p.id) or (own[0] if own else None)})
+                      "photo": tagged.get(p.id) or (own[0] if own else None), "from": ctx.from_price(p)})
     return {"items": items}
 
 
+def stay_index(db: Session, tenant: Tenant, site=None) -> list[dict]:
+    """Every stay the site offers (its chosen properties), for the per-stay pages and the compare view (website phase 6).
+    Same fields and price rule as the stays section."""
+    return _stays(_Ctx(db, tenant, site), {"slots": {"limit": 12}})["items"]
+
+
 def _booking(ctx: _Ctx, s: dict) -> dict:
-    """The stays a guest can pick dates for. Free nights are fetched live by the page (GET /availability), and the request
-    goes to POST /enquiries (a lead with dates; the team confirms and quotes), so no price is needed here."""
-    from app.services.website_service import bookable_properties
-    props = ctx.once("bookable", lambda: bookable_properties(ctx.db, ctx.tenant.id))
-    return {"items": [{"id": p.id, "name": (p.name or "")[:80], "sleeps": int(p.max_adults or 0) + int(p.max_children or 0)}
-                      for p in props[:12]]}
+    """The stays a guest can pick dates for. Free nights (and nightly rates in grounded mode) come live from GET /availability;
+    the page then sends POST /enquiries (request/enquiry, or any handoff site) or POST /quote + /holds (instant/deposit)."""
+    return {"items": [{"id": p.id, "name": (p.name or "")[:80], "sleeps": int(p.max_adults or 0) + int(p.max_children or 0),
+                       "from": ctx.from_price(p)} for p in ctx.properties()[:12]]}
 
 
 def _first_name(raw: Optional[str]) -> str:
@@ -240,10 +265,17 @@ def _faq(ctx: _Ctx, s: dict) -> dict:
     return {"items": [i for i in items if i["q"] and i["a"]]}
 
 
-def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] = None) -> dict:
+def _offer(ctx: _Ctx, s: dict) -> dict:
+    """The offer band's promo code while it is usable; its amount only in grounded mode (website_promos.banner)."""
+    from app.services.website_promos import banner
+    return {"promo": banner(ctx.db, ctx.tenant.id, s["slots"].get("promo"), today=ctx.today, grounded=ctx.grounded)}
+
+
+def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] = None, site=None) -> dict:
     """{bound: {section_id: data + wa}, page_wa: {slug: wa}, price_mode, asset_ids: set} for a validated spec.
-    `types` limits which sections are resolved (the photo route only needs hero and gallery)."""
-    ctx = _Ctx(db, tenant)
+    `types` limits which sections are resolved (the photo route only needs hero and gallery). `site` = the site's chosen
+    properties and GST setting (without it: every bookable property)."""
+    ctx = _Ctx(db, tenant, site)
     number = bio_packages.whatsapp_number(spec, tenant)
     prefix = ref_prefix(spec)
     bound: dict = {}
@@ -259,7 +291,8 @@ def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] =
             data = (_hero(ctx, s) if t == "hero" else _stays(ctx, s) if t == "stays" else _booking(ctx, s) if t == "booking"
                     else _packages(ctx, s, number, code) if t == "packages"
                     else _itinerary(ctx, s) if t == "itinerary" else _gallery(ctx, s) if t == "gallery"
-                    else _reviews(ctx, s) if t == "reviews" else _faq(ctx, s) if t == "faq" else {})
+                    else _reviews(ctx, s) if t == "reviews" else _faq(ctx, s) if t == "faq"
+                    else _offer(ctx, s) if t == "offer" else {})
             data["wa"] = wa_link(number, code)
             bound[s["id"]] = data
     ids: set[str] = set()

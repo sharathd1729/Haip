@@ -4,7 +4,8 @@ The owner is not a web designer (owner, Oct 2026: "even a first-class student ca
 every section type HAIP has data for (stays, packages, itinerary, photos, reviews, FAQs), always a hero, a booking call to
 action and contact; a section with nothing to show is left out rather than shown empty. Copy comes only from the business's
 own profile (no invented claims). The result is an ordinary v2 draft (website_spec_service.create_draft): nothing is
-public until the owner publishes.
+public until the owner publishes. The look, section order, variants and headings come from the starting design for the
+business type (website_starters, phase 4); without a known type the plain default below is used.
 """
 from __future__ import annotations
 
@@ -54,19 +55,25 @@ def spec_for(db: Session, tenant: Tenant, site_block: Optional[dict] = None) -> 
     prof = _profile(tenant)
     name = base["site"]["name"]
     headline = (prof.get("tagline") or base["site"]["tagline"] or name).strip()[:90]
-    hero = {"id": "hero", "type": "hero", "variant": "fullbleed-image",
+    from app.services import website_starters
+    from app.services.website_seo import business_kind
+    optional, st = website_starters.apply([dict(s, slots=dict(s["slots"])) for s in _OPTIONAL], business_kind(tenant.business_type))
+    cta = st["cta"] if st else "Check dates"
+    hero = {"id": "hero", "type": "hero", "variant": st["hero"] if st else "fullbleed-image",
             "slots": {"eyebrow": str(prof.get("city") or "")[:60], "headline": headline,
-                      "subhead": str(prof.get("description") or "")[:240], "cta_label": "Check dates"}}
+                      "subhead": str(prof.get("description") or "")[:240], "cta_label": cta}}
     tail = [
         {"id": "cta", "type": "booking-cta", "variant": "banner",
          "slots": {"heading": "Tell us your dates", "text": "Send your dates and group size on WhatsApp. We reply with what's free.",
-                   "cta_label": "Check dates"}},
+                   "cta_label": cta}},
         {"id": "contact", "type": "contact", "variant": "split", "slots": {"heading": "Find us"}},
     ]
-    spec = {**base, "tokens": {"palette": "forest-amber", "display": "bricolage", "body": "figtree", "radius": "soft", "motion": "calm"},
+    tokens = {"palette": "forest-amber", "display": "bricolage", "body": "figtree", "radius": "soft", "motion": "calm",
+              **(st["tokens"] if st else {})}
+    spec = {**base, "tokens": tokens,
             "pages": [{"slug": "/", "title": "Home", "nav": False,
                        "seo": {"title": name[:70], "description": _seo_description(name, prof)},
-                       "sections": [hero, *[dict(s, slots=dict(s["slots"])) for s in _OPTIONAL], *tail]}]}
+                       "sections": [hero, *optional, *tail]}]}
     bound = website_bindings.resolve(db, tenant, wspec.validate(spec))["bound"]
     keep = []
     for s in spec["pages"][0]["sections"]:

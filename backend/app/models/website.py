@@ -4,7 +4,7 @@ A site's content lives in one JSON document per version. Only the head draft is 
 version is submitted it is frozen, and an approval is bound to its sha256. Booking settings (mode, deposit) are
 operational, not content, so they live on the site row and change through an audited owner/manager endpoint.
 """
-from sqlalchemy import (JSON, Column, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text,
+from sqlalchemy import (JSON, Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text,
                         UniqueConstraint)
 
 from app.core.database import Base
@@ -24,6 +24,8 @@ class Site(Base, TimestampMixin):
     draft_version_id = Column(String, nullable=True)
     live_version_id = Column(String, nullable=True)
     created_by = Column(String, nullable=True)
+    tracking = Column(JSON, nullable=True)                          # {pixel_id, ga4_id, capi_enabled, capi_test_code} (183)
+    capi_token_enc = Column(Text, nullable=True)                    # Fernet; never returned by any API
 
 
 class SiteVersion(Base, TimestampMixin):
@@ -141,3 +143,50 @@ class SitePageView(Base, TimestampMixin):
     path = Column(String(200), nullable=False)
     source = Column(String(60), nullable=False, default="direct")
     views = Column(Integer, nullable=False, default=0)
+
+
+class WebsiteEvent(Base, TimestampMixin):
+    """A Lead / InitiateCheckout / Purchase a website visitor caused, for Meta's Conversions API (migration 183).
+    event_id is the one the browser pixel used too, so Meta counts the pair once (website_tracking)."""
+    __tablename__ = "website_events"
+    __table_args__ = (UniqueConstraint("tenant_id", "event_id", name="uq_website_events_event"),)
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    site_id = Column(String, ForeignKey("sites.id"), nullable=False)
+    event_name = Column(String(30), nullable=False)
+    event_id = Column(String(80), nullable=False)
+    guest_id = Column(String, nullable=True)
+    inquiry_id = Column(String, nullable=True)
+    hold_id = Column(String, nullable=True)
+    value = Column(Numeric(12, 2), nullable=True)
+    currency = Column(String(3), nullable=True)
+    source_url = Column(String(500), nullable=True)
+    client_user_agent = Column(String(300), nullable=True)
+    fbp = Column(String(200), nullable=True)
+    fbc = Column(String(200), nullable=True)
+    status = Column(String(12), nullable=False, default="pending")   # pending | sent | skipped | failed
+    reason = Column(String(300), nullable=True)
+    tries = Column(Integer, nullable=False, default=0)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class WebsitePromoCode(Base, TimestampMixin):
+    """A promo code guests type at website checkout (migration 184, website_promos)."""
+    __tablename__ = "website_promo_codes"
+    __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_website_promo_codes_code"),)
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    code = Column(String(30), nullable=False)                        # upper case
+    kind = Column(String(10), nullable=False)                        # percent | flat
+    value = Column(Numeric(12, 2), nullable=False)                   # percent 1-90, or rupees off the stay
+    starts_on = Column(Date, nullable=True)
+    ends_on = Column(Date, nullable=True)
+    min_nights = Column(Integer, nullable=False, default=1)
+    max_uses = Column(Integer, nullable=True)                        # None = no cap
+    used_count = Column(Integer, nullable=False, default=0)          # confirmed bookings that used it
+    property_ids = Column(JSON, nullable=True)                       # empty = every stay on the site
+    label = Column(String(80), nullable=True)                        # owner's own name for it ("Monsoon weekdays")
+    active = Column(Boolean, nullable=False, default=True)
+    created_by = Column(String, nullable=True)
