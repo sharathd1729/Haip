@@ -38,3 +38,22 @@ def activate(db: Session, tenant_id: str, item, payload: dict, media_id: Optiona
                  target_type="automation_rule", target_id=rule.id,
                  payload={"content_id": item.id, "media_id": media_id, "keyword": dm["keyword"]})
     return rule
+
+
+def reply_all_rule(db: Session, tenant_id: str, media_id: str, message: str, public_reply: Optional[str], *,
+                   actor_id: Optional[str], source: str = "chief") -> AutomationRule:
+    """A post-wide rule (every comment on this media gets the DM, plus the optional public reply): the same pipeline as the
+    Studio keyword rule (ig_keyword_match: post-scoped ``reply_all`` first). One per media; a repeat returns it."""
+    for rule in db.query(AutomationRule).filter_by(tenant_id=tenant_id, trigger=TRIGGER, action=ACTION):
+        cfg = rule.trigger_config or {}
+        if cfg.get("media_id") == media_id and cfg.get("reply_all"):
+            return rule
+    rule = AutomationRule(id=str(uuid.uuid4()), tenant_id=tenant_id, name=f"AI Executive: reply to every comment ({media_id})"[:255],
+                          description="Made by the AI Executive after the owner approved it.", trigger=TRIGGER, action=ACTION,
+                          is_active=True, trigger_config={"media_id": media_id, "reply_all": True, "source": source},
+                          action_config={"message": message, **({"public_ack_pool": [public_reply]} if public_reply else {})})
+    db.add(rule)
+    db.flush()
+    append_audit(db, tenant_id=tenant_id, action="marketing.comment_dm.activated", actor_user_id=actor_id,
+                 target_type="automation_rule", target_id=rule.id, payload={"media_id": media_id, "reply_all": True, "source": source})
+    return rule

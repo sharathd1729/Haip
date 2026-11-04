@@ -63,3 +63,15 @@ class Insight(Base, TimestampMixin, TenantMixin):
 
     # TTL: insight expires at this time (detector re-creates if still relevant)
     expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    # AI Executive (migration 185, services/chief): rows its detectors write carry the role that owns them, the numbers
+    # the explanation may quote, record ids as evidence (never names or phone numbers) and the grounded explanation.
+    # A dismissal snoozes the same finding for 7 days and keeps the founder's reason (the learning history, E4).
+    role           = Column(String(30), nullable=True)
+    evidence       = Column(JSON, nullable=True)
+    numbers        = Column(JSON, nullable=True)
+    explanation    = Column(JSON, nullable=True)       # {why, next_step, source, numbers_sha, prompt_version, at}
+    first_seen_at  = Column(DateTime(timezone=True), nullable=True)
+    last_seen_at   = Column(DateTime(timezone=True), nullable=True)
+    dismiss_reason = Column(String(20), nullable=True)
+    snoozed_until  = Column(DateTime(timezone=True), nullable=True)

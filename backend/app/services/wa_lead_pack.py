@@ -33,6 +33,7 @@ REENGAGE = "haip_reengage_v1"                 # MARKETING: only to guests who ag
 PACKAGE_SHARE = "haip_package_share_v1"
 # To owners / managers (analyst.delivery): the report PDF as the header, the signed view-only page as the URL button.
 ANALYST_BRIEF = "haip_analyst_brief_v1"
+CHIEF_APPROVAL = "haip_chief_approval_v1"     # the AI Executive asks the owner (quick replies Approve / Reject)
 APP_URL_TOKEN = "{APP_URL}"                    # replaced with FRONTEND_URL when the draft is created
 
 # Quick-reply button texts. The webhook matches a tap on these (lead_playbook_engine.on_guest_button).
@@ -48,6 +49,8 @@ BTN_NOT_NOW = "Not now"
 BTN_STILL_PLANNING = "Still planning"
 BTN_SHOW_OPTIONS = "Show me options"
 BTN_STOP_PROMOS = "Stop promotions"
+BTN_APPROVE = "Approve"
+BTN_REJECT = "Reject"
 ACK_INDEX, TAKE_INDEX = 0, 1
 
 
@@ -171,6 +174,17 @@ SOP_PACK: list[dict] = [{
                                          "url": APP_URL_TOKEN + "/dashboard/marketing/sops"}]},
     ],
 }]
+# The AI Executive's approval request (services/chief/approvals.py): only for changes to staff tools / AI settings / Meta
+# submissions; anything a guest or the public sees is approved in the app only. Buttons in this order: Approve, Reject.
+CHIEF_PACK: list[dict] = [{
+    "name": CHIEF_APPROVAL, "label": "AI Executive approval", "when": "The AI Executive asks the owner to approve a change.",
+    "components": [
+        _body("AI Executive needs your OK: {{1}}. Why: {{2}}. If you approve: {{3}}.",
+              ["Switch on team alerts for new leads", "5 leads waited past the reply target",
+               "the alert template goes to Meta, then alerts start"]),
+        _quick(BTN_APPROVE, BTN_REJECT),
+    ],
+}]
 BY_NAME = {t["name"]: t for t in PACK}
 
 
@@ -256,6 +270,11 @@ def create_analyst_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) 
 def create_sop_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
     """Add the Get found reminder template as a DRAFT; the owner submits it in the template editor. Safe to repeat."""
     return _create_pack_drafts(db, tenant_id, actor_id, SOP_PACK, "sops.template_created")
+
+
+def create_chief_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
+    """The AI Executive's approval template as a DRAFT; the owner submits it from the template editor. Safe to repeat."""
+    return _create_pack_drafts(db, tenant_id, actor_id, CHIEF_PACK, "chief.template_created")
 
 
 def _create_pack_drafts(db: Session, tenant_id: str, actor_id: Optional[str], pack: list[dict], action: str) -> dict:

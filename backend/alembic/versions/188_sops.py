@@ -7,11 +7,11 @@ Capabilities sops.read / sops.work / sops.manage are added to the catalogue and 
 with role_capabilities rows) per the default matrix in authz_service; they are new keys, so no owner has customised them.
 No module row: SOPs are guidance only (nothing is sent anywhere), so every workspace has them (owner decision D3).
 
-Numbered 188 because 185-187 belong to the AI Executive branch; it follows 184 (website promo codes, PR #112).
+Follows 187 (AI Executive detector tuning, PR #115), which follows 184 (website promo codes, PR #112).
 Idempotent (IF NOT EXISTS, guarded policies, existence checks) because production runs create_all at startup.
 
 Revision ID: 188
-Revises: 184
+Revises: 187
 """
 
 import logging
@@ -22,7 +22,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "188"
-down_revision = "184"
+down_revision = "187"
 branch_labels = None
 depends_on = None
 

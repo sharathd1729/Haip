@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.models.marketing import MarketingGuestReview, MarketingPublishAttempt
+from app.models.marketing import MarketingContent, MarketingGuestReview, MarketingPublishAttempt
 from app.models.sop import SopStepProgress
 from app.models.task import Task
 from app.models.user import UserRole
@@ -151,10 +151,13 @@ def test_upkeep_checks(db, w, monkeypatch):
     db.flush()
     assert checks.run("google_reviews_answered", db, w.t, inst)["result"] == "fail"
     assert checks.run("gbp_posted_7d", db, w.t, inst)["result"] == "fail"
+    content = MarketingContent(tenant_id=w.t.id, kind="post", title="Weekend post")
+    db.add(content)
+    db.flush()  # marketing_publish_attempts.content_id is a real FK on PostgreSQL
     db.add(
         MarketingPublishAttempt(
             tenant_id=w.t.id,
-            content_id="c1",
+            content_id=content.id,
             version_id="v1",
             sha256="0" * 64,
             scheduled_for=datetime.now(UTC),

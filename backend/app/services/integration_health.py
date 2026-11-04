@@ -80,3 +80,69 @@ def classify(
 
 def label(kind: str) -> str:
     return LABELS.get(kind, kind.replace("_", " ").title())
+
+
+# ── IVR silence ─────────────────────────────────────────────────────────────────────────────────────────────────
+# A webhook channel never ages above, so a dead IVR stays green. Real case, Ratha: no call reached HAIP for 43-69 hours
+# on 6 Oct and 27-30 Oct 2026 (the Vobiz wallet had gone negative) while WhatsApp / Instagram leads kept coming. This rule
+# says the IVR is silent when, during business hours, the gap since its last call is far longer than this business's own
+# normal gap AND people kept writing in that gap. Calls are counted by ``created_at`` (Vobiz calls had an empty
+# ``started_at`` until scripts/backfill_call_timestamps.py ran).
+BUSINESS_HOURS = (9, 21)          # local hours a call is expected in (IST)
+IVR_BASELINE_DAYS = 28
+IVR_MIN_BASELINE_CALLS = 20       # fewer calls in 28 days = no normal rate to compare with: never flagged
+IVR_MIN_SILENT_HOURS = 4
+IVR_GAP_FACTOR = 3                # silent for 3x the normal business-hours gap between calls
+IVR_MIN_MESSAGES = 3              # inbound WhatsApp / Instagram messages in the silent stretch
+
+
+def _business_hours_between(start: datetime, end: datetime) -> float:
+    from app.services.date_presets import IST
+
+    lo, hi = BUSINESS_HOURS
+    total, cur = 0.0, start.astimezone(IST)
+    end = end.astimezone(IST)
+    while cur < end:
+        nxt = min(end, (cur + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0))
+        if lo <= cur.hour < hi:
+            total += (nxt - cur).total_seconds() / 3600
+        cur = nxt
+    return total
+
+
+def ivr_silence(db, tenant, now: Optional[datetime] = None) -> Optional[dict]:
+    """{provider, label, last_call_at, silent_hours, messages, normal_calls_per_day, threshold_hours} when the tenant's
+    active IVR looks dead, else None. Reads the Call and Message rows themselves (the record), no other source."""
+    from sqlalchemy import func
+
+    from app.models.call import Call
+    from app.models.conversation import ChannelType, Message, MessageDirection
+    from app.models.integration import Integration
+
+    provider = (getattr(tenant, "ivr_provider", None) or "").strip()
+    if not provider:
+        return None
+    if db.query(Integration.id).filter_by(tenant_id=tenant.id, kind=provider, status="active").first() is None:
+        return None
+    now = now or datetime.now(timezone.utc)
+    calls = db.query(func.count(Call.id)).filter(Call.tenant_id == tenant.id, Call.ivr_provider == provider,
+                                                 Call.created_at >= now - timedelta(days=IVR_BASELINE_DAYS)).scalar() or 0
+    if calls < IVR_MIN_BASELINE_CALLS:
+        return None
+    last = db.query(func.max(Call.created_at)).filter(Call.tenant_id == tenant.id, Call.ivr_provider == provider).scalar()
+    if last is None:
+        return None
+    last = last.replace(tzinfo=timezone.utc) if last.tzinfo is None else last
+    open_hours = IVR_BASELINE_DAYS * (BUSINESS_HOURS[1] - BUSINESS_HOURS[0])
+    threshold = max(IVR_MIN_SILENT_HOURS, IVR_GAP_FACTOR * open_hours / calls)
+    silent = _business_hours_between(last, now)
+    if silent < threshold:
+        return None
+    messages = db.query(func.count(Message.id)).filter(
+        Message.tenant_id == tenant.id, Message.direction == MessageDirection.INBOUND, Message.created_at > last,
+        Message.channel.in_([ChannelType.WHATSAPP, ChannelType.INSTAGRAM])).scalar() or 0
+    if messages < IVR_MIN_MESSAGES:
+        return None                    # a genuinely quiet business, not a dead line
+    return {"provider": provider, "label": label(provider), "last_call_at": last, "silent_hours": round(silent, 1),
+            "messages": int(messages), "normal_calls_per_day": round(calls / IVR_BASELINE_DAYS, 1),
+            "threshold_hours": round(threshold, 1)}

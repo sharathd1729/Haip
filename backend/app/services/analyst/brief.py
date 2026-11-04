@@ -88,6 +88,8 @@ def deterministic(facts: dict) -> dict:
     checks = facts.get("health") or []
     good += [f"{c['label']} is healthy." for c in checks if c["status"] == "green"][: max(0, 4 - len(good))]
     bad += [f"{c['label']} needs attention ({c['status']})." for c in checks if c["status"] in ("red", "amber")][: max(0, 5 - len(bad))]
+    # AI Executive findings (facts["executive"], only when it is on): the most urgent ones lead "not working".
+    bad = [f"{t['role']}: {t['title']}." for t in (facts.get("executive") or {}).get("top", [])[:2]] + bad
     lost = j["enquiries"]["lost_reasons"][:3]
     tl = j["contacts"]["to_lead"]
     team = [t for t in facts["team"] if t["user_id"]][:3]

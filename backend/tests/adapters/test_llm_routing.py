@@ -136,6 +136,22 @@ def test_analyst_followup_has_its_own_route_with_gemini_fallback(monkeypatch):
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 
+def test_chief_explain_routes_to_the_structured_output_tier_with_gemini_fallback(monkeypatch):
+    """AI Executive explanations (services/chief/explain.py): grounded JSON from code-detected findings, gpt-oss-20b on
+    NVIDIA, then Gemini after 45 s when a Gemini key is set."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+    from app.core.prompt_versions import get_version
+
+    assert _TASK_ROUTES["chief_explain"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["chief_explain"] == 45
+    assert get_version("chief_explain") == "chief-explain-v1"
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("chief_explain")
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
+
+
 def test_every_marketing_studio_step_runs_on_gemini_with_room_to_think():
     """24 Oct 2026: on gpt-oss the studio's tool calls came back empty (thinking used the whole 3,000-token budget,
     finish_reason MAX_TOKENS, 0 output). Every studio step is on Gemini now, with budgets well above that."""
