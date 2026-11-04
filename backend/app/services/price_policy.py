@@ -36,6 +36,28 @@ from typing import Optional
 PRICE_MODES = ("handoff", "grounded")
 
 
+# Owner decision 4 Nov 2026: a caravan is priced ONLY from its published packages (business_records); rate plans, seasonal rates
+# and price_per_day are the villa price source. Readers of those legacy tables leave caravans out (calendar rate, POST /bookings
+# total, the bot's and MCP's legacy quote); availability from calculator_service is still used.
+PACKAGE_PRICED_TYPES = ("caravan",)
+
+
+def package_priced(prop) -> bool:
+    """True when this property's price comes only from published packages (a caravan)."""
+    return (getattr(prop, "type", None) or "").lower() in PACKAGE_PRICED_TYPES
+
+
+def packages_only(db, tenant) -> bool:
+    """True when the workspace sells caravans (its business type says so, or it has an active caravan): then no rate-plan price
+    ever reaches a guest or a quote."""
+    bt = (getattr(tenant, "business_type", None) or "").lower()
+    if "caravan" in bt or "camper" in bt:
+        return True
+    from app.models.property import Property
+    return db.query(Property.id).filter(Property.tenant_id == tenant.id, Property.is_active.is_(True),
+                                        Property.type.in_(PACKAGE_PRICED_TYPES)).first() is not None
+
+
 def price_mode(tenant) -> str:
     """How this tenant lets the AI talk about price. Anything unrecognised means the safe default, "handoff"."""
     cfg = getattr(tenant, "brand_config", None) or {}
@@ -57,12 +79,14 @@ _PRICE_PATTERNS = [
         r"(?:night|day|person|head|guest|pax|stay|nite)s?\b",
         re.IGNORECASE,
     ),
-    # Rate unit preceding the figure -- "per night 12000"
+    # Rate unit preceding the figure -- "per night 12000" -- but not a distance, time or count ("Free km per day: 300 km").
     re.compile(
-        r"\bper\s+(?:night|day|person|head|guest|pax|stay)s?\s*(?:is|:|at|-)?\s*[\d][\d,]{2,}",
+        r"\bper\s+(?:night|day|person|head|guest|pax|stay)s?\s*(?:is|:|at|-)?\s*[\d][\d,]{2,}(?![\d,])"
+        r"(?!\s*(?:km|kms|kilomet|hours?\b|hrs?\b|guests?\b|people|persons?\b|pax\b|nights?\b|days?\b|min|litres?\b|ltrs?\b|%))",
         re.IGNORECASE,
     ),
 ]
+_UNIT_PATTERN = _PRICE_PATTERNS[2]           # "N per night" -- the one that also catches small counts ("2 per person")
 
 # Phrases that promise or imply a concrete cost even without a figure.
 # "It works out cheaper" is still a pricing statement the brand wants a human
@@ -156,8 +180,18 @@ def strip_prices(text: str) -> str:
     """
     out = text or ""
     for pat in _PRICE_PATTERNS:
-        out = pat.sub("[rate: see live pricing or team to confirm]", out)
+        out = pat.sub(_strip_one if pat is _UNIT_PATTERN else _MASK, out)
     return out
+
+
+_MASK = "[rate: see live pricing or team to confirm]"
+
+
+def _strip_one(m: re.Match) -> str:
+    """A small count with no 'k' ("2 per person", "1 per day") is not a rupee rate: keep it. detect_price still flags it."""
+    num = _FIGURE_RE.search(m.group(0))
+    small = num is not None and not num.group(2) and (_to_int(num.group(1), None) or 0) < 100
+    return m.group(0) if small else _MASK
 
 
 # Keys carrying money inside grounded_facts results.

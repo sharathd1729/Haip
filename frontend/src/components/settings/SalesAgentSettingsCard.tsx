@@ -18,7 +18,57 @@ export type SalesAgentSettings = {
   price_disclosure: PriceMode;
   sales_agent_mode: AgentMode;
   readiness: { published_packages: number; auto_bookable: string[]; razorpay_connected: boolean; quote_template_status: string | null };
+  checklist: ReadinessChecklist;
 };
+
+/** sales_agent_readiness.checklist: every step from "guest asks" to "booking paid". */
+export type ReadinessRow = {
+  key: string; group: "suggest" | "autopilot" | "after"; ok: boolean; label: string; detail: string;
+  fix: { href: string; label: string } | null;
+};
+export type ReadinessChecklist = { mode: AgentMode; suggest_ready: boolean; autopilot_ready: boolean; rows: ReadinessRow[] };
+
+const GROUPS: { id: ReadinessRow["group"]; title: string }[] = [
+  { id: "suggest", title: "To prepare quotes a person sends (Suggest)" },
+  { id: "autopilot", title: "Also needed for the AI to send them itself (Autopilot)" },
+  { id: "after", title: "After the guest pays" },
+];
+
+export function ReadinessList({ checklist }: { checklist: ReadinessChecklist }) {
+  return (
+    <div className="space-y-4">
+      {GROUPS.map(g => {
+        const rows = checklist.rows.filter(r => r.group === g.id);
+        if (!rows.length) return null;
+        const ready = g.id === "suggest" ? checklist.suggest_ready : g.id === "autopilot" ? checklist.autopilot_ready : null;
+        return (
+          <section key={g.id} className="space-y-1.5">
+            <h4 className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-[var(--haip-fg)]">
+              {g.title}
+              {ready !== null && <StatusPill tone={ready ? "success" : "neutral"}>{ready ? "Ready" : "Not ready"}</StatusPill>}
+            </h4>
+            <ul className="divide-y divide-[var(--haip-border)] rounded-xl border border-[var(--haip-border)]">
+              {rows.map(r => (
+                <li key={r.key} className="flex flex-wrap items-start gap-x-3 gap-y-1 px-3 py-2">
+                  <StatusPill tone={r.ok ? "success" : "warning"}>{r.ok ? "Done" : "To do"}</StatusPill>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13.5px] font-semibold text-[var(--haip-fg)]">{r.label}</span>
+                    <span className="block break-words text-[12.5px] text-[var(--haip-fg-subtle)]">{r.detail}</span>
+                  </span>
+                  {r.fix && (
+                    <a href={r.fix.href} className="inline-flex min-h-11 items-center text-[13px] font-semibold text-primary underline sm:min-h-0">
+                      {r.fix.label}
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
 const PRICE: { id: PriceMode; label: string; desc: string }[] = [
   { id: "handoff", label: "Team shares prices", desc: "The AI never states a price. It collects the details and a person shares the price. (Default)" },
@@ -79,13 +129,6 @@ export function SalesAgentSettingsCard() {
   }
   const changed = price !== data.price_disclosure || agent !== data.sales_agent_mode;
   const needsConfirm = agent === "autopilot" && data.sales_agent_mode !== "autopilot";
-  const r = data.readiness;
-  const checks = [
-    { ok: r.published_packages > 0, text: `${r.published_packages} published plan${r.published_packages === 1 ? "" : "s"}` },
-    { ok: r.razorpay_connected, text: r.razorpay_connected ? "Razorpay connected" : "Razorpay not connected (Settings > Payments)" },
-    { ok: r.quote_template_status === "approved", text: r.quote_template_status === "approved" ? "Quote template approved" : "Quote template not approved yet" },
-    { ok: r.auto_bookable.length > 0, text: r.auto_bookable.length ? `Auto-bookable: ${r.auto_bookable.join(", ")}` : "No plan or route marked auto-bookable (autopilot will wait for a person)" },
-  ];
 
   return (
     <Card>
@@ -102,13 +145,10 @@ export function SalesAgentSettingsCard() {
             <p className="text-[13px] text-[var(--haip-fg-2)]">With "Team shares prices" the AI checks the calendar but never prepares a quote.</p>
           )}
         </section>
-        <ul className="space-y-1">
-          {checks.map(c => (
-            <li key={c.text} className="flex items-center gap-2 text-[13px] text-[var(--haip-fg-2)]">
-              <StatusPill tone={c.ok ? "success" : "neutral"}>{c.ok ? "Ready" : "Not yet"}</StatusPill><span className="min-w-0 break-words">{c.text}</span>
-            </li>
-          ))}
-        </ul>
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-[var(--haip-fg)]">What the sales agent needs</h3>
+          <ReadinessList checklist={data.checklist} />
+        </section>
         {isOwner && needsConfirm && (
           <label className="flex min-h-11 items-start gap-3 text-[13px] text-[var(--haip-fg)]">
             <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} className="mt-1 accent-primary" />

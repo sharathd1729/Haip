@@ -1,8 +1,12 @@
 {#---
-version: 18
-changed_at: 2026-10-24
+version: 20
+changed_at: 2026-11-04
 purpose: Draft a WhatsApp/Instagram reply as the AI Concierge
-changes: v18 -- RECENT CONVERSATION lines name their author (GUEST, US: TEAM MEMBER / AI ASSISTANT / AUTOMATED MESSAGE /
+changes: v20 -- published records now show what was dropped before: a package's km per day and what is paid separately at
+         actual cost, a destination's best months, notes and km per stop, an itinerary day's stops and notes.
+         v19 -- a knowledge snippet about one property says which ("about Ratha 1 only"): a chat with no property now gets a
+         property's passage when only that property matches (it was never offered before).
+         v18 -- RECENT CONVERSATION lines name their author (GUEST, US: TEAM MEMBER / AI ASSISTANT / AUTOMATED MESSAGE /
          CAMPAIGN BROADCAST) and a campaign broadcast is never the guest's request: our own "8 guests each, tell us your
          dates" campaign was read back as "open weekend dates for 8 adults" to a guest who only asked about a barter
          collaboration (Rathaa, Oct 2026). v16/v17: sales playbook, proven lessons (see prompt_versions.py).
@@ -120,7 +124,7 @@ RECENT CALL SUMMARIES
 
 KNOWLEDGE BASE (most relevant snippets -- prices in them have been removed on purpose)
 {% for s in kb_snippets %}
-- [{{ s.source }}{% if s.updated %}, updated {{ s.updated }}{% endif %}] {{ s.text }}
+- [{{ s.source }}{% if s.property %}, about {{ s.property }} only{% endif %}{% if s.updated %}, updated {{ s.updated }}{% endif %}] {{ s.text }}
 {% endfor %}
 {% if not kb_snippets %}- (nothing relevant found{% if kb_unavailable %}; the knowledge base could not be searched just now, so do not say it has no answer -- say the team will confirm{% endif %})
 {% endif %}
@@ -146,21 +150,24 @@ PROPERTY FACTS (from the property records -- the source for what each property o
 {% set bd_facts = (grounded_facts or []) | selectattr("tool", "equalto", "business_data") | list %}
 {% if bd_facts %}
 {% set bd = bd_facts[0].result %}
+{% set MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] %}
 PACKAGES, ROUTES AND POLICIES (published business records -- the source for exactly what each package includes, its limits, its routes and the stay rules)
 {% for p in bd.packages or [] %}
-- Package "{{ p.name }}" ({{ p.product | replace("_", " ") }}): up to {{ p.max_guests }} guests{% if p.min_nights %}; at least {{ p.min_nights }} night(s){% endif %}{% if p.max_nights %}; at most {{ p.max_nights }} night(s){% endif %}{% if p.included_km %}; {{ p.included_km }} km included{% endif %}
+- Package "{{ p.name }}" ({{ p.product | replace("_", " ") }}): up to {{ p.max_guests }} guests{% if p.min_nights %}; at least {{ p.min_nights }} night(s){% endif %}{% if p.max_nights %}; at most {{ p.max_nights }} night(s){% endif %}{% if p.included_km %}; {{ p.included_km }} km included{% endif %}{% if p.included_km_per_day %}; {{ p.included_km_per_day }} km per day included{% endif %}
 {% if p.summary %}  About: {{ p.summary }}
 {% endif %}
 {% if p.inclusions %}  Included: {{ p.inclusions | join(", ") }}
 {% endif %}
 {% if p.exclusions %}  Not included: {{ p.exclusions | join(", ") }}
 {% endif %}
+{% if p.billed_at_actuals %}  Paid separately at actual cost, never part of the package price: {{ p.billed_at_actuals | join(", ") }}
+{% endif %}
 {% endfor %}
 {% for d in bd.destinations or [] %}
-- Destination {{ d.name }}: {{ d.distance_km_from_base }} km, about {{ d.travel_hours_from_base }} h from the base{% if d.stops %}; route {% for s in d.stops %}{{ s.name }}{% if s.overnight %} (overnight){% endif %}{% if not loop.last %} → {% endif %}{% endfor %}{% endif %}{% if d.description %}. {{ d.description }}{% endif %}
+- Destination {{ d.name }}: {{ d.distance_km_from_base }} km, about {{ d.travel_hours_from_base }} h from the base{% if d.stops %}; route {% for s in d.stops %}{{ s.name }}{% if s.distance_km_from_previous %} ({{ s.distance_km_from_previous }} km){% endif %}{% if s.overnight %} (overnight){% endif %}{% if not loop.last %} → {% endif %}{% endfor %}{% endif %}{% if d.best_months %}; best months {% for m in d.best_months %}{{ MONTHS[m - 1] }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}{% if d.description %}. {{ d.description }}{% endif %}{% if d.notes %} Note: {{ d.notes }}{% endif %}
 {% endfor %}
 {% for it in bd.itineraries or [] %}
-- Itinerary "{{ it.name }}" ({{ it.nights }} night(s)): {% for day in it.days %}Day {{ day.day }} {{ day.title }}{% if day.overnight_location %} (night at {{ day.overnight_location }}){% endif %}{% if not loop.last %}; {% endif %}{% endfor %}
+- Itinerary "{{ it.name }}" ({{ it.nights }} night(s)): {% for day in it.days %}Day {{ day.day }} {{ day.title }}{% if day.stops %}: {{ day.stops | join(", ") }}{% endif %}{% if day.overnight_location %} (night at {{ day.overnight_location }}){% endif %}{% if day.notes %} [{{ day.notes }}]{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}
 {% endfor %}
 {% if bd.stay_rules %}- Stay rules: check-in {{ bd.stay_rules.check_in_time }}, check-out {{ bd.stay_rules.check_out_time }}{% if bd.stay_rules.min_age %}; minimum age {{ bd.stay_rules.min_age }}{% endif %}{% if bd.stay_rules.id_required %}; photo ID required{% endif %}{% if bd.stay_rules.house_rules %}; house rules: {{ bd.stay_rules.house_rules | join("; ") }}{% endif %}
 

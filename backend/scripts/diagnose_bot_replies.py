@@ -6,6 +6,7 @@ Looks at one tenant over the last N days and prints
   * what happened to every AI draft: sent by the bot, waiting for review, approved, rejected, expired (nobody acted, closed by
     services/ai_draft_expiry.py), and how each one delivered (per channel: Instagram sends no delivery receipts),
   * the reasons drafts were held back (the AI's own "needs a human" reasons, guards that fired, provider failures),
+  * what each draft had from the knowledge base (search status, how many passages, the passages used most),
   * delivery errors from Meta (expired token, outside the 24-hour window, template needed ...).
 
 Usage (inside the API container, against production):
@@ -63,6 +64,30 @@ def error_group(err: str) -> str:
     return (err or "unknown")[:80]
 
 
+KB_MEANING = {
+    "ok": "passages found and given to the AI",
+    "no_match": "searched, nothing close enough (add or reword an entry)",
+    "embedding_unavailable": "search could not run (embedding provider down or slow): the AI said the team will confirm",
+    "search_failed": "search errored",
+    "unsupported": "not PostgreSQL",
+    "empty_query": "nothing to search with (guest sent only media or a template tap)",
+}
+
+
+def kb_summary(drafts) -> tuple[Counter, Counter]:
+    """(drafts per knowledge-base search status, times each entry id was given to the AI) from Message.channel_metadata["kb"]
+    (written by concierge_draft since 4 Nov 2026; older drafts count as "not recorded")."""
+    status, used = Counter(), Counter()
+    for m in drafts:
+        kb = (m.channel_metadata or {}).get("kb")
+        if not isinstance(kb, dict):
+            status["not recorded"] += 1
+            continue
+        status[kb.get("status") or "unknown"] += 1
+        used.update(h.get("id") for h in kb.get("hits") or [] if h.get("id"))
+    return status, used
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tenant-slug", required=True)
@@ -117,6 +142,19 @@ def main() -> int:
             print(f"  {n:4}  {g}")
         if not reasons:
             print("  none recorded")
+
+        status, used = kb_summary(drafts)
+        print("\nKnowledge base use per draft (search status)")
+        for st, n in status.most_common():
+            print(f"  {n:4}  {st:22} {KB_MEANING.get(st, '(drafted before this was recorded)' if st == 'not recorded' else '')}")
+        if used:
+            from app.models.knowledge import KnowledgeEntry
+            rows = dict(db.query(KnowledgeEntry.id, KnowledgeEntry.question).filter(KnowledgeEntry.tenant_id == tid,
+                                                                                    KnowledgeEntry.id.in_(list(used))).all())
+            print("  passages given to the AI most often:")
+            for eid, n in used.most_common(8):
+                print(f"  {n:4}  {eid[:8]}  {(rows.get(eid) or '(no question)')[:70]}")
+        print("  Entries the bot never gets, and why: GET /knowledge/health (Settings > Knowledge > Health).")
 
         out_errs = (db.query(Message.delivery_error).filter(Message.tenant_id == tid, Message.direction == MessageDirection.OUTBOUND,
                                                            Message.delivery_error.isnot(None), Message.created_at >= since).all())

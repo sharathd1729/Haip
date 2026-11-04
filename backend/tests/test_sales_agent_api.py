@@ -166,3 +166,27 @@ def test_the_send_task_is_routed_and_never_runs_on_another_tenant(db, w):
     other = ratha(db)
     with patch("app.services.quote_send_service.send_as_agent", side_effect=AssertionError("never")):
         assert sales_action_service.deliver_autopilot(db, other.t.id, a.id) == {"status": "ignored"}
+
+
+# ─── confirming the overnight stay (the card had no way to, so overnight agent quotes could never be sent) ─────────
+
+def test_confirming_the_stay_unlocks_send_and_is_audited(client, db, w, rzp):
+    connect_razorpay(db, w.t.id)
+    approve_quote_template(db, w.t.id)
+    inq, row, a = _action(db, w, stay_check="not_checked")
+    listed = client.get(A, params={"inquiry_id": inq.id}, headers=_h(w.res)).json()
+    assert [b["code"] for b in listed[0]["readiness"]["blockers"]] == ["stay_not_confirmed"]
+    res = client.post(f"{A}/{a.id}/confirm-stay", json={"stay_name": "Riverside camp"}, headers=_h(w.res))
+    assert res.status_code == 200, res.text
+    assert res.json()["readiness"]["can_send"] is True and res.json()["status"] == "pending"
+    db.refresh(row)
+    assert row.snapshot["meta"]["stay_check"] == "confirmed" and row.snapshot["meta"]["stay_name"] == "Riverside camp"
+    assert row.snapshot["total"] and db.query(AuditEvent).filter_by(tenant_id=w.t.id, action="quote.stay_confirmed").count() == 1
+    assert client.post(f"{A}/{a.id}/approve", headers=_h(w.res)).json()["status"] == "sent"
+    assert client.post(f"{A}/{a.id}/confirm-stay", headers=_h(w.res)).status_code == 409          # no longer pending
+
+
+def test_confirming_the_stay_needs_quotes_write_and_the_same_workspace(client, db, w, rzp):
+    _, _, a = _action(db, w, stay_check="not_checked")
+    assert client.post(f"{A}/{a.id}/confirm-stay", headers=_h(w.foh)).status_code == 403
+    assert client.post(f"{A}/{a.id}/confirm-stay", headers=_h(ratha(db).owner)).status_code == 404

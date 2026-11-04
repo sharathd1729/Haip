@@ -89,8 +89,31 @@ def retrieval_query_text(db: Session, tenant_id: str, conversation_id: str) -> s
         .all()
     )
     lines = [m.body for m in reversed(earlier) if m.body and not m.body.startswith("[")]
-    context = "\n".join(lines)
-    return (context or burst)[-600:]
+    context = ("\n".join(lines) or burst)[-600:]
+    if not context:
+        return context
+    # A short reply answers OUR last question: "yes, what's included?" after "Want the Coorg route?" names no route. Put that
+    # question first so the search sees what is being talked about. An unsent AI draft never counts (the guest never saw it),
+    # the same rule as the prompt's recent messages.
+    ours = (
+        db.query(Message.body)
+        .filter(Message.conversation_id == conversation_id, Message.direction == MessageDirection.OUTBOUND,
+                or_(Message.is_ai_generated.is_(False), Message.was_approved.is_(True)))
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    question = _last_question(ours.body if ours else "")
+    return question + "\n" + context[-(599 - len(question)):] if question else context
+
+
+def _last_question(text: "str | None") -> str:
+    """The last sentence of our message that asks something (at most 200 characters), else ''."""
+    text = text or ""
+    if "?" not in text or text.startswith("["):
+        return ""
+    head = text[: text.rindex("?") + 1]
+    start = max(head.rfind(c, 0, len(head) - 1) for c in ".!?\n") + 1
+    return head[start:].strip()[-200:]
 
 
 def _get_recent_messages(db: Session, conversation_id: str, limit: int = 20) -> list:
@@ -136,6 +159,15 @@ def _get_call_summaries(db: Session, tenant_id: str, guest_id: str, limit: int =
         .all()
     )
     return [{"summary": c.ai_summary, "duration": c.duration_seconds} for c in calls if c.ai_summary]
+
+
+def kb_record(ctx: dict) -> dict:
+    """What a reply had from the knowledge base, kept on the draft (Message.channel_metadata["kb"]): the search status
+    (ok | no_match | embedding_unavailable | search_failed | unsupported | empty_query) and each passage's id and score."""
+    return {
+        "status": ctx.get("kb_status"),
+        "hits": [{"id": s.get("id"), "score": round(float(s.get("score") or 0), 3)} for s in ctx.get("kb_snippets") or []],
+    }
 
 
 def build_concierge_context(
@@ -187,6 +219,10 @@ def build_concierge_context(
                 property_id=((conversation.property_id if conversation else None) or (inquiry.property_id if inquiry else None)),
             )
             kb_status = outcome.status
+            # A passage about one property says which (a chat with no property can now get one: knowledge_service).
+            from app.models.property import Property
+            pids = {h["property_id"] for h in outcome.hits if h.get("property_id")}
+            names = dict(db.query(Property.id, Property.name).filter(Property.tenant_id == tenant_id, Property.id.in_(pids)).all()) if pids else {}
             kb_snippets = [
                 {
                     "text": (f"Q: {h['question']}\nA: {h['content']}" if h.get("question") else h["content"]),
@@ -195,6 +231,8 @@ def build_concierge_context(
                     # Shown to the model so it can tell a current passage from an old one (and from what we said earlier).
                     "updated": h.get("updated_at"),
                     "origin": h.get("source"),
+                    "property": names.get(h.get("property_id")),
+                    "id": h["id"],
                 }
                 for h in outcome.hits
             ]

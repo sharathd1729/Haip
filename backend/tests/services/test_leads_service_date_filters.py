@@ -107,3 +107,20 @@ def test_unassigned_filter_returns_only_unowned_leads(db):
     assert free.id in ids
     assert owned.id not in ids
     assert other_tenant_free.id not in ids
+
+
+def test_enquiry_date_is_an_ist_calendar_day(db):
+    """A bare 'YYYY-MM-DD' used to be compared with created_at directly, so the range ended at midnight UTC of the last day:
+    the Leads "Today" preset showed almost nothing and an enquiry at 02:00 IST counted on the day before."""
+    t = _make_tenant(db)
+    afternoon = _make_inquiry(db, t.id)
+    afternoon.created_at = datetime(2026, 11, 3, 9, 0, tzinfo=timezone.utc)      # 14:30 IST on 3 Nov
+    early = _make_inquiry(db, t.id)
+    early.created_at = datetime(2026, 11, 2, 20, 30, tzinfo=timezone.utc)        # 02:00 IST on 3 Nov
+    day_before = _make_inquiry(db, t.id)
+    day_before.created_at = datetime(2026, 11, 2, 18, 0, tzinfo=timezone.utc)    # 23:30 IST on 2 Nov
+    db.flush()
+
+    result = leads_service.get_leads_pipeline(db, t.id, date_from="2026-11-03", date_to="2026-11-03")
+    ids = {l.inquiry_id for l in result.leads}
+    assert ids == {afternoon.id, early.id}

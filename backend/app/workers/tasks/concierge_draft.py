@@ -34,7 +34,7 @@ def _run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
-from app.services.concierge_service import build_concierge_context, is_latest_pending_draft, unanswered_guest_text
+from app.services.concierge_service import build_concierge_context, is_latest_pending_draft, kb_record, unanswered_guest_text
 from app.services import agent_consult_flow, concierge_facts, sales_gateway, sales_playbook
 from app.core.database import set_tenant_context
 import structlog
@@ -1096,7 +1096,9 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             db.rollback()
             log.warning("sales_agent_turn_failed", conversation_id=conversation_id, error=str(exc))
             sales_turn = sales_agent_service.SalesTurn(mode=sales_agent_settings.mode(tenant), status="error")
-        grounded_facts = sales_agent_service.merge_facts(tenant, grounded_facts, sales_turn)
+        from app.services.price_policy import packages_only as _packages_only
+        grounded_facts = sales_agent_service.merge_facts(tenant, grounded_facts, sales_turn,
+                                                         packages_only=_packages_only(db, tenant))
 
         # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
         # beyond price_quote-only. One query, checked alongside the rest of
@@ -1496,6 +1498,9 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             grounded_facts=grounded_facts,
             suggested_actions=suggested_actions,
             ai_needs_human_reason="; ".join(needs_human_reasons) if needs_human_reasons else None,
+            # Which knowledge this reply had (status + entry ids): without it nobody could tell afterwards whether the bot
+            # missed a passage, the search failed, or nothing matched (scripts/diagnose_bot_replies.py, the KB health card).
+            channel_metadata={"kb": kb_record(ctx)},
         )
         db.add(draft_message)
         db.commit()

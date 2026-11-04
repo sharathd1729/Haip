@@ -368,10 +368,19 @@ def _check_availability(db: Session, user: User, tenant_id: str, args: dict) -> 
         city=args.get("city"), property_id=args.get("property_id"),
         property_type=args.get("property_type"),
     )
+    rows = []
+    for r in results:
+        row = asdict(r)
+        if r.is_caravan:                                     # price_policy.package_priced
+            # A caravan's price is its published packages' (rate calculator), never a rate plan's.
+            for k in ("price_per_night", "subtotal_accommodation", "rate_source", "rate_name"):
+                row.pop(k, None)
+            row["price"] = "Priced from the published packages: use the rate calculator (Quotes)."
+        rows.append(row)
     return {
         "checkin": args["from_date"],
         "checkout": args["to_date"],
-        "matching_properties": [asdict(r) for r in results],
+        "matching_properties": rows,
         "note": (
             "Only properties with a resolved rate AND no booking/block "
             "conflict for these exact dates and party size are returned. "
@@ -391,8 +400,14 @@ def _get_quote(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     unconnected revenue-management path. This tool reflects what a guest
     would actually be quoted today, not a theoretical merge of the two."""
     from dataclasses import asdict
+    from app.models.property import Property
     from app.services.calculator_service import calculator_service
+    from app.services.price_policy import package_priced
 
+    prop = db.query(Property).filter_by(id=args["property_id"], tenant_id=tenant_id).first()
+    if prop is not None and package_priced(prop):
+        raise ToolError("Caravans are priced from the published packages, not rate plans: use the rate calculator (Quotes) "
+                        "for this quote.")
     quote = calculator_service.build_quote(
         db=db, tenant_id=tenant_id, property_id=args["property_id"],
         checkin=args["from_date"], checkout=args["to_date"],

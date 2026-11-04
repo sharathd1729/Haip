@@ -308,29 +308,20 @@ def get_dynamic_price(
     if body.base_rate_override:
         base = float(body.base_rate_override)
     else:
-        # Find the best matching seasonal rate
-        rates = (
-            db.query(SeasonalRate)
-            .filter(
-                SeasonalRate.property_id == body.property_id,
-                SeasonalRate.tenant_id == current_user.tenant_id,
-                SeasonalRate.is_active == True,
-                SeasonalRate.date_from <= body.checkin,
-                SeasonalRate.date_to   >= body.checkout,
-            )
-            .order_by(SeasonalRate.priority.desc())
-            .first()
+        # The same base rate the Calculator page quotes (season > rate plan > property's day price). This used to run its own
+        # season query and then read prop.base_price_per_night, a RatePlan column Property does not have: a 500 whenever no
+        # season covered the whole stay. guests=1 = the season's base price, before any occupancy tier.
+        rate = calculator_service._resolve_rate(
+            db=db, prop=prop, checkin=body.checkin, checkout=body.checkout, checkin_date=checkin,
+            nights=(checkout - checkin).days, guests=1,
         )
-        if rates:
-            base = float(rates.price_per_night)
-        elif prop.base_price_per_night:
-            base = float(prop.base_price_per_night)
-        else:
+        if rate is None:
             raise HTTPException(
                 status_code=422,
                 detail="No active rate plan found for this property and date range. "
                        "Please set a seasonal rate or provide base_rate_override."
             )
+        base = float(rate[0])
 
     result = calculate_dynamic_price(
         base_rate_per_night=base,

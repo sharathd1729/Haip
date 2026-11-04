@@ -245,9 +245,10 @@ def test_between_equally_relevant_passages_the_newer_one_comes_first(db, monkeyp
 def test_the_reply_prompt_shows_each_snippet_date_and_says_current_data_wins():
     from app.core.prompt_versions import PROMPT_VERSIONS
     from app.workers.tasks.concierge_draft import _jinja_env
-    assert PROMPT_VERSIONS["concierge_reply"] == "concierge-reply-v18"
+    assert PROMPT_VERSIONS["concierge_reply"] == "concierge-reply-v20"
     src = _jinja_env.loader.get_source(_jinja_env, "concierge_reply.jinja")[0]
     assert "updated {{ s.updated }}" in src
+    assert "about {{ s.property }} only" in src                     # v19: a property's passage says which property
     assert "RECENT CONVERSATION and call summaries may be out of date" in src
 
 

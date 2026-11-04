@@ -46,6 +46,8 @@ def test_detect_price_catches(text):
     "There are 3 caravans at that location.",
     "Pets are welcome, no extra charge.",
     "How many of you are travelling?",
+    "Free km per day: 300 km.",
+    "Max 8 hours of driving per day: 300 km included.",
 ])
 def test_detect_price_allows_legitimate_replies(text):
     assert pp.detect_price(text) is None, f"FALSE POSITIVE: {text!r}"
@@ -128,3 +130,38 @@ def test_special_requests_do_not_block_qualification():
     full = _I(ci="2026-09-01", co="2026-09-03", adults=2, prop="p1")
     assert pp.is_qualified(_G("Arjun"), full) is True
     assert "any special requests or occasion" in pp.missing_lead_details(_G("Arjun"), full)
+
+
+@pytest.mark.parametrize("text", [
+    "Free km per day: 300 km",          # a distance, not a rate (it was stripped out of KB passages)
+    "per day 250 kms included",
+    "2 per person towel set",           # a count
+    "1 per day housekeeping visit",
+])
+def test_strip_prices_keeps_distances_and_counts(text):
+    assert pp.strip_prices(text) == text
+
+
+@pytest.mark.parametrize("text", ["12000 per night", "per night 12000", "extra 1,500 per day", "12k per night", "Rs 8,500"])
+def test_strip_prices_still_removes_rates(text):
+    assert "[rate:" in pp.strip_prices(text)
+
+
+def test_packages_only_for_a_caravan_business_or_a_workspace_with_a_caravan(db):
+    import uuid
+
+    from app.models.property import Property
+    from app.models.tenant import Tenant
+
+    def tenant(bt=None):
+        t = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth", business_type=bt)
+        db.add(t)
+        db.flush()
+        return t
+
+    villas, vans, typed = tenant("villa_resort"), tenant(), tenant("caravan")
+    db.add(Property(id=str(uuid.uuid4()), tenant_id=villas.id, name="V", slug="v", type="villa"))
+    db.add(Property(id=str(uuid.uuid4()), tenant_id=vans.id, name="R", slug="r", type="caravan"))
+    db.flush()
+    assert (pp.packages_only(db, villas), pp.packages_only(db, vans), pp.packages_only(db, typed)) == (False, True, True)
+    assert pp.package_priced(Property(type="caravan")) and not pp.package_priced(Property(type="villa"))

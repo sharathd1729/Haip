@@ -217,7 +217,7 @@ def chunk_text(body: str, max_chars: int = 1200, overlap: int = 150) -> list[str
 
 # ─── Embedding write path ────────────────────────────────────────────────────
 
-def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
+def embed_entry(db: Session, entry: KnowledgeEntry, count_failure: bool = True) -> bool:
     """Embed one entry and upsert its vectors. Returns True on success.
 
     An entry produces one vector for the answer itself plus one per
@@ -228,6 +228,9 @@ def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
     Failures are recorded on the row (`embedding_status="failed"` plus the
     error) rather than raised: one bad entry must not abort a bulk ingest,
     and a failed row is visible in the UI so it can be retried.
+
+    ``count_failure=False`` records the failure without adding to ``embedding_attempts`` (a task retry a minute later is
+    the same attempt; counting each one let one save use 4 of the sweep's MAX_AUTO_ATTEMPTS in about 3 minutes).
     """
     texts = [embed_input(entry.question, entry.content)]
     phrasings = [p for p in (entry.alt_phrasings or []) if str(p or "").strip()][:MAX_VECTORS_PER_ENTRY - 1]
@@ -240,12 +243,12 @@ def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
     try:
         vecs = embed_texts_sync(texts, "passage")
     except EmbeddingError as exc:
-        _record_failure(db, entry, str(exc))
+        _record_failure(db, entry, str(exc), count_failure)
         log.error("kb_embed_failed", entry_id=entry.id, tenant_id=entry.tenant_id, error=str(exc))
         return False
 
     if len(vecs) != len(texts):
-        _record_failure(db, entry, f"Expected {len(texts)} vectors, got {len(vecs)}")
+        _record_failure(db, entry, f"Expected {len(texts)} vectors, got {len(vecs)}", count_failure)
         return False
 
     # Drop generated phrasings that wandered off this entry's topic. Observed
@@ -284,7 +287,7 @@ def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
         db.rollback()
         row = db.query(KnowledgeEntry).filter_by(id=entry_id, tenant_id=tenant_id).first()
         if row is not None:
-            _record_failure(db, row, f"Could not store the search index: {exc}")
+            _record_failure(db, row, f"Could not store the search index: {exc}", count_failure)
         log.error("kb_embed_store_failed", entry_id=entry_id, tenant_id=tenant_id, error=str(exc))
         return False
 
@@ -311,10 +314,11 @@ def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
     return True
 
 
-def _record_failure(db: Session, entry: KnowledgeEntry, message: str) -> None:
+def _record_failure(db: Session, entry: KnowledgeEntry, message: str, count: bool = True) -> None:
     entry.embedding_status = "failed"
     entry.embedding_error = (message or "unknown error")[:2000]
-    entry.embedding_attempts = int(entry.embedding_attempts or 0) + 1
+    if count:
+        entry.embedding_attempts = int(entry.embedding_attempts or 0) + 1
     db.commit()
 
 
@@ -457,7 +461,9 @@ def search_detailed(
         if python_vectors:
             scored = _score_in_python(db, qvec, params)
         else:
-            scored = _score_in_postgres(db, qvec, params, max(top_k * 3, top_k))
+            # Up to MAX_VECTORS_PER_ENTRY rows per entry: with only top_k * 3 rows, one entry with many close phrasings filled
+            # every row and pushed the next relevant entries out. Exact scan (no ANN index), so more rows cost little.
+            scored = _score_in_postgres(db, qvec, params, top_k * MAX_VECTORS_PER_ENTRY)
     except Exception as exc:
         log.warning("kb_search_failed", tenant_id=tenant_id, error=str(exc))
         return SearchOutcome(status="search_failed", detail=str(exc)[:300])
@@ -482,6 +488,12 @@ def search_detailed(
                 "updated_at": _iso_day(getattr(r, "updated_at", None)),
             }
     hits = list(best.values())
+    if not property_id:
+        # No property known (most WhatsApp chats). One property's passage is used when it is the only property that matches,
+        # so it is no longer invisible; when two properties both match ("check-in at Goa 2 pm" / "at Coorg 11 am") neither
+        # is offered: the reply must never guess between two properties.
+        if len({h["property_id"] for h in hits if h["property_id"]}) > 1:
+            hits = [h for h in hits if not h["property_id"]]
     # Human-authored content wins ties against scraped/mined content of similar relevance; `priority` is the tenant's
     # explicit thumb on the scale. Score still dominates -- this only reorders near-equals.
     # Then the NEWER entry wins: when the owner adds "Mysore route now open" beside an older passage on the same topic, the
@@ -520,6 +532,12 @@ _SELECT_COLUMNS = """
 """
 
 
+def _scope_sql(params: dict) -> str:
+    """A known property: tenant-wide entries + that property's. None: every usable entry (search_detailed then drops
+    property entries when more than one property matches)."""
+    return _ELIGIBLE_SQL if params.get("pid") else _USABLE_SQL
+
+
 def _score_in_postgres(db: Session, qvec: list[float], params: dict, limit: int):
     vec_literal = "[" + ",".join(repr(float(x)) for x in qvec) + "]"
     rows = db.execute(
@@ -530,7 +548,7 @@ def _score_in_postgres(db: Session, qvec: list[float], params: dict, limit: int)
             JOIN knowledge_entries k ON k.id = e.ref_id
             WHERE e.tenant_id = :tid
               AND e.namespace = :ns
-              AND {_ELIGIBLE_SQL}
+              AND {_scope_sql(params)}
             ORDER BY e.embedding <=> CAST(:vec AS vector)
             LIMIT :lim
         """),
@@ -547,7 +565,7 @@ def _score_in_python(db: Session, qvec: list[float], params: dict):
             JOIN knowledge_entries k ON k.id = e.ref_id
             WHERE e.tenant_id = :tid
               AND e.namespace = :ns
-              AND {_ELIGIBLE_SQL}
+              AND {_scope_sql(params)}
         """),
         params,
     ).fetchall()

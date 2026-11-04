@@ -162,8 +162,8 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
     # 5 money: schedule, deposit, a payment received now
     full = plan.advance >= plan.total
     db.add(StayInstalment(tenant_id=tid, stay_id=stay.id, amount=plan.advance, due_date=plan.advance_due,
-                          label="Full payment" if full else (f"Advance {svc.cat.num_str(body.advance.percent)}%"
-                                                             if body.advance.amount is None and body.advance.percent else "Advance")))
+                          label="Full payment" if full else (f"Advance {svc.cat.num_str(plan.advance_percent)}%"
+                                                             if plan.advance_percent else "Advance")))
     if plan.balance > 0:
         db.add(StayInstalment(tenant_id=tid, stay_id=stay.id, label="Balance", amount=plan.balance, due_date=plan.balance_due))
     if body.deposit_amount > 0:

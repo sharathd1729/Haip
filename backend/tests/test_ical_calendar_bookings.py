@@ -285,3 +285,30 @@ def test_a_clash_when_picking_the_vehicle_is_refused_like_any_other_booking(db, 
 @pytest.mark.parametrize("text,expected", [("5", (5, 0)), ("2 Adults + 1 Child", (2, 1)), ("7 pax + 1 toddler", (7, 1)), (None, (1, 0)), ("", (1, 0))])
 def test_head_count(text, expected):
     assert ibs.head_count(text) == expected
+
+
+# ── the advance's date (cash received used to jump on every import day) ───────────────────────────────
+
+def _created(event: str, day: str) -> str:
+    return event.replace("END:VEVENT", f"CREATED:{day.replace('-', '')}T053000Z\r\nEND:VEVENT")
+
+
+def _paid_on(db, shared):
+    (stay,) = _stays(db, shared["tid"])
+    (pay,) = db.query(StayPayment).filter_by(stay_id=stay.id).all()
+    return pay.paid_on.isoformat()
+
+
+def test_the_advance_is_dated_on_the_day_the_event_was_made(db, shared):
+    _sync(db, shared["feed"], _created(_ev(), _d(-5)))
+    assert _paid_on(db, shared) == _d(-5)
+
+
+def test_the_advance_of_a_trip_already_under_way_is_dated_no_later_than_its_check_in(db, shared):
+    _sync(db, shared["feed"], _ev(n=-2, nights=4))
+    assert _paid_on(db, shared) == _d(-2)
+
+
+def test_with_no_creation_stamp_a_future_trip_advance_is_dated_today(db, shared):
+    _sync(db, shared["feed"], _ev())
+    assert _paid_on(db, shared) == _d(0)

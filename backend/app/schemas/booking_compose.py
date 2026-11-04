@@ -81,7 +81,7 @@ class ComposeIn(_Strict):
     override: Optional[OverrideIn] = None
 
     # 6 Payment
-    advance: AdvanceIn = Field(default_factory=lambda: AdvanceIn(percent=Decimal("50")))
+    advance: AdvanceIn = Field(default_factory=AdvanceIn)     # no percent = the quote defaults' advance (payment terms)
     advance_due: Optional[date] = None
     balance_rule: Literal["pickup", "7_days"] = "pickup"
     deposit_amount: Decimal = Field(default=Decimal("0"), ge=0, le=_MONEY)

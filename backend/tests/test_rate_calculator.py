@@ -136,3 +136,27 @@ def test_message_with_gst_on_top_and_a_lowered_price(db, r):
     text = rc.render_message(snap, guest_name=None, brand="Ratha", greeting="Namaskara", pay_url=None)
     assert text.startswith("Namaskara there,") and "Usual price ~₹55,000~ + GST\nYour price ₹50,000 + GST ₹2,500 = ₹52,500" in text
     assert "Pay the advance" not in text and snap["override"]["below_percent"] == "9.1"
+
+
+# ─── the package's lowest price (Rate.floor_amount): the AI never goes under it, staff only with an OK ─────────
+
+def test_a_price_under_the_package_floor_needs_approval():
+    out = rc.totals(D("33000"), discount_percent=D("0"), gst_percent=D("18"), inclusive=True, override=D("27000"),
+                    advance_percent=D("50"), threshold=D("50"), max_discount=D("50"), floor=D("28000"))
+    assert out["needs_approval"] and any("lowest price" in r for r in out["approval_reasons"])
+    ok = rc.totals(D("33000"), discount_percent=D("0"), gst_percent=D("18"), inclusive=True, override=D("29000"),
+                   advance_percent=D("50"), threshold=D("50"), max_discount=D("50"), floor=D("28000"))
+    assert not ok["needs_approval"]
+
+
+def test_the_floor_comes_from_the_package_rates(db):
+    from tests.test_quote_builder_pricing import _rate, day_rate, pub
+    w = ratha(db)
+    pub(db, w, "package", "circuit", day_rate(name="Circuit", rates=[_rate("Circuit", "33000", floor_amount="28000")],
+                                              extra_guest_charge=None))
+    db.commit()
+    c, _ = calc(db, w, package_key="circuit", guests=4, discount_percent=D("20"))       # 66,000 - 20% = 52,800 < 56,000
+    assert c.ok and c.floor_cut == D("10000")
+    assert any("lowest price" in r for r in c.t["approval_reasons"])
+    c2, _ = calc(db, w, package_key="circuit", guests=4, discount_percent=D("5"))       # 62,700 >= 56,000
+    assert not any("lowest price" in r for r in c2.t["approval_reasons"])
