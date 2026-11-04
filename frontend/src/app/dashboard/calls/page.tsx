@@ -16,7 +16,7 @@ import { useCallsStore } from "@/store/calls";
 import { MobileFilterSheet, MobileFilterTrigger } from "@/components/ui/MobileFilterSheet";
 import { CallDetailPanel, OUTCOMES } from "@/components/calls/CallDetailPanel";
 import {
-  CallRow, SummaryTiles, RANGES, dayLabel,
+  CallRow, SummaryTiles, RANGES, rangeParams, dayLabel,
   type CallItem, type CallsSummary, type Tab,
 } from "@/components/calls/CallListParts";
 
@@ -139,6 +139,9 @@ export default function CallsPage() {
   const [tabPicked, setTabPicked] = useState(false);
   const pickTab = (t: Tab) => { setTabPicked(true); setTab(t); };
   const [range, setRange] = useState("last_7d");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const dates = rangeParams(range, customFrom, customTo);
   const [agentId, setAgentId] = useState("");
   const [outcome, setOutcome] = useState("");
   const [search, setSearch] = useState("");
@@ -152,8 +155,9 @@ export default function CallsPage() {
   const rangeLabel = RANGES.find(r => r.value === range)?.label ?? "Today";
 
   const { data: summary } = useQuery<CallsSummary>({
-  queryKey: ["calls", "summary", range],
-  queryFn: () => api.get("/calls/summary", { params: { date_preset: range } }).then(r => r.data),
+  queryKey: ["calls", "summary", dates],
+  queryFn: () => api.get("/calls/summary", { params: dates! }).then(r => r.data),
+  enabled: !!dates,
   staleTime: 30_000,
   refetchInterval: 60_000,
   });
@@ -165,9 +169,10 @@ export default function CallsPage() {
   });
 
   const { data, isLoading, isError, error } = useQuery<{ items: CallItem[]; total: number }>({
-  queryKey: ["calls", tab, range, agentId, outcome, page],
+  queryKey: ["calls", tab, dates, agentId, outcome, page],
+  enabled: !!dates,
   queryFn: () => {
-  const params: Record<string, string | number | boolean> = { page, limit: pageSize, date_preset: range };
+  const params: Record<string, string | number | boolean> = { page, limit: pageSize, ...dates! };
   if (tab === "callback") params.view = "needs_callback";
   if (tab === "incoming") { params.direction = "inbound"; params.missed = false; }
   if (tab === "outgoing") params.direction = "outbound";
@@ -177,7 +182,7 @@ export default function CallsPage() {
   },
   staleTime: 30_000,
   });
-  useEffect(() => { setPage(1); }, [tab, range, agentId, outcome]);
+  useEffect(() => { setPage(1); }, [tab, range, customFrom, customTo, agentId, outcome]);
   useEffect(() => {
   if (tab === "callback" && !tabPicked && !isLoading && !isError && data && data.total === 0) setTab("all");
   }, [tab, tabPicked, isLoading, isError, data]);
@@ -263,6 +268,12 @@ export default function CallsPage() {
   <select value={range} onChange={e => setRange(e.target.value)} aria-label="Date range" className={selectCls} style={selectStyle}>
   {RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
   </select>
+  {range === "custom" && (
+  <>
+  <input type="date" value={customFrom} max={customTo || undefined} onChange={e => setCustomFrom(e.target.value)} aria-label="From date" className={selectCls} style={selectStyle} />
+  <input type="date" value={customTo} min={customFrom || undefined} onChange={e => setCustomTo(e.target.value)} aria-label="To date" className={selectCls} style={selectStyle} />
+  </>
+  )}
   <div className="hidden md:contents">
   <select value={agentId} onChange={e => setAgentId(e.target.value)} aria-label="Agent" className={selectCls} style={selectStyle}>
   <option value="">All agents</option>

@@ -7,7 +7,9 @@ landed in Ratha's workspace, 23 Jul - 5 Aug 2026).
     ... --apply                                               # writes
 
 Rules
-- Calls: every call in the source tenant with that provider AND landing number moves.
+- Calls: every call in the source tenant with that provider (and landing number, when --to-number is given) moves.
+- identity_service commits as it resolves guests, so an --apply interrupted midway is not rolled back fully;
+  re-running --apply finishes it (calls already pointing at a target guest are simply moved).
 - Guests: a guest whose ONLY source-tenant activity is these calls (no other call, no WhatsApp/
   Instagram/webchat/email conversation, no stay) moves with everything that references it, plus
   its inquiries and conversations. Otherwise the guest STAYS (it is the source tenant's guest too);
@@ -66,8 +68,8 @@ def _guest_moves(db, src: str, dst: str, guest_id: str, call_ids: set) -> bool:
 
 
 def plan_and_move(db, *, src: str, dst: str, provider: str, to_number: str, apply: bool) -> dict:
-    calls = db.query(Call).filter(Call.tenant_id == src, Call.ivr_provider == provider,
-                                  Call.to_number == to_number).all()
+    q = db.query(Call).filter(Call.tenant_id == src, Call.ivr_provider == provider)
+    calls = (q.filter(Call.to_number == to_number) if to_number else q).all()
     call_ids = {c.id for c in calls}
     report = {"calls": len(calls), "guests_moved": 0, "guests_kept": 0, "calls_reattached": 0, "tables": {}}
     if not calls:
@@ -98,7 +100,7 @@ def plan_and_move(db, *, src: str, dst: str, provider: str, to_number: str, appl
             Conversation.tenant_id == src, Conversation.guest_id.in_(moving_guests))} if moving_guests else set(),
     }
 
-    for table in Base.metadata.sorted_tables:
+    for table in list(Base.metadata.tables.values()):   # not sorted_tables: that resolves every FK
         if "tenant_id" not in table.c or table.name in NEVER_REWRITE:
             continue
         conds = [table.c.id.in_(moved[table.name])] if table.name in moved and moved[table.name] and "id" in table.c else []
@@ -119,7 +121,7 @@ def main(argv=None) -> int:
     ap.add_argument("--from-slug", required=True)
     ap.add_argument("--to-slug", required=True)
     ap.add_argument("--provider", required=True)
-    ap.add_argument("--to-number", required=True, help="landing/DID number, E.164")
+    ap.add_argument("--to-number", default="", help="landing/DID number, E.164; omit to move every call of the provider")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args(argv)
 
