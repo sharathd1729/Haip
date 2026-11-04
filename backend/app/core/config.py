@@ -58,6 +58,9 @@ class Settings(BaseSettings):
 
     # ── AI provider selection ─────────────────────────────────────────────────
     LLM_PROVIDER: str = ""
+    # "claude" (+ ANTHROPIC_API_KEY) = every get_llm(task) runs on Claude first, falling back to the task's normal
+    # route on any error (adapters/llm/__init__.py). Empty = the normal routing table. All workspaces.
+    LLM_FORCE_PROVIDER: str = ""
     TRANSCRIPTION_PROVIDER: str = ""
 
     # NVIDIA NIM — one key per workload group for rate-limit isolation
