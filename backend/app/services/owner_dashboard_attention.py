@@ -77,7 +77,10 @@ def attention_cards(work: dict, owing: Optional[dict]) -> list[dict]:
     out = []
     for key, title, reason, href, pick in CARDS:
         mine = [i for i in items if pick(i)]
-        count = len(mine) if key == "followups" else len({i.get("guest_id") or i.get("title") for i in mine})
+        count = len({i.get("guest_id") or i.get("title") for i in mine})
+        if key == "followups":
+            # people, not task rows; also counts a person whose follow-up rides on another row (D-31)
+            count = (work.get("followup_people") or {}).get("open_lead_due", count)
         out.append(_people_card(key, title, reason, href, mine, count))
     if owing is None:
         out.append({"key": "owing", "title": "Bookings still owing money", "restricted": True})

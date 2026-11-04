@@ -106,8 +106,8 @@ class LostInquiryPage(BaseModel):
 
 class RevenueChartPoint(BaseModel):
     date: str           # YYYY-MM-DD
-    confirmed: float = 0.0   # revenue from confirmed+checked_in stays
-    quoted: float = 0.0      # revenue from quoted stays/inquiries
+    confirmed: float = 0.0   # stays checking in that IST day (kpi_metrics.OCCUPYING_STATUSES)
+    quoted: float = 0.0      # quotes issued that IST day (primary option per group)
 
 
 class FunnelStage(BaseModel):
@@ -138,8 +138,8 @@ class ExecutiveDashboardStats(BaseModel):
     active_inquiries_prev: int = 0
     qa_avg_score: float = 0.0
     qa_prev: float = 0.0
-    sla_compliance_pct: float = 0.0
-    sla_prev: float = 0.0
+    sla_compliance_pct: Optional[float] = None   # None = nothing due in the period ("No data"), never 100
+    sla_prev: Optional[float] = None
     ai_draft_rate_pct: float = 0.0
     ai_draft_prev: float = 0.0
     # Chart datasets

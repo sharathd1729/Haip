@@ -13,6 +13,7 @@ import { AgentConsultSettingsCard } from "@/components/settings/AgentConsultSett
 import { AgentPolicyCard } from "@/components/settings/AgentPolicyCard";
 import { SalesPlaybookCard } from "@/components/settings/SalesPlaybookCard";
 import { AiScorecardCard } from "@/components/settings/AiScorecardCard";
+import { SecurityStatusCards } from "@/components/settings/SecurityStatusCards";
 
 type Tab = "workspace" | "ai" | "notifications" | "security";
 
@@ -945,52 +946,7 @@ function SecuritySettings() {
       <SectionHeader title="Security" sub="Authentication, MFA, session policy, and compliance" />
       <MFACard />
 
-      <Card title="Session policy">
-        <div className="space-y-1">
-          <Row label="Access token expiry"    value="15 minutes" />
-          <Row label="Refresh token expiry"   value="30 days" />
-          <Row label="Brute-force lockout"     value="10 failed attempts → 30 min lock" />
-          <Row label="MFA required for"        value="Owner + Compliance roles" />
-          <Row label="Concurrent sessions"     value="Up to 3 devices" />
-        </div>
-      </Card>
-
-      <Card title="Data & Privacy (DPDP)">
-        <div className="space-y-1">
-          <Row label="Data region"           value="ap-south-1 (Mumbai, India)" />
-          <Row label="Recording encryption"  value="AES-256 + KMS per tenant" />
-          <Row label="PII redaction"         value="Before LLM processing (L1)" />
-          <Row label="Audit log retention"   value="5 years (append-only)" />
-          <Row label="Delete-on-request SLA" value="30 days" />
-        </div>
-        <div className="mt-4 flex items-center gap-3">
-          <a href="/dashboard/compliance" className="text-xs text-primary hover:underline font-medium">Open Compliance Centre →</a>
-          <button className="text-xs text-red-500 hover:underline ml-auto">Request data deletion</button>
-        </div>
-      </Card>
-
-      <Card title="Environment keys">
-        <p className="text-xs text-[var(--haip-fg-subtle)] mb-3">API keys are stored in your server environment and encrypted at rest. These show current configuration status.</p>
-        <div className="space-y-2">
-          {[
-            { key: "ANTHROPIC_API_KEY",         status: "set" },
-            { key: "DEEPGRAM_API_KEY",           status: "missing" },
-            { key: "ENCRYPTION_KEY",             status: "set" },
-            { key: "META_WEBHOOK_VERIFY_TOKEN",  status: "missing" },
-            { key: "AWS_ACCESS_KEY_ID",          status: "missing" },
-          ].map(k => (
-            <div key={k.key} className="flex items-center gap-2 py-1.5 border-b border-[var(--haip-border)] last:border-0">
-              {k.status === "set"
-                ? <CheckCircle size={13} className="text-green-500 flex-shrink-0" />
-                : <AlertCircle size={13} className="text-amber-400 flex-shrink-0" />}
-              <code className="text-xs text-[var(--haip-fg-2)] flex-1">{k.key}</code>
-              <span className={`text-[10px] font-semibold ${k.status === "set" ? "text-green-600" : "text-amber-500"}`}>
-                {k.status === "set" ? "Configured" : "Missing"}
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <SecurityStatusCards />
     </div>
   );
 }

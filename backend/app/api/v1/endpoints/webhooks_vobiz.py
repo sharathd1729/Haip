@@ -21,6 +21,7 @@ for authorization since it signs the URL, not the body.
 """
 import hashlib
 import secrets
+from datetime import datetime, timedelta, timezone
 from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import APIRouter, Request, HTTPException, Depends, Response, Query
@@ -58,6 +59,53 @@ def _phone_token(phone: str) -> str:
     """One-way hash for log correlation without exposing PII phone numbers --
     same helper shape as workers/tasks/whatsapp.py."""
     return hashlib.sha256((phone or "").encode()).hexdigest()[:12]
+
+
+def _iso_utc(value) -> str:
+    """Normalise a Vobiz time to ISO-8601 UTC ("" when missing/unreadable).
+
+    Call.started_at/ended_at are String columns compared against ISO strings
+    everywhere (QA, reports, digests, callback recovery, retention), so a raw
+    epoch-millis value ("1793595257042") or "" silently drops the call.
+    Accepts epoch ms, epoch seconds, or an ISO/"YYYY-MM-DD HH:MM:SS" string.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        if raw.replace(".", "", 1).isdigit():
+            num = float(raw)
+            # epoch ms has 13 digits today; seconds has 10
+            dt = datetime.fromtimestamp(num / 1000 if num > 1e11 else num, tz=timezone.utc)
+        else:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00").replace(" ", "T", 1))
+            if dt.tzinfo is None:
+                # shortcut: a zone-less StartTime is read as UTC (Vobiz has never sent one); revisit if it shows up
+                dt = dt.replace(tzinfo=timezone.utc)
+    except (ValueError, OverflowError, OSError):
+        return ""
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def _call_times(cached: dict, data: dict) -> tuple[str, str]:
+    """(started_at, ended_at) for the recording callback, both ISO UTC.
+
+    started_at: the answer webhook's StartTime, else RecordingStartMs, else
+    the time the answer webhook arrived, else ended_at minus RecordingDuration.
+    """
+    ended = _iso_utc(data.get("RecordingEndMs"))
+    started = (
+        _iso_utc(cached.get("started_at"))
+        or _iso_utc(data.get("RecordingStartMs"))
+        or _iso_utc(cached.get("answered_at"))
+    )
+    if not started and ended:
+        try:
+            secs = int(float(data.get("RecordingDuration") or 0))
+        except ValueError:
+            secs = 0
+        started = (datetime.fromisoformat(ended) - timedelta(seconds=secs)).isoformat()
+    return started, ended
 
 
 def _voicemail_xml(tenant: Tenant) -> str:
@@ -173,6 +221,9 @@ async def vobiz_answer_webhook(
         raise HTTPException(status_code=400, detail="Missing CallUUID")
 
     log.info("vobiz_answer_received", tenant=tenant_slug, call_uuid=call_uuid)
+    if not data.get("StartTime"):
+        # keys only (no values/PII): shows what Vobiz sends instead of StartTime
+        log.info("vobiz_answer_no_start_time", tenant=tenant_slug, payload_keys=sorted(data))
 
     # Confirmed live on Ratha: Vobiz's own "From" field for some inbound
     # calls arrives with a duplicated "91" prefix baked in (e.g. a real
@@ -190,7 +241,8 @@ async def vobiz_answer_webhook(
             "From": _to_e164_in(data.get("From", "")),
             "To": data.get("To", ""),
             "Direction": data.get("Direction", "inbound"),
-            "started_at": data.get("StartTime", ""),
+            "started_at": _iso_utc(data.get("StartTime")),
+            "answered_at": datetime.now(timezone.utc).isoformat(),
         },
         ttl=_CACHE_TTL,
     )
@@ -619,6 +671,9 @@ async def vobiz_outbound_answer_webhook(
     caller_id = did_number if did_number.startswith("+") else _to_e164_in(did_number) if did_number else guest_e164
 
     log.info("vobiz_outbound_answer_received", tenant=tenant_slug, call_uuid=call_uuid, guest_number=guest_e164)
+    if not data.get("StartTime"):
+        # keys only (no values/PII): shows what Vobiz sends instead of StartTime
+        log.info("vobiz_answer_no_start_time", tenant=tenant_slug, payload_keys=sorted(data))
 
     set_cached(
         _cache_key(tenant.id, call_uuid),
@@ -626,7 +681,8 @@ async def vobiz_outbound_answer_webhook(
             "From": did_number,
             "To": guest_e164,
             "Direction": "outbound",
-            "started_at": data.get("StartTime", ""),
+            "started_at": _iso_utc(data.get("StartTime")),
+            "answered_at": datetime.now(timezone.utc).isoformat(),
         },
         ttl=_CACHE_TTL,
     )
@@ -723,6 +779,7 @@ async def vobiz_recording_webhook(
         return {"status": "ignored"}
 
     cached = get_cached(_cache_key(tenant.id, call_uuid)) or {}
+    started_at, ended_at = _call_times(cached, data)
 
     merged = {
         "CallUUID": call_uuid,
@@ -732,8 +789,8 @@ async def vobiz_recording_webhook(
         "RecordUrl": data.get("RecordFile") or data.get("RecordUrl", ""),
         "RecordingDuration": data.get("RecordingDuration", "0"),
         "agent_number": creds.get("forward_number", ""),
-        "started_at": cached.get("started_at", ""),
-        "ended_at": data.get("RecordingEndMs", ""),
+        "started_at": started_at,
+        "ended_at": ended_at,
         "ivr_dial_status": get_cached(_dial_status_cache_key(tenant.id, call_uuid)) or "",
     }
 

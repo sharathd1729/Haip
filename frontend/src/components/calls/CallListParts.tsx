@@ -5,6 +5,7 @@
 import { Phone, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed, Play, CheckCircle2 } from "@/lib/icons";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
 import { OUTCOMES } from "@/components/calls/CallDetailPanel";
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
@@ -96,9 +97,9 @@ export function SummaryTiles({
 }: { s?: CallsSummary; rangeLabel: string; onPick: (tab: Tab) => void }) {
   const tiles: { label: string; value: string; note: string; tone: string; dot: string; tab?: Tab; href?: string }[] = [
   { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-[var(--haip-fg)] ", dot: "bg-[var(--haip-border-strong)]", tab: "all" },
-  { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: s?.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-[var(--haip-status-danger-fg)]", dot: "bg-red-600", tab: "callback" },
-  { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: "of incoming", tone: "text-[var(--haip-status-success-fg)]", dot: "bg-[var(--haip-status-success-fg)]", tab: "incoming" },
-  { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: "answered calls", tone: "text-primary", dot: "bg-primary", tab: "incoming" },
+  { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: !s ? "" : s.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-[var(--haip-status-danger-fg)]", dot: "bg-red-600", tab: "callback" },
+  { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: s ? "of incoming" : "", tone: "text-[var(--haip-status-success-fg)]", dot: "bg-[var(--haip-status-success-fg)]", tab: "incoming" },
+  { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: s ? "answered calls" : "", tone: "text-primary", dot: "bg-primary", tab: "incoming" },
   {
   label: "Avg QA score", value: s?.avg_qa_score != null ? String(Math.round(s.avg_qa_score)) : "–",
   note: s?.avg_qa_change != null ? `${s.avg_qa_change >= 0 ? "▲" : "▼"} ${Math.abs(s.avg_qa_change)} vs previous` : "",
@@ -114,7 +115,9 @@ export function SummaryTiles({
   <span className="flex items-center gap-1.5 text-xs font-semibold truncate" style={{ color: "var(--haip-fg-subtle)" }}>
   <span className={cn("w-2 h-2 rounded-full flex-shrink-0", t.dot)} />{t.label}
   </span>
-  <span className={cn("block text-2xl font-bold tabular-nums mt-1", t.tone)} style={{ fontFamily: "var(--font-display)" }}>{t.value}</span>
+  {/* Until the numbers arrive: a skeleton, never a dash or a 0 that reads as real */}
+  {s ? <span className={cn("block text-2xl font-bold tabular-nums mt-1", t.tone)} style={{ fontFamily: "var(--font-display)" }}>{t.value}</span>
+    : <Skeleton className="mt-1.5 h-7 w-14" />}
   <span className="block text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>{t.note || " "}</span>
   </>
   );
