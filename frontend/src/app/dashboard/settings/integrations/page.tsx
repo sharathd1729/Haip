@@ -317,6 +317,7 @@ function ConnectModal({
     if (isRentalWise)  return rwAuthMode === "token" ? !!fields.api_token?.trim() : !!(fields.username?.trim() && fields.password?.trim());
     if (isBasicAuth)   return !!(fields.username?.trim() && fields.password?.trim());
     if (isVobiz)       return !!(fields.api_key?.trim() && fields.api_secret?.trim() && fields.forward_number?.trim() && fields.webhook_secret?.trim());
+    if (provider === "mcube") return !!fields.webhook_secret?.trim();   // API key only needed for outbound
     if (isIvr)         return !!(fields.api_key?.trim() && fields.webhook_secret?.trim());
     if (isHostaway)    return !!(fields.account_id?.trim() && fields.api_secret?.trim());
     return !!fields.api_key?.trim();

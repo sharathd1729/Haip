@@ -81,7 +81,7 @@ HAIP is the AI intelligence and communication layer for Indian luxury hospitalit
 
 Active clients:
 - Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved CallerDesk → Mcube → Vobiz-only; Mcube's Integration row is disconnected, not deleted)
-- Jade (pool villas, Bangalore) — Acefone IVR, onboarding
+- Jade (pool villas, Bangalore) — Mcube IVR (inbound webhooks only; no API key needed), onboarding
 
 ## TECH STACK — LOCKED, DO NOT SUGGEST ALTERNATIVES
 
@@ -95,7 +95,7 @@ Active clients:
 | Transcription | Provider chosen by `TRANSCRIPTION_PROVIDER` or by which key is set (Sarvam, then Groq, then Deepgram, else local Whisper). **No runtime failover**: a failed call only retries the same provider (5×, backoff). Sarvam model = `SARVAM_STT_MODEL` (default `saaras:v3` translate job; `saaras:v4` = plain job in translate mode + `SARVAM_KEYTERMS`, opt-in after `scripts/compare_sarvam_models.py` on a real call); SDK `sarvamai==0.1.33` |
 | LLM | Router pattern — see LLM routing table below |
 | Auth | NextAuth.js + JWT (15m) + refresh token |
-| IVR | Vobiz (Ratha) + Acefone (Jade) — CallerDesk/Mcube adapters still exist in code (historical Ratha providers, not currently active for any tenant) |
+| IVR | Vobiz (Ratha) + Mcube (Jade, inbound only) — CallerDesk/Acefone adapters still exist in code, not active for any tenant |
 | WhatsApp | Meta Cloud API via client's own WABA credentials |
 | Region | AWS Mumbai ap-south-1 |
 
@@ -414,8 +414,8 @@ with structlog kwargs (`TypeError` at INFO, how production runs); Phase 0 found 
 ## DOGRAH VOICE AI INTEGRATION (M5-Parallel)
 
 ### Active adapters
-- `backend/app/adapters/ivr/` — CallerDesk, Acefone, Mcube, Vobiz (existing, do not touch). Only Acefone (Jade) and Vobiz (Ratha) are live;
-  CallerDesk and Mcube stay in the code (Mcube's webhook rejects posts once its Integration is disconnected, migration `064`) for no tenant.
+- `backend/app/adapters/ivr/` — CallerDesk, Acefone, Mcube, Vobiz (existing, do not touch). Only Vobiz (Ratha) and Mcube (Jade, inbound only; the connect form needs no API key for Mcube)
+  are live; CallerDesk and Acefone stay in the code for no tenant. Mcube's webhook rejects posts while a tenant's Mcube Integration is missing or disconnected (migration `064`).
 - `backend/app/adapters/voice/dograh/` — Dograh voice AI adapter (new, M5-parallel)
 
 ### Voice platform routing

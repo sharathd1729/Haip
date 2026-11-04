@@ -947,7 +947,8 @@ def connect_via_api_key(
     # tenants aren't forced to reconnect; click-to-call itself 400s with a
     # clear message if it's missing when actually needed.
     did_number = (body.get("did_number") or "").strip()
-    if not api_key:
+    # Mcube pushes inbound calls to the webhook URL; its API key is only for outbound click-to-call.
+    if not api_key and kind != "mcube":
         raise HTTPException(status_code=400, detail="api_key is required")
 
     _IVR_KINDS = {"callerdesk", "acefone", "mcube", "vobiz"}
@@ -991,7 +992,7 @@ def connect_via_api_key(
             raise HTTPException(status_code=400, detail="forward_number (agent's mobile, E.164) is required for vobiz")
 
     row = _upsert_integration(db, current_user.tenant_id, kind)
-    creds: dict = {"api_key": api_key}
+    creds: dict = {"api_key": api_key} if api_key else {}
     if api_secret:
         creds["api_secret"] = api_secret
     if webhook_secret:

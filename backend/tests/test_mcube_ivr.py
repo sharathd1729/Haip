@@ -262,3 +262,20 @@ def test_webhook_info_uses_configured_public_base_url(client, tenant_and_user, d
         headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
     )
     assert res.json()["webhook_url"] == f"https://api.example.test/api/v1/webhooks/mcube/{tenant.slug}/my-secret-123"
+
+
+# ── Connect without an API key (Mcube inbound needs only the webhook URL) ────
+
+def test_connect_mcube_without_api_key_then_webhook_url_is_shown(client, tenant_and_user, db):
+    auth = {"Authorization": f"Bearer {tenant_and_user['access_token']}"}
+    res = client.post("/api/v1/integrations/mcube/connect-key", json={"webhook_secret": "jade-secret-123"}, headers=auth)
+    assert res.status_code == 200, res.text
+    info = client.get("/api/v1/integrations/mcube/webhook-info", headers=auth).json()
+    assert info["webhook_url"].endswith("/jade-secret-123")
+
+
+def test_connect_other_ivr_still_requires_api_key(client, tenant_and_user):
+    auth = {"Authorization": f"Bearer {tenant_and_user['access_token']}"}
+    res = client.post("/api/v1/integrations/callerdesk/connect-key", json={"webhook_secret": "s"}, headers=auth)
+    assert res.status_code == 400
+    assert "api_key" in res.text
