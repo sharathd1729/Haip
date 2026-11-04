@@ -279,3 +279,20 @@ def test_connect_other_ivr_still_requires_api_key(client, tenant_and_user):
     res = client.post("/api/v1/integrations/callerdesk/connect-key", json={"webhook_secret": "s"}, headers=auth)
     assert res.status_code == 400
     assert "api_key" in res.text
+
+
+def test_webhook_old_slug_alias_delivers_to_new_tenant(client, tenant_and_user, db, monkeypatch):
+    """Mcube keeps posting to an old tenant's URL; MCUBE_WEBHOOK_SLUG_ALIASES routes it to the new tenant,
+    checked against the NEW tenant's webhook_secret."""
+    tenant = tenant_and_user["tenant"]
+    _connect_mcube(db, tenant.id, webhook_secret="old-url-secret")
+    monkeypatch.setattr("app.api.v1.endpoints.webhooks_mcube.settings.MCUBE_WEBHOOK_SLUG_ALIASES", f"old-ratha:{tenant.slug}")
+    dispatched = {}
+    from app.workers.tasks import call_ingest
+    monkeypatch.setattr(call_ingest.ingest_call, "delay", lambda **kw: dispatched.update(kw))
+
+    res = client.post("/api/v1/webhooks/mcube/old-ratha/old-url-secret", content=json.dumps(_SAMPLE_INBOUND_PAYLOAD))
+    assert res.status_code == 200
+    assert dispatched["tenant_id"] == tenant.id
+
+    assert client.post("/api/v1/webhooks/mcube/old-ratha/wrong", content=json.dumps(_SAMPLE_INBOUND_PAYLOAD)).status_code == 401
