@@ -167,6 +167,17 @@ def test_property_scoped_knowledge_is_not_offered_for_another_property(db):
     assert _contents(db, t.id, "what is the check-in time") == []
 
 
+def test_with_no_property_known_a_passage_only_one_property_has_is_offered(db):
+    """Most WhatsApp chats have no property: a property's passage used to be invisible to all of them."""
+    t = _tenant(db)
+    a, b = _property(db, t.id, "Goa Caravan"), _property(db, t.id, "Coorg Caravan")
+    _indexed(db, t.id, "Is there a bunk bed?", "Goa Caravan has a bunk bed for kids.", property_id=a.id)
+    _indexed(db, t.id, "What is the check-in time?", "Check-in at Coorg is 11 am.", property_id=b.id)
+    assert _contents(db, t.id, "is there a bunk bed") == ["Goa Caravan has a bunk bed for kids."]
+    hit = ks.search(db, t.id, "is there a bunk bed")[0]
+    assert hit["property_id"] == a.id
+
+
 def test_one_tenants_knowledge_is_invisible_to_another(db):
     t1, t2 = _tenant(db, "Ratha"), _tenant(db, "Jade")
     _indexed(db, t1.id, "Is there a bonfire?", "Bonfire costs 1500.")
@@ -187,6 +198,25 @@ def test_a_failed_indexing_is_recorded_with_its_error_and_attempt_count(db):
     db.refresh(e)
     assert (e.embedding_status, e.embedding_error, e.embedding_attempts) == ("done", None, 0)
     assert e.embedded_at is not None
+
+
+def test_one_save_uses_one_indexing_attempt_however_often_the_task_retries(db):
+    """The task retries 3 times within minutes; counting each try let one save use 4 of the sweep's 6 attempts."""
+    from app.workers.tasks import embed_knowledge as task
+
+    t = _tenant(db)
+    e = _entry(db, t.id, "Is there a kitchen?", "There is a kitchenette.")
+    calls = []
+
+    def boom(texts, kind):
+        calls.append(1)
+        raise EmbeddingError("NIM 504")
+
+    with patch.object(task, "SessionLocal", return_value=db), patch.object(db, "close"),          patch.object(ks, "embed_texts_sync", boom), patch.object(task, "_ensure_phrasings"):
+        task.embed_entry.apply(args=(t.id, e.id))
+    db.refresh(e)
+    assert len(calls) == task.embed_entry.max_retries + 1
+    assert (e.embedding_status, e.embedding_attempts) == ("failed", 1)
 
 
 def test_a_storage_error_is_recorded_not_left_as_silent_pending(db):
@@ -250,6 +280,38 @@ def test_the_sweep_stops_after_repeated_provider_failures(db):
     assert len(calls) == task._CIRCUIT_BREAKER
 
 
+def test_given_up_entries_never_crowd_newer_ones_out_of_the_sweep(db):
+    """The sweep took the `limit` oldest pending/failed rows and only then dropped the given-up ones."""
+    from app.workers.tasks import embed_knowledge as task
+
+    t = _tenant(db)
+    old = datetime.now(timezone.utc) - timedelta(days=3)
+    for i in range(3):
+        dead = _entry(db, t.id, f"Old question {i}?", f"Old answer {i}.")
+        dead.embedding_status, dead.embedding_attempts, dead.updated_at = "failed", ks.MAX_AUTO_ATTEMPTS, old
+    new = _entry(db, t.id, "Do you have towels?", "Towels are provided.")
+    new.updated_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db.commit()
+
+    with patch.object(task, "SessionLocal", return_value=db), patch.object(db, "close"):
+        result = task.embed_pending.run(t.id, limit=3, min_age_seconds=120)
+    db.refresh(new)
+    assert result["attempted"] == 1 and new.embedding_status == "done"
+
+
+def test_the_sweep_also_writes_alternate_phrasings(db):
+    from app.workers.tasks import embed_knowledge as task
+
+    t = _tenant(db)
+    e = _entry(db, t.id, "Do you have towels?", "Towels are provided.")
+    e.updated_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db.commit()
+    with patch.object(task, "SessionLocal", return_value=db), patch.object(db, "close"),          patch("app.services.phrasing_service.generate_phrasings_sync", return_value=["Towels provided?"]):
+        task.embed_pending.run(t.id, limit=50, min_age_seconds=120)
+    db.refresh(e)
+    assert e.alt_phrasings == ["Towels provided?"] and e.embedding_status == "done"
+
+
 # ─── re-importing a page or file ──────────────────────────────────────────────
 
 def test_reimporting_a_page_skips_duplicates_and_marks_removed_passages_out_of_date(db):
@@ -271,6 +333,30 @@ def test_reimporting_a_page_skips_duplicates_and_marks_removed_passages_out_of_d
     db.refresh(e)
     assert e.stale_since is not None
     assert _contents(db, t.id, "weekend rate") == []       # the removed price is no longer retrievable
+
+
+def test_a_small_page_edit_keeps_the_approval_of_text_already_approved(db):
+    """A page edit shifts every chunk boundary: every approved passage went out of date and every new chunk waited for
+    approval, so the bot lost the whole page. Re-cut approved text keeps its approval; a chunk with new text still waits."""
+    t = _tenant(db)
+    url = "https://ratha.example/faq"
+    places = ["Kabini", "Coorg", "Hampi", "Gokarna", "Chikmagalur", "Mysuru", "Ooty", "Wayanad"]
+    paras = [f"The {p} trip runs through quiet forest roads and small villages, with stops for tea, short walks and a long "
+             f"lunch by the river. Guests sleep in the caravan at a private camp site near {p}, and the driver stays nearby."
+             for p in places]
+    first = knowledge_ingest.ingest_chunks_report(db, t.id, "\n\n".join(paras), source="website", source_url=url)
+    assert len(first.created) >= 2
+    for e in first.created:
+        e.review_status = "approved"
+    db.commit()
+
+    edited = ["New this season: the weekend rate is 9500 and kids under five travel free on every route."] + paras
+    second = knowledge_ingest.ingest_chunks_report(db, t.id, "\n\n".join(edited), source="website", source_url=url)
+    kept = [e for e in second.created if e.review_status == "approved"]
+    waiting = [e for e in second.created if e.review_status == "pending"]
+    assert second.kept_approved == len(kept) >= 1
+    assert all("9500" not in e.content for e in kept)
+    assert any("9500" in e.content for e in waiting)
 
 
 def test_a_passage_that_returns_to_the_page_is_current_again(db):

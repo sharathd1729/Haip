@@ -14,6 +14,7 @@ GET|PUT /quote-calculator/settings         tax, advance, validity and approval-l
 
 Everything needs `quotes.write` and is scoped to the caller's tenant and lead visibility.
 """
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -142,6 +143,12 @@ def put_settings(body: QuoteSettingsIn, current_user: User = Depends(get_current
     cfg = dict(tenant.brand_config or {})
     before = dict(cfg.get("quotes") or {})
     new = {**before, **body.model_dump(mode="json")}
+    # The form sends every field, including GST and advance it loaded from the invoice profile / payment terms. Saving those
+    # unchanged pinned them: a later payment-terms or invoice change never reached quotes again. Keep only real overrides.
+    inherited = cat.settings(db, tenant, saved=False)
+    for k in cat.INHERITED:
+        if Decimal(str(new[k])) == Decimal(str(inherited[k])):
+            new.pop(k)
     cfg["quotes"] = new
     tenant.brand_config = cfg
     flag_modified(tenant, "brand_config")

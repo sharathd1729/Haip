@@ -316,3 +316,38 @@ def test_balance_reminder_task_skips_tenants_that_did_not_opt_in(db, tenant_and_
     with patch("app.services.balance_reminder_service.run_for_tenant") as run:
         assert invoice_tasks.balance_reminders.run() == {}
     run.assert_not_called()
+
+
+# ── the team's trip file appears when the booking is paid (it waited for the 06:10 sync) ──────────────────────
+
+def _first_payment(db, tenant_and_user, business_type):
+    stay = _setup(db, tenant_and_user)
+    tenant = tenant_and_user["tenant"]
+    tenant.business_type = business_type
+    pay = StayPayment(tenant_id=tenant.id, stay_id=stay.id, amount=8000, method="razorpay", external_id="pay_o", paid_on=date.today())
+    db.add(pay)
+    db.commit()
+    return tenant, stay, pay
+
+
+def test_a_paid_booking_gets_its_ops_file_at_once(db, tenant_and_user, q):
+    from app.models.ops_files import OpsFile
+    tenant, stay, pay = _first_payment(db, tenant_and_user, "caravan")
+    assert payment_followup_service.after_payment(db, tenant.id, pay.id)["status"] == "done"
+    assert db.query(OpsFile).filter_by(tenant_id=tenant.id, stay_id=stay.id).count() == 1
+    payment_followup_service.after_payment(db, tenant.id, pay.id)                       # retried: still one file
+    assert db.query(OpsFile).filter_by(tenant_id=tenant.id, stay_id=stay.id).count() == 1
+
+
+def test_no_ops_file_without_an_ops_pack(db, tenant_and_user, q):
+    from app.models.ops_files import OpsFile
+    tenant, stay, pay = _first_payment(db, tenant_and_user, None)
+    assert payment_followup_service.after_payment(db, tenant.id, pay.id)["status"] == "done"
+    assert db.query(OpsFile).filter_by(tenant_id=tenant.id).count() == 0
+
+
+def test_an_ops_failure_never_blocks_the_invoice(db, tenant_and_user, q):
+    tenant, stay, pay = _first_payment(db, tenant_and_user, "caravan")
+    with patch("app.services.ops_trip_service.ensure_file", side_effect=RuntimeError("ops down")):
+        res = payment_followup_service.after_payment(db, tenant.id, pay.id)
+    assert res["status"] == "done" and res["kind"] == "invoice"

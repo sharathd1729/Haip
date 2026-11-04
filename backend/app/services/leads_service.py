@@ -29,6 +29,7 @@ from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.pipeline_stage import PipelineStage
 from app.services import lead_list_extras
+from app.services.date_presets import ist_range_to_utc
 from app.schemas.leads import (
     LeadCardSchema, LeadDetailSchema, LeadsListResponse, NeedsActionBucket,
     NeedsActionKpis, NeedsActionResponse, PendingDraftSchema,
@@ -815,10 +816,11 @@ def get_leads_pipeline(
         q = q.filter(Inquiry.source == source)
     if occasion:
         q = q.filter(Inquiry.occasion.ilike(f"%{occasion}%"))
-    if date_from:
-        q = q.filter(Inquiry.created_at >= date_from)
-    if date_to:
-        q = q.filter(Inquiry.created_at <= date_to)
+    start, end = _ist_bounds(date_from, date_to)
+    if start:
+        q = q.filter(Inquiry.created_at >= start)
+    if end:
+        q = q.filter(Inquiry.created_at <= end)
     if checkin_date_from:
         q = q.filter(Inquiry.check_in >= checkin_date_from)
     if checkin_date_to:
@@ -909,6 +911,17 @@ def _decorate_extras(db: Session, tenant_id: str, cards: list, inquiries: list) 
         log.warning("lead_list_extras_failed", tenant_id=tenant_id, error=str(exc)[:200])
 
 
+def _ist_bounds(date_from: Any, date_to: Any) -> tuple[Any, Any]:
+    """An inclusive IST calendar date ('YYYY-MM-DD', from date_presets.resolve_range) -> the UTC instant that starts / ends
+    that IST day; a full timestamp is used as given. Comparing the bare date string with a timestamp column ended "Today"
+    at midnight UTC of today, so the Leads "Today" preset showed almost nothing."""
+    def day(v):
+        return isinstance(v, str) and len(v) == 10
+    start = ist_range_to_utc(date_from, date_from)[2] if day(date_from) else (date_from or None)
+    end = ist_range_to_utc(date_to, date_to)[3] if day(date_to) else (date_to or None)
+    return start, end
+
+
 # `assigned_to=unassigned` on the leads list means "nobody owns it yet".
 UNASSIGNED = "unassigned"
 
@@ -937,10 +950,11 @@ def _booked_inquiry_ids(
             InquiryStageLog.to_stage.in_(won_keys),
         )
     )
-    if date_from:
-        q = q.filter(InquiryStageLog.changed_at >= date_from)
-    if date_to:
-        q = q.filter(InquiryStageLog.changed_at <= date_to)
+    start, end = _ist_bounds(date_from, date_to)
+    if start:
+        q = q.filter(InquiryStageLog.changed_at >= start)
+    if end:
+        q = q.filter(InquiryStageLog.changed_at <= end)
     return [r.inquiry_id for r in q.all()]
 
 
@@ -1001,10 +1015,11 @@ def _build_stage_summary(
     # (they used to be ignored, so with a date range set a stage chip said 40 while the column held 12).
     if occasion:
         q = q.filter(Inq.occasion.ilike(f"%{occasion}%"))
-    if date_from:
-        q = q.filter(Inq.created_at >= date_from)
-    if date_to:
-        q = q.filter(Inq.created_at <= date_to)
+    start, end = _ist_bounds(date_from, date_to)
+    if start:
+        q = q.filter(Inq.created_at >= start)
+    if end:
+        q = q.filter(Inq.created_at <= end)
     if checkin_date_from:
         q = q.filter(Inq.check_in >= checkin_date_from)
     if checkin_date_to:

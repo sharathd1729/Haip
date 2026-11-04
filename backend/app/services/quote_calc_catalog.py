@@ -43,9 +43,13 @@ def _dec(v, default: Decimal) -> Decimal:
         return default
 
 
-def settings(db: Session, tenant: Tenant, today: Optional[date] = None) -> dict:
+INHERITED = ("gst_percent", "advance_percent")      # fall back to the invoice profile / published payment terms
+
+
+def settings(db: Session, tenant: Tenant, today: Optional[date] = None, *, saved: bool = True) -> dict:
+    """The quote defaults. ``saved=False`` = what they would be with nothing saved (the inherited values)."""
     cfg = tenant.brand_config or {}
-    raw = cfg.get("quotes") or {}
+    raw = (cfg.get("quotes") or {}) if saved else {}
     out = dict(DEFAULTS)
     inv = cfg.get("invoice_profile") or {}
     if raw.get("gst_percent") is not None:

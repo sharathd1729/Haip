@@ -165,3 +165,36 @@ def test_another_tenants_webhook_cannot_touch_the_link(client, db, w, rzp, q):
     assert res.json()["status"] == "ignored"
     db.expire_all()
     assert db.query(StayPaymentLink).filter_by(id=links[p["id"]].id).one().status == "created"
+
+
+# ── the vehicle a paid quote books (the AI agent's quotes name none: they could land on any free vehicle) ─────────
+
+def _quote_on(rec, nights=2):
+    from types import SimpleNamespace
+    return SimpleNamespace(snapshot={"inputs": {}}, record_refs=[{"kind": "package", "record_id": rec.id, "version": rec.version}],
+                           check_in=START, check_out=START + timedelta(days=nights))
+
+
+def test_a_quote_with_no_vehicle_books_one_its_package_allows(db):
+    from tests.test_quote_builder_pricing import day_rate, pub, ratha
+    w = ratha(db)
+    r2 = db.query(Property).filter_by(tenant_id=w.t.id, name="Ratha 2").one()
+    rec = pub(db, w, "package", "ratha-2-only", day_rate(name="Ratha 2 only", vehicle_property_ids=[r2.id]))
+    db.commit()
+    assert quote_payment_service._vehicle(db, w.t.id, _quote_on(rec)).id == r2.id           # Ratha 1 is free, but not allowed
+    from app.models.guest import Guest
+    g = Guest(id=str(uuid.uuid4()), tenant_id=w.t.id, name="Other guest", phone="+919800055501")
+    db.add(g)
+    db.flush()
+    db.add(Stay(id=str(uuid.uuid4()), tenant_id=w.t.id, guest_id=g.id, property_id=r2.id, check_in=START,
+                check_out=START + timedelta(days=2), status="confirmed", total_amount=1))
+    db.commit()
+    assert quote_payment_service._vehicle(db, w.t.id, _quote_on(rec)) is None              # taken: staff decide, never Ratha 1
+
+
+def test_a_package_with_no_vehicle_limit_takes_the_first_free_one(db):
+    from tests.test_quote_builder_pricing import day_rate, pub, ratha
+    w = ratha(db)
+    rec = pub(db, w, "package", "any-van", day_rate(name="Any van"))
+    db.commit()
+    assert quote_payment_service._vehicle(db, w.t.id, _quote_on(rec)).name == "Ratha 1"

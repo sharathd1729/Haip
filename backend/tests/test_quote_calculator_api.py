@@ -383,3 +383,23 @@ def test_the_lead_card_and_timeline_show_the_latest_quote(client, db, w):
     listed = client.get("/api/v1/leads", headers=_h(w.owner)).json()
     card = next(c for c in listed["leads"] if c["inquiry_id"] == inq.id)
     assert card["latest_quote"]["quote_id"] == out["quote_id"]
+
+
+def test_saving_the_defaults_unchanged_keeps_following_the_payment_terms(client, db, w):
+    """The form sends every field back; GST and advance it had loaded from the invoice profile / payment terms used to be
+    pinned by the first save, so a later change to the payment terms never reached quotes."""
+    from app.models.tenant import Tenant
+    from tests.test_quote_builder_pricing import pub
+    loaded = client.get(f"{API}/settings", headers=_h(w.mgr)).json()
+    assert Decimal(loaded["advance_percent"]) == 50                                      # the published payment terms
+    form = {k: loaded[k] for k in ("gst_percent", "prices_include_gst", "advance_percent", "valid_days",
+                                    "approval_threshold_percent", "max_discount_percent", "greeting")}
+    assert client.put(f"{API}/settings", json={**form, "valid_days": 5}, headers=_h(w.mgr)).status_code == 200
+    stored = db.query(Tenant).filter_by(id=w.t.id).one().brand_config["quotes"]
+    assert "advance_percent" not in stored and "gst_percent" not in stored and stored["valid_days"] == 5
+    pub(db, w, "payment_policy", None, {"advance_percent": 30, "balance_due_days_before_checkin": 1, "confirmed_by_ratha": True})
+    db.commit()
+    assert client.get(f"{API}/settings", headers=_h(w.mgr)).json()["advance_percent"] == "30.00"
+    # a real override is kept
+    client.put(f"{API}/settings", json={**form, "advance_percent": "40"}, headers=_h(w.mgr))
+    assert db.query(Tenant).filter_by(id=w.t.id).one().brand_config["quotes"]["advance_percent"] == "40"

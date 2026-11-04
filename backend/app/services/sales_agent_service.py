@@ -209,9 +209,10 @@ def _quote_step(db, tenant, conversation, inquiry, guest, details, req, turn: Sa
 _LEGACY_PRICE_KEYS = ("price_per_night", "currency")
 
 
-def merge_facts(tenant, grounded_facts: list, turn: SalesTurn) -> list:
+def merge_facts(tenant, grounded_facts: list, turn: SalesTurn, packages_only: bool = False) -> list:
     """The facts the prompt and guards see. The agent's calendar check and package quote replace the older lookups for the same
-    thing; in grounded price mode with published packages, the only figures left are the package price engine's."""
+    thing; in grounded price mode with published packages, and always for a caravan workspace (``packages_only``,
+    price_policy.packages_only), the only figures left are the package price engine's."""
     out = list(grounded_facts)
     mine = {f.get("tool") for f in turn.facts}
     if "check_availability" in mine:
@@ -219,7 +220,7 @@ def merge_facts(tenant, grounded_facts: list, turn: SalesTurn) -> list:
     if "package_quote" in mine:
         out = [f for f in out if f.get("tool") != "package_quote"]
     packages = any(f.get("tool") == "business_data" and (f.get("result") or {}).get("packages") for f in out)
-    if price_mode(tenant) == "grounded" and packages:
+    if packages_only or (price_mode(tenant) == "grounded" and packages):
         cleaned = []
         for f in out:
             if f.get("tool") == "get_quote":

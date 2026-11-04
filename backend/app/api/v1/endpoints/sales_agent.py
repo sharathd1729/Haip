@@ -6,6 +6,7 @@ GET  /ai/routing                     the guest-reply model and fallbacks; keys p
 GET  /sales-actions?inquiry_id=|conversation_id=&status=   the agent's quotes for a lead       leads.read or quotes.write
 POST /sales-actions/{id}/approve     send THAT quote + payment link (quote_send_service)         quotes.write
 POST /sales-actions/{id}/reject      dismiss it                                                  quotes.write
+POST /sales-actions/{id}/confirm-stay  a person confirmed the overnight stay (unlocks Send)       quotes.write
 
 Approve/reject are guarded (pending only, 409 otherwise) and audited; another tenant's action or a lead the caller cannot see
 answers 404. Nothing here calls a language model.
@@ -19,7 +20,7 @@ from app.api.v1.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.schemas.sales_agent import SalesActionRejectIn, SalesAgentSettingsIn
+from app.schemas.sales_agent import SalesActionRejectIn, SalesActionStayIn, SalesAgentSettingsIn
 from app.services import llm_routing_report, sales_action_service, sales_agent_settings
 from app.services.authz_service import has_capability, require_capability
 
@@ -84,5 +85,14 @@ def reject(action_id: str, body: Optional[SalesActionRejectIn] = None, current_u
            db: Session = Depends(get_db), _cap=_write):
     try:
         return sales_action_service.reject(db, current_user, action_id, body.reason if body else None)
+    except sales_action_service.ActionError as exc:
+        raise _err(exc)
+
+
+@router.post("/sales-actions/{action_id}/confirm-stay")
+def confirm_stay(action_id: str, body: Optional[SalesActionStayIn] = None, current_user: User = Depends(get_current_user),
+                 db: Session = Depends(get_db), _cap=_write):
+    try:
+        return sales_action_service.confirm_stay(db, current_user, action_id, body.stay_name if body else None)
     except sales_action_service.ActionError as exc:
         raise _err(exc)

@@ -48,7 +48,9 @@ def readiness(db: Session, tenant) -> dict:
 
 
 def view(db: Session, tenant) -> dict:
-    return {"price_disclosure": price_mode(tenant), "sales_agent_mode": mode(tenant), "readiness": readiness(db, tenant)}
+    from app.services import sales_agent_readiness
+    return {"price_disclosure": price_mode(tenant), "sales_agent_mode": mode(tenant), "readiness": readiness(db, tenant),
+            "checklist": sales_agent_readiness.checklist(db, tenant)}
 
 
 def update(db: Session, tenant, actor_id: str, price_disclosure: Optional[str] = None, sales_agent_mode: Optional[str] = None) -> dict:

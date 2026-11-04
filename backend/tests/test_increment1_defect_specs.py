@@ -239,13 +239,15 @@ def test_control_clear_requests_to_stop_are_opt_outs(text):
 
 
 @pytest.mark.parametrize("text", [
-    pytest.param("I want to cancel my booking", marks=PR(2, "booking cancellation is not an opt-out")),
-    pytest.param("Please cancel my reservation for Dec 12", marks=PR(2, "booking cancellation is not an opt-out")),
-    pytest.param("cancel", marks=PR(2, "a bare ambiguous word is not an opt-out")),
-    pytest.param("can we stop by the market on the way", marks=PR(2, "'stop' inside a sentence about travel")),
-    pytest.param("remove the bonfire add-on please", marks=PR(2, "'remove' is about an add-on")),
-    pytest.param("can you block the dates for us", marks=PR(2, "'block' is about dates")),
-    pytest.param("we may end the trip a day early", marks=PR(2, "'end' is about the trip")),
+    "I want to cancel my booking",                  # booking cancellation is not an opt-out
+    "Please cancel my reservation for Dec 12",
+    "cancel",                                       # a bare ambiguous word is not an opt-out
+    "can we stop by the market on the way",         # 'stop' inside a sentence about travel
+    "remove the bonfire add-on please",             # 'remove' is about an add-on
+    "can you block the dates for us",               # 'block' is about dates
+    "we may end the trip a day early",              # 'end' is about the trip
+    "Is it free end of December?",
+    "please don't send me the quote yet",
 ])
 def test_ordinary_sentences_and_booking_cancellations_do_not_opt_the_guest_out(text):
     r = detect_opt_out(text)
@@ -253,11 +255,12 @@ def test_ordinary_sentences_and_booking_cancellations_do_not_opt_the_guest_out(t
 
 
 @pytest.mark.parametrize("text", [
-    pytest.param("yes", marks=PR(2, "'yes' answers any question; it is not marketing consent")),
-    pytest.param("Yes please send the quote", marks=PR(2, "'yes' answers any question")),
-    pytest.param("begin the trip from Bengaluru", marks=PR(2, "'begin' is about the trip")),
-    pytest.param("start date is 12 Dec", marks=PR(2, "'start' is about the trip")),
-    pytest.param("हाँ", marks=PR(2, "'हाँ' (yes) answers any question")),
+    "yes",                                          # 'yes' answers any question; it is not marketing consent
+    "Yes please send the quote",
+    "begin the trip from Bengaluru",                # 'begin' is about the trip
+    "start date is 12 Dec",                         # 'start' is about the trip
+    "हाँ",                                          # 'हाँ' (yes) answers any question
+    "I don't want to subscribe",
 ])
 def test_ambiguous_words_never_record_marketing_consent(text):
     r = detect_opt_out(text)
@@ -270,8 +273,7 @@ def test_control_an_explicit_whole_message_keyword_still_opts_in(text):
     assert r.matched and r.direction == "opt_in"
 
 
-@PR(2, "'do not contact me' style requests must be recognised")
-@pytest.mark.parametrize("text", ["do not contact me again", "please don't message me"])
+@pytest.mark.parametrize("text", ["do not contact me again", "please don't message me", "please don’t message me", "no more messages please"])
 def test_explicit_do_not_contact_requests_are_recognised(text):
     assert detect_opt_out(text).matched
 

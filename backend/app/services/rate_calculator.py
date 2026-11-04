@@ -59,7 +59,7 @@ def addon_suffix(unit: str, days: int, guests: int) -> str:
 
 
 def totals(subtotal: Decimal, *, discount_percent: Decimal, gst_percent: Decimal, inclusive: bool, override: Optional[Decimal],
-           advance_percent: Decimal, threshold: Decimal, max_discount: Decimal) -> dict:
+           advance_percent: Decimal, threshold: Decimal, max_discount: Decimal, floor: Optional[Decimal] = None) -> dict:
     """Pure: discount, GST, override, advance and whether an owner's OK is needed. Every amount a Decimal in whole rupees
     except the subtotal (exact to the paisa)."""
     r = Decimal(gst_percent)
@@ -84,6 +84,9 @@ def totals(subtotal: Decimal, *, discount_percent: Decimal, gst_percent: Decimal
         reasons.append(f"{cat.num_str(below)}% below the suggested price (the limit is {cat.num_str(threshold)}%)")
     if discount_percent > max_discount:
         reasons.append(f"a {cat.num_str(discount_percent)}% discount (the limit is {cat.num_str(max_discount)}%)")
+    # The package's own lowest price (Rate.floor_amount): the AI never goes under it; staff may, with an owner's or manager's OK.
+    if floor is not None and (money(override) if over else net) < money(floor):
+        reasons.append(f"below the package's lowest price of {cat.num_str(rupee(floor))}")
     return {
         "subtotal": money(subtotal), "discount_percent": Decimal(discount_percent), "discount": discount, "net": net,
         "gst_percent": r, "prices_include_gst": inclusive, "taxable": taxable, "gst": gst, "total": total,
@@ -115,6 +118,7 @@ class Calc:
     inclusions: list[str] = field(default_factory=list)
     exclusions: list[str] = field(default_factory=list)
     vehicle_ids: list[str] = field(default_factory=list)
+    floor_cut: Decimal = Decimal("0")              # how far the package base may drop to its rates' floor_amount
 
 
 def _line(label: str, amount: Decimal, detail: str = "", kind: str = "base") -> dict:
@@ -143,6 +147,8 @@ def _package_base(db: Session, tenant_id: str, body: CalcIn, today: date, c: Cal
         if rate is None:
             return f"{pkg.name} has no price for {day_text(c.check_in)}{' (two prices overlap)' if why == 'conflict' else ''}."
         c.lines.append(_line(c.title, rate.amount, "package price"))
+        if rate.floor_amount is not None:
+            c.floor_cut += rate.amount - rate.floor_amount
     else:
         grouped: dict[tuple, int] = {}
         for d in (c.check_in + timedelta(days=i) for i in range(days)):
@@ -150,6 +156,8 @@ def _package_base(db: Session, tenant_id: str, body: CalcIn, today: date, c: Cal
             if rate is None:
                 return f"{pkg.name} has no price for {day_text(d)}{' (two prices overlap)' if why == 'conflict' else ''}."
             grouped[(rate.label, rate.amount)] = grouped.get((rate.label, rate.amount), 0) + 1
+            if rate.floor_amount is not None:
+                c.floor_cut += rate.amount - rate.floor_amount
         for (label, amount), n in grouped.items():
             name = c.title if len(grouped) == 1 else f"{c.title} ({label})"
             c.lines.append(_line(f"{name} × {_plural(n, 'day')}", amount * n, f"{n} x {amount}"))
@@ -217,7 +225,8 @@ def compute(db: Session, tenant: Tenant, body: CalcIn, *, today: Optional[date] 
     inclusive = body.prices_include_gst if body.prices_include_gst is not None else s["prices_include_gst"]
     c.t = totals(subtotal, discount_percent=body.discount_percent, gst_percent=gst, inclusive=inclusive,
                  override=body.override.price if body.override else None, advance_percent=s["advance_percent"],
-                 threshold=s["approval_threshold_percent"], max_discount=s["max_discount_percent"])
+                 threshold=s["approval_threshold_percent"], max_discount=s["max_discount_percent"],
+                 floor=subtotal - c.floor_cut if c.floor_cut > 0 else None)
     c.valid_until = today + timedelta(days=c.valid_days)
     c.ok = True
     return c

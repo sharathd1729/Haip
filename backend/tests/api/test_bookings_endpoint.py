@@ -35,8 +35,8 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _make_property(db, tenant_id, name="Ratha Caravan"):
-    p = Property(id=str(uuid.uuid4()), tenant_id=tenant_id, name=name, slug=f"p-{uuid.uuid4().hex[:6]}", type="caravan")
+def _make_property(db, tenant_id, name="Ratha Caravan", type="caravan"):
+    p = Property(id=str(uuid.uuid4()), tenant_id=tenant_id, name=name, slug=f"p-{uuid.uuid4().hex[:6]}", type=type)
     db.add(p); db.flush(); return p
 
 
@@ -186,20 +186,23 @@ def test_list_bookable_properties_includes_active_rate_plans(client, db):
 
     tenant = _make_tenant(db, "PropLookupTenant")
     user = _make_user(db, tenant.id)
-    prop = _make_property(db, tenant.id, name="White Caravan")
-    rp_active = RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=prop.id, name="One-Day", base_price_per_night=25000, is_active=True)
-    rp_inactive = RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=prop.id, name="Retired Package", base_price_per_night=1, is_active=False)
-    db.add_all([rp_active, rp_inactive])
+    villa = _make_property(db, tenant.id, name="Pool Villa", type="villa")
+    van = _make_property(db, tenant.id, name="White Caravan")
+    rp_active = RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=villa.id, name="One-Day", base_price_per_night=25000, is_active=True)
+    rp_inactive = RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=villa.id, name="Retired Package", base_price_per_night=1, is_active=False)
+    rp_van = RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=van.id, name="Van plan", base_price_per_night=9, is_active=True)
+    db.add_all([rp_active, rp_inactive, rp_van])
     db.commit()
 
     resp = client.get("/api/v1/bookings/properties", headers=_auth(_token(user)))
     assert resp.status_code == 200
-    body = resp.json()
-    assert len(body) == 1
-    assert body[0]["name"] == "White Caravan"
-    plan_names = [p["name"] for p in body[0]["rate_plans"]]
+    body = {p["name"]: p for p in resp.json()}
+    assert set(body) == {"Pool Villa", "White Caravan"}
+    plan_names = [p["name"] for p in body["Pool Villa"]["rate_plans"]]
     assert "One-Day" in plan_names
     assert "Retired Package" not in plan_names
+    # Owner decision 4 Nov: a caravan is priced only from its published packages, never a rate plan.
+    assert body["White Caravan"]["rate_plans"] == []
 
 
 # ── POST /bookings ────────────────────────────────────────────────────────────
@@ -262,7 +265,7 @@ def test_create_booking_defaults_total_from_rate_plan(client, db):
 
     tenant = _make_tenant(db, "RatePlanTenant")
     user = _make_user(db, tenant.id, UserRole.OWNER)
-    prop = _make_property(db, tenant.id)
+    prop = _make_property(db, tenant.id, name="Pool Villa", type="villa")
     guest = _make_guest(db, tenant.id)
     rp = RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=prop.id, name="One-Day", base_price_per_night=25000)
     db.add(rp)
@@ -281,6 +284,24 @@ def test_create_booking_defaults_total_from_rate_plan(client, db):
     )
     assert resp.status_code == 201
     assert resp.json()["total"] == 25000
+
+
+def test_a_caravan_booking_never_takes_a_rate_plan_total(client, db):
+    """Owner decision 4 Nov: a caravan is priced only from its published packages (New booking prices it)."""
+    from app.models.property import RatePlan
+
+    tenant = _make_tenant(db, "VanTotalTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    prop = _make_property(db, tenant.id)
+    prop.price_per_day = 20000
+    guest = _make_guest(db, tenant.id)
+    rp = RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=prop.id, name="One-Day", base_price_per_night=25000)
+    db.add(rp)
+    db.commit()
+    resp = client.post("/api/v1/bookings", headers=_auth(_token(user)), json={
+        "guest_id": guest.id, "property_id": prop.id, "rate_plan_id": rp.id, "check_in": "2026-09-01", "check_out": "2026-09-02"})
+    assert resp.status_code == 201
+    assert resp.json()["total"] in (None, 0)
 
 
 def test_create_booking_forbidden_for_concierge_role(client, db):
@@ -435,3 +456,23 @@ def test_list_bookings_guest_id_filter_scopes_to_one_guest(client, db):
     body = resp.json()
     assert body["meta"]["total"] == 1
     assert body["data"][0]["main_guest"]["first_name"] == "Guest"
+
+
+def test_the_calendar_shows_no_rate_plan_price_for_a_caravan(client, db):
+    """Owner decision 4 Nov: a villa keeps its nightly rate on the calendar; a caravan (priced from packages) shows none."""
+    from datetime import date, timedelta
+
+    from app.models.property import RatePlan
+
+    tenant = _make_tenant(db, "CalRateTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    villa = _make_property(db, tenant.id, name="Pool Villa", type="villa")
+    van = _make_property(db, tenant.id, name="Ratha 1")
+    for p in (villa, van):
+        db.add(RatePlan(id=str(uuid.uuid4()), tenant_id=tenant.id, property_id=p.id, name="Base", base_price_per_night=12000, is_active=True))
+    db.commit()
+    today = date.today()
+    resp = client.get(f"/api/v1/calendar?from_date={today}&to_date={today + timedelta(days=3)}", headers=_auth(_token(user)))
+    assert resp.status_code == 200, resp.text
+    rows = {r["property_name"]: r for r in resp.json()["properties"]}
+    assert rows["Pool Villa"]["rates"] and rows["Ratha 1"]["rates"] == {}
