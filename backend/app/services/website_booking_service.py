@@ -106,39 +106,40 @@ def property_for(db: Session, site: Site, property_id: str) -> Property:
     return prop
 
 
-def make_quote(db: Session, tenant: Tenant, site: Site, prop: Property, body) -> pricing.Quote:
+def make_quote(db: Session, tenant: Tenant, site: Site, prop: Property, body, mode: Optional[str] = None) -> pricing.Quote:
+    """`mode` = the guest-facing booking mode when it differs from the site setting (website_spec_service.guest_terms)."""
     from app.services.invoice_service import get_profile
     cfg = site_settings(site)
     try:
         return pricing.quote(
             db, prop, check_in=body.check_in, check_out=body.check_out, adults=body.adults, children=body.children,
             extras=body.extras, today=today_for(db, tenant.id), inclusive=cfg.prices_include_gst,
-            gst_registered=bool(get_profile(tenant).gstin), mode=cfg.booking_mode, deposit_percent=cfg.deposit_percent,
+            gst_registered=bool(get_profile(tenant).gstin), mode=mode or cfg.booking_mode, deposit_percent=cfg.deposit_percent,
             balance_due_days=cfg.balance_due_days, min_nights=cfg.min_nights, max_advance_days=cfg.max_advance_days)
     except pricing.QuoteRefused as exc:
         raise WebsiteError(422, exc.code, exc.message)
 
 
 def create_hold(db: Session, tenant: Tenant, site: Site, host: str, body, *, ip_hash: Optional[str],
-                user_agent: Optional[str]) -> dict:
+                user_agent: Optional[str], mode: Optional[str] = None) -> dict:
     cfg = site_settings(site)
+    mode = mode or cfg.booking_mode
     if body.website:
         raise WebsiteError(422, "rejected", "We couldn't take this booking. Please contact us.")
-    if cfg.booking_mode == "enquiry":
+    if mode == "enquiry":
         raise WebsiteError(409, "enquiry_only", "This website takes enquiries; send one and the team will reply.")
     qin = body.quote
     prop = property_for(db, site, qin.property_id)
     lock_property(db, tenant.id, prop.id)
     if not is_free(db, tenant.id, prop, qin.check_in, qin.check_out):
         raise WebsiteError(409, "dates_taken", f"{prop.name} was just booked for some of these nights. Pick other dates.")
-    q = make_quote(db, tenant, site, prop, qin)
+    q = make_quote(db, tenant, site, prop, qin, mode)
     try:
         guest_id = resolve_guest(db, tenant.id, name=body.guest.name, phone=body.guest.phone, email=body.guest.email)
     except ValueError:
         raise WebsiteError(422, "invalid_phone", "Enter a mobile number we can reach on WhatsApp.")
     write_consents(db, tenant.id, guest_id, marketing=body.consent.marketing, notice_version=body.consent.notice_version,
                    ip_hash=ip_hash, user_agent=user_agent, host=host, ref="booking")
-    mode = cfg.booking_mode
     summary = (f"Website booking {'request' if mode == 'request' else 'started'}: {prop.name}, "
                f"{qin.check_in.isoformat()} to {qin.check_out.isoformat()}, {qin.adults} adults"
                f"{f', {qin.children} children' if qin.children else ''}, total Rs {q.total}"

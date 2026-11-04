@@ -30,8 +30,10 @@ export interface PackageItem {
   key: string; name: string; summary: string; length: string; inclusions: string[]; days: string[]; destinations: string[];
   max_guests: number; price: { amount: string; label: string } | null; price_label: string | null; wa: WaLink | null;
 }
+/** grounded price mode only: the lowest nightly tariff from HAIP's website price engine (website_pricing.from_price). */
+export interface FromPrice { amount: string; label: string }
 /** One bookable property (caravan, villa, room). `photo` is "asset:<id>" (approved library photo) or an https URL. */
-export interface StayItem { id: string; name: string; summary: string; sleeps: number; bedrooms: number | null; amenities: string[]; photo: string | null }
+export interface StayItem { id: string; name: string; summary: string; sleeps: number; bedrooms: number | null; amenities: string[]; photo: string | null; from: FromPrice | null }
 export interface ItineraryDay { day: number; title: string; stops: string[]; overnight: string; notes: string }
 export interface Itinerary { name: string; nights: number; destination: string; about: string; packages: string[]; days: ItineraryDay[] }
 export interface Review { quote: string; name: string; rating: number | null; source: string; date: string }
@@ -56,8 +58,13 @@ export interface LiveDataV2 {
   bound: Record<string, Bound>;
   page_wa: Record<string, WaLink | null>;
   assets: LiveData["assets"];
+  policies: LiveData["policies"];
   legal: LiveData["legal"];
 }
+
+/** Pages every v2 site has without a spec page: Razorpay returns guests to /book/done, confirmations link /my-booking, and
+ * /policies holds the cancellation, payment and house rules (sites app, drawn with the v1 parts). */
+export const SYSTEM_PAGES: Record<string, string> = { "/policies": "Policies", "/book/done": "Your booking", "/my-booking": "My booking" };
 
 export function isV2(live: LiveData | LiveDataV2): live is LiveDataV2 {
   return (live as LiveDataV2).spec_version === 2;

@@ -16,8 +16,10 @@ from app.core.database import get_db
 from app.schemas.website import EnquiryIn, HoldIn, ManageLookupIn, PageViewIn, QuoteIn
 from app.services import website_booking_service as book
 from app.services import website_public_service as pub
+from app.services.website_pricing import rate_calendar
+from app.services.website_spec_service import guest_terms
 from app.services.website_leads import enquiry as make_enquiry
-from app.services.website_service import WebsiteError, site_settings
+from app.services.website_service import WebsiteError
 
 router = APIRouter(prefix="/public", tags=["website-public"])
 
@@ -83,40 +85,44 @@ def preview_stay(token: str, slug: str, db: Session = Depends(get_db)):
 @router.get("/sites/{host}/availability")
 def availability(host: str, property_id: str = Query(..., max_length=64), start: Optional[date] = None,
                  days: int = Query(62, ge=1, le=120), db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, ver = _live(db, host)
     try:
         prop = book.property_for(db, site, property_id)
     except WebsiteError as exc:
         _fail(exc)
     today = book.today_for(db, tenant.id)
     first = max(start or today, today)
-    return {"property_id": prop.id, "start": first.isoformat(), "days": days,
-            "taken": book.taken_nights(db, tenant.id, prop, first, first + timedelta(days=days))}
+    end = first + timedelta(days=days)
+    out = {"property_id": prop.id, "start": first.isoformat(), "days": days, "taken": book.taken_nights(db, tenant.id, prop, first, end)}
+    if guest_terms(tenant, site, ver.doc)[0]:          # nightly tariffs only where prices may show (v2: grounded)
+        out["rates"] = rate_calendar(db, prop, first, end)
+    return out
 
 
 @router.post("/sites/{host}/quote")
 def quote(host: str, body: QuoteIn, db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, ver = _live(db, host)
+    shown, mode = guest_terms(tenant, site, ver.doc)
     try:
         prop = book.property_for(db, site, body.property_id)
-        q = book.make_quote(db, tenant, site, prop, body)
+        q = book.make_quote(db, tenant, site, prop, body, mode)
     except WebsiteError as exc:
         _fail(exc)
     free = book.is_free(db, tenant.id, prop, body.check_in, body.check_out)
     out = q.to_api()
-    if not site_settings(site).show_prices:
+    if not shown:
         out = {k: v for k, v in out.items() if k in ("property_id", "check_in", "check_out", "adults", "children", "nights_count")}
-    return {"available": free, "quote": out, "mode": site_settings(site).booking_mode}
+    return {"available": free, "quote": out, "mode": mode}
 
 
 @router.post("/sites/{host}/holds", status_code=201)
 def hold(host: str, body: HoldIn, request: Request, db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, ver = _live(db, host)
     try:
         # Refusals are raised before anything is written (a failed payment link leaves only a "failed" hold, which
         # holds nothing); the request session is discarded uncommitted.
         out = book.create_hold(db, tenant, site, pub.normalise_host(host), body, ip_hash=_ip_hash(request),
-                               user_agent=request.headers.get("user-agent"))
+                               user_agent=request.headers.get("user-agent"), mode=guest_terms(tenant, site, ver.doc)[1])
     except WebsiteError as exc:
         if exc.code == "payment_link_failed":
             db.commit()

@@ -1,19 +1,20 @@
 // A page of a live client site. Data is cached for 5 minutes and refreshed at once when HAIP publishes (revalidate).
 // A published version is either a v1 block document (SiteRenderer) or a v2 SiteSpec (SiteRendererV2); isV2 picks.
+// A v2 site also answers /policies, /book/done (Razorpay's return) and /my-booking (systemPage) when its spec has no such page.
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PageView } from "@/components/PageView";
 import { type AnyLive, envFor, getLive, getStay, queryOf } from "@/lib/haip";
 import { findPage, SiteRenderer } from "@/site-blocks/SiteRenderer";
 import type { LiveData, Page, Stay } from "@/site-blocks/types";
-import { SiteRendererV2 } from "@/site-blocks/v2/SiteRendererV2";
-import { findPageV2, isV2, type LiveDataV2, type PageV2 } from "@/site-blocks/v2/types";
+import { SiteRendererV2, systemPage } from "@/site-blocks/v2/SiteRendererV2";
+import { findPageV2, isV2, SYSTEM_PAGES, type LiveDataV2, type PageV2 } from "@/site-blocks/v2/types";
 
 type Params = { host: string; path?: string[] };
 type Search = Record<string, string | string[] | undefined>;
 type Found =
   | { v2: false; live: LiveData; page: Page; slug?: string; stay: Stay | null }
-  | { v2: true; live: LiveDataV2; page: PageV2; stay: null };
+  | { v2: true; live: LiveDataV2; page: PageV2; stay: null; system?: boolean };
 
 async function resolve(host: string, path: string[] | undefined): Promise<Found | null> {
   const live: AnyLive | null = await getLive(host);
@@ -21,7 +22,10 @@ async function resolve(host: string, path: string[] | undefined): Promise<Found 
   const p = "/" + (path || []).join("/");
   if (isV2(live)) {
     const page = findPageV2(live, p);
-    return page ? { v2: true, live, page, stay: null } : null;
+    if (page) return { v2: true, live, page, stay: null };
+    const title = SYSTEM_PAGES[p.toLowerCase()];
+    return title ? { v2: true, live, stay: null, system: true,
+      page: { slug: p.toLowerCase(), title, nav: false, seo: { title: "", description: "" }, sections: [] } } : null;
   }
   const found = findPage(live, p);
   if (!found) return null;
@@ -51,6 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     const title = r.page.seo.title || `${r.page.title} · ${siteName}`;
     const description = (r.page.seo.description || r.live.doc.site.tagline || "").slice(0, 170);
     return { title, description, alternates: { canonical: `https://${host}${r.page.slug}` },
+      ...(r.system && r.page.slug !== "/policies" ? { robots: { index: false } } : {}),
       openGraph: { title, description, siteName, type: "website", locale: "en_IN", images: image } };
   }
   const { page } = r;
@@ -68,10 +73,12 @@ export default async function SitePage({ params, searchParams }: { params: Promi
   if (!r) notFound();
   const env = envFor(r.live, { mode: "live", base: "", query: queryOf(await searchParams), stay: r.stay, mediaBase: "/_haip/media" });
   const p = "/" + (path || []).join("/");
+  const sys = r.v2 && r.system ? systemPage(r.live, r.page.slug, env) : null;
+  if (r.v2 && r.system && !sys) notFound();
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(r, host)).replace(/</g, "<") }} />
-      {r.v2 ? <SiteRendererV2 live={r.live} page={r.page} env={env} /> : <SiteRenderer live={r.live} page={r.page} env={env} />}
+      {r.v2 ? <SiteRendererV2 live={r.live} page={r.page} env={env} main={sys?.main} /> : <SiteRenderer live={r.live} page={r.page} env={env} />}
       <PageView path={p} />
     </>
   );

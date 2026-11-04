@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
 import type { SiteEnv } from "../types";
-import { SiteRendererV2 } from "./SiteRendererV2";
+import { SiteRendererV2, systemPage } from "./SiteRendererV2";
 import { CATALOGUE, findPageV2, isV2, type Bound, type LiveDataV2, type SectionType, type SectionV2 } from "./types";
 
 const PHOTO = "asset:11111111-1111-1111-1111-111111111111";
@@ -10,12 +10,13 @@ const TYPES = Object.keys(CATALOGUE.sections) as SectionType[];
 
 function boundFor(t: SectionType, id: string, grounded: boolean): Bound {
   const base = { wa: wa(`WW-HOME-${id.replace(/[^a-z0-9]/gi, "").toUpperCase()}`) };
+  const from = grounded ? { amount: "4200", label: "per night + GST" } : null;
   switch (t) {
     case "hero": return { ...base, media: PHOTO };
-    case "booking": return { ...base, items: [{ id: "p1", name: "Ratha 1", sleeps: 4 }, { id: "p2", name: "Ratha 2", sleeps: 4 }] };
+    case "booking": return { ...base, items: [{ id: "p1", name: "Ratha 1", sleeps: 4, from }, { id: "p2", name: "Ratha 2", sleeps: 4, from: null }] };
     case "stays": return { ...base, items: [
-      { id: "p1", name: "Ratha 1", summary: "Sleeps four with an ensuite.", sleeps: 4, bedrooms: 1, amenities: ["Ensuite", "Kitchenette"], photo: PHOTO },
-      { id: "p2", name: "Ratha 2", summary: "", sleeps: 4, bedrooms: null, amenities: [], photo: "https://cdn.example.com/r2.jpg" }] };
+      { id: "p1", name: "Ratha 1", summary: "Sleeps four with an ensuite.", sleeps: 4, bedrooms: 1, amenities: ["Ensuite", "Kitchenette"], photo: PHOTO, from },
+      { id: "p2", name: "Ratha 2", summary: "", sleeps: 4, bedrooms: null, amenities: [], photo: "https://cdn.example.com/r2.jpg", from: null }] };
     case "packages": return { ...base, items: [
       { key: "weekend", name: "Weekend Escape", summary: "Two nights in the hills.", length: "2 nights / 3 days", inclusions: ["Driver-host", "Breakfast"],
         days: ["Into the hills", "Estate walk", "Home"], destinations: ["Misty Hills"], max_guests: 4,
@@ -34,7 +35,7 @@ function boundFor(t: SectionType, id: string, grounded: boolean): Bound {
   }
 }
 
-function live(grounded: boolean, over: Partial<Record<SectionType, Partial<Bound>>> = {}): LiveDataV2 {
+function live(grounded: boolean, over: Partial<Record<SectionType, Partial<Bound>>> = {}, mode: LiveDataV2["site"]["booking_mode"] = "request"): LiveDataV2 {
   const sections: SectionV2[] = TYPES.flatMap(t => CATALOGUE.sections[t].variants.map(v => ({
     id: `${t}-${v}`, type: t, variant: v, source: CATALOGUE.sections[t].source,
     slots: { eyebrow: "Coorg", heading: `${t} ${v}`, headline: "Wake up where the *road* ends", cta_label: "Plan my trip", show_map: true, limit: 6 },
@@ -43,7 +44,7 @@ function live(grounded: boolean, over: Partial<Record<SectionType, Partial<Bound
   for (const s of sections) bound[s.id] = { ...boundFor(s.type, s.id, grounded), ...(over[s.type] || {}) };
   return {
     spec_version: 2,
-    site: { id: "s1", name: "Wanderwheel", status: "live", preview: false, booking_mode: "request", deposit_percent: 30, show_prices: grounded,
+    site: { id: "s1", name: "Wanderwheel", status: "live", preview: false, booking_mode: mode, deposit_percent: 30, show_prices: grounded,
       hold_minutes: 20, min_nights: 1, prices_include_gst: false, today: "2026-11-01" },
     version: { id: "v2", number: 2, sha256: "x" },
     doc: { spec_version: 2, site: { name: "Wanderwheel Caravans", tagline: "Road trips, slowly", ref_prefix: "WW",
@@ -57,6 +58,7 @@ function live(grounded: boolean, over: Partial<Record<SectionType, Partial<Bound
     price_mode: grounded ? "grounded" : "handoff",
     bound, page_wa: { "/": wa("WW-HOME-NAV"), "/journeys": wa("WW-JOURNEYS-NAV") },
     assets: { "11111111-1111-1111-1111-111111111111": { src: "/_haip/media/11111111-1111-1111-1111-111111111111", alt: "Caravan at dawn", w: 1600, h: 1067 } },
+    policies: { cancellation_policy: { tiers: [{ days_before: 7, refund_percent: 100 }] } },
     legal: { legal_name: "Wanderwheel LLP", gstin: null, address: null },
   };
 }
@@ -89,6 +91,29 @@ describe("v2 site renderer", () => {
     const out = html(live(true));
     expect(out).toContain("₹38,000");
     expect(out).toContain("live quote");
+    expect(out).toMatch(/From <b>₹4,200<\/b> (<!-- -->)?per night \+ GST/);      // stays + booking: website_pricing.from_price
+  });
+
+  it("a paying booking mode asks for payment (UPI first) and links the policies; request mode never does", () => {
+    const paid = html(live(true, {}, "instant"));
+    expect(paid).toContain("Pay by UPI, card or netbanking");
+    expect(paid).toContain('href="/policies"');
+    expect(paid).toContain('name="agree"');
+    const asked = html(live(false, {}, "request"));
+    expect(asked).toContain("No payment now");
+    expect(asked).not.toContain("cancellation policy and house rules");     // (the contact form has its own agree box)
+  });
+
+  it("answers /policies, /book/done and /my-booking without a spec page", () => {
+    const l = live(false);
+    const pol = systemPage(l, "/policies", env(l))!;
+    const out = renderToString(<SiteRendererV2 live={l} page={pol.page} env={env(l)} main={pol.main} />);
+    expect(out).toContain("Cancellation and refunds");
+    expect(out).toContain("7 or more days before arrival");
+    expect(systemPage(l, "/book/done", env(l))).toBeNull();               // nothing to confirm without a hold
+    expect(systemPage(l, "/book/done", { ...env(l), query: { hold: "h1", s: "x".repeat(20) } })).not.toBeNull();
+    expect(systemPage(l, "/my-booking", env(l))).not.toBeNull();
+    expect(systemPage(l, "/somewhere", env(l))).toBeNull();
   });
 
   it("draws the owner's own text as paragraphs, with the photo only in the with-photo layout", () => {

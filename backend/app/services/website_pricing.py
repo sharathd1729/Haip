@@ -199,6 +199,25 @@ def quote(db: Session, prop: Property, *, check_in: date, check_out: date, adult
     return q
 
 
+def rate_calendar(db: Session, prop: Property, start: date, end: date, guests: int = 2) -> dict[str, str]:
+    """The nightly tariff by date for the website's rate calendar, from the same rate tables as quote(): a seasonal rate
+    for the date, else the cheapest nightly rate plan, else price_per_day. A date with no rate is left out (on request).
+    A stay's real price (minimum nights, extras, GST) is always the quote's."""
+    seasonal = db.query(SeasonalRate).filter_by(tenant_id=prop.tenant_id, property_id=prop.id, is_active=True).all()
+    plans = [Decimal(str(p.base_price_per_night)) for p in db.query(RatePlan).filter_by(
+        tenant_id=prop.tenant_id, property_id=prop.id, is_active=True).all() if not p.duration_type]
+    base = min(plans) if plans else (Decimal(str(prop.price_per_day)) if prop.price_per_day else None)
+    out: dict[str, str] = {}
+    d = start
+    while d < end:
+        s = _seasonal(seasonal, d, guests)
+        rate = s[0] if s else base
+        if rate is not None:
+            out[d.isoformat()] = str(rupee(rate))
+        d += timedelta(days=1)
+    return out
+
+
 def from_price(db: Session, prop: Property, today: date) -> Optional[Decimal]:
     """Lowest nightly tariff a guest could see over the next 60 days (for "From ₹x / night"); None when unpriced."""
     end = (today + timedelta(days=60)).isoformat()
