@@ -9,7 +9,6 @@ from unittest.mock import patch
 from app.models.agent_consult import AgentConsult
 from app.models.audit_event import AuditEvent
 from app.models.chief import ChiefProposal
-from app.models.conversation import ChannelType, Conversation
 from app.models.insight import Insight
 from app.models.knowledge import KnowledgeEntry
 from app.services import lead_alert_service, lead_playbook_settings, wa_lead_pack
@@ -328,11 +327,7 @@ def test_arrivals_plan_needs_the_template_and_respects_quiet_hours(db):
 
 
 def _consults(db, w, n=3):
-    conv = Conversation(
-        id=str(uuid.uuid4()), tenant_id=w.t.id, guest_id=w.guests[0].id, channel=ChannelType.WHATSAPP, is_open=True
-    )
-    db.add(conv)
-    db.flush()
+    conv = w.convs[0]  # world already opened this guest's WhatsApp thread; a second open one breaks the unique index
     now = datetime.now(UTC)
     rows = []
     for i in range(n):

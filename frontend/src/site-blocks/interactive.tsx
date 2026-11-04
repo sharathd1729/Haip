@@ -4,7 +4,7 @@
 // (env.mode === "editor") they render but never send anything.
 import { useEffect, useState, type FormEvent } from "react";
 import { callApi, hrefOf, inr, str, type LiveData, type Props, type SiteEnv, type Stay } from "./types";
-import { readError } from "./util";
+import { adIds, readError, track } from "./util";
 
 export { BookingEngine } from "./booking";
 
@@ -129,9 +129,9 @@ export function ContactForm({ env, stays }: { env: SiteEnv; stays: Stay[] }) {
       name: f.get("name"), phone: f.get("phone"), email: f.get("email") || null, message: f.get("message") || null,
       property_id: f.get("stay") || null, check_in: pre.checkin || null, check_out: pre.checkout || null,
       adults: pre.adults ? Number(pre.adults) : null, website: f.get("website") || null, utm, path: "/contact",
-      consent: { transactional: true, marketing: f.get("offers") === "on" } } }).catch(() => null);
+      consent: { transactional: true, marketing: f.get("offers") === "on" }, ...adIds() } }).catch(() => null);
     setBusy(false);
-    if (r && r.ok) setSent(true);
+    if (r && r.ok) { track("Lead", (await r.json().catch(() => ({})))?.event_id); setSent(true); }
     else setErr(r ? await readError(r, "Couldn't send. Try WhatsApp instead.") : "Couldn't reach us. Try WhatsApp instead.");
   };
   if (sent) return <div className="k-ok"><b>Thanks, we&apos;ve got it.</b><p>We usually reply on WhatsApp within the hour.</p></div>;

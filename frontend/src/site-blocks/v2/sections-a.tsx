@@ -1,9 +1,10 @@
 // v2 sections, part 1: hero, packages, itinerary, gallery. Each returns null when HAIP has nothing to show, so an empty
 // section never reaches a guest (the publish checklist warns instead).
 import { Check } from "lucide-react";
-import { inr } from "../types";
+import { imageOf, inr } from "../types";
 import { bound, CallButton, Em, Head, Heading, Img, Section, WaButton, type Ctx } from "./parts";
 import { txt, type Itinerary, type PackageItem, type SectionV2 } from "./types";
+import { HeroVideo } from "./video";
 
 export function Hero(s: SectionV2, ctx: Ctx) {
   const b = bound(ctx, s);
@@ -19,10 +20,15 @@ export function Hero(s: SectionV2, ctx: Ctx) {
       <div className="sv-actions"><WaButton wa={b.wa} label={cta} /><CallButton phone={phone} /></div>
     </div>
   );
-  if (s.variant === "fullbleed-image") {
+  if (s.variant === "fullbleed-image" || s.variant === "video") {
+    const video = s.variant === "video" ? imageOf(ctx.env, s.slots.video) : null;   // an uploaded MP4 (media library)
+    const poster = media ? imageOf(ctx.env, media)?.src : undefined;
     return (
-      <Section s={s} className={media ? "" : "sv-hero--no-media"}>
-        {media && <div className="sv-hero__media"><Img ref_={media} ctx={ctx} eager sizes="100vw" /></div>}
+      <Section s={s} className={`${s.variant === "video" ? "sv-hero--fullbleed-image " : ""}${media || video ? "" : "sv-hero--no-media"}`.trim()}>
+        {(media || video) && <div className="sv-hero__media">
+          {media && <Img ref_={media} ctx={ctx} eager sizes="100vw" />}
+          {video && <HeroVideo src={video.src} poster={poster} />}
+        </div>}
         <div className="sv-hero__scrim" aria-hidden="true" />
         <div className="sv-wrap">{text}</div>
       </Section>

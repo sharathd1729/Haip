@@ -9,17 +9,17 @@ Adds columns to an existing tenant-scoped table (its RLS policy is unchanged; no
   * insights.dismiss_reason VARCHAR(20)    -- not_now | wrong | already_handled | too_risky | not_worth_it
   * insights.snoozed_until TIMESTAMPTZ     -- a dismissed finding is not raised again before this
   * index ix_insights_tenant_id_role
-183 and 184 are taken by the website branch (PR #112); re-parent this file on its head when both merge.
+Re-parented from 182 onto 184 (website phase 4) when the website branch (PR #112) merged.
 ADD COLUMN / CREATE INDEX IF NOT EXISTS: idempotent, and repairs a table created by create_all (prod runs create_all).
 
 Revision ID: 185
-Revises: 182
+Revises: 184
 """
 
 from alembic import op
 
 revision = "185"
-down_revision = "182"
+down_revision = "184"
 branch_labels = None
 depends_on = None
 

@@ -16,8 +16,11 @@ from app.core.database import get_db
 from app.schemas.website import EnquiryIn, HoldIn, ManageLookupIn, PageViewIn, QuoteIn
 from app.services import website_booking_service as book
 from app.services import website_public_service as pub
+from app.services import website_tracking as track
+from app.services.website_pricing import rate_calendar
+from app.services.website_spec_service import guest_terms
 from app.services.website_leads import enquiry as make_enquiry
-from app.services.website_service import WebsiteError, site_settings
+from app.services.website_service import WebsiteError
 
 router = APIRouter(prefix="/public", tags=["website-public"])
 
@@ -50,7 +53,7 @@ def _live(db: Session, host: str):
 @router.get("/sites/{host}/bootstrap")
 def bootstrap(host: str, db: Session = Depends(get_db)):
     tenant, site, v = _live(db, host)
-    return pub.bootstrap(db, tenant, site, v)
+    return pub.bootstrap(db, tenant, site, v, host=host)
 
 
 @router.get("/preview/{token}/bootstrap")
@@ -64,9 +67,9 @@ def preview_bootstrap(token: str, db: Session = Depends(get_db)):
 
 @router.get("/sites/{host}/stays/{slug}")
 def stay(host: str, slug: str, db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, v = _live(db, host)
     try:
-        return pub.stay_detail(db, tenant, site, slug)
+        return pub.stay_detail(db, tenant, site, slug, v.doc)
     except WebsiteError as exc:
         _fail(exc)
 
@@ -74,8 +77,8 @@ def stay(host: str, slug: str, db: Session = Depends(get_db)):
 @router.get("/preview/{token}/stays/{slug}")
 def preview_stay(token: str, slug: str, db: Session = Depends(get_db)):
     try:
-        tenant, site, _ = pub.read_preview(db, token)
-        return pub.stay_detail(db, tenant, site, slug)
+        tenant, site, v = pub.read_preview(db, token)
+        return pub.stay_detail(db, tenant, site, slug, v.doc)
     except WebsiteError as exc:
         _fail(exc)
 
@@ -83,46 +86,70 @@ def preview_stay(token: str, slug: str, db: Session = Depends(get_db)):
 @router.get("/sites/{host}/availability")
 def availability(host: str, property_id: str = Query(..., max_length=64), start: Optional[date] = None,
                  days: int = Query(62, ge=1, le=120), db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, ver = _live(db, host)
     try:
         prop = book.property_for(db, site, property_id)
     except WebsiteError as exc:
         _fail(exc)
     today = book.today_for(db, tenant.id)
     first = max(start or today, today)
-    return {"property_id": prop.id, "start": first.isoformat(), "days": days,
-            "taken": book.taken_nights(db, tenant.id, prop, first, first + timedelta(days=days))}
+    end = first + timedelta(days=days)
+    out = {"property_id": prop.id, "start": first.isoformat(), "days": days, "taken": book.taken_nights(db, tenant.id, prop, first, end)}
+    if guest_terms(tenant, site, ver.doc)[0]:          # nightly tariffs only where prices may show (v2: grounded)
+        out["rates"] = rate_calendar(db, prop, first, end)
+    return out
 
 
 @router.post("/sites/{host}/quote")
 def quote(host: str, body: QuoteIn, db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, ver = _live(db, host)
+    shown, mode = guest_terms(tenant, site, ver.doc)
     try:
         prop = book.property_for(db, site, body.property_id)
-        q = book.make_quote(db, tenant, site, prop, body)
+        q = book.make_quote(db, tenant, site, prop, body, mode)
     except WebsiteError as exc:
         _fail(exc)
     free = book.is_free(db, tenant.id, prop, body.check_in, body.check_out)
     out = q.to_api()
-    if not site_settings(site).show_prices:
-        out = {k: v for k, v in out.items() if k in ("property_id", "check_in", "check_out", "adults", "children", "nights_count")}
-    return {"available": free, "quote": out, "mode": site_settings(site).booking_mode}
+    if not shown:
+        out = _no_figures(out)
+    return {"available": free, "quote": out, "mode": mode}
+
+
+def _no_figures(q: dict) -> dict:
+    """A handoff-price site's guest sees no amount (a promo code is kept: the team honours it)."""
+    return {k: v for k, v in (q or {}).items()
+            if k in ("property_id", "check_in", "check_out", "adults", "children", "nights_count", "promo_code")}
 
 
 @router.post("/sites/{host}/holds", status_code=201)
 def hold(host: str, body: HoldIn, request: Request, db: Session = Depends(get_db)):
-    tenant, site, _ = _live(db, host)
+    tenant, site, ver = _live(db, host)
+    shown = guest_terms(tenant, site, ver.doc)[0]
     try:
         # Refusals are raised before anything is written (a failed payment link leaves only a "failed" hold, which
         # holds nothing); the request session is discarded uncommitted.
         out = book.create_hold(db, tenant, site, pub.normalise_host(host), body, ip_hash=_ip_hash(request),
-                               user_agent=request.headers.get("user-agent"))
+                               user_agent=request.headers.get("user-agent"), mode=guest_terms(tenant, site, ver.doc)[1])
     except WebsiteError as exc:
         if exc.code == "payment_link_failed":
             db.commit()
         _fail(exc)
+    paying = out.get("payment_url") is not None
+    event_id = f"wc:{out['hold_id']}" if paying else track.new_lead_id()
+    from app.models.website import BookingHold
+    h = db.get(BookingHold, out["hold_id"])
+    track.record(db, site, name="InitiateCheckout" if paying else "Lead", event_id=event_id,
+                 guest_id=h.guest_id if h else None, inquiry_id=h.inquiry_id if h else None, hold_id=out["hold_id"],
+                 value=out["quote"].get("total") if paying else None, source_url=_page_url(host, body.path),
+                 user_agent=request.headers.get("user-agent"), fbp=body.fbp, fbc=body.fbc)
     db.commit()
-    return out
+    return {**out, "event_id": event_id, **({} if shown else {"quote": _no_figures(out.get("quote"))})}
+
+
+def _page_url(host: str, path: Optional[str]) -> str:
+    p = (path or "/").split("?")[0][:200]
+    return f"https://{pub.normalise_host(host)}{p if p.startswith('/') else '/' + p}"
 
 
 @router.get("/sites/{host}/holds/{hold_id}")
@@ -144,8 +171,15 @@ def enquiries(host: str, body: EnquiryIn, request: Request, db: Session = Depend
                            user_agent=request.headers.get("user-agent"))
     except ValueError:      # invalid phone: raised before anything is written
         raise HTTPException(status_code=422, detail={"code": "invalid_phone", "message": "Enter a mobile number we can reach."})
+    event_id = track.new_lead_id()
+    if out.get("inquiry_id"):
+        from app.models.inquiry import Inquiry
+        inq = db.get(Inquiry, out["inquiry_id"])
+        track.record(db, site, name="Lead", event_id=event_id, guest_id=inq.guest_id if inq else None,
+                     inquiry_id=out["inquiry_id"], source_url=_page_url(host, body.path),
+                     user_agent=request.headers.get("user-agent"), fbp=body.fbp, fbc=body.fbc)
     db.commit()
-    return {"status": out["status"]}
+    return {"status": out["status"], "event_id": event_id}
 
 
 @router.post("/sites/{host}/manage/lookup")
@@ -220,6 +254,24 @@ def links(host: str, db: Session = Depends(get_db)):
             "book_url": marketing_links.tag_url(home, marketing_links.utm(source="instagram", medium="bio", campaign="bio")),
             "items": marketing_links.bio_items(db, tenant.id, home),
             "packages": bio_packages.items(db, tenant, v.doc)}
+
+
+@router.get("/sites/{host}/blog")
+def blog(host: str, db: Session = Depends(get_db)):
+    """The website's guides: approved versions only (website_blog)."""
+    from app.services import website_blog
+    tenant, _site, _v = _live(db, host)
+    return {"items": website_blog.listing(db, tenant.id)}
+
+
+@router.get("/sites/{host}/blog/{slug}")
+def blog_article(host: str, slug: str, db: Session = Depends(get_db)):
+    from app.services import website_blog
+    tenant, _site, _v = _live(db, host)
+    out = website_blog.article(db, tenant.id, slug[:80])
+    if out is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No such guide."})
+    return out
 
 
 @router.post("/sites/{host}/views", status_code=204)

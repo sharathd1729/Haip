@@ -13,7 +13,7 @@ from app.models.insight import Insight
 from app.models.marketing import MarketingGuestReview
 from app.models.task import Task
 from app.models.webhook import WebhookEndpoint
-from app.models.website import SitePageView
+from app.models.website import Site, SitePageView
 from app.services import booking_agenda_service, ig_keyword_match
 from app.services.chief import detectors, executor, plans, plans_growth
 from app.services.chief import detectors_growth as g
@@ -54,11 +54,18 @@ def _approve_and_run(db, w, p):
 
 
 def _comments(db, w, media, n):
-    conv = Conversation(
-        id=str(uuid.uuid4()), tenant_id=w.t.id, guest_id=w.guests[0].id, channel=ChannelType.INSTAGRAM, is_open=True
+    # one open Instagram thread per guest (ix_conversations_one_open_per_guest_channel): reuse it on the 2nd call
+    conv = (
+        db.query(Conversation)
+        .filter_by(tenant_id=w.t.id, guest_id=w.guests[0].id, channel=ChannelType.INSTAGRAM, is_open=True)
+        .first()
     )
-    db.add(conv)
-    db.flush()
+    if conv is None:
+        conv = Conversation(
+            id=str(uuid.uuid4()), tenant_id=w.t.id, guest_id=w.guests[0].id, channel=ChannelType.INSTAGRAM, is_open=True
+        )
+        db.add(conv)
+        db.flush()
     for i in range(n):
         db.add(
             Message(
@@ -168,6 +175,8 @@ def test_more_visits_fewer_enquiries_drafts_a_website_change(db):
     w = world(db, brand_config=ON)
     today = booking_agenda_service.tenant_today(db, w.t.id)
     site_id = str(uuid.uuid4())
+    db.add(Site(id=site_id, tenant_id=w.t.id, name="Demo site", slug=f"demo-{site_id[:8]}"))
+    db.flush()  # site_page_views.site_id is a real FK on PostgreSQL
     for d, v in ((today - timedelta(days=10), 150), (today - timedelta(days=3), 300)):
         db.add(SitePageView(tenant_id=w.t.id, site_id=site_id, day=d.isoformat(), path="/", source="direct", views=v))
     for d, n in ((today - timedelta(days=10), 4), (today - timedelta(days=3), 1)):

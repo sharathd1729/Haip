@@ -31,7 +31,8 @@ from app.models.marketing import MarketingApproval, MarketingAudit, MarketingCon
 from app.models.marketing_research import MarketingSignal, MarketingStrategyDoc, MarketingSwipeItem
 from app.models.marketing_ads import MarketingAdDraft, MarketingBoostRule, MarketingCapiEvent
 from app.models.marketing_partners import MarketingCreator, MarketingCreatorDeal, MarketingOtaCopy
-from app.models.website import BookingHold, GuestAccessToken, Site, SiteAiJob, SiteDomain, SitePageView, SiteVersion
+from app.models.website import (BookingHold, GuestAccessToken, Site, SiteAiJob, SiteDomain, SitePageView, SiteVersion,
+                                WebsiteEvent, WebsitePromoCode)
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
@@ -68,7 +69,7 @@ __all__ = [
     "ChiefProposal",
     "GpsDevice", "GpsPosition", "GpsAlertEpisode",
     "BusinessRecord",
-    "Site", "SiteVersion", "SiteDomain", "BookingHold", "GuestAccessToken", "SiteAiJob", "SitePageView",
+    "Site", "SiteVersion", "SiteDomain", "BookingHold", "GuestAccessToken", "SiteAiJob", "SitePageView", "WebsiteEvent", "WebsitePromoCode",
     "MediaAsset", "UsageEvent",
     "MarketingAudit", "MarketingPlan", "MarketingContent", "MarketingContentVersion", "MarketingApproval", "MarketingImageJob", "MarketingTask", "InstagramPostMetricDaily",
     "MarketingCompetitor", "MarketingCompetitorSnapshot", "MarketingCompetitorPost", "MarketingResearchBrief", "MarketingPublishAttempt", "MarketingReview", "MarketingCreativeJob", "MarketingGuestReview", "MarketingNewsletter", "MarketingNewsletterRecipient", "MarketingAdDraft", "MarketingBoostRule", "MarketingCapiEvent", "MarketingCreator", "MarketingCreatorDeal", "MarketingOtaCopy",

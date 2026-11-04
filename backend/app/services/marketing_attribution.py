@@ -88,6 +88,10 @@ def touches(db: Session, tenant_id: str, inquiries: list[Inquiry]) -> dict[str, 
         out[inq_id].append({"at": _utc(at), "kind": "post", "channel": "whatsapp", "ad_id": None, "ad_draft_id": None,
                             "content_id": content_id, "detail": code})
     for inq in inquiries:
+        ref = (inq.custom_fields or {}).get("website_ref") or {}
+        if ref.get("code"):                      # a website WhatsApp button (website_refs)
+            out[inq.id].append({"at": _utc(inq.created_at), "kind": "website", "channel": "whatsapp", "ad_id": None,
+                                "ad_draft_id": None, "content_id": None, "detail": ref["code"]})
         u = (inq.custom_fields or {}).get("utm") or {}
         if u:
             found = links.resolve_campaign(db, tenant_id, u.get("utm_campaign"))

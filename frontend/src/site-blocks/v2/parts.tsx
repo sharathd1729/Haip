@@ -16,14 +16,21 @@ export function Em({ text }: { text: string }) {
   return <>{parts.map((p, i) => (i % 2 ? <em key={i} className="sv-em">{p}</em> : <span key={i}>{p}</span>))}</>;
 }
 
+const SRC_WIDTHS = [480, 640, 960, 1280, 1920];   // = the widths sites/src/app/x/media/[id]/route.ts serves
+
 export function Img({ ref_, ctx, className, eager, sizes }: { ref_: unknown; ctx: Ctx; className?: string; eager?: boolean; sizes?: string }) {
   const img = imageOf(ctx.env, ref_);
   if (!img) return null;
   const dims = ctx.live.assets[txt(ref_).slice(6)];
+  // Live site photos: a srcset of resized AVIF/WebP copies (sites app /_haip/media/<id>?w=), never wider than the original.
+  const widths = img.src.startsWith("/_haip/media/") && dims?.w ? SRC_WIDTHS.filter(w => w <= dims.w!) : [];
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img className={className} src={img.src} alt={img.alt} width={dims?.w || undefined} height={dims?.h || undefined}
-      loading={eager ? "eager" : "lazy"} decoding="async" sizes={sizes} {...(eager ? { fetchPriority: "high" as const } : {})} />
+    <img className={className} src={widths.length ? `${img.src}?w=${widths[widths.length - 1]}` : img.src} alt={img.alt}
+      width={dims?.w || undefined} height={dims?.h || undefined}
+      srcSet={widths.length > 1 ? widths.map(w => `${img.src}?w=${w} ${w}w`).join(", ") : undefined}
+      sizes={widths.length > 1 ? sizes || "100vw" : sizes}
+      loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} />
   );
 }
 

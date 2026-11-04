@@ -15,12 +15,24 @@ from app.core.audit import append_audit
 from app.models.tenant import Tenant
 from app.models.website import Site, SiteVersion
 from app.schemas.site_spec import SiteSpec, _lum, catalogue, derived
-from app.services import website_bindings
+from app.services import website_bindings, website_blog, website_tracking
 from app.services.website_service import WebsiteError, site_settings
 
 
 def is_v2(doc) -> bool:
     return isinstance(doc, dict) and doc.get("spec_version") == 2
+
+
+def guest_terms(tenant: Tenant, site: Site, doc) -> tuple[bool, str]:
+    """(prices shown, booking mode) for guests of this live version. A v1 site keeps its own settings. A v2 site follows the
+    tenant's price policy: grounded shows engine prices; handoff shows no figure, so a paying mode (instant/deposit) becomes
+    "request" (the team confirms the price and sends the payment link). Used by bootstrap, /quote, /availability, /holds."""
+    from app.services.price_policy import price_mode
+    cfg = site_settings(site)
+    if not is_v2(doc):
+        return cfg.show_prices, cfg.booking_mode
+    shown = price_mode(tenant) == "grounded"
+    return shown, cfg.booking_mode if shown or cfg.booking_mode not in ("instant", "deposit") else "request"
 
 
 def _where(err: dict) -> str:
@@ -109,7 +121,6 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
     """The v2 publish checklist (same shape as website_version_service.checks)."""
     from app.services.invoice_service import get_profile
     tenant = db.get(Tenant, site.tenant_id)
-    cfg = site_settings(site)
     out: list[dict] = []
 
     def add(key: str, ok: bool, title: str, detail: str, level: str = "warn", fix: Optional[str] = None) -> None:
@@ -120,14 +131,12 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
     add("contact_details", bool(contact.get("phone") or contact.get("whatsapp") or contact.get("email")),
         "A phone, WhatsApp or email to reach you", "Shown in the header, footer and contact section.", "block", "site:contact")
     add("contact_section", "contact" in types, "A contact section", "Razorpay and guests look for a way to reach you.", "block")
-    paying = cfg.booking_mode in ("instant", "deposit")
-    add("policies_page", False, "Policies page", "The new builder adds the policies page in a later phase. Until then keep "
-        "booking on request or enquiry." if paying else "Arrives in a later phase; needed before taking payments.",
-        "block" if paying else "warn", "settings")
+    add("policies_page", True, "Policies page", "Every v2 site has /policies (cancellation, payments, house rules, terms), "
+        "plus /book/done and /my-booking for paid bookings.")
     bad = [p["title"] for p in doc.get("pages", []) if not p["seo"]["title"] or not 50 <= len(p["seo"]["description"]) <= 160]
     add("seo", not bad, "Search previews", "Needs a title and a 50–160 character description: " + ", ".join(bad) if bad
         else "Every page has a title and description.")
-    data = website_bindings.resolve(db, tenant, doc)
+    data = website_bindings.resolve(db, tenant, doc, site=site)
     empty = sorted({s["type"] for p in doc["pages"] for s in p["sections"] if _is_empty(s["type"], data["bound"].get(s["id"]) or {})})
     add("data", not empty, "Every section has something to show",
         "Hidden until HAIP has data for: " + ", ".join(empty) if empty else "Packages, photos, reviews and FAQs are all in.")
@@ -136,6 +145,18 @@ def checks(db: Session, site: Site, doc: dict) -> list[dict]:
     prof = get_profile(tenant) if tenant else None
     add("legal", bool(prof and prof.legal_name and prof.address), "Legal name and address",
         "Shown in the footer and on invoices (Settings › Invoices).", "warn", "invoice_profile")
+    # phase 3 publish gate: speed / accessibility / search scores warn; only failing contrast blocks
+    from app.services import website_public_service as pub
+    from app.services.website_quality import audit
+    q = audit(doc, data["bound"], pub.asset_urls(db, site.tenant_id, doc, extra=data["asset_ids"]))
+    for item in q["items"]:
+        if item["level"] == "block":
+            add(f"quality_{item['key']}", False, item["title"], item["detail"], "block")
+    names = {"performance": "Speed", "accessibility": "Accessibility", "seo": "Search"}
+    for cat, score in q["scores"].items():
+        todo = [i["detail"] for i in q["items"] if i["category"] == cat and not i["ok"]]   # what to do, not the check's name
+        add(f"score_{cat}", score >= 90, f"{names[cat]} {score}/100",
+            " ".join(t if t.endswith(".") else t + "." for t in todo) if todo else "Nothing to improve here.")
     return out
 
 
@@ -149,17 +170,24 @@ def _is_empty(stype: str, data: dict) -> bool:
     return False
 
 
-def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False) -> dict:
-    """What the sites renderer needs for a v2 page: the spec, its bound data, theme variables and photo paths."""
+def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, preview: bool = False,
+              host: Optional[str] = None) -> dict:
+    """What the sites renderer needs for a v2 page: the spec, its bound data, theme variables and photo paths, and (live
+    only) JSON-LD per page (website_seo)."""
+    from app.services import website_seo
     from app.services import website_public_service as pub
     from app.services.business_data_service import tenant_today
     cfg = site_settings(site)
     doc = version.doc
-    data = website_bindings.resolve(db, tenant, doc)
+    data = website_bindings.resolve(db, tenant, doc, site=site)
+    shown, mode = guest_terms(tenant, site, doc)
+    stays = website_bindings.stay_index(db, tenant, site)
+    extra = data["asset_ids"] | {i["photo"].split(":", 1)[1] for i in stays if (i.get("photo") or "").startswith("asset:")}
+    assets = pub.asset_urls(db, tenant.id, doc, extra=extra)
     return {
         "spec_version": 2,
-        "site": {"id": site.id, "name": site.name, "status": site.status, "preview": preview, "booking_mode": cfg.booking_mode,
-                 "deposit_percent": cfg.deposit_percent, "show_prices": data["price_mode"] == "grounded",
+        "site": {"id": site.id, "name": site.name, "status": site.status, "preview": preview, "booking_mode": mode,
+                 "deposit_percent": cfg.deposit_percent, "show_prices": shown,
                  "hold_minutes": cfg.hold_minutes, "min_nights": cfg.min_nights, "prices_include_gst": cfg.prices_include_gst,
                  "today": tenant_today(db, tenant.id).isoformat()},
         "version": {"id": version.id, "number": version.number, "sha256": version.sha256},
@@ -168,11 +196,19 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "price_mode": data["price_mode"],
         "bound": data["bound"],
         "page_wa": data["page_wa"],
-        "assets": pub.asset_urls(db, tenant.id, doc, extra=data["asset_ids"]),
+        "assets": assets,
+        "jsonld": website_seo.jsonld(tenant, doc, data["bound"], assets, host=host, grounded=shown) if host and not preview else {},
+        "business_kind": website_seo.business_kind(tenant.business_type),
+        "blog_count": len(website_blog.listing(db, tenant.id)),     # the footer links /blog only when there is a guide
+        "stays_index": stays,                                         # /stays/<slug> pages + /compare (phase 6)
+        "policies": pub._policies(db, tenant),        # the built-in /policies page (sites app), same as v1
         "legal": pub._legal(tenant),
+        "tracking": {} if preview else website_tracking.public(site),   # pixels never load in a draft preview
     }
 
 
 def media_ids(db: Session, tenant: Tenant, doc: dict) -> set[str]:
     """Photos a v2 page may show: the ones the spec names plus the ones bound to its hero, gallery and stays sections."""
-    return website_bindings.resolve(db, tenant, doc, types={"hero", "gallery", "stays"})["asset_ids"]
+    stays = website_bindings.stay_index(db, tenant)
+    return website_bindings.resolve(db, tenant, doc, types={"hero", "gallery", "stays"})["asset_ids"] | {
+        i["photo"].split(":", 1)[1] for i in stays if (i.get("photo") or "").startswith("asset:")}

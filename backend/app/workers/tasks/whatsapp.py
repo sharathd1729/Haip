@@ -492,6 +492,11 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             if referral:
                 from app.services.attribution_service import link_attribution_to_inquiry
                 link_attribution_to_inquiry(db, tenant.id, conversation.id, lead_inquiry.id)
+            else:
+                # "(Ref WW-HOME-HERO)" from a website WhatsApp button: the page + section that sent this chat.
+                from app.services import website_refs
+                with db.begin_nested():
+                    website_refs.stamp(db, tenant.id, lead_inquiry, body)
         except Exception as exc:
             log.warning("wa_lead_auto_create_failed", tenant_id=tenant.id, error=str(exc))
     # A reply to a WhatsApp campaign (any days later): Active + "Replied to campaign" on My day (lead_reopen, S3).

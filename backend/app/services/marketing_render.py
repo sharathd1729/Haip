@@ -38,6 +38,8 @@ def frames(kind: str, payload: dict) -> list[dict]:
     if kind == "reel":       # the storyboard: one still per clip (the reel itself is services/marketing_reel.py)
         return [{"asset_id": media(c), "headline": c.get("caption"), "sub": None, "cta": None,
                  "at": float(c.get("start_s") or 0) + 0.3} for c in payload.get("clips", [])]
+    if kind == "article":        # a website guide: its photo is optional and nothing is drawn on it
+        return []
     if kind == "promo":
         return [{"asset_id": media(payload), "headline": payload.get("headline"),
                  "sub": payload.get("offer") or payload.get("body"), "cta": payload.get("cta")}]
