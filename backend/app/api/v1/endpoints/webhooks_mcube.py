@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.adapters.ivr import get_ivr_adapter
 from app.models.tenant import Tenant
 from app.models.integration import Integration
+from app.core.config import settings
 from app.core.encryption import get_credential
 from app.workers.tasks.call_ingest import ingest_call
 import structlog
@@ -26,6 +27,11 @@ async def mcube_webhook(tenant_slug: str, url_secret: str, request: Request, db:
     connect-key flow already collects for every IVR provider.
     """
     body = await request.body()
+
+    aliases = dict(pair.split(":", 1) for pair in settings.MCUBE_WEBHOOK_SLUG_ALIASES.replace(" ", "").split(",") if ":" in pair)
+    if tenant_slug in aliases:
+        log.info("mcube_webhook_slug_alias", from_slug=tenant_slug, to_slug=aliases[tenant_slug])
+        tenant_slug = aliases[tenant_slug]
 
     tenant = db.query(Tenant).filter_by(slug=tenant_slug, is_active=True).first()
     if not tenant:

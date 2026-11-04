@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     ACEFONE_WEBHOOK_SECRET: str = ""
 
     MCUBE_API_KEY: str = ""
+    # "old-slug:new-slug,..." -- Mcube calls posted to an old tenant's webhook URL are delivered to the
+    # new tenant (Mcube's URL can only be changed by Mcube support). The new tenant's Mcube webhook_secret
+    # must equal the secret already in the old URL.
+    MCUBE_WEBHOOK_SLUG_ALIASES: str = ""
 
     # Vobiz — SIP/voice trunk, Plivo-compatible REST API
     VOBIZ_AUTH_ID: str = ""
