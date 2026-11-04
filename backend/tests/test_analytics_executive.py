@@ -138,13 +138,14 @@ class TestExecutiveDashboard:
         data = res.json()
         assert 0.0 <= data["occupancy_pct"] <= 100.0
 
-    def test_sla_compliance_100_when_no_responses(self, client, tenant_and_user):
-        """SLA compliance defaults to 100% when no inquiries have been responded to yet."""
+    def test_sla_compliance_no_data_when_nothing_due(self, client, tenant_and_user):
+        """Nothing due in the period = None ("No data"), never 100%."""
         token = tenant_and_user["access_token"]
         res = client.get("/api/v1/analytics/executive", headers=_auth(token))
         assert res.status_code == 200
         data = res.json()
-        assert data["sla_compliance_pct"] == 100.0
+        assert data["sla_compliance_pct"] is None
+        assert data["sla_prev"] is None
 
     def test_funnel_stages_are_valid(self, client, tenant_and_user, db):
         """Funnel stages contain only valid inquiry stage names."""

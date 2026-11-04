@@ -100,7 +100,9 @@ function useStageLeads(stageKey: string, filters: LeadsFilters, onStagesMeta: (m
   }, [lastPage, onStagesMeta]);
 
   const leads = query.data?.pages.flatMap(p => p.leads) ?? [];
-  return { leads, ...query };
+  // isPending, not isLoading: on the server a query never fetches, so isLoading was false there and the empty "0" column
+  // painted until the browser's fetch began. isPending is true until data exists, on both sides.
+  return { leads, ...query, isLoading: query.isPending };
 }
 
 // ─── Stage column ─────────────────────────────────────────────────────────────
@@ -118,7 +120,7 @@ function StageColumn({
     useStageLeads(stage.key, filters, onStagesMeta);
 
   const meta = data?.pages[0]?.stages[stage.key];
-  const count = meta?.count ?? leads.length;
+  const count: number | string = isLoading ? "…" : meta?.count ?? leads.length;
   const revenue = meta?.potential_revenue ?? 0;
 
   return (
@@ -181,7 +183,7 @@ function StageColumn({
                 style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
               >
                 <ChevronDown size={11} className={isFetchingNextPage ? "animate-spin" : ""} />
-                {isFetchingNextPage ? "Loading…" : `Load more (${count - leads.length} left)`}
+                {isFetchingNextPage ? "Loading…" : `Load more (${Number(count) - leads.length} left)`}
               </button>
             )}
           </>
@@ -206,7 +208,7 @@ function MobileStageSection({
     useStageLeads(stage.key, filters, onStagesMeta);
 
   const meta = data?.pages[0]?.stages[stage.key];
-  const count = meta?.count ?? leads.length;
+  const count: number | string = isLoading ? "…" : meta?.count ?? leads.length;
   const revenue = meta?.potential_revenue ?? 0;
 
   return (
@@ -249,7 +251,7 @@ function MobileStageSection({
               className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] text-[13.5px] font-semibold text-[var(--haip-fg-muted)] transition-colors duration-150 disabled:opacity-50"
             >
               <ChevronDown size={14} className={isFetchingNextPage ? "animate-spin" : ""} />
-              {isFetchingNextPage ? "Loading…" : `Load more (${count - leads.length} left)`}
+              {isFetchingNextPage ? "Loading…" : `Load more (${Number(count) - leads.length} left)`}
             </button>
           )}
         </div>
@@ -501,7 +503,7 @@ function DesktopLeads() {
         {/* Title */}
         {/* On a phone the top bar already names the page, so the title (and its description) only show from sm up */}
         <PageHeader className="hidden sm:flex" title="Leads360"
-          subtitle={view === "action" ? "What to do next, most urgent first" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}${scope ? ` · ${SCOPE_LABEL[scope]}` : ""}`} />
+          subtitle={view === "action" ? "What to do next, most urgent first" : Object.keys(stageMeta).length === 0 ? "Loading…" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}${scope ? ` · ${SCOPE_LABEL[scope]}` : ""}`} />
 
         {/* Controls: wrap on narrow screens instead of running off the edge */}
         <div className="flex flex-wrap items-center gap-2">

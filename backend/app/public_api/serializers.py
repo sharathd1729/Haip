@@ -59,7 +59,9 @@ def serialize_bookings(db: Session, tenant_id: str, stays: Iterable[Stay], seqs:
             "reason_for_travel": s.occasion,
             "concierge_notes": s.concierge_notes,
             "currency": s.currency or "INR",
-            "financials": {k: fin[k] for k in ("stay_charge", "addons_total", "total", "paid", "outstanding", "payment_status")},
+            # the public contract has three payment states: a booking with no price yet ("not_set") reads as unpaid there
+            "financials": {**{k: fin[k] for k in ("stay_charge", "addons_total", "total", "paid", "outstanding")},
+                           "payment_status": "unpaid" if fin["payment_status"] == "not_set" else fin["payment_status"]},
             "next_payment": bsvc.next_due(sched),
             "addons": [{"name": a.name, "quantity": a.quantity, "unit_price": float(a.unit_price),
                         "total": round(a.quantity * float(a.unit_price), 2)} for a in addons.get(s.id, [])],

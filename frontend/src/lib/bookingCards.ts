@@ -34,6 +34,7 @@ export interface PayState { pill: string; tone: Tone; text: string | null; due: 
 /** The money line of a card. The single overdue rule (isOverdue, as in the month summary) wins: "₹9,590 overdue". */
 export function payState(r: AgendaRow, today: string): PayState | null {
   if (r.raw_status === "cancelled") return null;
+  if (r.payment_status === "not_set") return { pill: "Amount not set", tone: "neutral", text: null, due: 0 };
   if (r.total_outstanding <= 0) return { pill: "Paid", tone: "success", text: r.total > 0 ? "Paid in full" : null, due: 0 };
   if (isOverdue(r, today)) return { pill: "Overdue", tone: "danger", text: `${formatINR(r.total_outstanding)} overdue`, due: r.total_outstanding };
   const when = r.next_payment_due_date ?? r.checkin;   // no schedule: due before pickup

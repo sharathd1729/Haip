@@ -192,3 +192,30 @@ def test_counts_endpoint_shape_carries_the_flags(db):
     res = wq.counts(db, t, scope_user_id=None)
     assert set(res["flags"]) == {"not_called", "at_risk", "followup_open_lead"}
     assert "no_reply" in res["counts"] and res["counts"]["no_reply"] == 0
+
+
+def test_follow_ups_are_counted_as_people_for_my_day_and_home(db):
+    """D-31: My day's Follow-ups chip counted task rows (72) while Home said 9. Both now read followup_people."""
+    from app.services.owner_dashboard_attention import attention_cards
+    t, other = _tenant(db), _tenant(db)
+    active = _stage(db, t.id, "active", "valid")
+    lost = _stage(db, t.id, "lost", "valid", lost=True)
+    asha, a_inq, a_conv = _lead(db, t.id, "Asha", stage=active)
+    _contacted(db, t.id, a_conv)
+    for n in range(3):   # three tasks about one person
+        db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title=f"Call Asha {n}", inquiry_id=a_inq.id, guest_id=asha.id,
+                    due_date=NOW - timedelta(hours=3), is_done=False))
+    gone, g_inq, _ = _lead(db, t.id, "Gone", stage=lost)
+    db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="Call Gone", inquiry_id=g_inq.id, guest_id=gone.id,
+                due_date=NOW - timedelta(hours=3), is_done=False))
+    db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="Fix the awning", due_date=NOW - timedelta(hours=3), is_done=False))
+    db.add(Task(id=str(uuid.uuid4()), tenant_id=other.id, title="Elsewhere", due_date=NOW - timedelta(hours=3), is_done=False))
+    db.commit()
+
+    res = wq.build(db, t, scope_user_id=None)
+    assert res["counts"]["followup"] == 4                      # task rows (unchanged for scripts)
+    assert res["followup_people"] == {"all": 2, "open_lead_due": 1}   # Asha once + the awning; Asha alone is an open lead
+    card = next(c for c in attention_cards(res, None) if c["key"] == "followups")
+    assert card["count"] == 1
+    assert wq.counts(db, t, None)["followup_people"]["all"] == 2
+    assert wq.build(db, other, scope_user_id=None)["followup_people"] == {"all": 1, "open_lead_due": 0}

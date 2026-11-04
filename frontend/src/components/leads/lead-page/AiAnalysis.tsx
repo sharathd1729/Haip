@@ -9,7 +9,7 @@ import type { AiAnalysis as Analysis } from "./types";
 
 const TONE: Record<string, Tone> = { positive: "success", neutral: "neutral", hesitant: "warning", negative: "danger", high: "danger", medium: "warning", low: "neutral" };
 const BOOKING: Record<string, string> = { none: "No booking yet", confirmed: "Booked", checked_in: "Checked in", checked_out: "Stay completed", cancelled: "Booking cancelled" };
-const PAY: Record<string, string> = { unpaid: "no payment yet", partial: "part-paid", paid: "fully paid" };
+const PAY: Record<string, string> = { unpaid: "no payment yet", partial: "part-paid", paid: "fully paid", not_set: "amount not set" };
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (

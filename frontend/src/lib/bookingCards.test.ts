@@ -53,6 +53,8 @@ describe("cards by date", () => {
       .toMatchObject({ pill: "Overdue", tone: "danger", text: "₹9,590 overdue" });
     expect(payState(row({ id: "p", total_paid: 70000, total_outstanding: 0, payment_status: "paid" }), TODAY)).toMatchObject({ pill: "Paid", due: 0 });
     expect(payState(row({ id: "c", raw_status: "cancelled" }), TODAY)).toBeNull();
+    // a booking with no price yet (calendar feed) is "Amount not set", not "Paid" or "Unpaid"
+    expect(payState(row({ id: "z", total: 0, total_outstanding: 0, payment_status: "not_set" }), TODAY)).toMatchObject({ pill: "Amount not set", due: 0 });
     expect(paidPct(row({ id: "h" }))).toBe(50);
   });
 });

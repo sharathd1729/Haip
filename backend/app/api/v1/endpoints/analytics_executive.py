@@ -9,18 +9,20 @@ POST /analytics/insights/{id}/dismiss
 
 from datetime import datetime, timezone, timedelta
 from datetime import date as date_cls
+from datetime import time as dt_time
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status as http_status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_module
 from app.services.authz_service import require_capability
 from app.models.user import User
 from app.models.call import Call
-from app.models.inquiry import Inquiry, InquiryStage
+from app.models.inquiry import Inquiry
+from app.models.inquiry_360 import InquiryQuote
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay, Property
 from app.models.conversation import Message, MessageDirection
@@ -31,6 +33,9 @@ from app.schemas.analytics import (
 )
 from app.core.cache import cache_key, get_cached, set_cached
 from app.services import kpi_metrics
+from app.services.date_presets import IST
+from app.services.work_queue_service import severity_for
+from app.models.lead_workflow import LeadJourney
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -78,7 +83,7 @@ def executive_dashboard(
         [p.strip() for p in property_ids.split(",") if p.strip()] if property_ids else None
     )
 
-    ck = cache_key("executive", tid, range_days=range_days, prop_ids=property_ids or "all")
+    ck = cache_key("executive", tid, v=3, range_days=range_days, prop_ids=property_ids or "all")
     cached = get_cached(ck)
     if cached is not None:
         return ExecutiveDashboardStats(**cached)
@@ -125,7 +130,7 @@ def executive_dashboard(
     # analytics_sections.py's channels endpoint already uses. Only "valid"
     # category stages that aren't a closed-won/closed-lost terminal count,
     # per CLAUDE.md: "only valid stages count as real leads."
-    def active_inq(start):
+    def active_inq(start, end):
         q = db.query(func.count(Inquiry.id)).join(
             PipelineStage, PipelineStage.id == Inquiry.stage_id,
         ).filter(
@@ -134,20 +139,23 @@ def executive_dashboard(
             PipelineStage.is_closed_won.is_(False),
             PipelineStage.is_closed_lost.is_(False),
             Inquiry.created_at >= start.isoformat(),
+            Inquiry.created_at < end.isoformat(),
         )
         if prop_ids:
             q = q.filter(Inquiry.property_id.in_(prop_ids))
         return q.scalar() or 0
 
-    active_inquiries      = active_inq(period_start)
-    active_inquiries_prev = active_inq(prev_period_start)
+    # previous window is [prev_period_start, period_start): it used to run to now, overlapping the current one
+    active_inquiries      = active_inq(period_start, now)
+    active_inquiries_prev = active_inq(prev_period_start, period_start)
 
     # ── QA avg score ──────────────────────────────────────────────────────────
-    def qa_avg(start):
+    def qa_avg(start, end):
         q = db.query(func.avg(Call.ai_score)).filter(
             Call.tenant_id == tid,
             Call.ai_score.isnot(None),
             Call.started_at >= start.isoformat(),
+            Call.started_at < end.isoformat(),
         )
         # Calls from a disconnected IVR provider (e.g. Mcube, replaced by
         # Vobiz for Ratha) must stay out of every calls-derived executive
@@ -158,34 +166,43 @@ def executive_dashboard(
             q = q.filter(Call.property_id.in_(prop_ids))
         return round(float(q.scalar() or 0), 1)
 
-    qa_score      = qa_avg(period_start)
-    qa_score_prev = qa_avg(prev_period_start)
+    qa_score      = qa_avg(period_start, now)
+    qa_score_prev = qa_avg(prev_period_start, period_start)
 
     # ── SLA compliance % ──────────────────────────────────────────────────────
-    def sla(start):
-        total = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tid,
-            Inquiry.first_response_at.isnot(None),
-            Inquiry.created_at >= start.isoformat(),
-        ).scalar() or 0
-        if total == 0:
-            return 100.0
-        breached = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tid,
-            Inquiry.sla_breached == True,
-            Inquiry.created_at >= start.isoformat(),
-        ).scalar() or 0
-        return round((1 - breached / total) * 100, 1)
+    # Inquiry.first_response_at / sla_breached are never written (the card read 100% while 24 of 30 chats had
+    # breached). Same rule as My day: an enquiry is on time when a PERSON contacted the guest (lead_journeys'
+    # first_human_contact_at, the touch_rows contact rule) while work_queue_service.severity_for("new_lead") was
+    # still "fresh". A still-waiting enquiry counts once it is past that SLA. Nothing due = None ("No data").
+    def sla(start, end):
+        q = db.query(LeadJourney.received_at, LeadJourney.first_human_contact_at).filter(
+            LeadJourney.tenant_id == tid,
+            LeadJourney.received_at >= start,
+            LeadJourney.received_at < end,
+        )
+        if prop_ids:
+            q = q.join(Inquiry, Inquiry.id == LeadJourney.inquiry_id).filter(Inquiry.property_id.in_(prop_ids))
+        met = due = 0
+        for received, contacted in q.all():
+            if contacted is not None and contacted.tzinfo is None:
+                contacted = contacted.replace(tzinfo=timezone.utc)  # SQLite returns naive datetimes
+            on_time = severity_for("new_lead", received, contacted or now) == "fresh"
+            if contacted is None and on_time:
+                continue  # not due yet
+            due += 1
+            met += on_time
+        return round(met / due * 100, 1) if due else None
 
-    sla_compliance = sla(period_start)
-    sla_prev       = sla(prev_period_start)
+    sla_compliance = sla(period_start, now)
+    sla_prev       = sla(prev_period_start, period_start)
 
     # ── AI draft rate % ───────────────────────────────────────────────────────
-    def ai_rate(start):
+    def ai_rate(start, end):
         outbound = db.query(func.count(Message.id)).filter(
             Message.tenant_id == tid,
             Message.direction == MessageDirection.OUTBOUND,
             Message.created_at >= start.isoformat(),
+            Message.created_at < end.isoformat(),
         ).scalar() or 0
         if outbound == 0:
             return 0.0
@@ -194,46 +211,53 @@ def executive_dashboard(
             Message.direction == MessageDirection.OUTBOUND,
             Message.is_ai_generated == True,
             Message.created_at >= start.isoformat(),
+            Message.created_at < end.isoformat(),
         ).scalar() or 0
         return round(ai_gen / outbound * 100, 1)
 
-    ai_draft_rate = ai_rate(period_start)
-    ai_draft_prev = ai_rate(prev_period_start)
+    ai_draft_rate = ai_rate(period_start, now)
+    ai_draft_prev = ai_rate(prev_period_start, period_start)
 
     # ── Revenue chart (daily, range_days) ─────────────────────────────────────
-    rev_rows = db.query(
-        Stay.check_in.label("d"),
-        func.sum(Stay.total_amount).label("total"),
-        Stay.status,
-    ).filter(
+    # One point per IST day of the range, zeros included. confirmed = stays checking in that day in the occupying
+    # statuses (kpi_metrics, the same set the revenue card uses: cancelled/blocked stays never make a 0-value day);
+    # quoted = quotes issued that day (one per option group, the primary), not the retired QUOTED stage enum.
+    today = datetime.now(IST).date()
+    days = [today - timedelta(days=i) for i in range(range_days - 1, -1, -1)]
+    rev_by_day = {d.isoformat(): {"confirmed": 0.0, "quoted": 0.0} for d in days}
+    stay_q = db.query(Stay.check_in, func.sum(Stay.total_amount)).filter(
         Stay.tenant_id == tid,
-        Stay.check_in >= period_start.date().isoformat(),
-        Stay.check_in <= now.date().isoformat(),
-    ).group_by(Stay.check_in, Stay.status).order_by(Stay.check_in).all()
+        Stay.status.in_(kpi_metrics.OCCUPYING_STATUSES),
+        Stay.check_in >= days[0],
+        Stay.check_in <= today,
+    )
+    if prop_ids:
+        stay_q = stay_q.filter(Stay.property_id.in_(prop_ids))
+    for d, total in stay_q.group_by(Stay.check_in).all():
+        if str(d) in rev_by_day:
+            rev_by_day[str(d)]["confirmed"] += float(total or 0)
 
-    rev_by_day: dict = {}
-    for r in rev_rows:
-        d = str(r.d) if r.d else "unknown"
-        rv = rev_by_day.setdefault(d, {"confirmed": 0.0, "quoted": 0.0})
-        if r.status in ("confirmed", "checked_in", "checked_out"):
-            rv["confirmed"] += float(r.total or 0)
-
-    inq_rev = db.query(
-        func.date(Inquiry.created_at).label("d"),
-        func.sum(Inquiry.quoted_amount).label("total"),
-    ).filter(
-        Inquiry.tenant_id == tid,
-        Inquiry.stage == InquiryStage.QUOTED,
-        Inquiry.quoted_at >= period_start.isoformat(),
-        Inquiry.quoted_amount.isnot(None),
-    ).group_by(func.date(Inquiry.created_at)).all()
-    for r in inq_rev:
-        d = str(r.d) if r.d else "unknown"
-        rev_by_day.setdefault(d, {"confirmed": 0.0, "quoted": 0.0})["quoted"] += float(r.total or 0)
+    quote_q = db.query(InquiryQuote).filter(
+        InquiryQuote.tenant_id == tid,
+        InquiryQuote.created_at >= datetime.combine(days[0], dt_time.min, IST).astimezone(timezone.utc),
+        or_(InquiryQuote.status.is_(None), InquiryQuote.status != "pending_approval"),  # not issued until approved
+    )
+    if prop_ids:
+        quote_q = quote_q.join(Inquiry, Inquiry.id == InquiryQuote.inquiry_id).filter(Inquiry.property_id.in_(prop_ids))
+    primaries: dict = {}
+    for q in quote_q.all():
+        g = q.option_group_id or q.id
+        if g not in primaries or (q.option_rank or 1) < (primaries[g].option_rank or 1):
+            primaries[g] = q
+    for q in primaries.values():
+        created = q.created_at if q.created_at.tzinfo else q.created_at.replace(tzinfo=timezone.utc)
+        key = created.astimezone(IST).date().isoformat()
+        if key in rev_by_day:
+            rev_by_day[key]["quoted"] += float(q.amount or 0)
 
     revenue_chart = [
         RevenueChartPoint(date=d, confirmed=v["confirmed"], quoted=v["quoted"])
-        for d, v in sorted(rev_by_day.items())
+        for d, v in rev_by_day.items()
     ]
 
     # ── Inquiry funnel ────────────────────────────────────────────────────────

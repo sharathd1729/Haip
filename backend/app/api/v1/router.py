@@ -52,6 +52,8 @@ api_router = APIRouter(prefix="/api/v1")
 
 # Auth
 api_router.include_router(auth.router)
+from app.api.v1.endpoints import security_status  # noqa: E402 -- after the main block (import order)
+api_router.include_router(security_status.router)
 
 # Dashboard
 api_router.include_router(dashboard_overview.router)

@@ -31,6 +31,7 @@ export function pickStay(rows: BookingRow[], today: string): { row: BookingRow; 
 
 const PAY: Record<string, { label: string; tone: Tone }> = {
   paid: { label: "Paid", tone: "success" }, partial: { label: "Part paid", tone: "warning" }, unpaid: { label: "Unpaid", tone: "danger" },
+  not_set: { label: "Amount not set", tone: "neutral" },
 };
 
 export function StayCard({ guestId, role }: { guestId?: string | null; role?: string }) {

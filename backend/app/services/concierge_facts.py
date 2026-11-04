@@ -36,6 +36,7 @@ _PAYMENT_WORDS = {
     "unpaid": "no payment received yet",
     "partial": "part-paid, balance still due",
     "paid": "fully paid",
+    "not_set": "price not set yet",
 }
 
 

@@ -25,6 +25,7 @@ import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneMyDay } from "@/components/myday/PhoneMyDay";
 import { dialPayload as dialFor } from "@/components/myday/useDial";
 import { TakeIt } from "@/components/myday/TakeIt";
+import { myDayHeadline } from "@/lib/myDayHeadline";
 
 type Kind = "consult" | "callback" | "came_back" | "campaign_reply" | "new_lead" | "reply" | "handover" | "no_reply" | "followup" | "clash";
 type Flag = "not_called" | "open_lead" | "at_risk";
@@ -52,6 +53,9 @@ interface Queue {
   severity: Record<Severity, number>;
   total: number;
   people: number;
+  people_waiting?: number;
+  /** Follow-ups as people (D-31): `all` = this page's Follow-ups list, `open_lead_due` = Home's card. */
+  followup_people?: { all: number; open_lead_due: number };
   unowned: number;
   items: Item[];
   scope: "mine" | "team";
@@ -344,11 +348,8 @@ function DesktopMyDay() {
     return () => window.removeEventListener("keydown", onKey);
   }, [shown.length, at]);
 
-  // Rows, not tasks: a person whose task rides on their row counts once, like the people count beside it.
-  const late = (data?.items ?? []).filter(i => i.kind !== "clash" && ["late", "urgent", "critical"].includes(i.severity)).length;
-  const subtitle = !data ? "Loading…"
-    : data.total === 0 ? "Nobody is waiting. Nice."
-      : `${data.people} ${data.people === 1 ? "person is" : "people are"} waiting${late ? `, ${late} past their target time` : ""}${data.unowned ? `, ${data.unowned} with no owner` : ""}`;
+  // People, not rows; "need action now" is the nav badge's number (one source: work_queue_service.people_waiting).
+  const subtitle = myDayHeadline(data);
 
   const rows = (list: Item[], start: number) => list.map((item, i) => (
     <Row key={`${item.kind}-${item.guest_id ?? item.inquiry_id ?? i}-${i}`} item={item} active={start + i === at} index={start + i} />
@@ -371,7 +372,8 @@ function DesktopMyDay() {
         <FilterBar className="flex-nowrap overflow-x-auto pb-1 sm:flex-wrap">
           <FilterChip active={kind === "all"} onClick={() => { setKind("all"); setCursor(0); }} count={data?.people}>Everyone</FilterChip>
           {KINDS.map(k => (
-            <FilterChip key={k.id} active={kind === k.id} count={data?.counts[k.id] ?? 0}
+            <FilterChip key={k.id} active={kind === k.id}
+              count={k.id === "followup" ? (data?.followup_people?.all ?? data?.counts.followup) : data?.counts[k.id]}
               onClick={() => { setKind(kind === k.id ? "all" : k.id); setCursor(0); }}>
               {k.label}
             </FilterChip>
