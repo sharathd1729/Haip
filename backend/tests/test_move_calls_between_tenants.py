@@ -96,3 +96,12 @@ def test_other_tenants_untouched(db):
     _run(db, ratha, jade, apply=True)
     db.commit()
     assert db.get(Call, oc.id).tenant_id == other.id
+
+
+def test_no_number_moves_every_call_of_the_provider(db):
+    ratha, jade, ids = _setup(db)
+    report = plan_and_move(db, src=ratha.id, dst=jade.id, provider="mcube", to_number="", apply=True)
+    db.commit()
+    assert report["calls"] == 3                                  # both Jade DIDs, incl. the sample-number call
+    assert db.get(Call, ids["test_call"]).tenant_id == jade.id
+    assert db.get(Call, ids["vobiz"]).tenant_id == ratha.id

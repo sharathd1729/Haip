@@ -51,7 +51,18 @@ export const RANGES = [
   { value: "last_14d", label: "Last 14 days" },
   { value: "this_month", label: "This month" },
   { value: "last_month", label: "Last month" },
+  { value: "all", label: "All time" },
+  { value: "custom", label: "Custom dates" },
 ];
+
+/** API date params for a range. "All time" is a custom range from before HAIP existed to today (IST); a custom range
+ *  waits until both dates are picked. */
+export function rangeParams(range: string, from: string, to: string): Record<string, string> | null {
+  const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  if (range === "all") return { date_preset: "custom", date_from: "2024-01-01", date_to: today };
+  if (range === "custom") return from && to ? { date_preset: "custom", date_from: from, date_to: to } : null;
+  return { date_preset: range };
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
