@@ -617,12 +617,21 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
     # The nav "Now" badge and Home's "Waiting on the team": PEOPLE (as ``people``) with at least one item that is not yet
     # cold. ``total - severity.stale`` counted rows, so a person with a missed call and a task counted twice.
     waiting = {i.guest_id or id(i) for i in all_items if i.kind != "clash" and i.severity != "stale"}
+    # Follow-ups as PEOPLE (D-31): ``counts["followup"]`` counts task rows, so a person with three tasks counted three
+    # times (My day's Follow-ups chip said 72 while Home said 9). ``all`` = My day's Follow-ups list; ``open_lead_due`` =
+    # Home's "Follow-ups overdue" card (open valid-stage lead, not gone cold). Same items, same dedupe, one place.
+    fu = by_kind["followup"]
+    followup_people = {
+        "all": len({i.guest_id or id(i) for i in fu}),
+        "open_lead_due": len({i.guest_id or id(i) for i in fu if "open_lead" in i.flags and i.severity != "stale"}),
+    }
     return {
         "counts": counts,
         "oldest": oldest,
         "total": sum(counts.values()),
         "people": len(people) + no_guest,
         "people_waiting": len(waiting),
+        "followup_people": followup_people,
         "severity": severity,
         "unowned": sum(1 for i in all_items if unowned(i)),
         "flags": flags,
@@ -634,4 +643,5 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
 def counts(db: Session, tenant: Tenant, scope_user_id: Optional[str]) -> dict:
     """Counts only -- for the dashboard cards and nav badges."""
     res = build(db, tenant, scope_user_id)
-    return {k: res[k] for k in ("counts", "oldest", "total", "people", "people_waiting", "severity", "unowned", "flags")}
+    return {k: res[k] for k in ("counts", "oldest", "total", "people", "people_waiting", "followup_people", "severity",
+                                "unowned", "flags")}

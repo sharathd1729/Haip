@@ -172,3 +172,30 @@ class TestListConversationsEnrichment:
         assert resp.status_code == 200, resp.text
         row = next(r for r in resp.json() if r["id"] == conv.id)
         assert row["assigned_owner_name"] is None
+
+
+def test_list_returns_last_inbound_at_for_every_conversation(client, db, tenant_and_user):
+    """The list used to leave last_inbound_at null on every row (only the detail endpoint computed it)."""
+    from app.models.conversation import MessageDirection
+    tenant_id = _tenant_id(tenant_and_user)
+    guest = _make_guest(db, tenant_id)
+    now = datetime.now(timezone.utc)
+    talked = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id, channel=ChannelType.WHATSAPP,
+                          is_open=True, last_message_at=now.isoformat())
+    silent = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=_make_guest(db, tenant_id, "+919999011224").id,
+                          channel=ChannelType.INSTAGRAM, is_open=True, last_message_at=now.isoformat())
+    db.add_all([talked, silent])
+    for direction, minutes_ago in ((MessageDirection.INBOUND, 90), (MessageDirection.INBOUND, 30),
+                                   (MessageDirection.OUTBOUND, 5)):
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=talked.id, direction=direction,
+                       channel=ChannelType.WHATSAPP, body="x", created_at=now - timedelta(minutes=minutes_ago)))
+    db.add(Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=silent.id,
+                   direction=MessageDirection.OUTBOUND, channel=ChannelType.INSTAGRAM, body="hi", created_at=now))
+    db.commit()
+
+    resp = client.get("/api/v1/conversations", headers=_auth_headers(tenant_and_user))
+    assert resp.status_code == 200, resp.text
+    rows = {r["id"]: r for r in resp.json()}
+    got = datetime.fromisoformat(rows[talked.id]["last_inbound_at"].replace("Z", "+00:00"))
+    assert abs((got - (now - timedelta(minutes=30))).total_seconds()) < 2
+    assert rows[silent.id]["last_inbound_at"] is None

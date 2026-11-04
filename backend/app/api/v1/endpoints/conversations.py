@@ -137,6 +137,15 @@ def list_conversations(
         row.conversation_id: (row.direction.value if hasattr(row.direction, "value") else str(row.direction)) == "inbound"
         for row in latest_rows
     }
+    # last_inbound_at (the WhatsApp 24 h window starts here) for the whole page in ONE grouped query, the same
+    # definition as the detail endpoint; the list used to leave it null on every conversation.
+    last_inbound_by_conv = dict(
+        db.query(Message.conversation_id, func.max(Message.created_at))
+        .filter(Message.conversation_id.in_(conv_ids), Message.tenant_id == current_user.tenant_id,
+                Message.direction == MessageDirection.INBOUND)
+        .group_by(Message.conversation_id)
+        .all()
+    )
     from app.services import inbox_service
     channels_by_guest = inbox_service.guest_channels(
         db, current_user.tenant_id, [c.guest_id for c in conversations],
@@ -271,6 +280,7 @@ def list_conversations(
         out = ConversationOut.model_validate(c)
         out.guest_name = c.guest.name if c.guest else None
         out.last_message = preview_by_conv.get(c.id)
+        out.last_inbound_at = _parse_dt(last_inbound_by_conv.get(c.id))
         call_row = latest_call_by_guest.get(c.guest_id)
         if call_row:
             call_time = _parse_dt(call_row.started_at)

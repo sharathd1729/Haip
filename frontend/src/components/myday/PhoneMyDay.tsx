@@ -30,7 +30,10 @@ export interface MyDayItem {
   tasks?: { title: string; due: string | null; overdue: boolean }[];
   unowned?: boolean;
 }
-interface Queue { counts: Record<Kind, number>; people: number; people_waiting?: number; items: MyDayItem[]; scope: "mine" | "team" }
+interface Queue {
+  counts: Record<Kind, number>; people: number; people_waiting?: number; items: MyDayItem[]; scope: "mine" | "team";
+  followup_people?: { all: number; open_lead_due: number };   // follow-ups as people, not task rows (D-31)
+}
 
 const CHIPS: { value: string; label: string; kind?: Kind }[] = [
   { value: "all", label: "All" },
@@ -133,7 +136,7 @@ export function PhoneMyDay() {
         )}
         <ConsultsPanel />
         <ChipRow label="What kind" value={moreOn ? "" : chip} onChange={setChip} onFilters={() => setFilters(true)} filterCount={moreOn ? 1 : 0}
-          items={CHIPS.map(c => ({ value: c.value, label: c.label, count: c.kind ? data?.counts[c.kind] : count(data) }))} />
+          items={CHIPS.map(c => ({ value: c.value, label: c.label, count: c.kind === "followup" ? (data?.followup_people?.all ?? data?.counts.followup) : c.kind ? data?.counts[c.kind] : count(data) }))} />
         {(flag || moreOn) && (
           <p className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--haip-fg-2)]">
             Showing only: <RowTag tone="brand">{flag ? FLAG_LABEL[flag] : MORE.find(m => m.value === chip)?.label}</RowTag>

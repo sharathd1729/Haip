@@ -79,7 +79,7 @@ def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None, due: Optional
         "inquiry_id": s.inquiry_id,
         # What the trip is (as the lead recorded it) and the refundable deposit {amount, status}, never part of the total.
         "trip": extras.get("trip"),
-        "deposit": extras.get("deposit"),
+        "deposit": bsvc.shown_deposit(s.status, extras.get("deposit")),
         "raw_status": s.status,
         "checkin": s.check_in,
         "checkout": s.check_out,
@@ -226,7 +226,7 @@ def list_bookings(
         owed, paid_sub = agenda.owed_and_paid()
         fully_paid = (paid_sub > 0) & (owed > 0) & (paid_sub + 0.005 >= owed)
         rules = {
-            "unpaid": paid_sub <= 0,
+            "unpaid": (paid_sub <= 0) & (owed > 0),   # a booking with no price is "amount not set", not unpaid
             "paid": fully_paid,
             # Something is still owed: a priced booking that is not fully paid. Cancelled stays owe nothing.
             "due": (owed > 0) & ~fully_paid & (Stay.status != "cancelled"),
