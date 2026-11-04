@@ -2,32 +2,51 @@
 // v1 renderer (../SiteRenderer.tsx) still draws every block-based site. Theme = CSS variables computed by HAIP
 // (website_spec_service.theme), so colour maths and AA checks live in one place.
 import { Fragment, type CSSProperties, type ReactNode } from "react";
-import { hrefOf, type SiteEnv } from "../types";
+import { Done } from "../booking";
+import { ManageBooking } from "../interactive";
+import { pack, packVars } from "../packs";
+import { Policies } from "../sections";
+import { hrefOf, type LiveData, type SiteEnv } from "../types";
 import { type Ctx, WaButton } from "./parts";
 import { Gallery, Hero, ItinerarySection, Packages } from "./sections-a";
 import { BookingCta, ContactSection, Faq, Reviews } from "./sections-b";
-import { Booking, Stays, TextSection } from "./sections-c";
-import type { LiveDataV2, PageV2, SectionType, SectionV2 } from "./types";
+import { Booking, OfferSection, Stays, TextSection } from "./sections-c";
+import { kVars, SYSTEM_PAGES, type LiveDataV2, type PageV2, type SectionType, type SectionV2 } from "./types";
 
 const SECTIONS: Record<SectionType, (s: SectionV2, ctx: Ctx) => ReactNode> = {
   hero: Hero, stays: Stays, booking: Booking, packages: Packages, itinerary: ItinerarySection, gallery: Gallery,
-  reviews: Reviews, faq: Faq, contact: ContactSection, "booking-cta": BookingCta, text: TextSection,
+  reviews: Reviews, faq: Faq, contact: ContactSection, "booking-cta": BookingCta, text: TextSection, offer: OfferSection,
 };
 
-export function SiteRendererV2({ live, page, env, banner }: { live: LiveDataV2; page: PageV2; env: SiteEnv; banner?: ReactNode }) {
+/** A page every v2 site has (SYSTEM_PAGES) unless the spec has its own: drawn with the v1 parts, in this site's palette. */
+export function systemPage(live: LiveDataV2, path: string, env: SiteEnv): { page: PageV2; main: ReactNode } | null {
+  const title = SYSTEM_PAGES[path];
+  if (!title) return null;
+  const q = env.query || {};
+  // Policies reads only live.policies, live.legal and live.doc.site.name, which a v2 bootstrap carries too.
+  const body = path === "/policies" ? Policies({ id: "policies" }, { env, live: live as unknown as LiveData })
+    : path === "/my-booking" ? <ManageBooking p={{ id: "manage" }} env={env} />
+    : q.hold && q.s ? <Done env={env} holdId={q.hold} session={q.s} /> : null;
+  if (!body) return null;
+  const page: PageV2 = { slug: path, title, nav: false, seo: { title: "", description: "" }, sections: [] };
+  return { page, main: <div className="hs p-calm" style={{ ...packVars(pack(undefined)), ...kVars(live) } as CSSProperties}>{body}</div> };
+}
+
+export function SiteRendererV2({ live, page, env, banner, main }: { live: LiveDataV2; page: PageV2; env: SiteEnv; banner?: ReactNode; main?: ReactNode }) {
   const doc = live.doc;
   const nav = doc.pages.filter(p => p.nav && p.slug !== "/");
   const wa = live.page_wa[page.slug] || null;
   const c = doc.site.contact;
   const hasBar = page.sections.some(s => s.type === "booking-cta" && s.variant === "sticky-bar");
-  const overHero = page.sections[0]?.type === "hero" && page.sections[0].variant === "fullbleed-image";
+  const overHero = page.sections[0]?.type === "hero" && ["fullbleed-image", "video"].includes(page.sections[0].variant);
   return (
     <div className={`sv${hasBar ? " sv--has-bar" : ""}${overHero ? " sv--over-hero" : ""}`} data-motion={live.theme.motion}
       data-scheme={live.theme.scheme} style={live.theme.vars as CSSProperties}>
-      <link rel="stylesheet" href={live.theme.fonts_href} precedence="default" />
-      {banner}
+      {live.theme.fonts_href && <link rel="stylesheet" href={live.theme.fonts_href} precedence="default" />}
+      {!overHero && banner}
       <a className="sv-skip" href="#sv-main">Skip to content</a>
       <header className="sv-top">
+        {overHero && banner /* the header floats over the photo; outside it the banner would sit under the header */}
         <div className="sv-wrap sv-top__bar">
           <a className="sv-brand" href={hrefOf(env, "/")}>{doc.site.name}</a>
           {nav.length > 0 && (
@@ -47,6 +66,7 @@ export function SiteRendererV2({ live, page, env, banner }: { live: LiveDataV2; 
         </div>
       </header>
       <main id="sv-main">
+        {main}
         {page.sections.map((s, i) => {
           const render = SECTIONS[s.type];
           return render ? <Fragment key={s.id}>{render(s, { env, live, page, first: i === 0 })}</Fragment> : null;
@@ -67,7 +87,7 @@ export function SiteRendererV2({ live, page, env, banner }: { live: LiveDataV2; 
             {Object.entries(doc.site.social || {}).map(([k, v]) => <a key={k} href={v} target="_blank" rel="noopener noreferrer">{k[0].toUpperCase() + k.slice(1)}</a>)}
           </div>
         </div>
-        <p className="sv-wrap sv-legal">© {live.legal.legal_name || doc.site.name}{live.legal.gstin ? ` · GSTIN ${live.legal.gstin}` : ""}{c.address ? ` · ${c.address}` : ""} · Website by HAIP</p>
+        <p className="sv-wrap sv-legal">© {live.legal.legal_name || doc.site.name}{live.legal.gstin ? ` · GSTIN ${live.legal.gstin}` : ""}{c.address ? ` · ${c.address}` : ""} · <a href={hrefOf(env, "/policies")}>Policies</a>{live.blog_count ? <> · <a href={hrefOf(env, "/blog")}>Guides</a></> : null} · Website by HAIP</p>
       </footer>
     </div>
   );

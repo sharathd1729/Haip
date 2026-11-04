@@ -106,41 +106,49 @@ def property_for(db: Session, site: Site, property_id: str) -> Property:
     return prop
 
 
-def make_quote(db: Session, tenant: Tenant, site: Site, prop: Property, body) -> pricing.Quote:
+def make_quote(db: Session, tenant: Tenant, site: Site, prop: Property, body, mode: Optional[str] = None,
+               for_hold: bool = False) -> pricing.Quote:
+    """`mode` = the guest-facing booking mode when it differs from the site setting (website_spec_service.guest_terms).
+    A promo code is checked here (website_promos; a hold also counts other guests' live holds against its cap)."""
+    from app.services import website_promos
     from app.services.invoice_service import get_profile
     cfg = site_settings(site)
+    promo = website_promos.check(db, tenant.id, getattr(body, "promo_code", None), property_id=prop.id,
+                                 check_in=body.check_in, nights=(body.check_out - body.check_in).days, for_hold=for_hold)
     try:
         return pricing.quote(
             db, prop, check_in=body.check_in, check_out=body.check_out, adults=body.adults, children=body.children,
             extras=body.extras, today=today_for(db, tenant.id), inclusive=cfg.prices_include_gst,
-            gst_registered=bool(get_profile(tenant).gstin), mode=cfg.booking_mode, deposit_percent=cfg.deposit_percent,
-            balance_due_days=cfg.balance_due_days, min_nights=cfg.min_nights, max_advance_days=cfg.max_advance_days)
+            gst_registered=bool(get_profile(tenant).gstin), mode=mode or cfg.booking_mode, deposit_percent=cfg.deposit_percent,
+            balance_due_days=cfg.balance_due_days, min_nights=cfg.min_nights, max_advance_days=cfg.max_advance_days,
+            promo=promo)
     except pricing.QuoteRefused as exc:
         raise WebsiteError(422, exc.code, exc.message)
 
 
 def create_hold(db: Session, tenant: Tenant, site: Site, host: str, body, *, ip_hash: Optional[str],
-                user_agent: Optional[str]) -> dict:
+                user_agent: Optional[str], mode: Optional[str] = None) -> dict:
     cfg = site_settings(site)
+    mode = mode or cfg.booking_mode
     if body.website:
         raise WebsiteError(422, "rejected", "We couldn't take this booking. Please contact us.")
-    if cfg.booking_mode == "enquiry":
+    if mode == "enquiry":
         raise WebsiteError(409, "enquiry_only", "This website takes enquiries; send one and the team will reply.")
     qin = body.quote
     prop = property_for(db, site, qin.property_id)
     lock_property(db, tenant.id, prop.id)
     if not is_free(db, tenant.id, prop, qin.check_in, qin.check_out):
         raise WebsiteError(409, "dates_taken", f"{prop.name} was just booked for some of these nights. Pick other dates.")
-    q = make_quote(db, tenant, site, prop, qin)
+    q = make_quote(db, tenant, site, prop, qin, mode, for_hold=True)
     try:
         guest_id = resolve_guest(db, tenant.id, name=body.guest.name, phone=body.guest.phone, email=body.guest.email)
     except ValueError:
         raise WebsiteError(422, "invalid_phone", "Enter a mobile number we can reach on WhatsApp.")
     write_consents(db, tenant.id, guest_id, marketing=body.consent.marketing, notice_version=body.consent.notice_version,
                    ip_hash=ip_hash, user_agent=user_agent, host=host, ref="booking")
-    mode = cfg.booking_mode
     summary = (f"Website booking {'request' if mode == 'request' else 'started'}: {prop.name}, "
                f"{qin.check_in.isoformat()} to {qin.check_out.isoformat()}, {qin.adults} adults"
+               f"{f', promo code {q.promo_code} (Rs {q.discount} off)' if q.promo_code else ''}"
                f"{f', {qin.children} children' if qin.children else ''}, total Rs {q.total}"
                f"{'. Note: ' + body.guest.note.strip() if body.guest.note else ''}")
     inquiry_id = upsert_inquiry(
@@ -167,7 +175,8 @@ def create_hold(db: Session, tenant: Tenant, site: Site, host: str, body, *, ip_
         _attach_payment_link(db, tenant, site, host, hold, prop, body.guest, session)
     append_audit(db, tenant_id=tenant.id, action="website.hold_created", target_type="booking_hold", target_id=hold.id,
                  payload={"site_id": site.id, "property_id": prop.id, "mode": mode, "total": str(q.total),
-                          "pay_now": str(q.pay_now), "check_in": qin.check_in.isoformat(), "check_out": qin.check_out.isoformat()})
+                          "pay_now": str(q.pay_now), "check_in": qin.check_in.isoformat(), "check_out": qin.check_out.isoformat(),
+                          "promo_code": q.promo_code, "discount": str(q.discount)})
     return {"hold_id": hold.id, "session": session, "status": hold.status, "expires_at": _aware(hold.expires_at).isoformat(),
             "payment_url": hold.payment_url, "quote": hold.quote}
 
@@ -222,6 +231,8 @@ def hold_status(db: Session, tenant_id: str, hold_id: str, session: str) -> dict
         stay = db.get(Stay, hold.stay_id)
         out["booking_ref"] = booking_ref(stay) if stay else None
         out["manage_token"] = issue_manage_token(db, tenant_id, hold.stay_id)
+        out["event_id"] = f"stay:{hold.stay_id}"          # the browser's Purchase uses the server's id (website_tracking)
+        out["value"] = str(hold.total)
     return out
 
 
@@ -289,6 +300,12 @@ def on_hold_link_paid(db: Session, tenant: Tenant, hold: BookingHold, pay_ent: d
                     f"details at check-in and file Form C within 24 hours.", priority="high", guest_id=hold.guest_id,
                     due_date=hold.check_in, commit=False)
     hold.status, hold.stay_id = "confirmed", stay.id
+    from app.services import website_promos
+    website_promos.count_use(db, tenant.id, hold)
+    site = db.get(Site, hold.site_id)
+    if site is not None:
+        from app.services import website_tracking
+        website_tracking.purchase(db, site, hold, stay)
     append_audit(db, tenant_id=tenant.id, action="website.booking_confirmed", target_type="booking", target_id=stay.id,
                  payload={"hold_id": hold.id, "payment_id": pay_id, "amount": str(paid), "total": str(hold.total)})
     db.commit()

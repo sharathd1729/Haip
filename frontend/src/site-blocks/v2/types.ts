@@ -4,7 +4,7 @@
 import catalogue from "./spec.json";
 import type { LiveData } from "../types";
 
-export type SectionType = "hero" | "stays" | "booking" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta" | "text";
+export type SectionType = "hero" | "stays" | "booking" | "packages" | "itinerary" | "gallery" | "reviews" | "faq" | "contact" | "booking-cta" | "text" | "offer";
 
 export const CATALOGUE = catalogue as unknown as {
   spec_version: 2;
@@ -24,14 +24,19 @@ export interface SpecV2 {
   tokens: { palette: { name: string; ink: string; surface: string; primary: string; accent: string }; display: string; body: string;
     radius: "soft" | "sharp" | "pill"; motion: "calm" };
   pages: PageV2[];
+  /** Other languages' words (website phase 6, i18n.ts): tagline, page titles/search texts by slug, section text by id. */
+  i18n?: Record<string, { tagline?: string; pages?: Record<string, { title?: string; seo_title?: string; seo_description?: string }>;
+    sections?: Record<string, Record<string, string>> }>;
 }
 
 export interface PackageItem {
   key: string; name: string; summary: string; length: string; inclusions: string[]; days: string[]; destinations: string[];
   max_guests: number; price: { amount: string; label: string } | null; price_label: string | null; wa: WaLink | null;
 }
+/** grounded price mode only: the lowest nightly tariff from HAIP's website price engine (website_pricing.from_price). */
+export interface FromPrice { amount: string; label: string }
 /** One bookable property (caravan, villa, room). `photo` is "asset:<id>" (approved library photo) or an https URL. */
-export interface StayItem { id: string; name: string; summary: string; sleeps: number; bedrooms: number | null; amenities: string[]; photo: string | null }
+export interface StayItem { id: string; slug?: string; bathrooms?: number | null; name: string; summary: string; sleeps: number; bedrooms: number | null; amenities: string[]; photo: string | null; from: FromPrice | null }
 export interface ItineraryDay { day: number; title: string; stops: string[]; overnight: string; notes: string }
 export interface Itinerary { name: string; nights: number; destination: string; about: string; packages: string[]; days: ItineraryDay[] }
 export interface Review { quote: string; name: string; rating: number | null; source: string; date: string }
@@ -44,6 +49,8 @@ export interface Bound {
   itinerary?: Itinerary | null;
   count?: number;
   average?: number | null;
+  /** offer band: its promo code while usable; `label` ("15% off") only when the business shows prices. */
+  promo?: { code: string; until: string | null; min_nights: number; label: string | null } | null;
 }
 
 export interface LiveDataV2 {
@@ -56,8 +63,21 @@ export interface LiveDataV2 {
   bound: Record<string, Bound>;
   page_wa: Record<string, WaLink | null>;
   assets: LiveData["assets"];
+  policies: LiveData["policies"];
   legal: LiveData["legal"];
+  tracking?: LiveData["tracking"];
+  /** JSON-LD per page slug (backend website_seo; live pages only). */
+  jsonld?: Record<string, object[]>;
+  business_kind?: string | null;
+  /** Approved guides on this site (website_blog); the footer links /blog when > 0. */
+  blog_count?: number;
+  /** Every stay the site offers (phase 6): /stays/<slug> pages and /compare. */
+  stays_index?: StayItem[];
 }
+
+/** Pages every v2 site has without a spec page: Razorpay returns guests to /book/done, confirmations link /my-booking, and
+ * /policies holds the cancellation, payment and house rules (sites app, drawn with the v1 parts). */
+export const SYSTEM_PAGES: Record<string, string> = { "/policies": "Policies", "/book/done": "Your booking", "/my-booking": "My booking" };
 
 export function isV2(live: LiveData | LiveDataV2): live is LiveDataV2 {
   return (live as LiveDataV2).spec_version === 2;

@@ -178,10 +178,11 @@ class HeroSlots(_Strict):
     eyebrow: Short = ""
     headline: str = Field(min_length=1, max_length=90)       # *word* = emphasis in the accent colour
     subhead: str = Field("", max_length=240)
-    media: Optional[str] = None                              # empty = the first approved library photo
+    media: Optional[str] = None                              # empty = the first approved library photo (the video's poster)
+    video: Optional[str] = None                              # "video" layout: an uploaded MP4 from the library (no sound)
     cta_label: str = Field("Plan my trip on WhatsApp", min_length=1, max_length=40)
 
-    @field_validator("media", mode="before")
+    @field_validator("media", "video", mode="before")
     @classmethod
     def _media(cls, v):
         return _asset(v)
@@ -272,11 +273,23 @@ class TextSlots(_Strict):
         return _asset(v)
 
 
+class OfferSlots(_Strict):
+    """A seasonal offer band. The discount itself is never typed: it comes from the promo code (website_promos), and its
+    amount shows only in grounded price mode. An expired or used-up code hides the band's code line, not the band."""
+    eyebrow: Short = ""
+    heading: str = Field(min_length=1, max_length=90)
+    text: str = Field("", max_length=280)
+    promo: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{3,30}$")
+    cta_label: str = Field("Check dates", min_length=1, max_length=40)
+
+
 SLOTS: dict[str, type[_Strict]] = {
     "hero": HeroSlots, "stays": StaysSlots, "booking": BookingSlots, "packages": PackagesSlots, "itinerary": ItinerarySlots, "gallery": GallerySlots,
     "reviews": ReviewsSlots, "faq": FaqSlots, "contact": ContactSlots, "booking-cta": BookingCtaSlots, "text": TextSlots,
+    "offer": OfferSlots,
 }
-SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta", "text"]
+SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta", "text",
+                      "offer"]
 
 
 def _typed_price(obj) -> Optional[str]:
@@ -328,11 +341,52 @@ class PageSpec(_Strict):
         return self
 
 
+# ─── other languages (website phase 6). English is the spec itself; each extra language is a full set of the page words,
+# reviewed by a person and published with the version (the approval covers it). Add a language here + in the sites app.
+LANGUAGES = {"hi": "हिन्दी"}
+TEXT_SLOTS = ("eyebrow", "heading", "headline", "subhead", "intro", "text", "body", "cta_label")
+
+
+class PageText(_Strict):
+    title: str = Field("", max_length=60)
+    seo_title: str = Field("", max_length=70)
+    seo_description: str = Field("", max_length=170)
+
+
+class LocaleText(_Strict):
+    tagline: str = Field("", max_length=120)
+    pages: dict[str, PageText] = Field(default_factory=dict)              # by page slug
+    sections: dict[str, dict[str, str]] = Field(default_factory=dict)     # section id -> {text slot: words}
+
+
 class SiteSpec(_Strict):
     spec_version: Literal[2]
     site: SiteInfo
     tokens: Tokens
     pages: list[PageSpec] = Field(min_length=1, max_length=12)
+    i18n: dict[Literal["hi"], LocaleText] = Field(default_factory=dict)
+
+    def _check_i18n(self) -> None:
+        by_id = {s.id: s for p in self.pages for s in p.sections}
+        slugs = {p.slug for p in self.pages}
+        for lang, loc in self.i18n.items():
+            for slug in loc.pages:
+                if slug not in slugs:
+                    raise ValueError(f"{lang}: no page '{slug}'")
+            for sid, slots in loc.sections.items():
+                sec = by_id.get(sid)
+                if sec is None:
+                    raise ValueError(f"{lang}: no section '{sid}'")
+                for slot, words in slots.items():
+                    field = SLOTS[sec.type].model_fields.get(slot)
+                    if slot not in TEXT_SLOTS or field is None:
+                        raise ValueError(f"{lang}: '{slot}' is not a text of the {sec.type} section")
+                    cap = next((m.max_length for m in field.metadata if getattr(m, "max_length", None)), 1200)
+                    if len(words) > cap:
+                        raise ValueError(f"{lang}: {sid}.{slot} is longer than {cap} characters")
+            found = _typed_price(loc.model_dump())
+            if found:
+                raise ValueError(f"a price was typed into the {LANGUAGES[lang]} words ('{found}')")
 
     @model_validator(mode="after")
     def _site_rules(self):
@@ -359,4 +413,5 @@ class SiteSpec(_Strict):
                         sid, n = f"{s.type}-{n}", n + 1
                     s.id = sid
                     seen.add(sid)
+        self._check_i18n()
         return self

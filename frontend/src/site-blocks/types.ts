@@ -44,6 +44,8 @@ export interface LiveData {
     payment_policy?: { advance_percent: number; balance_due_days_before_checkin: number; accepted_methods?: string[] };
     stay_rules?: { check_in_time: string; check_out_time: string; house_rules?: string[]; id_required?: boolean; min_age?: number | null } };
   legal: { legal_name: string; gstin: string | null; address: string | null };
+  /** Public measurement ids (website phase 2); loaded only after the cookie banner is accepted. Empty in previews. */
+  tracking?: { pixel_id?: string; ga4_id?: string };
 }
 
 /** Plain data (it crosses the server -> client boundary in the sites app). Use hrefOf / imageOf / callApi. */

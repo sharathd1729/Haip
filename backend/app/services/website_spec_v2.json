@@ -1,9 +1,9 @@
 {
   "spec_version": 2,
   "sections": {
-    "hero": {"label": "Hero", "variants": ["fullbleed-image", "split", "centered-minimal"], "source": "media:approved"},
+    "hero": {"label": "Hero", "variants": ["fullbleed-image", "split", "centered-minimal", "video"], "source": "media:approved"},
     "stays": {"label": "Our stays", "variants": ["cards", "rows", "feature"], "source": "properties:bookable"},
-    "booking": {"label": "Check dates", "variants": ["calendar"], "source": "booking:availability"},
+    "booking": {"label": "Check dates", "variants": ["calendar", "with-rates"], "source": "booking:availability"},
     "packages": {"label": "Packages", "variants": ["cards-3", "comparison", "feature"], "source": "business_data:packages"},
     "itinerary": {"label": "Itinerary", "variants": ["timeline", "accordion", "day-cards"], "source": "business_data:itineraries"},
     "gallery": {"label": "Gallery", "variants": ["masonry", "filmstrip", "grid"], "source": "media:approved"},
@@ -11,7 +11,8 @@
     "faq": {"label": "FAQ", "variants": ["accordion", "two-column", "compact"], "source": "knowledge:faq"},
     "contact": {"label": "Contact and map", "variants": ["split", "card", "minimal"], "source": "site:contact"},
     "booking-cta": {"label": "Booking call to action", "variants": ["sticky-bar", "banner", "inline-form"], "source": "site:contact"},
-    "text": {"label": "Your own text", "variants": ["plain", "with-photo"], "source": "site:text"}
+    "text": {"label": "Your own text", "variants": ["plain", "with-photo"], "source": "site:text"},
+    "offer": {"label": "Seasonal offer", "variants": ["banner", "card"], "source": "site:promo"}
   },
   "palettes": {
     "forest-amber": {"label": "Forest and amber", "ink": "#1B2420", "surface": "#F5F1E8", "primary": "#2F5D46", "accent": "#A8641C"},

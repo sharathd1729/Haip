@@ -208,6 +208,8 @@ def _current_or_409(db: Session, tenant_id: str, item: MarketingContent, seen_ve
 def missing_photos(kind: str, payload: Optional[dict]) -> list[int]:
     """1-based positions of the slides / frames / clips that have no library photo yet (empty = ready)."""
     from app.services.marketing_render import frames
+    if kind == "article":            # a website guide's photo is optional
+        return []
     fr = frames(kind, payload or {})
     return [n for n, f in enumerate(fr, start=1) if not f["asset_id"]] if fr else [1]
 
