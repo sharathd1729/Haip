@@ -63,6 +63,10 @@ async def mcube_webhook(tenant_slug: str, url_secret: str, request: Request, db:
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     payload = json.loads(body)
+    # Which field carries which number (last 4 digits only, never full numbers) -- Mcube setups with several
+    # tracking numbers put the DID in callfrom for some accounts, so this shows where the customer is.
+    log.info("mcube_payload_shape", tenant=tenant_slug, keys=sorted(payload),
+             numbers={k: str(v)[-4:] for k, v in payload.items() if sum(ch.isdigit() for ch in str(v)) >= 10 and len(str(v)) <= 16})
     log.info("mcube_webhook_received", tenant=tenant_slug, call_id=payload.get("callid"))
     ingest_call.delay(payload=payload, tenant_id=tenant.id, ivr_provider="mcube")
     return {"status": "queued"}

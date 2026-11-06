@@ -192,6 +192,8 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 tenant_id=tenant_id,
             ).first()
             if existing:
+                if _merge_later_event(db, existing, normalized, tenant_id, ivr_provider):
+                    return {"call_id": existing.id, "status": "updated"}
                 log.info("call_already_ingested", call_id=existing.id)
                 return {"call_id": existing.id, "status": "already_exists"}
 
@@ -329,6 +331,47 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
 # to carry a real conversation (misdial, voicemail beep, an outbound leg
 # that connected for a fraction of a second before hanging up).
 _MIN_DURATION_FOR_AI_SECONDS = 10
+
+
+def _merge_later_event(db: Session, call: Call, normalized, tenant_id: str, ivr_provider: str) -> bool:
+    """Some IVRs post twice per call: Mcube sends "On Call" (no length, no recording) and then "On Hangup"
+    (length + recording). The second post used to be dropped as a duplicate, so every Mcube call stayed at
+    0 seconds and was skipped for AI as too short. Fill what the later event knows; never shorten or blank.
+    Returns True when something changed."""
+    changed = False
+    new_secs = normalized.duration_seconds or 0
+    if new_secs > (call.duration_seconds or 0):
+        call.duration_seconds = new_secs
+        changed = True
+    for field in ("ended_at", "started_at"):
+        value = getattr(normalized, field, "") or ""
+        if value and value != (getattr(call, field) or ""):
+            setattr(call, field, value)
+            changed = True
+    new_url = normalized.recording_url or ""
+    url_changed = bool(new_url) and new_url != (call.recording_url_ivr or "")
+    if url_changed:
+        call.recording_url_ivr = new_url
+        changed = True
+    if not changed:
+        return False
+    log.info("call_updated_by_later_event", call_id=call.id, duration_seconds=call.duration_seconds)
+
+    long_enough = (call.duration_seconds or 0) >= _MIN_DURATION_FOR_AI_SECONDS
+    stored = call.recording_status == RecordingStatus.AVAILABLE and bool(call.recording_s3_key)
+    if url_changed or (call.recording_url_ivr and not stored):
+        db.commit()   # fetch_and_store_recording re-checks the length and queues transcription itself
+        fetch_and_store_recording.delay(call_id=call.id, recording_url=call.recording_url_ivr,
+                                        tenant_id=tenant_id, ivr_provider=ivr_provider)
+    elif stored and long_enough and call.transcription_status in ("skipped_short_call", "pending", None):
+        call.transcription_status = "queued"
+        call.ai_score_status = "pending"
+        db.commit()
+        from app.workers.tasks.transcribe import transcribe as transcribe_new
+        transcribe_new.delay(call_id=call.id, tenant_id=tenant_id)
+    else:
+        db.commit()
+    return True
 
 _RETRY_DELAYS = [3600, 21600, 86400]   # 1 h, 6 h, 24 h
 _RETRY_STATES = [
