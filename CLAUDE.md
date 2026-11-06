@@ -418,6 +418,7 @@ with structlog kwargs (`TypeError` at INFO, how production runs); Phase 0 found 
   are live; CallerDesk and Acefone stay in the code for no tenant. Mcube's webhook rejects posts while a tenant's Mcube Integration is missing or disconnected (migration `064`).
   `MCUBE_WEBHOOK_SLUG_ALIASES="rathaa:jade-hospitainment"` delivers Mcube posts to an old tenant's URL to the new tenant (checked against the NEW tenant's webhook_secret), because only Mcube support can change their callback URL.
   Jade's earlier Mcube calls (DID +918970663366, 23 Jul-5 Aug 2026) landed in `rathaa`: `scripts/move_calls_between_tenants.py` (dry run default, `--apply`) moves an IVR number's calls + the guests/leads only they created to another tenant (guests the source also knows stay; reattached via identity_service), and sets the target's `ivr_provider`.
+  Mcube posts twice per call (On Call, then On Hangup with length + recording): `call_ingest._merge_later_event` fills the existing call from the later post (length, end time, recording) and re-queues fetch/transcription; it used to be dropped as a duplicate, leaving every call at 0 s and `skipped_short_call`. `scripts/requeue_skipped_transcriptions.py` (dry run default) transcribes stored recordings skipped that way. The Mcube webhook logs `mcube_payload_shape` (keys + last 4 digits of each number) to show which field holds the customer.
 - `backend/app/adapters/voice/dograh/` — Dograh voice AI adapter (new, M5-parallel)
 
 ### Voice platform routing
