@@ -16,6 +16,9 @@ import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persist
 // state the user sees, just the first one.
 const PERSIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const QUERY_PERSIST_STORAGE_KEY = "haip-query-cache";
+// "<tenantId>:<userId>" of the account whose data the snapshot holds. A different account signing in on the same
+// device (Ratha, then Jade) never sees that snapshot: Providers wipes it before restoring.
+export const CACHE_OWNER_KEY = "haip-query-cache-owner";
 
 // Module-level singleton so api.ts's response interceptor can invalidate
 // every query the instant connectivity is restored, without either module

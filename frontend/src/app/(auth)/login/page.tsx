@@ -4,7 +4,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, ArrowRight, Zap, Shield, BarChart3 } from "@/lib/icons";
-import api from "@/lib/api";
+import api, { clearTokenCache } from "@/lib/api";
 
 const SELLING_POINTS = [
   { icon: Zap, text: "AI answers every missed call, 24/7" },
@@ -72,6 +72,7 @@ function LoginForm() {
       if (res?.error) {
         setError("Sign-in failed. Please try again.");
       } else {
+        clearTokenCache();   // never show the previous account's cached data
         router.push(callbackUrl);
       }
     } catch (err: unknown) {
@@ -88,6 +89,7 @@ function LoginForm() {
       if (res?.error) {
         setError("Invalid email or password. Please try again.");
       } else {
+        clearTokenCache();   // never show the previous account's cached data
         router.push(callbackUrl);
       }
     }
@@ -111,6 +113,7 @@ function LoginForm() {
       if (res?.error) {
         setError("Sign-in failed. Please try again.");
       } else {
+        clearTokenCache();   // never show the previous account's cached data
         router.push(callbackUrl);
       }
     } catch (err: unknown) {
