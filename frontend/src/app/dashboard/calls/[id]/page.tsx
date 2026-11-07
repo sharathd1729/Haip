@@ -17,6 +17,7 @@ import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AI
 import { ActionableInsights } from "@/components/ai/ActionableInsights";
 import { hasActionable, type Actionable } from "@/lib/actionable";
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
+import { AiCheck } from "@/components/calls/AiCheck";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,8 @@ interface CallDetail {
   guest_name?: string;
   agent_name?: string;
   disposition: string;
+  ai_disposition?: string | null;
+  human_disposition?: string | null;
   transcription_status?: string;
   ai_score_status?: string;
   ivr_provider?: string;
@@ -184,7 +187,8 @@ export default function CallDetailPage() {
   const saveMutation = useMutation({
   mutationFn: () =>
   api.post(`/calls/${id}/wrap-up`, {
-  disposition: disposition || undefined,
+  // Once the AI has read the call, only "Was the AI right?" sets the outcome (the chips start on the AI's guess).
+  disposition: call?.ai_disposition ? undefined : disposition || undefined,
   notes: wrapUpNotes,
   next_action: call?.score?.next_action,
   }),
@@ -679,8 +683,10 @@ export default function CallDetailPage() {
   <div className="haip-card p-5">
   <h2 className="text-sm font-semibold text-[var(--haip-fg)] mb-4">Wrap-up</h2>
 
-  {/* Disposition */}
-  <div className="mb-4">
+  <AiCheck callId={call.id} ai={call.ai_disposition} human={call.human_disposition} className="mb-4" />
+
+  {/* Disposition (calls the AI has not read; the rest go through "Was the AI right?" above) */}
+  {!call.ai_disposition && <div className="mb-4">
   <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wide mb-2">
   Disposition
   </label>
@@ -700,7 +706,7 @@ export default function CallDetailPage() {
   </button>
   ))}
   </div>
-  </div>
+  </div>}
 
   {/* AI summary */}
   <div className="mb-4">
