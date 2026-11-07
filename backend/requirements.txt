@@ -51,8 +51,6 @@ pywebpush>=2.0.0
 # parsing) against integrate.api.nvidia.com. Not used for OpenAI itself.
 openai==1.59.5
 
-# Google Gemini — free LLM (1M tokens/day)
-
 # sqlglot — parses/validates LLM-generated SQL before execution in the Ask
 # HAIP free-form analyst (ask_haip_freeform_service.py). This is the primary
 # security boundary rejecting non-SELECT statements, disallowed tables, and
