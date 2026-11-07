@@ -1,6 +1,6 @@
 import axios from "axios";
 import { getSession, signOut } from "next-auth/react";
-import { queryClient, QUERY_PERSIST_STORAGE_KEY } from "@/lib/queryClient";
+import { queryClient, QUERY_PERSIST_STORAGE_KEY, CACHE_OWNER_KEY } from "@/lib/queryClient";
 import { useConnectionStatusStore } from "@/store/connectionStatus";
 import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
 
@@ -115,6 +115,8 @@ export function clearTokenCache() {
   if (typeof window !== "undefined") {
     try {
       window.localStorage.removeItem(QUERY_PERSIST_STORAGE_KEY);
+      window.localStorage.removeItem(CACHE_OWNER_KEY);
+      window.localStorage.removeItem("haip_brand_theme");   // the theme is the workspace's, not the device's
     } catch {
       // Storage unavailable (private browsing, quota) -- in-memory clear above still applied.
     }
