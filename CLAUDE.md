@@ -81,7 +81,7 @@ HAIP is the AI intelligence and communication layer for Indian luxury hospitalit
 
 Active clients:
 - Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved CallerDesk → Mcube → Vobiz-only; Mcube's Integration row is disconnected, not deleted)
-- Jade (pool villas, Bangalore) — Mcube IVR (inbound webhooks only; no API key needed), onboarding
+- Jade (pool villas, Bangalore) — Mcube IVR (inbound webhooks only; no API key needed), onboarding (14 properties from Jade's website copy: `scripts/data/jade_properties.json`, loaded with `scripts/import_properties.py`, dry run default, creates only missing ones)
 
 ## TECH STACK — LOCKED, DO NOT SUGGEST ALTERNATIVES
 
