@@ -375,6 +375,21 @@ def rotate_verify_token(channel: str, current_user: User = Depends(require_roles
     return _owner_token_action(db, current_user, channel, rotate=True)
 
 
+_IG_SUBSCRIBE_HELP = ("Connected, but Instagram did not confirm the message webhook, so DMs may not arrive. In Meta for "
+                      "Developers open the app, Instagram > API setup with Instagram login, and switch on Webhook "
+                      "subscription for this account.")
+
+
+def _instagram_subscribe_result(access_token: str) -> dict:
+    """Subscribe the account to DM/comment webhooks; the outcome is kept in Integration.config."""
+    from app.adapters.instagram.meta_graph import subscribe_webhooks
+    ok, err = subscribe_webhooks(access_token)
+    if not ok:
+        log.warning("instagram_webhook_subscribe_failed", error=err)
+    return {"webhook_subscribed": ok, "webhook_subscribe_error": err or None,
+            "webhook_subscribed_at": datetime.now(timezone.utc).isoformat() if ok else None}
+
+
 # ─── Instagram Graph API — manual credentials ─────────────────────────────────
 
 @router.post("/instagram/connect-key")
@@ -402,24 +417,25 @@ def connect_instagram_manual(
     # A manually pasted token (typically a Facebook Page token) is NOT compatible
     # with graph.instagram.com and should only be used as a temporary placeholder.
     ig_username = ""
-    if access_token and ig_account_id:
+    if access_token:
+        # Every Instagram call HAIP makes goes to graph.instagram.com, which only accepts an Instagram Login token.
+        # A Facebook token (EAA...) used to be accepted here and marked active while no DM could ever arrive (Jade,
+        # 7 Nov), so refuse it and check the token against Instagram itself.
+        if access_token.startswith("EAA"):
+            raise HTTPException(status_code=400, detail=(
+                "This is a Facebook token, and Instagram needs an Instagram Login token. Leave Access token empty, "
+                "save the App Secret, then click \"Connect via Instagram Login\"."))
+        from app.adapters.instagram.meta_graph import GRAPH_BASE
         try:
-            resp = httpx.get(
-                f"https://graph.facebook.com/v20.0/{ig_account_id}",
-                params={"access_token": access_token, "fields": "username,name"},
-                timeout=10,
-            )
-            data = resp.json()
-            if "error" in data:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid credentials: {data['error'].get('message', 'Token rejected by Meta')}"
-                )
-            ig_username = data.get("username", data.get("name", ""))
-        except HTTPException:
-            raise
-        except Exception:
-            ig_username = ""
+            data = httpx.get(f"{GRAPH_BASE}/me", params={"fields": "user_id,username"},
+                             headers={"Authorization": f"Bearer {access_token}"}, timeout=10).json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"Could not reach Instagram to check the token: {exc}")
+        if "error" in data or not data.get("user_id"):
+            msg = (data.get("error") or {}).get("message", "Token rejected by Instagram")
+            raise HTTPException(status_code=400, detail=f"Invalid credentials: {msg}")
+        ig_account_id = ig_account_id or str(data["user_id"])
+        ig_username = data.get("username", "")
 
     row = _upsert_integration(db, current_user.tenant_id, "instagram")
     row.credentials_kms_blob = encrypt_credentials({
@@ -433,12 +449,16 @@ def connect_instagram_manual(
     }
     row.status = "active" if access_token else "pending"
     row.installed_at = _now()
+    if access_token:
+        row.config = {**row.config, **_instagram_subscribe_result(access_token)}
     db.commit()
     result = {
         "status": "connected" if access_token else "pending",
         "instagram_business_account_id": ig_account_id,
         "username": ig_username,
     }
+    if access_token and not row.config.get("webhook_subscribed"):
+        result["warning"] = _IG_SUBSCRIBE_HELP
     if not access_token:
         result["warning"] = "App Secret saved. Now click \"Connect via Instagram Login\" to finish connecting."
     return result
@@ -608,6 +628,7 @@ def instagram_oauth_callback(
                 if token_expires_in else {}
             ),
         }
+        row.config = {**row.config, **_instagram_subscribe_result(access_token)}
         row.status = "active"
         row.installed_at = _now()
         db.commit()
@@ -624,9 +645,10 @@ def instagram_oauth_callback(
             status_code=500,
         )
 
+    subscribed_note = "" if row.config.get("webhook_subscribed") else f"<p><b>{html.escape(_IG_SUBSCRIBE_HELP)}</b></p>"
     return HTMLResponse(
         f"<h3>Instagram connected: @{html.escape(username or ig_account_id)}</h3>"
-        "<p>You can close this tab and return to HAIP.</p>"
+        f"{subscribed_note}<p>You can close this tab and return to HAIP.</p>"
     )
 
 
