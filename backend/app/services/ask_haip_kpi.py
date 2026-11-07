@@ -7,10 +7,8 @@ import re
 from datetime import date, timedelta
 from typing import Optional
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.property import Property
 from app.services import kpi_metrics, lead_metrics
 from app.services.date_presets import ist_range_to_utc, resolve_preset, today_ist
 
@@ -85,11 +83,11 @@ def answer(db: Session, tenant_id: str, question: str) -> Optional[dict]:
         add("payments.refunded", "Refunded", _money(cash["refunded"]))
     if "occupancy" in asked:
         nights = kpi_metrics.occupied_nights(db, tenant_id, day_from, day_to + timedelta(days=1))
-        units = db.query(func.count(Property.id)).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True)).scalar() or 0
+        units = kpi_metrics.capacity_units(db, tenant_id)  # the "Unassigned" holder is not a unit (D-32)
         days = (day_to - day_from).days + 1
         add("stays.occupied_nights", "Occupied nights", nights)
         add("stays.occupancy_pct", "Occupancy (occupied nights / active units x days)",
-            f"{round(nights / (units * days) * 100, 1)}%" if units else "No data")
+            f"{min(100.0, round(nights / (units * days) * 100, 1))}%" if units else "No data")
     if "sla" in asked:
         pct = kpi_metrics.sla_compliance(db, tenant_id, start, end)
         add("leads.sla_compliance", "Enquiries a person contacted within the first-reply target", f"{pct}%" if pct is not None else "No data")

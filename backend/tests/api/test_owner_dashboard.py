@@ -187,6 +187,15 @@ def test_caravans_show_value_nights_and_share_of_the_month(client, shop):
         assert by[name]["occupancy_pct"] == round(in_month / days * 100)
 
 
+def test_an_empty_unassigned_holder_is_not_a_caravan(client, db, shop):
+    # D-32: any "Unassigned ..." name is the holder (vehicle_pool), listed only while it holds a booking
+    db.add(Property(id=str(uuid.uuid4()), tenant_id=shop["tid"], name="Unassigned (legacy bookings)",
+                    slug=f"u-{uuid.uuid4().hex[:4]}", type="caravan", is_active=True))
+    db.commit()
+    names = [i["name"] for i in _owner(client, shop["h_owner"])["caravans"]["items"]]
+    assert names == ["Ratha 1", "Ratha 2"]
+
+
 def test_the_six_attention_cards_and_owing_money(client, shop):
     cards = _owner(client, shop["h_owner"])["attention"]
     assert [c["key"] for c in cards] == ["not_replying", "not_called", "missed_calls", "followups", "at_risk", "owing"]
