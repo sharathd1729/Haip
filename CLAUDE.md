@@ -83,7 +83,7 @@ HAIP is the AI intelligence and communication layer for Indian luxury hospitalit
 
 Active clients:
 - Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved CallerDesk → Mcube → Vobiz-only; Mcube's Integration row is disconnected, not deleted)
-- Jade (pool villas, Bangalore) — Mcube IVR (inbound webhooks only; no API key needed; Jade's posts carry the landing number in `callfrom` and the GUEST in `callto`, so `McubeAdapter.parse_call_webhook` takes the guest from `callto` when `callfrom` == `landingnumber` and reads `calltype` for outbound; `mcube_payload_shape` logs keys + last 4 digits + calltype), onboarding (11 properties from Jade's website copy; Vanani, Royalty and Palatio left out on the owner's word: `scripts/data/jade_properties.json`, loaded with `scripts/import_properties.py`, dry run default, creates only missing ones)
+- Jade (pool villas, Bangalore) — Mcube IVR (inbound webhooks only; no API key needed; Jade's posts carry the landing number in `callfrom` and the GUEST in `callto`, so `McubeAdapter.parse_call_webhook` takes the guest from `callto` when `callfrom` == `landingnumber` and reads `calltype` for outbound; `mcube_payload_shape` logs keys + last 4 digits + calltype; calls ingested before that fix sit on the landing number: `scripts/repair_mcube_call_guests.py --tenant-slug X [--numbers-csv mcube.csv] [--apply]` re-links them from the recording file name `<callto><callid>.wav` or an Mcube export, dry run default), onboarding (11 properties from Jade's website copy; Vanani, Royalty and Palatio left out on the owner's word: `scripts/data/jade_properties.json`, loaded with `scripts/import_properties.py`, dry run default, creates only missing ones)
 
 ## TECH STACK — LOCKED, DO NOT SUGGEST ALTERNATIVES
 
