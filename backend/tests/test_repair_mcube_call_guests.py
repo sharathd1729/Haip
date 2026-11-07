@@ -63,3 +63,15 @@ def test_csv_number_wins_over_filename(db, tenant_and_user):
     assert repair(db, tid, apply=True, numbers={"csv1": "9123404321"})["fixed"] == 1
     db.refresh(c)
     assert c.from_number == "+919123404321"
+
+
+def test_csv_matches_by_call_id_even_when_saved_on_another_own_line(db, tenant_and_user):
+    """Jade's old calls sit on one of its own lines (…3366 but not the landing number), so from != to."""
+    tid = tenant_and_user["tenant"].id
+    c = _call(db, tid, "line2", "https://recordings.mcube.com/r/line2.wav", from_number="+919845003366")
+    keep = _call(db, tid, "line3", "https://recordings.mcube.com/r/line3.wav", from_number="+919845003366")
+    r = repair(db, tid, apply=True, numbers={"line2": "9123404321", "absent": "9000000001"})
+    assert (r["found"], r["fixed"]) == (1, 1)
+    db.refresh(c), db.refresh(keep)
+    assert c.from_number == "+919123404321" and keep.from_number == "+919845003366"
+    assert repair(db, tid, apply=True, numbers={"line2": "9123404321"})["fixed"] == 0   # already right: skipped
