@@ -124,6 +124,16 @@ INTENT_TOOL = {
 # human, not a price lookup.
 GROUNDED_INTENTS = {"availability_check", "price_quote"}
 
+# The fixed intent list (the classifier's enum). Models do not always respect a tool enum, so whatever comes back is mapped
+# onto this list in ONE place before it is stored on the draft (Message.ai_intent -> ai_draft_outcomes.intent, reported per
+# intent by ai_scorecard): "Price Quote" -> price_quote, anything unknown -> general.
+INTENTS = tuple(INTENT_TOOL["input_schema"]["properties"]["intent"]["enum"])
+
+
+def normalize_intent(raw) -> str:
+    key = "_".join(str(raw or "").strip().lower().replace("-", " ").split())
+    return key if key in INTENTS else "general"
+
 # Hard rule (plan §1.2): max 4 tool calls, 8s wall clock. On exhaustion,
 # degrade to the ungrounded path and force needs_human=True -- never leave
 # a guest unanswered because the loop hung.
@@ -356,7 +366,7 @@ async def _ground_reply(
     `details_out`, when given, receives what the guest stated (dates, party, destination, questions ... validated by
     concierge_facts.clean_details) so the caller can remember it and stop asking for it again."""
     classification = await _classify_and_extract(latest_message, history=history, known=known)
-    intent = classification.get("intent", "general")
+    intent = normalize_intent(classification.get("intent"))
     details = concierge_facts.clean_details(classification)
     # A party size only WE wrote (a campaign's "8 guests each") is not the guest's, whatever the classifier returned.
     from app.services.message_author import GUEST, author_of, keep_guest_headcount

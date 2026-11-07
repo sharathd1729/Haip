@@ -7,6 +7,8 @@ send and simply never called record_outcome.
 import uuid
 from unittest.mock import patch
 
+import pytest
+
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.conversation import Conversation, Message, ChannelType
 from app.models.guest import Guest
@@ -92,3 +94,34 @@ def test_shadow_draft_writes_no_outcome_row_until_a_human_acts(db):
     assert db.query(AIDraftOutcome).filter_by(draft_message_id=draft.id).count() == 0
     # Intent is still persisted, so the eventual approve/reject can use it.
     assert draft.ai_intent == "faq_answer"
+
+
+def test_normalize_intent_maps_free_text_onto_the_fixed_list():
+    from app.workers.tasks.concierge_draft import INTENTS, normalize_intent
+    assert set(INTENTS) == {"availability_check", "price_quote", "faq_answer", "booking_status", "complaint", "general"}
+    assert normalize_intent("Price Quote") == "price_quote"
+    assert normalize_intent(" booking-status ") == "booking_status"
+    assert normalize_intent("weather chit-chat") == "general"
+    assert normalize_intent(None) == "general"
+
+
+@pytest.mark.parametrize("returned, stored", [("FAQ Answer", "faq_answer"), ("small talk", "general"), (None, "general"),
+                                              (RuntimeError("provider down"), "general")])
+def test_every_draft_gets_an_intent_from_the_fixed_list(db, returned, stored):
+    tenant, guest, conv, inbound = _setup(db, autonomous=False)
+
+    class _Intent:
+        async def complete(self, **kwargs):
+            if isinstance(returned, Exception):
+                raise returned
+            return {"tool_use": {"intent": returned} if returned else None}
+
+    def _fake_get_llm(task):
+        return _Intent() if task == "quick_classify" else _reply_llm()
+    with patch("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm), \
+         patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
+         patch("app.services.push_service.send_to_tenant"), \
+         patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay"):
+        concierge_draft.run(message_id=inbound.id, conversation_id=conv.id, tenant_id=tenant.id)
+    draft = db.query(Message).filter_by(conversation_id=conv.id, direction="outbound", is_ai_generated=True).one()
+    assert draft.ai_intent == stored
