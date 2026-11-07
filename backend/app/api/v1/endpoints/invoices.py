@@ -8,7 +8,7 @@
   POST   /bookings/{id}/invoices/reissue         new invoice number, old one superseded (audited)      (owner, manager)
   GET    /invoices/{id}/pdf                      short-lived link to the PDF                           (bookings.read)
   GET    /bookings/{id}/booking-messages         WhatsApp messages HAIP sent for this booking          (bookings.read)
-  GET    /messaging/templates/booking-pack       the 4 booking templates and their status              (owner, manager)
+  GET    /messaging/templates/booking-pack       the booking templates and their status                (owner, manager)
   POST   /messaging/templates/booking-pack       create the missing ones as DRAFTS (never submitted)   (owner, manager)
 """
 from __future__ import annotations
