@@ -140,7 +140,7 @@ def deliver(db: Session, send_id: str, tenant_id: str) -> list[str]:
     item = db.query(OpsItem).filter_by(id=send.item_id, tenant_id=tenant_id).first()
     if item is None:
         return []
-    if item.status in ("resolved", "cancelled") or (item.status == "acknowledged" and send.step >= 0):
+    if item.status in ("resolved", "cancelled", "confirming") or (item.status == "acknowledged" and send.step >= 0):
         send.status = "skipped"
         send.error = f"item already {item.status}"
         db.flush()

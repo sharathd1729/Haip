@@ -572,6 +572,12 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         except Exception as exc:
             log.error("opt_out_detection_failed", error=str(exc))
 
+    # ── Guest ops ticket waiting for "Is it fixed?": YES closes it, NO reopens + escalates (guest_ops_tickets). The
+    # concierge still answers the message as usual.
+    if body and body.strip():
+        from app.services import guest_ops_tickets
+        guest_ops_tickets.on_guest_message(db, tenant.id, guest_id, body)
+
     # ── Lead workflows: "Call me back" on one of our missed-call / no-answer WhatsApps ──
     # A callback task + a short "we'll call you" reply (lead_playbooks.on_callback_tap) instead of an AI answer.
     try:

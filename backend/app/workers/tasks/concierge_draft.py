@@ -113,6 +113,16 @@ INTENT_TOOL = {
             "sentiment": {"type": "string", "enum": ["positive", "neutral", "negative", "frustrated"]},
             "urgency": {"type": "string", "enum": ["low", "normal", "high"]},
             "wants_human": {"type": "boolean", "description": "True if the guest asks to speak to a person"},
+            "stay_issue": {
+                "type": "string",
+                "enum": ["none", "maintenance", "housekeeping", "food", "safety", "complaint"],
+                "description": (
+                    "Only when the guest reports a problem happening NOW during their stay or trip: maintenance (something "
+                    "broken: AC, water, power, Wi-Fi, vehicle), housekeeping (dirty, linen, towels, supplies), food (a meal "
+                    "or food problem), safety (injury, danger, theft, medical), complaint (unhappy with the service or "
+                    "staff). none for questions, plans or a future booking."
+                ),
+            },
         },
         "required": ["intent"],
     },
@@ -1453,8 +1463,20 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             superseded_at_send = True
             needs_human_reasons.append("superseded by a newer guest message before send")
 
+        # A problem during the guest's LIVE stay (services/guest_ops_tickets.py): ONE ops ticket, so the on-duty person is
+        # alerted through the roster (Acknowledge / Can't take it, timed escalation). The AI's guessed answer is held (it
+        # could promise a time nobody confirmed); the guest gets the honest line below. Consults keep sales questions only.
+        stay_ticket = None
+        if not force:
+            from app.services import guest_ops_tickets
+            stay_ticket = guest_ops_tickets.open_for_chat(db, tenant, conversation, guest_id, message_id=message_id,
+                                                          burst_text=burst_text, details=details, escalation=escalation)
+        if stay_ticket is not None:
+            should_auto_send, needs_human = False, True
+            needs_human_reasons.append("in-stay problem: passed to the on-site team as an ops ticket")
+
         # Ask a manager (services/agent_consult_flow.py): a deterministic trigger holds the guessed answer; the consult opens below.
-        consult_turn = agent_consult_flow.check_turn(db, tenant, conversation, guest, inquiry, message_id=message_id, ai_mode=ai_mode, force=force, burst_text=burst_text, intent=_intent, details=details, grounded_facts=grounded_facts, reply_text=reply_text, model_confidence=draft["confidence"], threshold=confidence_threshold, escalation=escalation, price_mode=price_mode, price_leak=price_leak, ungrounded=(violation if not is_grounded else media_violation), model_failed=bool(_malformed) or any("AI reply generation" in r for r in needs_human_reasons), sales_turn=sales_turn, rate_limited=bool(rate_limited_reason))
+        consult_turn = agent_consult_flow.check_turn(db, tenant, conversation, guest, inquiry, message_id=message_id, ai_mode=ai_mode, force=force, burst_text=burst_text, intent=_intent, details=details, grounded_facts=grounded_facts, reply_text=reply_text, model_confidence=draft["confidence"], threshold=confidence_threshold, escalation=escalation, price_mode=price_mode, price_leak=price_leak, ungrounded=(violation if not is_grounded else media_violation), model_failed=bool(_malformed) or any("AI reply generation" in r for r in needs_human_reasons), sales_turn=sales_turn, rate_limited=bool(rate_limited_reason), in_stay=stay_ticket is not None)
         if consult_turn.hold:
             should_auto_send, needs_human = False, True; needs_human_reasons.append(consult_turn.note)
 
@@ -1519,6 +1541,8 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         )
         db.add(draft_message)
         db.commit()
+        if stay_ticket is not None:     # before the consult's own holding line, so the guest hears the ops one
+            guest_ops_tickets.send_ack(db, tenant, conversation, stay_ticket, message_id=message_id, ai_mode=ai_mode)
         agent_consult_flow.after_draft(db, consult_turn, draft_message, tenant, conversation, guest, inquiry)
         if superseded_at_send:    # kept for the record, closed as "expired": the newer message's own run answers both
             try:
@@ -1590,7 +1614,8 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # ── Escalation alert ───────────────────────────────────────────────
         # These are time-sensitive by definition -- a refund demand sitting
         # unread in the inbox is the failure mode this guard exists to stop.
-        if escalation and not consult_turn.consult_id:    # a consult already told the team, naming the question
+        # A consult or an ops ticket already told the team, naming the question.
+        if escalation and not consult_turn.consult_id and stay_ticket is None:
             try:
                 from app.services.push_service import send_to_tenant
                 _label = (getattr(guest, "name", None) or "A guest").strip()
