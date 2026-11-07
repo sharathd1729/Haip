@@ -147,6 +147,15 @@ Three scorecards, then one routing change. All scripts read-only; nothing is sen
 (`models/call.py`). First report today's agreement on every call where both are set (no model calls needed). Then
 `scripts/call_eval.py --tenant-slug <slug> --limit 40` re-runs the analysis on 40 of those calls per candidate model
 and reports agreement % with `human_disposition`.
+- **No human labels exist yet (7 Nov 2026).** Ratha: 309 calls with an AI disposition in 90 days, 0 with a human one
+  (the wrap-up form went unused). The labels are now collected by a one-tap "Was the AI right?" control (Yes = the AI's
+  outcome, No = pick the right one) on the Calls page wrap-up, the call page and My day's "Check the AI" card
+  (`POST /calls/{id}/disposition/confirm`, audited `call.disposition_confirmed`; My day lists the agent's analysed calls
+  of the last 7 days with no confirmation, `work_queue_signals.call_checks`). Once the AI has read a call, saving the
+  wrap-up no longer writes the AI's guess as `human_disposition`, so a set `human_disposition` is a real answer.
+  Run the agreement report and `call_eval.py` only once there are at least 40 confirmed calls; until then 4c is blocked.
+  Wrap-up saves before 7 Nov may just repeat the AI's guess: when in doubt, count only calls with a
+  `call.disposition_confirmed` audit event.
 
 **4d. Routing change.** Replace the global `LLM_FORCE_PROVIDER` switch with a per-task paid map in
 `adapters/llm/__init__.py` (for example `_PAID_ROUTES: dict[str, tuple[provider, model, effort]]`), keeping NVIDIA as

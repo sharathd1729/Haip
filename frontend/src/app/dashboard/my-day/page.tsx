@@ -23,6 +23,7 @@ import { ConsultsPanel } from "@/components/consults/ConsultsPanel";
 import { Flame, MessageCircle, Clock } from "@/lib/icons";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneMyDay } from "@/components/myday/PhoneMyDay";
+import { CallChecks, type CallChecksData } from "@/components/myday/CallChecks";
 import { dialPayload as dialFor } from "@/components/myday/useDial";
 import { TakeIt } from "@/components/myday/TakeIt";
 import { myDayHeadline } from "@/lib/myDayHeadline";
@@ -59,6 +60,7 @@ interface Queue {
   unowned: number;
   items: Item[];
   scope: "mine" | "team";
+  call_checks?: CallChecksData;   // "Was the AI right?" nudge: a QA chore, never counted as people
 }
 
 // Order here is the order of the filter chips.
@@ -422,6 +424,8 @@ function DesktopMyDay() {
             </>
           )}
         </div>
+
+        <CallChecks data={data?.call_checks} />
 
         {shown.length > 0 && (
           <p className="hidden text-xs text-[var(--haip-fg-subtle)] md:block">
