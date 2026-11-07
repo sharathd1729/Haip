@@ -52,7 +52,6 @@ pywebpush>=2.0.0
 openai==1.59.5
 
 # Google Gemini — free LLM (1M tokens/day)
-google-generativeai==0.8.3
 
 # sqlglot — parses/validates LLM-generated SQL before execution in the Ask
 # HAIP free-form analyst (ask_haip_freeform_service.py). This is the primary
