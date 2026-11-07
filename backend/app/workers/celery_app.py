@@ -154,15 +154,19 @@ celery_app.conf.update(
     redis_backend_use_ssl=_ssl_opts,
     task_routes={
         # Use full module paths — short names like "tasks.X" don't match registered names
+        # Guest replies: the inbound message, the AI draft and the send run on their own queue, consumed only by
+        # the worker_replies container (docker-compose.prod.yml), so a campaign blast, a Meta Ads sync or a marketing
+        # agency run on the main worker can never make a guest wait. Campaigns send through run_campaign, never here.
+        "whatsapp.process_message":                 {"queue": "replies"},
         "whatsapp.*":                               {"queue": "whatsapp"},
         "app.workers.tasks.whatsapp.*":             {"queue": "whatsapp"},
         "app.workers.tasks.transcribe.*":           {"queue": "transcription"},
         "app.workers.tasks.classify.*":             {"queue": "ai_scoring"},
         "app.workers.tasks.judge.*":                {"queue": "ai_scoring"},
         "app.workers.tasks.wrap_up.*":              {"queue": "ai_scoring"},
-        "app.workers.tasks.concierge_draft.*":      {"queue": "whatsapp"},
-        "app.workers.tasks.rewrite_draft.*":        {"queue": "whatsapp"},
-        "app.workers.tasks.send_whatsapp.*":        {"queue": "whatsapp"},
+        "app.workers.tasks.concierge_draft.*":      {"queue": "replies"},
+        "app.workers.tasks.rewrite_draft.*":        {"queue": "replies"},
+        "app.workers.tasks.send_whatsapp.*":        {"queue": "replies"},
         "app.workers.tasks.run_campaign.*":         {"queue": "whatsapp"},
         "app.workers.tasks.sync_wa_templates.*":    {"queue": "whatsapp"},
         "app.workers.tasks.automation_engine.*":    {"queue": "whatsapp"},
@@ -201,11 +205,11 @@ celery_app.conf.update(
         # exhaustively against every name="..." in app/workers/tasks/*.py;
         # see tests/test_celery_task_routing.py for a regression test that
         # would have caught this, added at the same time.
-        "process_instagram_dm":                     {"queue": "whatsapp"},
+        "process_instagram_dm":                     {"queue": "replies"},
         "process_instagram_referral":               {"queue": "whatsapp"},
         "process_instagram_comment":                 {"queue": "whatsapp"},
         "process_instagram_echo":                    {"queue": "whatsapp"},
-        "send_instagram_dm":                        {"queue": "whatsapp"},
+        "send_instagram_dm":                        {"queue": "replies"},
         "instagram_mark_seen":                       {"queue": "whatsapp"},
         "backfill_instagram_guest_name":             {"queue": "whatsapp"},
         "tasks.flow_engine.drain_pending":           {"queue": "whatsapp"},
@@ -214,15 +218,15 @@ celery_app.conf.update(
         "tasks.check_automation_timers.run":         {"queue": "whatsapp"},
         "tasks.check_automation_timers.check_tenant": {"queue": "whatsapp"},
         "tasks.classify":                            {"queue": "ai_scoring"},
-        "tasks.concierge_draft":                     {"queue": "whatsapp"},
+        "tasks.concierge_draft":                     {"queue": "replies"},
         "tasks.dpdp_purge":                          {"queue": "call_ingest"},
         # Nightly intent tags from the stated occasion (keyword matching, no LLM; owner OK 20 Oct 2026).
         "app.workers.tasks.classify_intent.run":     {"queue": "default"},
         "tasks.judge":                                {"queue": "ai_scoring"},
         "tasks.run_campaign":                        {"queue": "whatsapp"},
         "tasks.launch_due_campaigns":                {"queue": "whatsapp"},
-        "tasks.send_whatsapp":                       {"queue": "whatsapp"},
-        "tasks.send_whatsapp_template":              {"queue": "whatsapp"},
+        "tasks.send_whatsapp":                       {"queue": "replies"},
+        "tasks.send_whatsapp_template":              {"queue": "replies"},
         "tasks.sync_wa_templates.sync_all_tenants":  {"queue": "whatsapp"},
         "tasks.sync_wa_templates.sync_tenant":       {"queue": "whatsapp"},
         "ical.sync_all_feeds":                       {"queue": "call_ingest"},
@@ -310,7 +314,7 @@ celery_app.conf.update(
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from
         # beat entries that are not wired up yet (see tests/test_celery_task_routing.py).
-        "tasks.rewrite_draft":                       {"queue": "whatsapp"},
+        "tasks.rewrite_draft":                       {"queue": "replies"},
         "tasks.composer_rewrite":                    {"queue": "whatsapp"},
         "retention.nightly_purge":                   {"queue": "call_ingest"},
         "call_ingest.fetch_recording":                {"queue": "call_ingest"},
@@ -337,9 +341,9 @@ celery_app.conf.update(
         "reports.agent_worklist_email_all_tenants": {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring":              {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring_all_tenants":  {"queue": "ai_scoring"},
-        # Same queue as concierge_draft itself ("whatsapp"): if that queue is not consumed, neither is the draft it would trigger.
-        "concierge.recover_missed_replies":              {"queue": "whatsapp"},
-        "concierge.recover_missed_replies_all_tenants":  {"queue": "whatsapp"},
+        # Same queue as concierge_draft itself ("replies"): if that queue is not consumed, neither is the draft it would trigger.
+        "concierge.recover_missed_replies":              {"queue": "replies"},
+        "concierge.recover_missed_replies_all_tenants":  {"queue": "replies"},
         "ai_drafts.expire_stale":                        {"queue": "whatsapp"},
         "ai_drafts.expire_stale_all_tenants":            {"queue": "whatsapp"},
         # Ops alerts go out as WhatsApp templates: same queue as every other WhatsApp send.
