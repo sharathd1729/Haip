@@ -111,3 +111,23 @@ def test_vehicle_matching_is_by_whole_word_and_empty_means_ambiguous(text, expec
 def test_unescape_handles_ical_text():
     assert ed.unescape("a\\nb\\, c\\; d\\\\e") == "a\nb, c; d\\e"
     assert date.fromisoformat("2026-10-20")
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("*Mr.Saksham*", "Mr.Saksham"),
+    ("*Ms. Ritika / Mr. Rahul*", "Ms. Ritika / Mr. Rahul"),
+    ("*Ms. Ritika* / _Mr. Rahul_", "Ms. Ritika / Mr. Rahul"),
+    ("Mag/Sharma", "Mag/Sharma"),                      # a separator keeps its own spacing
+    ("  __Vanessa__ ", "Vanessa"),
+    ("Anu*", "Anu"),
+    ("", ""),
+])
+def test_clean_name_drops_bold_and_italic_markers(raw, expected):
+    assert ed.clean_name(raw) == expected
+
+
+def test_guest_name_from_an_event_has_no_markers():
+    d = ed.extract("Booking", "Guest Name: *Mr.Saksham*\nContact Number: +91 98000 33333")
+    assert d["guest_name"] == "Mr.Saksham"
+    d = ed.extract("Booking", "Guest Name: *Ms. Ritika / Mr. Rahul*")
+    assert d["guest_name"] == "Ritika / Mr. Rahul"   # the leading title still goes, as before

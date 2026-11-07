@@ -47,6 +47,20 @@ describe("Occupancy strip", () => {
   });
 });
 
+describe("Occupancy strip placeholder row", () => {
+  it("says the full words for bookings no unit was chosen for, never a 4-letter cut", async () => {
+    get.mockResolvedValue({ data: { today: T, from: T, to: "2026-11-02", days: 14, vehicles: [
+      { property_id: "v1", name: "Villa Aster", slot: 1, placeholder: false, holds: [], bookings: [] },
+      { property_id: "u", name: "Unassigned", slot: 0, placeholder: true, holds: [], bookings: [
+        { booking_id: "b9", guest_name: "Saksham", check_in: "2026-10-21", check_out: "2026-10-23", status: "confirmed", due: false },
+      ] },
+    ] } });
+    wrap(<OccupancyStrip onOpen={vi.fn()} />);
+    expect(await screen.findByText("Which property?")).toBeTruthy();     // no workspace loaded = a plain property business
+    expect(screen.queryByText("Unas")).toBeNull();
+  });
+});
+
 describe("Month summary", () => {
   it("says money is hidden without revenue access, never ₹0", async () => {
     const r = { restricted: true };
@@ -108,5 +122,50 @@ describe("Collect sheet", () => {
     wrap(<CollectSheet bookingId="bk" open onClose={vi.fn()} />);
     await userEvent.click(await screen.findByRole("button", { name: "Send link" }));
     await waitFor(() => expect(post).toHaveBeenCalledWith("/bookings/bk/payment-links", { amount: 35000, send_whatsapp: true }));
+  });
+});
+
+describe("Occupancy strip for a stay business (11 villas)", () => {
+  const villas = Array.from({ length: 11 }, (_, i) => `Villa ${String.fromCharCode(65 + i)}`);
+  const waitingEvent = (key: string) => ({ title: "*Mag/Sharma*", needs_vehicle: true, event_key: key, feed_name: "Demo bookings", details: {} });
+  function data() {
+    return { today: T, from: T, to: "2026-11-02", days: 14, vehicles: villas.map((name, i) => ({
+      property_id: `p${i}`, name, slot: 1, placeholder: false, bookings: [],
+      holds: [
+        // one event held on every villa (named no villa), entered as two one-night events
+        { id: `w1-${i}`, from: "2026-10-21", to: "2026-10-22", reason: "offline_booking", event: waitingEvent("f:w1") },
+        { id: `w2-${i}`, from: "2026-10-22", to: "2026-10-23", reason: "offline_booking", event: waitingEvent("f:w2") },
+        ...(i === 0 ? [{ id: "k1", from: "2026-10-24", to: "2026-10-25", reason: "offline_booking", event: { title: "Kapoor", needs_vehicle: false, details: {} } },
+          { id: "k2", from: "2026-10-25", to: "2026-10-26", reason: "offline_booking", event: { title: "Kapoor", needs_vehicle: false, details: {} } }] : []),
+      ],
+    })) };
+  }
+  beforeEach(() => { try { window.localStorage.removeItem("haip.bookings.strip"); } catch { /* none */ } });
+
+  it("starts folded with one line, opens on request and remembers it", async () => {
+    get.mockResolvedValue({ data: data() });
+    wrap(<OccupancyStrip onOpen={vi.fn()} />);
+    expect(await screen.findByText(/11 of 11 properties free tonight · 0 check-ins · 1 calendar event needs a property/)).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Villa A" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Show properties" }));
+    expect(screen.getByRole("group", { name: "Villa A" })).toBeTruthy();
+    expect(window.localStorage.getItem("haip.bookings.strip")).toBe("open");
+  });
+
+  it("shows a 'Which villa?' event once, merges back-to-back nights, and a tap on a hold opens its sheet", async () => {
+    window.localStorage.setItem("haip.bookings.strip", "open");
+    get.mockResolvedValue({ data: data() });
+    const onOpenHold = vi.fn();
+    wrap(<OccupancyStrip onOpen={vi.fn()} onOpenHold={onOpenHold} />);
+    const which = await screen.findByRole("group", { name: "Which property?" });
+    const waitingBars = which.querySelectorAll("button");
+    expect(waitingBars).toHaveLength(1);                                     // two one-night events, one bar, shown once
+    expect(waitingBars[0].textContent).toContain("Mag/Sharma");
+    expect(screen.getByRole("group", { name: "Villa B" }).querySelectorAll("button")).toHaveLength(0);   // not repeated on each villa
+    const kapoor = screen.getByRole("button", { name: /Kapoor \(Google Calendar\)/ });
+    expect(kapoor.className).toContain("col-span-2");
+    await userEvent.click(kapoor);
+    expect(onOpenHold).toHaveBeenCalledWith(expect.objectContaining({ id: "k1", blocked_to: "2026-10-26" }), "Villa A");
+    expect(screen.queryByRole("link", { name: "New booking on Villa B, Wed 21 Oct" })).toBeNull();   // a "Which villa?" day is not offered
   });
 });
