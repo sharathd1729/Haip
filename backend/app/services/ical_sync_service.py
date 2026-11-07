@@ -348,6 +348,10 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
         seen[key] = ev
 
     rules = _vehicle_rules(db, feed)
+    # "Hold only this villa": a person's answer for an event that named no unit counts as if the event had named it.
+    from app.models.ical_feed import ICalEventAssignment
+    assigned = {a.event_key: a.property_id for a in db.query(ICalEventAssignment)
+                .filter_by(tenant_id=feed.tenant_id, feed_id=feed.id).all()} if rules else {}
     prefix = marker(feed.id)
     existing = {
         (b.property_id, (b.notes or "")[len(prefix):]): b
@@ -363,6 +367,8 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
         start, end, source = ical_event_details.block_window(ev["start"], ev["end"], details)
         if rules:
             hits = ical_event_details.match_vehicles(ev.get("summary", "") + "\n" + ev.get("description", ""), rules)
+            if not hits and assigned.get(key) in rules:
+                hits = [assigned[key]]
             state = _book(db, feed, key, ev, details, start, end, source, hits, today)
             if state is not None:                    # a complete event is a booking, not a block
                 if state in booked:

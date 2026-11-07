@@ -117,3 +117,33 @@ def test_every_card_says_what_it_measures_and_the_sla_is_a_person(client, tenant
     assert "month to date" in labels["occupancy_pct"]
     assert {"revenue_mtd", "occupancy_pct", "active_inquiries", "qa_avg_score", "sla_compliance_pct",
             "ai_draft_rate_pct"} <= set(labels)
+
+
+def test_capacity_units_leaves_the_holder_out_for_this_workspace_only(db, tenant_and_user):
+    from app.services import kpi_metrics
+    tid = tenant_and_user["tenant"].id
+    r1 = _prop(db, tid, "Ratha 1")
+    _prop(db, tid, "Ratha 2")
+    holder = _prop(db, tid, "Unassigned (vehicle not chosen yet)")
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:8]}", plan="growth")
+    db.add(other)
+    db.flush()
+    _prop(db, other.id, "Elsewhere")
+    db.commit()
+    assert kpi_metrics.capacity_units(db, tid) == 2
+    assert kpi_metrics.capacity_units(db, tid, property_ids=[r1.id, holder.id]) == 1
+    assert kpi_metrics.capacity_units(db, other.id) == 1
+
+
+def test_ask_haip_occupancy_uses_the_same_units(db, tenant_and_user):
+    from app.services import ask_haip_kpi
+    from app.services.date_presets import resolve_preset
+    tid = tenant_and_user["tenant"].id
+    d_from, d_to = resolve_preset("last_month")
+    r1 = _prop(db, tid, "Ratha 1")
+    _prop(db, tid, "Ratha 2")
+    _prop(db, tid, "Unassigned")
+    _stay(db, tid, r1, d_from, d_to + timedelta(days=1))   # Ratha 1 the whole month
+    db.commit()
+    rows = {r["metric"]: r["value"] for r in ask_haip_kpi.answer(db, tid, "occupancy last month")["rows"]}
+    assert rows["stays.occupancy_pct"] == "50.0%"                                # two caravans, not three

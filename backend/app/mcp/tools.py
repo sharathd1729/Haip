@@ -778,7 +778,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "ask_haip",
-        "description": "Ask HAIP's free-form analyst any ad-hoc business question (NL -> SQL against a read-only role). Owner-only, requires the ask_haip module.",
+        "description": "Ask HAIP's free-form analyst any ad-hoc business question (NL -> SQL against a read-only role). KPI questions (how many leads/bookings, revenue, occupancy, SLA) are answered from HAIP's shared metric definitions, the same numbers as the dashboards. Owner-only, requires the ask_haip module.",
         "inputSchema": {
             "type": "object",
             "properties": {"question": {"type": "string"}},

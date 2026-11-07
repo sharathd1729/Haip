@@ -18,25 +18,28 @@ import { useSession } from "next-auth/react";
 import { canCreateBookings } from "@/lib/permissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, format, parseISO, isToday, startOfMonth, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Calendar, Users, TrendingUp, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
+import { daysBetween } from "@/lib/bookingAgenda";
+import { cleanName, holdLabel, nightsWord, splitWaiting, type HoldBlock } from "@/lib/calendarHolds";
+import { useSegment, type Segment } from "@/lib/segments";
+import { ChevronLeft, ChevronRight, Calendar, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
 import { Bed } from "lucide-react";
-import { DUE_TONE, EntrySheet, moneyDue, type Entry } from "@/components/calendar/CalendarParts";
+import { BLOCK_TONE, DUE_TONE, EntrySheet, WAITING_STRIPE, moneyDue, type Entry } from "@/components/calendar/CalendarParts";
+import { CalendarStats } from "@/components/calendar/CalendarStats";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SIDEBAR_W = 132;   // px — sticky property sidebar column (was 224: the name and the occupancy bar are all it needs)
+const SIDEBAR_W = 176;   // px — sticky unit column: the full name and what it holds in the window
 
 const DAY_W     = 40;    // px — each day column
 
 const RATE_H    = 26;    // px — nightly-rate sub-row height (Rates mode)
 
 const ROW_H: Record<CalendarMode, number> = {
-  bookings:     88,
-  rates:        88 + RATE_H + 1,
+  bookings:     60,
+  rates:        60 + RATE_H + 1,
   availability: 54,
   revenue:      80,
 };
@@ -118,26 +121,15 @@ interface StayBar {
   guest_phone?: string;
   adults: number;
   total_amount?: number | null;
-  paid_amount?: number | null;
+  paid_amount?: number | null;   // with revenue.read only, like the total
   channel_source: string;
   inquiry_id?: string | null;   // the lead this booking came from
   notes?: string;               // staff notes (which caravan: Black / White)
 }
 
-interface BlockBar {
-  id: string;
-  blocked_from: string;
-  blocked_to: string;
-  reason: string;
-  notes?: string;
-  // Read from an imported calendar event (title, guest, destination, package; amounts only with revenue.read)
-  event?: {
-    title: string;
-    needs_vehicle: boolean;
-    dates_source: string;
-    details: { guest_name?: string; phone?: string; destination?: string; package?: string; guests?: string; amounts?: Record<string, number> };
-  } | null;
-}
+// A hold: hand-made, or read from an imported calendar (event: title, link name, key shared by every copy of an event held on
+// all units, waiting for a unit or not; amounts only with revenue.read).
+type BlockBar = HoldBlock;
 
 interface CalendarRow {
   property_id: string;
@@ -148,6 +140,8 @@ interface CalendarRow {
   image_url?: string;
   channel_source?: string;
   monthly_revenue?: number;
+  booked_nights?: number;        // in the window: HAIP bookings
+  held_nights?: number;          // in the window: nights held by a calendar event naming this unit
   cells: Record<string, string>;
   stays: StayBar[];
   blocks: BlockBar[];
@@ -163,6 +157,8 @@ interface CalendarStats {
   check_ins_today?: number;
   check_outs_today?: number;
   vacant_today?: number;
+  booked_nights?: number; held_nights?: number; possible_nights?: number; occupancy_with_holds_pct?: number;
+  free_today?: number; waiting_events?: number; revenue_restricted?: boolean;
 }
 
 interface CalendarResponse {
@@ -214,62 +210,6 @@ function useVirtualRows(
   const padBot = Math.max(0, (totalRows - end - 1) * rowH);
   return { start, end, padTop, padBot };
 }
-
-// ── TopSummaryBar ──────────────────────────────────────────────────────────────
-
-const TopSummaryBar = memo(function TopSummaryBar({
-  revenue, occupancy, checkIns, checkOuts, vacant, totalProps,
-}: {
-  revenue: number; occupancy: number; checkIns: number;
-  checkOuts: number; vacant: number; totalProps: number;
-}) {
-  const chips = [
-    {
-      icon: <DollarSign size={13} />,
-      label: "Portfolio Revenue",
-      value: fmtK(revenue),
-      cls: "text-emerald-700 bg-emerald-50 ring-emerald-200",
-    },
-    {
-      icon: <TrendingUp size={13} />,
-      label: "Occupancy",
-      value: `${occupancy}%`,
-      cls: occupancy >= 70 ? "text-green-700 bg-green-50 ring-green-200"
-         : occupancy >= 40 ? "text-amber-700 bg-amber-50 ring-amber-200"
-                           : "text-red-700 bg-red-50 ring-red-200",
-    },
-    {
-      icon: <LogIn size={13} />,
-      label: "Check-ins",
-      value: String(checkIns),
-      cls: "text-sky-700 bg-sky-50 ring-sky-200",
-    },
-    {
-      icon: <LogOut size={13} />,
-      label: "Check-outs",
-      value: String(checkOuts),
-      cls: "text-orange-700 bg-orange-50 ring-orange-200",
-    },
-    {
-      icon: <Home size={13} />,
-      label: "Vacant",
-      value: `${vacant}/${totalProps}`,
-      cls: "text-[var(--haip-fg-muted)] bg-[var(--haip-surface)] ring-[var(--haip-border)]",
-    },
-  ];
-
-  return (
-    <div className="flex items-center gap-2.5 px-4 py-2 bg-white border-b border-[var(--haip-border)] flex-wrap">
-      {chips.map(c => (
-        <div key={c.label} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-xl ring-1 text-xs font-semibold", c.cls)}>
-          {c.icon}
-          <span className="font-normal opacity-70">{c.label}</span>
-          <span className="tabular-nums font-bold">{c.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-});
 
 // ── HoverCard (portal) ─────────────────────────────────────────────────────────
 
@@ -387,56 +327,31 @@ const HoverCard = memo(function HoverCard({
 
 // ── PropertySidebarCell ────────────────────────────────────────────────────────
 
-const PROP_TYPE_ICON: Record<string, string> = {
-  hotel: "🏨", resort: "🏖️", caravan: "🚌", villa: "🏡",
-  rental_apartment: "🏢", travel: "✈️",
-};
-
 const PropertySidebarCell = memo(function PropertySidebarCell({
-  row, rowH, occupancyPct,
+  row, rowH, nights,
 }: {
-  row: CalendarRow; rowH: number; occupancyPct: number;
+  row: CalendarRow; rowH: number; nights: number;
 }) {
-  const typeIcon = PROP_TYPE_ICON[row.property_type] ?? "🏡";
-  const rev = row.monthly_revenue;
-
+  const booked = row.booked_nights ?? bookedIn(row.cells).booked;
+  const held = row.held_nights ?? 0;
+  const sub = booked || held
+    ? `${[booked && `${booked} booked`, held && `${held} held by calendar`].filter(Boolean).join(", ")} · of ${nights}`
+    : `All ${nights} nights free`;
   return (
     <div
-      className="flex-shrink-0 flex items-center gap-2 px-2 bg-white border-r border-[var(--haip-border-strong)] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)] sticky left-0 z-20"
+      className="flex-shrink-0 flex flex-col justify-center gap-0.5 px-3.5 bg-[var(--haip-card)] border-r border-[var(--haip-border)] sticky left-0 z-20"
       style={{ width: SIDEBAR_W, height: rowH }}
+      title={`${row.property_name} · ${row.property_type} · ${row.bedrooms} BR · up to ${row.max_adults} guests`}
     >
-      {/* Info -- the thumbnail, type and bedroom line are gone: at 132px the name needs the room */}
-      <div className="flex-1 min-w-0" title={`${row.property_name} · ${row.property_type} · ${row.bedrooms} BR · up to ${row.max_adults} guests`}>
-        <p className="text-[12px] font-bold text-[var(--haip-fg)] leading-tight line-clamp-2">
-          {row.property_name}
-        </p>
-
-        {/* Occupancy bar */}
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <div className="flex-1 h-1 bg-[var(--haip-status-neutral-bg)] rounded-full overflow-hidden">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                occupancyPct >= 80 ? "bg-emerald-400" : occupancyPct >= 50 ? "bg-amber-400" : "bg-red-400",
-              )}
-              style={{ width: `${Math.min(100, occupancyPct)}%` }}
-            />
-          </div>
-          <span className={cn(
-            "text-[10px] font-bold tabular-nums",
-            occupancyPct >= 80 ? "text-emerald-600" : occupancyPct >= 50 ? "text-amber-600" : "text-red-500",
-          )}>
-            {occupancyPct}%
-          </span>
-        </div>
-
-        {rev != null && rev > 0 && (
-          <p className="text-[10px] text-[var(--haip-fg-subtle)] tabular-nums mt-0.5">{fmtK(rev)}</p>
-        )}
-      </div>
+      <p className="truncate text-[13px] font-bold text-[var(--haip-fg)]">{row.property_name}</p>
+      <p className="truncate text-[11px] text-[var(--haip-fg-subtle)]">{sub}</p>
     </div>
   );
 });
+
+function bookedIn(cells: Record<string, string>) {
+  return { booked: Object.values(cells).filter(v => v === "confirmed" || v === "checked_in").length };
+}
 
 // ── BookingBar ─────────────────────────────────────────────────────────────────
 
@@ -449,146 +364,95 @@ const BookingBar = memo(function BookingBar({
   onOpen: (stay: StayBar) => void;
 }) {
   if (!days.length) return null;
-  const winStart = days[0];
-  const winEnd   = days[days.length - 1];
-  if (stay.check_out <= winStart || stay.check_in > winEnd) return null;
-
-  const rawStart = days.indexOf(stay.check_in);
-  const startIdx = Math.max(rawStart, 0);
-  const clipped  = rawStart < 0;          // stay starts before window
-  const rawEnd   = days.indexOf(stay.check_out);
-  const spanDays = rawEnd >= 0 ? rawEnd - startIdx : days.length - startIdx;
-  if (spanDays <= 0) return null;
-
+  const s = daysBetween(days[0], stay.check_in), e = daysBetween(days[0], stay.check_out);
+  // A stay runs from the afternoon of check-in to the morning of check-out (as on the phone grid); a same-day stay still shows.
+  const from = s === e ? s + 0.1 : s + 0.5, to = s === e ? s + 0.9 : e + 0.5;
+  const a = Math.max(0, from), z = Math.min(days.length, to);
+  if (z - a <= 0.05) return null;
+  const clipL = from < 0, clipR = to > days.length;
   const due = moneyDue(stay);
-  const cc = due ? { ...chConfig(stay.channel_source), ...DUE_TONE } : chConfig(stay.channel_source);
-  const faded = stay.status === "cancelled" ? "opacity-25"
-              : stay.status === "quoted"    ? "opacity-55"
-              : "";
-
+  const tone = due ? DUE_TONE : chConfig(stay.channel_source);
+  const name = cleanName(stay.guest_name) || "Guest";
+  const n = e - s;
+  const faded = stay.status === "cancelled" ? "opacity-25" : stay.status === "quoted" ? "opacity-55" : "";
   return (
     <div
       className={cn(
-        "absolute flex items-center cursor-pointer select-none",
-        "rounded-xl border overflow-hidden",
-        "transition-all duration-100 hover:brightness-105 hover:shadow-md",
-        cc.bg, cc.text, cc.border, due && DUE_TONE.edge, faded,
+        "absolute flex items-center gap-1.5 overflow-hidden pl-1 pr-2.5 text-[12px] font-bold cursor-pointer select-none hover:brightness-105",
+        tone.bg, tone.text, due ? DUE_TONE.edge : "shadow-[var(--haip-shadow-sm)]", faded,
+        clipL ? "rounded-l-none" : "rounded-l-full", clipR ? "rounded-r-none" : "rounded-r-full",
       )}
-      style={{
-        left:   startIdx * DAY_W + (clipped ? 0 : 3),
-        width:  spanDays * DAY_W - (clipped ? 0 : 6),
-        top:    8,
-        height: 46,
-        zIndex: 3,
-        borderRadius: clipped ? "0 12px 12px 0" : undefined,
-      }}
-      onMouseEnter={e => onHover(stay, e)}
+      style={{ left: a * DAY_W + 1, width: (z - a) * DAY_W - 2, top: 12, height: 36, zIndex: 3 }}
+      onMouseEnter={ev => onHover(stay, ev)}
       onMouseLeave={onLeave}
       role="button" tabIndex={0}
-      aria-label={`${stay.guest_name || "Guest"}, ${stay.check_in} to ${stay.check_out}${due ? ", money still due" : ""}. Open details`}
+      aria-label={`${name}, ${stay.check_in} to ${stay.check_out}${due ? ", money still due" : ""}. Open details`}
       data-due={due ? "true" : undefined}
       onClick={() => { onLeave(); onOpen(stay); }}
-      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(stay); } }}
+      onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onOpen(stay); } }}
     >
-      {/* Content */}
-      <div className="flex-1 min-w-0 px-2.5 flex items-center justify-between gap-1">
-        {spanDays >= 3 ? (
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold leading-none truncate">
-              {stay.guest_name || "Guest"}
-            </p>
-            {spanDays >= 4 && (
-              <div className="flex items-center gap-2 mt-1">
-                {stay.adults > 0 && (
-                  <span className="text-[9px] opacity-80 flex items-center gap-0.5">
-                    <Users size={8} />{stay.adults}
-                  </span>
-                )}
-                {stay.total_amount && (
-                  <span className="text-[9px] font-extrabold opacity-90 tabular-nums">
-                    {fmtK(stay.total_amount)}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        ) : spanDays === 2 ? (
-          <p className="text-[10px] font-bold truncate">
-            {(stay.guest_name || "Guest").split(" ")[0]}
-          </p>
-        ) : (
-          <p className="text-[9px] font-extrabold">
-            {(stay.guest_name || "?")[0]}
-          </p>
-        )}
-
-        {/* Source badge */}
-        {spanDays >= 5 && (
-          <span className="flex-shrink-0 text-[8px] font-extrabold px-1.5 py-0.5 rounded-md bg-white/25 leading-none">
-            {cc.short}
-          </span>
-        )}
-      </div>
+      {!clipL && (
+        <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[rgb(255_255_255/0.22)] text-[11px]">
+          {name.charAt(0).toUpperCase()}
+        </span>
+      )}
+      <span className={cn("truncate", clipL && "pl-1.5")}>
+        {name}{n > 0 ? ` · ${n} night${n === 1 ? "" : "s"}` : ""}{due ? " · due" : ""}
+      </span>
     </div>
   );
 });
 
 // ── BlockBar ───────────────────────────────────────────────────────────────────
 
-// Agreed colours: gray = blocked (owner use, offline, other), red = maintenance.
-const BLOCK_CLS: Record<string, string> = {
-  maintenance:      "bg-red-500 border-red-600 text-white",
-  personal:         "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
-  owner_use:        "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
-  offline_booking:  "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
-  other:            "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
-};
-
-const BlockBar = memo(function BlockBar({ block, days, onOpen }: { block: BlockBar; days: string[]; onOpen: (block: BlockBar) => void }) {
-  const winStart = days[0];
-  const winEnd   = days[days.length - 1];
-  if (block.blocked_to <= winStart || block.blocked_from > winEnd) return null;
-
-  const startIdx = Math.max(days.indexOf(block.blocked_from), 0);
-  const rawEnd   = days.indexOf(block.blocked_to);
-  const spanDays = rawEnd >= 0 ? rawEnd - startIdx : days.length - startIdx;
-  if (spanDays <= 0) return null;
-
-  const cls = BLOCK_CLS[block.reason] ?? BLOCK_CLS.other;
-  const ev = block.event;
-  const d = ev?.details;
-  const label = ev ? (d?.guest_name || ev.title) : block.reason.replace(/_/g, " ");
-  const tip = ev
-    ? [ev.title, d?.destination && `Destination: ${d.destination}`, d?.package && `Package: ${d.package}`, d?.guests && `Guests: ${d.guests}`,
-       d?.phone && `Phone: ${d.phone}`,
-       d?.amounts?.total != null && `Total: ₹${d.amounts.total.toLocaleString("en-IN")}`,
-       d?.amounts?.balance != null && `Balance: ₹${d.amounts.balance.toLocaleString("en-IN")}`,
-       ev.needs_vehicle && "Vehicle not named in the Google event, so every vehicle is held. Add white or black to the event title."]
-        .filter(Boolean).join("\n")
-    : block.notes || block.reason;
-
+/** A hold: grey-green with a calendar icon when a Google Calendar event made it, red for maintenance; one bar for all its days. */
+const BlockBar = memo(function BlockBar({ block, days, onOpen, waiting, unit }: {
+  block: BlockBar; days: string[]; onOpen: (block: BlockBar) => void; waiting?: boolean; unit?: string;
+}) {
+  if (!days.length) return null;
+  const s = daysBetween(days[0], block.blocked_from);
+  const e = Math.max(daysBetween(days[0], block.blocked_to), s + 1);       // a one-day hold still shows
+  const a = Math.max(0, s), z = Math.min(days.length, e);
+  if (z <= a) return null;
+  const tone = BLOCK_TONE(block.reason, waiting);
+  const label = holdLabel(block);
+  const span = e - s > 1 ? ` · ${nightsWord(block.blocked_from, block.blocked_to)}` : "";
   return (
-    <div
-      className={cn("absolute rounded-md border flex items-center overflow-hidden select-none cursor-pointer", cls, ev?.needs_vehicle && "border-dashed")}
-      style={{ left: startIdx * DAY_W + 2, width: spanDays * DAY_W - 4, top: 8, height: 38, zIndex: 2 }}
-      title={tip}
-      role="button" tabIndex={0}
-      onClick={() => onOpen(block)}
-      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(block); } }}
+    <button type="button" onClick={() => onOpen(block)}
+      className={cn("absolute flex items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full px-2.5 text-[12px] font-bold hover:brightness-105",
+        tone.bg, tone.text, waiting && "border")}
+      style={{ left: a * DAY_W + 2, width: (z - a) * DAY_W - 4, top: 12, height: 36, zIndex: 2 }}
+      aria-label={`${label}${block.event ? " (Google Calendar)" : ""}, ${block.blocked_from} to ${block.blocked_to}${waiting ? `, ${unit ?? "unit"} not chosen` : ""}. Open details`}
+      title={`${label}${span}`}
     >
-      <span className={cn("px-2 text-[9px] font-bold tracking-wide truncate", !ev && "uppercase")}>
-        {ev?.needs_vehicle ? `? ${label}` : label}
-      </span>
-    </div>
+      {block.event && <Calendar size={12} aria-hidden className="shrink-0" />}
+      <span className="min-w-0 flex-1 truncate text-left">{label}{span}</span>
+      {waiting && z - a >= 3 && <span className="shrink-0 rounded-full bg-[var(--haip-card)] px-2 py-0.5 text-[11px]">Pick {unit}</span>}
+    </button>
   );
 });
+
+/** The faint stripe a unit row gets on the days a "Which villa?" event might be its own. */
+function WaitingStripes({ stripes, days, rowH }: { stripes: BlockBar[]; days: string[]; rowH: number }) {
+  return (
+    <>
+      {stripes.map(b => {
+        const a = Math.max(0, daysBetween(days[0], b.blocked_from)), z = Math.min(days.length, daysBetween(days[0], b.blocked_to));
+        return z > a ? (
+          <i key={b.id} aria-hidden className={cn("pointer-events-none absolute h-[5px] rounded-full", WAITING_STRIPE)}
+            style={{ left: a * DAY_W + 4, width: (z - a) * DAY_W - 8, top: rowH - 10, zIndex: 1 }} />
+        ) : null;
+      })}
+    </>
+  );
+}
 
 // ── PropertyCalendarRow ────────────────────────────────────────────────────────
 
 const PropertyCalendarRow = memo(function PropertyCalendarRow({
-  row, days, mode, onHover, onLeave, onOpen, isEven, maxRate,
+  row, days, mode, onHover, onLeave, onOpen, isEven, maxRate, stripes,
 }: {
-  row: CalendarRow; days: string[]; mode: CalendarMode; isEven: boolean; maxRate: number;
+  row: CalendarRow; days: string[]; mode: CalendarMode; isEven: boolean; maxRate: number; stripes: BlockBar[];
   onHover: (stay: StayBar, e: React.MouseEvent) => void;
   onLeave: () => void;
   onOpen: (entry: Entry) => void;
@@ -596,19 +460,14 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
   const rowH = ROW_H[mode];
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const confirmedDays = useMemo(
-    () => days.filter(d => ["confirmed","checked_in"].includes(row.cells[d] ?? "")).length,
-    [days, row.cells],
-  );
-  const occupancyPct = days.length > 0 ? Math.round((confirmedDays / days.length) * 100) : 0;
 
   return (
     <div
-      className={cn("flex border-b border-[var(--haip-border)]", isEven ? "bg-white" : "bg-[var(--haip-surface)]/50")}
+      className={cn("flex border-b border-[var(--haip-border)]", isEven ? "bg-[var(--haip-card)]" : "bg-[var(--haip-surface)]/50")}
       style={{ height: rowH }}
     >
       {/* Sticky sidebar */}
-      <PropertySidebarCell row={row} rowH={rowH} occupancyPct={occupancyPct} />
+      <PropertySidebarCell row={row} rowH={rowH} nights={days.length} />
 
       {/* Scrollable day area */}
       <div className="relative flex-1" style={{ minWidth: days.length * DAY_W }}>
@@ -688,6 +547,8 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
               })}
             </div>
 
+            <WaitingStripes stripes={stripes} days={days} rowH={rowH} />
+
             {/* Block bars (z-index 2) */}
             {row.blocks.map(block => (
               <BlockBar key={block.id} block={block} days={days} onOpen={b => onOpen({ kind: "block", block: b, propertyName: row.property_name })} />
@@ -729,95 +590,82 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
 
 // ── CalendarHeader ─────────────────────────────────────────────────────────────
 
+const WHICH_H = 58;   // px: the "Which villa?" row under the dates
+
 const CalendarHeader = memo(function CalendarHeader({
-  days, headerRef, mode,
+  days, headerRef, mode, unitsLabel, which, whichLabel, unit, onOpenWhich, whichRef,
 }: {
-  days: string[]; headerRef: React.RefObject<HTMLDivElement | null>; mode: CalendarMode;
+  days: string[]; headerRef: React.RefObject<HTMLDivElement | null>; mode: CalendarMode; unitsLabel: string;
+  which: BlockBar[]; whichLabel: string; unit: string; onOpenWhich: (b: BlockBar) => void;
+  whichRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const monthGroups = useMemo(() => {
     const groups: { label: string; count: number }[] = [];
     let cur = ""; let cnt = 0;
     for (const day of days) {
-      const m = format(parseISO(day), "MMM yyyy");
+      const m = format(parseISO(day), "MMMM yyyy");
       if (m !== cur) { if (cur) groups.push({ label: cur, count: cnt }); cur = m; cnt = 1; }
       else cnt++;
     }
     if (cur) groups.push({ label: cur, count: cnt });
     return groups;
   }, [days]);
+  const showWhich = mode !== "availability" && mode !== "revenue" && which.length > 0;
 
   return (
-    <div className="flex flex-shrink-0 border-b border-[var(--haip-border)] shadow-sm sticky top-0 z-30 bg-white">
-      {/* Corner cell */}
-      <div
-        className="flex-shrink-0 sticky left-0 z-40 bg-white border-r border-[var(--haip-border)] flex items-end pb-1 px-3"
-        style={{ width: SIDEBAR_W, height: 52 }}
-      >
-        <span className="text-[10px] font-extrabold text-[var(--haip-fg-subtle)] uppercase tracking-wider">
-          Properties
-        </span>
+    <div className="flex flex-shrink-0 border-b border-[var(--haip-border)] sticky top-0 z-30 bg-[var(--haip-card)]">
+      {/* Corner cells */}
+      <div className="flex-shrink-0 sticky left-0 z-40 flex flex-col border-r border-[var(--haip-border)] bg-[var(--haip-card)]" style={{ width: SIDEBAR_W }}>
+        <div className="flex items-end px-3.5 pb-1.5 text-[12px] font-bold text-[var(--haip-fg-2)]" style={{ height: 52 + (mode === "rates" ? RATE_H : 0) }}>
+          {unitsLabel}
+        </div>
+        {showWhich && (
+          <div ref={whichRef} className="flex flex-col justify-center gap-0.5 border-t border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] px-3.5 text-[var(--haip-status-warning-fg)]" style={{ height: WHICH_H }}>
+            <b className="text-[13px]">{whichLabel}</b>
+            <Link href="/dashboard/my-day" className="text-[11px] underline">{which.length} event{which.length === 1 ? "" : "s"} · tasks on My day</Link>
+          </div>
+        )}
       </div>
 
       {/* Date columns — horizontally overflow-hidden (synced by JS) */}
       <div ref={headerRef} className="flex-1 overflow-x-hidden" style={{ minWidth: 0 }}>
-        {/* Month labels */}
         <div className="flex">
           {monthGroups.map(g => (
-            <div
-              key={g.label}
-              className="flex-shrink-0 text-[10px] font-extrabold text-[var(--haip-fg-subtle)] uppercase tracking-wider px-2 pt-1.5 border-r border-[var(--haip-border)] last:border-0"
-              style={{ width: g.count * DAY_W }}
-            >
+            <div key={g.label} className="flex-shrink-0 px-2 pt-1.5 text-[12px] font-bold text-[var(--haip-fg-2)] border-r border-[var(--haip-border)] last:border-0"
+              style={{ width: g.count * DAY_W }}>
               {g.label}
             </div>
           ))}
         </div>
-        {/* Day numbers */}
         <div className="flex">
           {days.map(day => {
             const d       = parseISO(day);
             const todayDy = isToday(d);
             const weekend = d.getDay() === 0 || d.getDay() === 6;
             return (
-              <div
-                key={day}
-                className={cn(
-                  "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r border-[var(--haip-border)]",
-                  weekend && "bg-[var(--haip-surface)]",
-                  todayDy && "bg-[var(--haip-accent-light)]",
-                )}
-                style={{ width: DAY_W, height: 30 }}
-              >
-                <span className={cn(
-                  "text-[10px] font-semibold leading-none",
-                  todayDy
-                    ? "bg-[var(--haip-accent)] text-[var(--haip-on-accent)] rounded-full w-4 h-4 flex items-center justify-center"
-                    : weekend ? "text-[var(--haip-fg-subtle)]" : "text-[var(--haip-fg-subtle)]",
-                )}>
+              <div key={day} className={cn("flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r border-[var(--haip-border)]", weekend && "bg-[var(--haip-surface)]")}
+                style={{ width: DAY_W, height: 30 }}>
+                <span className="text-[9px] leading-none text-[var(--haip-fg-subtle)]">{format(d, "EEE")}</span>
+                <span className={cn("mt-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[11px] font-bold leading-none",
+                  todayDy ? "bg-[var(--haip-accent)] text-[var(--haip-on-accent)]" : "text-[var(--haip-fg)]")}>
                   {format(d, "d")}
-                </span>
-                <span className="text-[7px] text-[var(--haip-fg-subtle)]/70 mt-0.5 leading-none uppercase">
-                  {format(d, "EEE")[0]}
                 </span>
               </div>
             );
           })}
         </div>
-        {/* Rate header row — only in rates mode */}
         {mode === "rates" && (
-          <div
-            className="flex border-t border-[var(--haip-border)]"
-            style={{ height: RATE_H }}
-          >
+          <div className="flex border-t border-[var(--haip-border)]" style={{ height: RATE_H }}>
             {days.map(day => (
-              <div
-                key={day}
-                className="flex-shrink-0 flex items-center justify-center border-r border-[var(--haip-border)]"
-                style={{ width: DAY_W }}
-              >
+              <div key={day} className="flex-shrink-0 flex items-center justify-center border-r border-[var(--haip-border)]" style={{ width: DAY_W }}>
                 <span className="text-[8px] font-bold text-[var(--haip-fg-subtle)] uppercase">₹</span>
               </div>
             ))}
+          </div>
+        )}
+        {showWhich && (
+          <div className="relative border-t border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)]/40" style={{ height: WHICH_H, width: days.length * DAY_W }}>
+            {which.map(b => <BlockBar key={b.id} block={b} days={days} onOpen={onOpenWhich} waiting unit={unit} />)}
           </div>
         )}
       </div>
@@ -827,23 +675,23 @@ const CalendarHeader = memo(function CalendarHeader({
 
 // ── Legend ─────────────────────────────────────────────────────────────────────
 
-// Caravan tenants have no OTA/PMS channel integrations (no Airbnb, Booking.com,
-// VRBO, MMT, RentalWise) -- every booking is either direct or blocked/maintenance.
+// Channel colours are shown only for channels that have a booking in view (a villa business with no OTA sees none).
 const OTA_LEGEND_ITEMS = [
-  { dot: "bg-rose-500",    label: "Airbnb" },
-  { dot: "bg-blue-600",    label: "Booking.com" },
-  { dot: "bg-purple-500",  label: "VRBO" },
-  { dot: "bg-orange-500",  label: "MMT" },
-  { dot: "bg-indigo-500",  label: "RentalWise" },
+  { key: "airbnb",      dot: "bg-rose-500",    label: "Airbnb" },
+  { key: "booking.com", dot: "bg-blue-600",    label: "Booking.com" },
+  { key: "vrbo",        dot: "bg-purple-500",  label: "VRBO" },
+  { key: "makemytrip",  dot: "bg-orange-500",  label: "MMT" },
+  { key: "retalwise",   dot: "bg-indigo-500",  label: "RentalWise" },
 ];
 
-function buildLegend(isCaravan: boolean) {
+function buildLegend(seg: Segment, channels: Set<string>) {
   return [
-    { dot: "bg-[var(--haip-cal-direct)]", label: "Direct" },
-    { dot: "bg-[var(--haip-cal-due-edge)]", label: "Money due" },
-    ...(isCaravan ? [] : OTA_LEGEND_ITEMS),
-    { dot: "bg-[var(--haip-cal-block)]",    label: "Blocked" },
-    { dot: "bg-[var(--haip-cal-maint)]",     label: "Maintenance" },
+    { dot: "bg-[var(--haip-cal-direct)]", label: "Direct booking" },
+    { dot: "bg-[var(--haip-cal-due-bg)] shadow-[inset_3px_0_0_var(--haip-cal-due-edge)]", label: "Money due" },
+    ...OTA_LEGEND_ITEMS.filter(i => channels.has(i.key)),
+    { dot: "bg-[var(--haip-cal-block)]", label: "From Google Calendar or blocked" },
+    { dot: "bg-[var(--haip-cal-maint)]", label: "Maintenance" },
+    { dot: WAITING_STRIPE, label: `${seg.whichUnit} (held on every ${seg.unit.one})` },
   ];
 }
 
@@ -862,11 +710,11 @@ const OTA_CHANNEL_OPTS = [
   { value: "retalwise",   label: "RentalWise"   },
 ];
 
-function buildChannelOpts(isCaravan: boolean) {
+function buildChannelOpts(seg: Segment) {
   return [
     { value: "",       label: "All channels" },
     { value: "direct", label: "Direct"       },
-    ...(isCaravan ? [] : OTA_CHANNEL_OPTS),
+    ...(seg.sections.calendar.channelFilter ? OTA_CHANNEL_OPTS : []),
   ];
 }
 
@@ -875,10 +723,8 @@ function buildChannelOpts(isCaravan: boolean) {
 export default function PortfolioCalendarPage() {
   const { data: session } = useSession();
   const canBook = canCreateBookings(session?.user?.role);
-  const businessType = useBusinessType();
-  const isCaravan = businessType === "caravan";
-  const LEGEND = useMemo(() => buildLegend(isCaravan), [isCaravan]);
-  const CHANNEL_OPTS = useMemo(() => buildChannelOpts(isCaravan), [isCaravan]);
+  const seg = useSegment();
+  const CHANNEL_OPTS = useMemo(() => buildChannelOpts(seg), [seg]);
   // Opens a few days before today so the coming bookings are in view, not the days of this month already gone
   const [startDate, setStartDate]     = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return addDays(d, -3); });
   const [viewWindow, setViewWindow]   = useState<ViewWindow>("30");
@@ -923,6 +769,7 @@ export default function PortfolioCalendarPage() {
   const queryClient  = useQueryClient();
   const gridRef      = useRef<HTMLDivElement>(null);   // main scroll container (x + y)
   const headerRef    = useRef<HTMLDivElement>(null);   // header date columns (x sync)
+  const whichRef     = useRef<HTMLDivElement>(null);   // the "Which villa?" row (summary card scrolls to it)
 
   // Date range
   // Phone: the six weeks of the shown month (starting on the Monday before the 1st); desktop: the chosen window.
@@ -966,19 +813,31 @@ export default function PortfolioCalendarPage() {
     return list;
   }, [data?.properties, search, channelFilter]);
 
+  // "Which villa?" events once (not on every unit), each unit's own holds with back-to-back days merged into one bar.
+  const split = useMemo(() => splitWaiting(properties), [properties]);
+  const rows = split.rows;
+  const waiting = split.waiting;
+  const LEGEND = useMemo(() => buildLegend(seg, new Set(properties.flatMap(p => p.stays.map(s => (s.channel_source || "direct").toLowerCase())))), [seg, properties]);
+  // Money still due on the bookings in view (null = amounts are hidden for this role).
+  const due = useMemo(() => {
+    if (stats?.revenue_restricted) return null;
+    const owing = properties.flatMap(p => p.stays).filter(moneyDue);
+    return { amount: owing.reduce((t, s) => t + (s.total_amount ?? 0) - (s.paid_amount ?? 0), 0), stays: owing.length };
+  }, [properties, stats?.revenue_restricted]);
+
   // Phone grid shows one property at a time: the chosen one, else the first
   // "all" draws every vehicle on one grid (Ratha 1 and Ratha 2 side by side); otherwise the chosen one
-  const showAll = propertyId === "all" || (propertyId === "" && properties.length > 1 && properties.length <= 4);
+  const showAll = propertyId === "all" || (propertyId === "" && rows.length > 1 && rows.length <= 4);
   const selected = useMemo(() => {
-    if (showAll && properties.length > 0) {
+    if (showAll && rows.length > 0) {
       return {
-        property_id: "all", property_name: "All vehicles",
-        stays: properties.flatMap(p => p.stays.map(s => ({ ...s, vehicle: p.property_name }))),
-        blocks: properties.flatMap(p => p.blocks.map(b => ({ ...b, vehicle: p.property_name }))),
+        property_id: "all", property_name: seg.allUnits,
+        stays: rows.flatMap(p => p.stays.map(s => ({ ...s, vehicle: p.property_name }))),
+        blocks: rows.flatMap(p => p.blocks.map(b => ({ ...b, vehicle: p.property_name }))),
       };
     }
-    return properties.find(p => p.property_id === propertyId) ?? properties[0];
-  }, [showAll, properties, propertyId]);
+    return rows.find(p => p.property_id === propertyId) ?? rows[0];
+  }, [showAll, rows, propertyId, seg.allUnits]);
 
   // Max rate (for revenue mode heatmap scale)
   const maxRate = useMemo(() =>
@@ -988,26 +847,9 @@ export default function PortfolioCalendarPage() {
     }, 0),
   [properties]);
 
-  // Today summary (computed from data so no extra API call needed)
-  const today = format(new Date(), "yyyy-MM-dd");
-  const todaySummary = useMemo(() => {
-    if (!data?.properties) return null;
-    const allStays = data.properties.flatMap(p => p.stays);
-    return {
-      checkIns:  stats?.check_ins_today  ?? allStays.filter(s => s.check_in  === today).length,
-      checkOuts: stats?.check_outs_today ?? allStays.filter(s => s.check_out === today).length,
-      vacant:    stats?.vacant_today     ?? data.properties.filter(p =>
-        !p.stays.some(s =>
-          s.check_in <= today && today < s.check_out &&
-          ["confirmed","checked_in"].includes(s.status)
-        )
-      ).length,
-    };
-  }, [data?.properties, stats, today]);
-
   // Virtual rows
   const rowH = ROW_H[mode];
-  const { start, end, padTop, padBot } = useVirtualRows(gridRef, properties.length, rowH);
+  const { start, end, padTop, padBot } = useVirtualRows(gridRef, rows.length, rowH);
 
   // Sync horizontal scroll: grid body → header
   const handleGridScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -1026,24 +868,18 @@ export default function PortfolioCalendarPage() {
 
   return (
     <div
-      className={cn("flex flex-col overflow-hidden bg-white", fullscreen ? "fixed inset-0 z-[70]" : "h-full")}
+      className={cn("flex flex-col overflow-hidden bg-[var(--haip-card)]", fullscreen ? "fixed inset-0 z-[70]" : "h-full")}
       style={fullscreen ? { paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" } : undefined}
     >
 
       {/* ── Top summary bar ──────────────────────────────────── */}
-      {stats && todaySummary && !isPhone && (
-        <TopSummaryBar
-          revenue={(stats.revenue_locked ?? 0) + (stats.revenue_quoted ?? 0)}
-          occupancy={stats.occupancy_pct ?? 0}
-          checkIns={todaySummary.checkIns}
-          checkOuts={todaySummary.checkOuts}
-          vacant={todaySummary.vacant}
-          totalProps={stats.total_properties ?? properties.length}
-        />
+      {stats && days.length > 0 && !isPhone && (
+        <CalendarStats stats={stats} from={days[0]} lastDay={days[days.length - 1]} seg={seg} due={due}
+          onWaiting={() => { if (mode !== "bookings" && mode !== "rates") setMode("bookings"); whichRef.current?.scrollIntoView({ block: "nearest" }); }} />
       )}
 
       {/* ── Controls ─────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-[var(--haip-border)] px-3 py-2 md:px-4 md:py-2.5 space-y-2">
+      <div className="flex-shrink-0 bg-[var(--haip-card)] border-b border-[var(--haip-border)] px-3 py-2 md:px-4 md:py-2.5 space-y-2">
         {/* Phone: month navigation + property + channel in two short rows */}
         {isPhone && (
           <div className="space-y-1.5">
@@ -1062,15 +898,15 @@ export default function PortfolioCalendarPage() {
             <div className="flex items-center gap-1.5">
               <select value={showAll ? "all" : (selected?.property_id ?? "")} onChange={e => setPropertyId(e.target.value)} aria-label="Property"
                 className="min-h-11 min-w-0 flex-1 rounded-xl border border-[var(--haip-border)] bg-white px-2 text-base text-[var(--haip-fg)] outline-none focus:ring-2 focus:ring-primary">
-                {properties.length === 0 && <option value="">No properties</option>}
-                {properties.length > 1 && <option value="all">All vehicles</option>}
-                {properties.map(p => <option key={p.property_id} value={p.property_id}>{p.property_name}</option>)}
+                {rows.length === 0 && <option value="">No {seg.unit.many}</option>}
+                {rows.length > 1 && <option value="all">{seg.allUnits}</option>}
+                {rows.map(p => <option key={p.property_id} value={p.property_id}>{p.property_name}</option>)}
               </select>
               {canBook && (
                 <Link href={!showAll && selected?.property_id ? `/dashboard/bookings/new?property=${selected.property_id}` : "/dashboard/bookings/new"}
                   className="flex h-11 shrink-0 items-center rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground">New booking</Link>
               )}
-              {!isCaravan && (
+              {seg.sections.calendar.channelFilter && (
                 <select value={channelFilter} onChange={e => setChan(e.target.value)} aria-label="Channel"
                   className="min-h-11 w-32 rounded-xl border border-[var(--haip-border)] bg-white px-2 text-base text-[var(--haip-fg-2)] outline-none focus:ring-2 focus:ring-primary">
                   {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -1141,22 +977,22 @@ export default function PortfolioCalendarPage() {
           </div>
 
           {/* Channel filter */}
-          <select
+          {seg.sections.calendar.channelFilter && <select
             value={channelFilter}
             onChange={e => setChan(e.target.value)}
             className="text-base md:text-xs border border-[var(--haip-border)] rounded-xl px-2 min-h-11 md:min-h-0 md:py-1.5 bg-white text-[var(--haip-fg-2)] outline-none focus:ring-2 focus:ring-primary cursor-pointer"
           >
             {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          </select>}
 
           {/* Search -- not useful for caravan tenants, who run a small enough
               fleet that scanning the row list directly is easier than typing */}
-          {!isCaravan && (
+          {seg.key !== "caravan" && (
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search properties…"
+              placeholder={`Search ${seg.unit.many}…`}
               className="text-base md:text-xs border border-[var(--haip-border)] rounded-xl px-3 min-h-11 md:min-h-0 md:py-1.5 outline-none focus:ring-2 focus:ring-primary w-full md:w-36"
             />
           )}
@@ -1164,7 +1000,7 @@ export default function PortfolioCalendarPage() {
           <div className="flex-1" />
 
           {/* Sync -- RentalWise-only, no PMS/channel sync exists for caravan tenants */}
-          {!isCaravan && (
+          {seg.sections.calendar.rentalwiseSync && (
             <>
               {syncMutation.isSuccess && (
                 <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-xl">
@@ -1209,13 +1045,13 @@ export default function PortfolioCalendarPage() {
         <div className="flex items-center gap-3 flex-wrap">
           {LEGEND.map(l => (
             <div key={l.label} className="flex items-center gap-1">
-              <div className={cn("w-2.5 h-2.5 rounded-sm", l.dot)} />
-              <span className="text-[10px] text-[var(--haip-fg-subtle)]">{l.label}</span>
+              <div className={cn("h-2.5 w-[18px] rounded-full", l.dot)} />
+              <span className="text-[11px] text-[var(--haip-fg-2)]">{l.label}</span>
             </div>
           ))}
           {!isPhone && (
             <span className="text-[10px] text-[var(--haip-fg-subtle)] ml-auto tabular-nums">
-              {properties.length} {properties.length === 1 ? "property" : "properties"} · {days.length} days
+              A {seg.booking.one} runs from the afternoon of {seg.start} to the morning of {seg.end} · {rows.length} {rows.length === 1 ? seg.unit.one : seg.unit.many}
             </span>
           )}
         </div>
@@ -1235,20 +1071,40 @@ export default function PortfolioCalendarPage() {
             <div className="space-y-2 p-4">{[0, 1, 2].map(i => <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--haip-status-neutral-bg)]" />)}</div>
           ) : !selected ? (
             <p className="px-4 py-10 text-center text-sm text-[var(--haip-fg-subtle)]">
-              {search || channelFilter ? "No property matches this channel. Choose “All channels”." : "No properties yet. Add them in Portfolio settings."}
+              {search || channelFilter ? `No ${seg.unit.one} matches this channel. Choose “All channels”.` : `No ${seg.unit.many} yet. Add them in Portfolio settings.`}
             </p>
           ) : (
+            <>
+            {waiting.length > 0 && (
+              <div className="mx-3 mt-2 rounded-2xl border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] p-3 text-[var(--haip-status-warning-fg)]">
+                <p className="text-[13px] leading-snug"><b>{seg.whichUnit} {waiting.length} Google Calendar event{waiting.length === 1 ? "" : "s"}</b><br />
+                  Held on every {seg.unit.one} until you pick one (striped days). Tap one to pick.</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {waiting.map(b => (
+                    <button key={b.id} type="button" onClick={() => setOpened({ kind: "block", block: b, propertyName: seg.whichUnit })}
+                      className="min-h-11 rounded-full bg-[var(--haip-card)] px-3 text-[12.5px] font-semibold">
+                      {holdLabel(b)} · {format(parseISO(b.blocked_from), "d MMM")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <MonthGrid
+              stripes={waiting}
+              legend={`Green = direct booking · terracotta = money due · grey-green = from Google Calendar · red = maintenance. A ${seg.booking.one} runs from the afternoon of ${seg.start} to the morning of ${seg.end}.`}
               row={selected} monthStart={monthStart} gridStart={gridStart} onOpen={setOpened}
               chColor={src => { const c = chConfig(src); return { bg: c.bg, text: c.text }; }}
               channelLabel={src => chConfig(src).label}
             />
+            </>
           )}
         </div>
       ) : (
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Sticky header */}
-          <CalendarHeader days={days} headerRef={headerRef} mode={mode} />
+          <CalendarHeader days={days} headerRef={headerRef} mode={mode} unitsLabel={`${rows.length} ${rows.length === 1 ? seg.unit.one : seg.unit.many}`}
+            which={waiting} whichLabel={seg.whichUnit} unit={seg.unit.one} whichRef={whichRef}
+            onOpenWhich={b => setOpened({ kind: "block", block: b, propertyName: seg.whichUnit })} />
 
           {/* Scrollable body */}
           <div
@@ -1265,12 +1121,12 @@ export default function PortfolioCalendarPage() {
                   </div>
                 ))}
               </div>
-            ) : properties.length === 0 ? (
+            ) : rows.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <Bed size={40} className="text-[var(--haip-fg-subtle)]/70 mb-4" />
-                <p className="text-[var(--haip-fg-subtle)] font-semibold">No properties found</p>
+                <p className="text-[var(--haip-fg-subtle)] font-semibold">No {seg.unit.many} found</p>
                 <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">
-                  {search || channelFilter ? "Clear your filters to see all properties" : "Add properties in Portfolio settings"}
+                  {search || channelFilter ? `Clear your filters to see all ${seg.unit.many}` : `Add ${seg.unit.many} in Portfolio settings`}
                 </p>
               </div>
             ) : (
@@ -1280,7 +1136,7 @@ export default function PortfolioCalendarPage() {
                   paddingTop: padTop,
                 }}
               >
-                {properties.slice(start, end + 1).map((row, relIdx) => (
+                {rows.slice(start, end + 1).map((row, relIdx) => (
                   <PropertyCalendarRow
                     key={row.property_id}
                     row={row}
@@ -1291,6 +1147,7 @@ export default function PortfolioCalendarPage() {
                     onOpen={setOpened}
                     isEven={(start + relIdx) % 2 === 0}
                     maxRate={maxRate}
+                    stripes={waiting}
                   />
                 ))}
                 <div style={{ height: padBot }} />

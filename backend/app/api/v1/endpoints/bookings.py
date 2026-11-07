@@ -80,6 +80,7 @@ def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None, due: Optional
         # What the trip is (as the lead recorded it) and the refundable deposit {amount, status}, never part of the total.
         "trip": extras.get("trip"),
         "deposit": bsvc.shown_deposit(s.status, extras.get("deposit")),
+        "caretaker": extras.get("caretaker"),           # from the stay's Ops file (villa businesses), else None
         "raw_status": s.status,
         "checkin": s.check_in,
         "checkout": s.check_out,
@@ -292,8 +293,9 @@ def list_bookings(
     schedules = bsvc.schedules_for(db, tenant_id, fins)
     trips = agenda.trips_for(db, tenant_id, stays)
     deposits = agenda.deposits_for(db, tenant_id, [s.id for s in stays])
+    caretakers = agenda.caretakers_for(db, tenant_id, [s.id for s in stays])
     data = [_serialize_stay(s, seq, fins.get(s.id), bsvc.next_due(schedules.get(s.id, [])),
-                            extras={"trip": trips.get(s.id), "deposit": deposits.get(s.id)}) for s, seq in rows]
+                            extras={"trip": trips.get(s.id), "deposit": deposits.get(s.id), "caretaker": caretakers.get(s.id)}) for s, seq in rows]
 
     meta = {
         "current_page": page,

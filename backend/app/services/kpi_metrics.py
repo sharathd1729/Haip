@@ -23,7 +23,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models.inquiry import Inquiry
-from app.models.property import Stay
+from app.models.property import Property, Stay
 from app.models.stay_finance import StayAddOn, StayPayment
 from app.services.lead_types import is_guest_sql
 
@@ -248,6 +248,19 @@ def occupied_nights(
     return total
 
 
+def capacity_units(db: Session, tenant_id: str, *, property_ids: Optional[Iterable[str]] = None) -> int:
+    """Active properties that can be sold (the occupancy denominator's unit count). The "Unassigned" holder
+    (`vehicle_pool`) is overflow, never capacity (D-32); bookings on it still count in ``occupied_nights``."""
+    from app.services import vehicle_pool
+    q = db.query(func.count(Property.id)).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
+    holders = vehicle_pool.placeholder_ids(db, tenant_id)
+    if holders:
+        q = q.filter(Property.id.notin_(holders))
+    if property_ids is not None:
+        q = q.filter(Property.id.in_(list(property_ids)))
+    return q.scalar() or 0
+
+
 # ── stays.booked ─────────────────────────────────────────────────────────────────────────────────────────────
 
 def booking_filters(
@@ -338,3 +351,33 @@ def payment_totals(
     got, back = q.one()
     got, back = float(got or 0), float(back or 0)
     return {"collected": got, "refunded": back, "net": got - back}
+
+
+# ── leads.sla_compliance ─────────────────────────────────────────────────────────────────────────────────────
+
+def sla_compliance(db: Session, tenant_id: str, start: datetime, end: datetime, *, now: Optional[datetime] = None,
+                   property_ids: Optional[Iterable[str]] = None) -> Optional[float]:
+    """% of enquiries received in [start, end) that a PERSON contacted while work_queue_service.severity_for("new_lead")
+    was still "fresh" (lead_journeys.first_human_contact_at, the touch_rows contact rule). A still-waiting enquiry counts
+    once it is past that SLA. Nothing due = None ("No data"). Same rule as My day and the executive SLA card."""
+    from app.models.lead_workflow import LeadJourney
+    from app.services.work_queue_service import severity_for  # lazy: work_queue_signals imports this module
+
+    now = now or datetime.now(timezone.utc)
+    q = db.query(LeadJourney.received_at, LeadJourney.first_human_contact_at).filter(
+        LeadJourney.tenant_id == tenant_id,
+        LeadJourney.received_at >= start,
+        LeadJourney.received_at < end,
+    )
+    if property_ids:
+        q = q.join(Inquiry, Inquiry.id == LeadJourney.inquiry_id).filter(Inquiry.property_id.in_(list(property_ids)))
+    met = due = 0
+    for received, contacted in q.all():
+        if contacted is not None and contacted.tzinfo is None:
+            contacted = contacted.replace(tzinfo=timezone.utc)  # SQLite returns naive datetimes
+        on_time = severity_for("new_lead", received, contacted or now) == "fresh"
+        if contacted is None and on_time:
+            continue  # not due yet
+        due += 1
+        met += on_time
+    return round(met / due * 100, 1) if due else None

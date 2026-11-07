@@ -5,8 +5,9 @@ import { ActionSheet, SheetChip, sheetBtn, sheetInput, sheetLabel } from "@/comp
 import { CHANNEL_OPTIONS, STATUS_OPTIONS } from "@/lib/bookings";
 import { NO_FILTERS, PAY_OPTIONS, toggle, type Filters } from "@/lib/bookingAgenda";
 
-export function FiltersSheet({ open, onClose, value, onApply, vehicles }: {
+export function FiltersSheet({ open, onClose, value, onApply, vehicles, unitLabel = "Vehicle" }: {
   open: boolean; onClose: () => void; value: Filters; onApply: (f: Filters) => void; vehicles: { id: string; name: string }[];
+  unitLabel?: string;   // "Vehicle" / "Villa" / "Room": lib/segments
 }) {
   const [draft, setDraft] = useState<Filters>(value);
   useEffect(() => { if (open) setDraft(value); }, [open, value]);
@@ -26,7 +27,7 @@ export function FiltersSheet({ open, onClose, value, onApply, vehicles }: {
     <ActionSheet open={open} onClose={onClose} title="Filters">
       {group("status", "Status", STATUS_OPTIONS)}
       {group("pay", "Payment", PAY_OPTIONS)}
-      {vehicles.length > 0 && group("vehicle", "Vehicle", vehicles.map(v => ({ value: v.id, label: v.name })))}
+      {vehicles.length > 0 && group("vehicle", unitLabel, vehicles.map(v => ({ value: v.id, label: v.name })))}
       {group("channel", "Channel", CHANNEL_OPTIONS)}
       <fieldset className="grid gap-1.5">
         <legend className="mb-1.5 text-[12.5px] font-semibold text-[var(--haip-fg-2)]">Check-in between</legend>

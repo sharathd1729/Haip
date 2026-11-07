@@ -35,8 +35,7 @@ from app.core.cache import cache_key, get_cached, set_cached
 from app.services import kpi_metrics
 from app.services.date_presets import IST
 from app.services import vehicle_pool
-from app.services.work_queue_service import SLA_MINUTES, severity_for
-from app.models.lead_workflow import LeadJourney
+from app.services.work_queue_service import SLA_MINUTES
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -115,14 +114,7 @@ def executive_dashboard(
     # The "Unassigned" holder (vehicle_pool) is overflow, not capacity: out of the denominator and the heatmap.
     # Bookings sitting on it still count as occupied nights (the business did sell them); capped at 100.
     holders = vehicle_pool.placeholder_ids(db, tid)
-    prop_count_q = db.query(func.count(Property.id)).filter(
-        Property.tenant_id == tid, Property.is_active == True,
-    )
-    if holders:
-        prop_count_q = prop_count_q.filter(Property.id.notin_(holders))
-    if prop_ids:
-        prop_count_q = prop_count_q.filter(Property.id.in_(prop_ids))
-    prop_count = prop_count_q.scalar() or 1
+    prop_count = kpi_metrics.capacity_units(db, tid, property_ids=prop_ids) or 1
 
     occ_n  = _occ_nights(db, tid, prop_ids, mtd_start, now)
     occ_pn = _occ_nights(db, tid, prop_ids, prev_start, prev_end)
@@ -182,23 +174,7 @@ def executive_dashboard(
     # still "fresh". A still-waiting enquiry counts once it is past that SLA. Nothing due = None ("No data").
     # AI replies do not count: labelled "Replies by a person within N min" (D-32, owner to choose whether to count them).
     def sla(start, end):
-        q = db.query(LeadJourney.received_at, LeadJourney.first_human_contact_at).filter(
-            LeadJourney.tenant_id == tid,
-            LeadJourney.received_at >= start,
-            LeadJourney.received_at < end,
-        )
-        if prop_ids:
-            q = q.join(Inquiry, Inquiry.id == LeadJourney.inquiry_id).filter(Inquiry.property_id.in_(prop_ids))
-        met = due = 0
-        for received, contacted in q.all():
-            if contacted is not None and contacted.tzinfo is None:
-                contacted = contacted.replace(tzinfo=timezone.utc)  # SQLite returns naive datetimes
-            on_time = severity_for("new_lead", received, contacted or now) == "fresh"
-            if contacted is None and on_time:
-                continue  # not due yet
-            due += 1
-            met += on_time
-        return round(met / due * 100, 1) if due else None
+        return kpi_metrics.sla_compliance(db, tid, start, end, now=now, property_ids=prop_ids)
 
     sla_compliance = sla(period_start, now)
     sla_prev       = sla(prev_period_start, period_start)

@@ -96,3 +96,21 @@ describe("MonthGrid", () => {
     expect(onOpen.mock.calls[0][0]).toMatchObject({ kind: "stay", propertyName: "Ratha 2" });
   });
 });
+
+describe("MonthGrid calendar holds", () => {
+  it("names a Google Calendar hold by its guest, as one bar, and stripes the 'Which villa?' days", () => {
+    const villa: RowLite = {
+      property_id: "v1", property_name: "Villa Aster", stays: [],
+      blocks: [{ id: "h1", blocked_from: "2026-10-05", blocked_to: "2026-10-08", reason: "offline_booking",
+        event: { title: "*Mag/Kapoor*", needs_vehicle: false, details: {} } }],
+    };
+    const { container } = render(<MonthGrid row={villa} monthStart={monthStart} gridStart={gridStart} onOpen={vi.fn()} chColor={tone}
+      channelLabel={() => "Direct"} stripes={[{ blocked_from: "2026-10-20", blocked_to: "2026-10-22" }]} legend="Villa legend" />);
+    const bar = screen.getByRole("button", { name: /Mag\/Kapoor \(Google Calendar\), 2026-10-05 to 2026-10-08/ });
+    expect(bar.textContent).toContain("Mag/Kapoor · 3 nights");
+    expect(bar.textContent).not.toContain("*");
+    const striped = Array.from(container.querySelectorAll("[role=gridcell]")).filter(c => c.querySelector("i[aria-hidden]"));
+    expect(striped.map(c => c.getAttribute("aria-label"))).toEqual(["Tuesday 20 October", "Wednesday 21 October"]);
+    expect(screen.getByText("Villa legend")).toBeTruthy();
+  });
+});

@@ -110,6 +110,22 @@ def deposits_for(db: Session, tenant_id: str, stay_ids: list[str]) -> dict[str, 
             for d in db.query(StayDeposit).filter(StayDeposit.tenant_id == tenant_id, StayDeposit.stay_id.in_(stay_ids)).all()}
 
 
+def caretakers_for(db: Session, tenant_id: str, stay_ids: list[str]) -> dict[str, str]:
+    """The caretaker named on each stay's Ops file (villa pack: details.caretaker_staff_id), as a name, per stay id. Stays with no
+    Ops file or no caretaker are left out; nothing is guessed."""
+    if not stay_ids:
+        return {}
+    from app.models.ops import StaffProfile
+    from app.models.ops_files import OpsFile
+    picked = {f.stay_id: (f.details or {}).get("caretaker_staff_id")
+              for f in db.query(OpsFile).filter(OpsFile.tenant_id == tenant_id, OpsFile.stay_id.in_(stay_ids)).all()}
+    ids = {i for i in picked.values() if i}
+    if not ids:
+        return {}
+    names = dict(db.query(StaffProfile.id, StaffProfile.name).filter(StaffProfile.tenant_id == tenant_id, StaffProfile.id.in_(ids)).all())
+    return {sid: names[i] for sid, i in picked.items() if i and names.get(i)}
+
+
 def whatsapp_state(db: Session, tenant_id: str, guest_id: Optional[str]) -> dict:
     """The guest's open WhatsApp (Cloud API) conversation and whether the 24-hour reply window is open. Messages on the
     personal-WhatsApp mirror never open the business window, so they are left out."""
@@ -195,6 +211,8 @@ def occupancy(db: Session, tenant_id: str, days: int = 14, start: Optional[date]
     blocks = (db.query(BlockedDate).filter(BlockedDate.tenant_id == tenant_id, BlockedDate.property_id.in_(pids),
                                            BlockedDate.is_active.is_(True), BlockedDate.blocked_from < end.isoformat(),
                                            BlockedDate.blocked_to > start.isoformat()).all()) if pids else []
+    from app.services import calendar_holds
+    events = calendar_holds.event_info(db, tenant_id, blocks, can_revenue=False)
     by_prop: dict[str, list] = {pid: [] for pid in pids}
     for s in stays:
         by_prop[s.property_id].append(s)
@@ -207,7 +225,10 @@ def occupancy(db: Session, tenant_id: str, days: int = 14, start: Optional[date]
 
         def overlaps_booking(b: BlockedDate) -> bool:
             return any(s.check_in.isoformat() < b.blocked_to and b.blocked_from <= s.check_out.isoformat() for s in own)
-        holds = [{"from": b.blocked_from, "to": b.blocked_to, "reason": b.reason}
+        # A hold read from a calendar carries its event (title, link name, key shared by every copy of an event held on all
+        # units, waiting for a unit or not) so the strip can merge it and show "Which villa?" ones once.
+        holds = [{"id": b.id, "from": b.blocked_from, "to": b.blocked_to, "reason": b.reason, "notes": None if b.id in events else b.notes,
+                  "event": events.get(b.id)}
                  for b in blocks if b.property_id == p.id and not overlaps_booking(b)]
         return {"property_id": p.id, "name": p.name, "slot": slot, "placeholder": vehicle_pool.is_placeholder_name(p.name),
                 "bookings": bookings, "holds": holds}
