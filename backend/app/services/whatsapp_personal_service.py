@@ -324,9 +324,10 @@ def ingest_chat_message(
         conversation = Conversation(
             id=str(uuid.uuid4()), tenant_id=session.tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP,
             source="personal_bridge", channel_conversation_id=chat_jid, is_open=True, assigned_to=session.user_id,
-            # Never autonomous and never drafting: HAIP cannot send on this number. Live guest chats stay "shadow" as before;
-            # mirrored chats (own messages, groups, history) are "off" so the concierge is never asked about them.
-            ai_mode="shadow" if live_guest_message else "off",
+            # HAIP cannot send on this number (concierge_draft refuses personal-bridge threads). Live guest chats carry no
+            # override (NULL = workspace setting once the guest moves to the official number); mirrored chats (own
+            # messages, groups, history) are "off" so the concierge is never asked about them.
+            ai_mode=None if live_guest_message else "off",
         )
         db.add(conversation)
         db.flush()

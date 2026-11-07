@@ -339,12 +339,8 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             guest_id=guest_id,
             channel=ChannelType.WHATSAPP,
             is_open=True,
-            # Inherit the tenant's WhatsApp policy (migration 079) rather than
-            # a hardcoded "shadow", matching how the Instagram path already
-            # inherits ig_ai_mode_default. The effective mode is re-resolved
-            # per message in ai_mode_service, so this is only the initial
-            # snapshot -- but it must not contradict the tenant's setting.
-            ai_mode=(tenant.wa_ai_mode_default or "shadow"),
+            # No ai_mode: NULL = follow the workspace's WhatsApp setting, resolved per
+            # reply by ai_mode_service. Only a real per-thread "off" is ever stored.
         )
         # Real bug, reported live on the Instagram side of this exact
         # pattern: two webhook deliveries for the same guest arriving

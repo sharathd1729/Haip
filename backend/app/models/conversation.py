@@ -84,7 +84,9 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     is_sample = Column(Boolean, default=False, nullable=False, index=True)
 
     # AI Concierge
-    ai_mode = Column(String(20), default="shadow")  # shadow / autonomous / off
+    # Per-thread override ONLY: "off" (AI paused for this one guest) or NULL = follow the workspace setting.
+    # The real mode is resolved per reply by ai_mode_service.resolve_mode; never copy the tenant default here.
+    ai_mode = Column(String(20), nullable=True)
     ai_draft = Column(Text, nullable=True)           # Pending AI reply
 
     # Set the first time a human agent sends/approves an outbound message in

@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
+from app.services import ai_mode_service
 from app.core.database import SessionLocal
 from app.models.integration import INSTAGRAM_INBOUND_STATUSES, Integration
 from app.models.guest import Guest
@@ -130,9 +131,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 guest_id=guest_id,
                 channel=channel_val,
                 is_open=True,
-                # T3.2: inherit the tenant's Instagram AI default rather than
-                # a hardcoded "shadow" for every tenant regardless of risk tolerance.
-                ai_mode=integration.tenant.ig_ai_mode_default if integration.tenant else "shadow",
+                # No ai_mode: NULL = follow the workspace's Instagram setting (ai_mode_service).
             )
             # Real bug, reported live: two webhook deliveries for the same
             # guest arriving milliseconds apart both saw "no open
@@ -398,7 +397,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
             )
             message.automation_outcome = "matched_auto_replied"
-        elif body and body.strip() and not body.startswith("[") and conversation.ai_mode != "off":
+        elif body and body.strip() and not body.startswith("[") and ai_mode_service.resolve_mode(integration.tenant, conversation) != "off":
             message.automation_outcome = "no_match_ai_drafted"
             try:
                 from app.workers.tasks.concierge_draft import concierge_draft
@@ -515,7 +514,7 @@ def process_instagram_echo(self, payload: dict) -> dict:
                 guest_id=guest_id,
                 channel=channel_val,
                 is_open=True,
-                ai_mode=integration.tenant.ig_ai_mode_default if integration.tenant else "shadow",
+                # No ai_mode: NULL = follow the workspace's Instagram setting (ai_mode_service).
             )
             db.add(conversation)
             db.flush()

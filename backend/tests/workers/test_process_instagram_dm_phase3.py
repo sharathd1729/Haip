@@ -140,10 +140,10 @@ def test_unmatched_dm_ai_mode_off_produces_no_reply(db):
     assert result["status"] == "ok"
     mock_apply_async.assert_not_called()
 
-    # Confirm the new conversation actually inherited ai_mode="off" from the tenant.
+    # The workspace "off" is resolved per reply (ai_mode_service); it is never copied onto the conversation (7 Nov 2026).
     conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
     assert conv is not None
-    assert conv.ai_mode == "off"
+    assert conv.ai_mode is None
 
 
 # ── Tenant isolation on the new AI config columns ────────────────────────────

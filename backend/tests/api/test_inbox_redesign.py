@@ -166,7 +166,7 @@ def test_ai_toggle_round_trip(client, db, tenant_and_user):
     res = client.patch(f"/api/v1/conversations/{c.id}", json={"ai_enabled": True}, headers=h)
     assert res.json()["ai_enabled"] is True
     db.refresh(c)
-    assert c.ai_mode != "off"
+    assert c.ai_mode is None  # no stored "shadow" copy: back to the workspace setting
 
 
 def test_ai_toggle_rejects_non_boolean(client, db, tenant_and_user):

@@ -217,7 +217,6 @@ def seed_sample_data(db: Session, tenant_id: str) -> dict[str, int]:
             is_open=i < 12,  # first 12 open, rest closed
             last_message_at=_now_minus(days=days_ago, hours=rng.uniform(0, 8)),
             is_sample=True,
-            ai_mode="shadow",
         )
         db.add(conv)
         convs.append(conv)

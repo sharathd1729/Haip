@@ -17,8 +17,12 @@ Precedence:
 
 Note the asymmetry is deliberate: a per-conversation "off" overrides the
 tenant, but a per-conversation "shadow"/"autonomous" on `ai_mode` does not.
-Those values are almost always just the stale snapshot taken at creation
-time, not a decision anyone made.
+Those values were the stale snapshot taken at creation time, not a decision
+anyone made. Since 7 Nov 2026 nothing writes them: the column is NULL unless a
+person (Inbox switch), ai_handoff (guest asked for a person) or a read-only
+personal-WhatsApp mirror set "off". Old snapshots are cleared by
+`clear_derived_modes` (scripts/clear_derived_ai_modes.py). Reports and screens
+must show `resolve_mode`, never the raw column.
 
 `Conversation.human_owned` previously forced shadow mode here too, on the
 theory that a manual reply or a captured phone number was a real handoff
@@ -99,3 +103,25 @@ def resolve_threshold(tenant, conversation, fallback: float = DEFAULT_THRESHOLD)
 
 def resolve(tenant, conversation) -> Tuple[str, float]:
     return resolve_mode(tenant, conversation), resolve_threshold(tenant, conversation)
+
+
+def clear_derived_modes(db, tenant_id: str, *, apply: bool) -> dict:
+    """Backfill: NULL every stored ai_mode on this tenant's conversations that is not a per-thread "off".
+
+    Those rows hold the creation-time copy of the workspace setting (1,141 "shadow" rows on Ratha, 7 Nov 2026) and mislead
+    anything reading the column. "off" (any case) is a real override and is never touched. Returns {stored value: rows}
+    for what is (or, on a dry run, would be) cleared. Idempotent: a second run finds nothing. The caller commits.
+    """
+    from sqlalchemy import func
+    from app.models.conversation import Conversation
+
+    q = db.query(Conversation).filter(
+        Conversation.tenant_id == tenant_id,
+        Conversation.ai_mode.isnot(None),
+        func.lower(Conversation.ai_mode) != "off",
+    )
+    counts = {str(v): int(n) for v, n in q.with_entities(Conversation.ai_mode, func.count()).group_by(Conversation.ai_mode)}
+    if apply and counts:
+        q.update({Conversation.ai_mode: None}, synchronize_session=False)
+        log.info("ai_mode_derived_cleared", tenant_id=tenant_id, rows=sum(counts.values()))
+    return counts

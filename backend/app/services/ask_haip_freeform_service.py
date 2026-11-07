@@ -62,7 +62,9 @@ ALLOWED_TABLES: dict[str, str] = {
     "calls": "Phone call records.",
     "stays": "Bookings. status confirmed|checked_in|checked_out|cancelled (live bookings = confirmed, checked_in, "
              "checked_out). total_amount = the stay charge in INR.",
-    "conversations": "WhatsApp/Instagram conversation threads. ai_mode shadow|autonomous|off.",
+    "conversations": "WhatsApp/Instagram conversation threads. ai_mode is ONLY a per-thread override: 'off' = AI "
+                     "paused for that guest, NULL = follows the workspace setting (resolved per reply); never count or "
+                     "report it as the conversation's AI mode.",
     "messages": "Individual chat messages. sender_kind human|ai_approved|ai_auto|ai_holding|system|playbook|campaign|"
                 "bridge_live|bridge_history|chat_export = who wrote an outbound message (NULL on older rows). "
                 "sender_name = the team member's or WhatsApp group member's display name.",
