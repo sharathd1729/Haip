@@ -3,9 +3,9 @@
   PUT    /bookings/{id}/schedule                 replace the payment plan
   PUT    /bookings/{id}/deposit                  set / update the security deposit
   DELETE /bookings/{id}/deposit
-  POST   /bookings/{id}/service-requests         new request (also appears on My Day)
-  PATCH  /bookings/{id}/service-requests/{rid}   edit, assign, mark done / reopen
-  DELETE /bookings/{id}/service-requests/{rid}
+  POST   /bookings/{id}/service-requests         new request (also on My Day; opens its ops ticket, guest_ops_tickets)
+  PATCH  /bookings/{id}/service-requests/{rid}   edit, assign, mark done / reopen (done = the ticket asks the guest)
+  DELETE /bookings/{id}/service-requests/{rid}   (cancels its ticket)
   PATCH  /bookings/{id}/guest                    reassign the booking, or fix the guest's name / email
 """
 from __future__ import annotations
@@ -26,7 +26,9 @@ from app.models.stay_finance import StayDeposit, StayInstalment, StayServiceRequ
 from app.models.task import Task
 from app.models.user import User, UserRole
 from app.services import booking_service as bsvc
+from app.services import guest_ops_tickets
 from app.services.identity_service import resolve_gid
+from app.workers.tasks.ops_escalation import queue_delivery
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -179,7 +181,10 @@ def add_request(booking_id: str, body: RequestIn, current_user: User = Depends(r
     req.task_id = task.id
     append_audit(db, tenant_id=tid, actor_user_id=current_user.id, action="booking.request_added",
                  target_type="booking", target_id=stay.id, payload={"title": req.title})
+    # Its ops ticket, so the on-duty person is alerted (held until its day when it is for later): guest_ops_tickets.
+    send_ids = guest_ops_tickets.link_service_request(db, tid, stay, req, created_by=current_user.id)
     db.commit()
+    queue_delivery(tid, send_ids)
     return _detail(db, tid, _get_stay(db, current_user, booking_id))
 
 
@@ -201,6 +206,8 @@ def update_request(booking_id: str, request_id: str, body: RequestUpdate,
         req.assigned_to = _check_assignee(db, tid, body.assigned_to or None)
         if task:
             task.assigned_to = req.assigned_to
+    due_changed = body.due_date is not None
+    status_changed = body.status is not None and body.status != req.status
     if body.due_date is not None:
         req.due_date = _parse_date(body.due_date, "due_date") if body.due_date else None
         if task:
@@ -213,7 +220,12 @@ def update_request(booking_id: str, request_id: str, body: RequestUpdate,
         append_audit(db, tenant_id=tid, actor_user_id=current_user.id,
                      action="booking.request_done" if body.status == "done" else "booking.request_reopened",
                      target_type="booking", target_id=stay.id, payload={"title": req.title})
+    send_ids, ask = guest_ops_tickets.request_changed(db, tid, req, status_changed=status_changed, due_changed=due_changed,
+                                                      stay=stay, user_id=current_user.id)
     db.commit()
+    queue_delivery(tid, send_ids)
+    if ask is not None:      # done = "Is it sorted?" to the guest; the ticket closes on their YES (or after 24 h)
+        guest_ops_tickets.ask_confirmation(db, ask)
     return _detail(db, tid, _get_stay(db, current_user, booking_id))
 
 
@@ -227,6 +239,7 @@ def remove_request(booking_id: str, request_id: str, current_user: User = Depend
         raise HTTPException(status_code=404, detail="Request not found")
     if req.task_id:
         db.query(Task).filter_by(id=req.task_id, tenant_id=tid).delete()
+    guest_ops_tickets.request_removed(db, tid, req.id, current_user.id)
     append_audit(db, tenant_id=tid, actor_user_id=current_user.id, action="booking.request_removed",
                  target_type="booking", target_id=stay.id, payload={"title": req.title})
     db.delete(req)

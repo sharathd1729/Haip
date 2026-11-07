@@ -90,6 +90,8 @@ def clean_details(raw: dict, today: Optional[date] = None) -> dict:
         out["urgency"] = raw["urgency"]
     if raw.get("wants_human") is True:
         out["wants_human"] = True
+    if raw.get("stay_issue") in ("maintenance", "housekeeping", "food", "safety", "complaint"):
+        out["stay_issue"] = raw["stay_issue"]
     return out
 
 
