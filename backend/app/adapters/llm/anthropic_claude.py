@@ -21,10 +21,11 @@ log = structlog.get_logger()
 MODEL_SONNET = "claude-sonnet-5-5"   # drafts, analysis, summaries, call QA, reports
 MODEL_HAIKU = "claude-haiku-5-5"     # quick classify, bulk, rewrite
 
-# USD per million tokens (claude-api skill, 2026-10): (input, output, cache read). A 5-minute cache write = 1.25x input.
+# USD per million tokens (input, output, cache read), from platform.claude.com/docs/en/about-claude/pricing on
+# 7 Nov 2026: Sonnet 5.5 cache reads are 0.05x input ($0.10), not the usual 0.1x. A 5-minute cache write = 1.25x input.
 # shortcut: Haiku 5.5 is priced for prompts up to 100K tokens ($0.50 / $2.50 beyond); HAIP prompts stay far below.
 PRICES = {
-    MODEL_SONNET: (2.00, 10.00, 0.20),
+    MODEL_SONNET: (2.00, 10.00, 0.10),
     MODEL_HAIKU: (0.10, 0.50, 0.01),
 }
 
