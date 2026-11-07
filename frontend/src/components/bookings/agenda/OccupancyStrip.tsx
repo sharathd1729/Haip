@@ -8,11 +8,13 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHydrated, addDays, freeColumns, newBookingHref, shortDay, stripBlocks, type Occupancy } from "@/lib/bookingAgenda";
+import { placeholderLabel, useSegment } from "@/lib/segments";
 
 const DAYS = 14;
 const NARROW = ["S", "M", "T", "W", "T", "F", "S"];
-// Written out in full so Tailwind sees every class: column 1 is the vehicle label, days are columns 2 to 15.
-const GRID = "grid grid-cols-[44px_repeat(14,minmax(0,1fr))]";
+// Written out in full so Tailwind sees every class: column 1 is the unit label (wide enough for "Unassigned" / "Which villa?"),
+// days are columns 2 to 15.
+const GRID = "grid grid-cols-[64px_repeat(14,minmax(0,1fr))]";
 const COL_START = ["col-start-2", "col-start-3", "col-start-4", "col-start-5", "col-start-6", "col-start-7", "col-start-8",
   "col-start-9", "col-start-10", "col-start-11", "col-start-12", "col-start-13", "col-start-14", "col-start-15"];
 const COL_SPAN = ["col-span-1", "col-span-2", "col-span-3", "col-span-4", "col-span-5", "col-span-6", "col-span-7",
@@ -28,6 +30,7 @@ export const shortVehicle = (name: string) => /^ratha\s*(\d+)$/i.test(name.trim(
 export function OccupancyStrip({ onOpen, selectedId }: { onOpen: (bookingId: string) => void; selectedId?: string }) {
   // Pending until hydrated: the server and the first client render show the same skeleton, whatever the cache holds.
   const hydrated = useHydrated();
+  const seg = useSegment();
   const { data, isPending, isError, refetch } = useQuery<Occupancy>({
     queryKey: ["bookings-occupancy", DAYS], queryFn: () => api.get("/bookings/occupancy", { params: { days: DAYS } }).then(r => r.data),
     staleTime: 30_000,
@@ -63,7 +66,11 @@ export function OccupancyStrip({ onOpen, selectedId }: { onOpen: (bookingId: str
           </div>
           {data.vehicles.map(v => (
             <div key={v.property_id} className={cn(GRID, "items-center")} role="group" aria-label={v.name}>
-              <span className="col-start-1 row-start-1 truncate text-[12px] font-bold text-[var(--haip-fg-2)]" title={v.name}>{shortVehicle(v.name)}</span>
+              {v.placeholder ? (
+                <span className="col-start-1 row-start-1 pr-1 text-[11px] font-bold leading-tight text-[var(--haip-status-warning-fg)]" title={v.name}>{placeholderLabel(seg)}</span>
+              ) : (
+                <span className="col-start-1 row-start-1 truncate text-[12px] font-bold text-[var(--haip-fg-2)]" title={v.name}>{shortVehicle(v.name)}</span>
+              )}
               {!v.placeholder && freeColumns(stripBlocks(v, data.from, DAYS), DAYS).map(i => {
                 const iso = addDays(data.from, i);
                 return (

@@ -7,14 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page";
 import { CalendarActivity } from "@/components/settings/CalendarActivity";
-import { useBusinessType, type BusinessType } from "@/components/providers/WorkspaceProvider";
-
-/** What one bookable unit is called: caravans book vehicles, villa businesses villas, everyone else properties. */
-function unitWords(type: BusinessType | null): { one: string; many: string; example: string } {
-  if (type === "caravan") return { one: "vehicle", many: "vehicles", example: "white, white ratha" };
-  if (type === "villa_resort") return { one: "villa", many: "villas", example: "blue dome, blue" };
-  return { one: "property", many: "properties", example: "garden room, garden" };
-}
+import { useSegment } from "@/lib/segments";
 
 interface Feed {
   id: string;
@@ -66,7 +59,8 @@ function errText(e: unknown, fallback: string): string {
 }
 
 export default function CalendarSyncPage() {
-  const unit = unitWords(useBusinessType());
+  const seg = useSegment();
+  const unit = { one: seg.unit.one, many: seg.unit.many, example: seg.syncExample };
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState<FormState | null>(null);

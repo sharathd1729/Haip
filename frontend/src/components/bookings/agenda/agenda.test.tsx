@@ -47,6 +47,19 @@ describe("Occupancy strip", () => {
   });
 });
 
+describe("Occupancy strip placeholder row", () => {
+  it("says the full words for bookings no unit was chosen for, never a 4-letter cut", async () => {
+    get.mockResolvedValue({ data: { today: T, from: T, to: "2026-11-02", days: 14, vehicles: [
+      { property_id: "u", name: "Unassigned", slot: 0, placeholder: true, holds: [], bookings: [
+        { booking_id: "b9", guest_name: "Saksham", check_in: "2026-10-21", check_out: "2026-10-23", status: "confirmed", due: false },
+      ] },
+    ] } });
+    wrap(<OccupancyStrip onOpen={vi.fn()} />);
+    expect(await screen.findByText("Which property?")).toBeTruthy();     // no workspace loaded = a plain property business
+    expect(screen.queryByText("Unas")).toBeNull();
+  });
+});
+
 describe("Month summary", () => {
   it("says money is hidden without revenue access, never ₹0", async () => {
     const r = { restricted: true };
