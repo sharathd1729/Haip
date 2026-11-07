@@ -82,18 +82,18 @@ def test_provider_attribute_stays_the_primarys():
 def test_get_llm_wraps_analysis_tasks_when_a_gemini_key_is_set(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     for task in ("call_scoring", "call_analysis", "lead_summary", "quick_classify", "deep_reason"):
-        assert isinstance(get_llm(task), FallbackAdapter), task
+        assert isinstance(get_llm(task).inner, FallbackAdapter), task
 
 
 def test_get_llm_does_not_wrap_without_a_gemini_key(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
-    assert not isinstance(get_llm("call_scoring"), FallbackAdapter)
+    assert not isinstance(get_llm("call_scoring").inner, FallbackAdapter)
 
 
 def test_get_llm_leaves_other_tasks_alone(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
-    assert not isinstance(get_llm("concierge_draft"), FallbackAdapter)   # already Gemini
-    assert not isinstance(get_llm("ask_haip_freeform_sql"), FallbackAdapter)
+    assert not isinstance(get_llm("concierge_draft").inner, FallbackAdapter)   # already Gemini
+    assert not isinstance(get_llm("ask_haip_freeform_sql").inner, FallbackAdapter)
 
 
 class _SlowThenFast(LLMAdapter):
@@ -155,11 +155,11 @@ def test_single_attempt_goes_straight_to_the_fallback():
 def test_fallback_runs_on_the_low_gemini_model(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(settings, "NVIDIA_API_KEY", "test-key")
-    adapter = get_llm("lead_summary")
+    adapter = get_llm("lead_summary").inner
     assert isinstance(adapter, FallbackAdapter)
     assert adapter._secondary._default_model == "gemini-3.1-flash-lite"
     assert adapter._primary_attempts == 2
-    assert get_llm("analyst_followup")._primary_attempts == 1
+    assert get_llm("analyst_followup").inner._primary_attempts == 1
 
 
 def test_gemini_model_names_pass_through_unmapped():

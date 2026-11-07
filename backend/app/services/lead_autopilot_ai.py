@@ -187,7 +187,8 @@ def to_decision(data: dict, index: dict[str, str], stages: StageMap, model: Opti
 def classify(db: Session, tenant_id: str, inquiry, stages: StageMap) -> Optional[Decision]:
     """One LLM call. Returns None on no decision, unusable output or a provider error (logged, never raised)."""
     from app.adapters.llm import get_llm
-    from app.core.prompt_versions import stamp
+    from app.adapters.llm.scope import llm_scope
+    from app.core.prompt_versions import get_version, stamp
 
     context, index, _ = build_context(db, tenant_id, inquiry, stages)
     if not index:
@@ -196,11 +197,13 @@ def classify(db: Session, tenant_id: str, inquiry, stages: StageMap) -> Optional
         adapter = get_llm(TASK_KEY, tenant_id=tenant_id)
         loop = asyncio.new_event_loop()
         try:
-            result = loop.run_until_complete(adapter.complete(
-                system_prompt=SYSTEM_PROMPT,
-                user_message=f"Lead data:\n{context}\n\nReturn the JSON object.",
-                max_tokens=1200,
-            ))
+            with llm_scope(tenant_id=tenant_id, module="leads", ref_type="inquiry", ref_id=inquiry.id,
+                           prompt_version=get_version(PROMPT_KEY)):
+                result = loop.run_until_complete(adapter.complete(
+                    system_prompt=SYSTEM_PROMPT,
+                    user_message=f"Lead data:\n{context}\n\nReturn the JSON object.",
+                    max_tokens=1200,
+                ))
         finally:
             loop.close()
     except Exception as exc:

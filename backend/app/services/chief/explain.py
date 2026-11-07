@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 import structlog
 from sqlalchemy.orm import Session
 
+from app.adapters.llm.scope import llm_scope
 from app.core.prompt_versions import PROMPT_VERSIONS
 from app.models.insight import Insight
 from app.schemas.chief import ROLE_LABELS
@@ -132,7 +133,8 @@ def explain_tenant(db: Session, tenant, now: datetime | None = None) -> dict:
         return {"explained": 0}
     version = PROMPT_VERSIONS[PROMPT_KEY]
     try:
-        answers = {i.get("id"): i for i in _parse(asyncio.run(_complete(rows)))}
+        with llm_scope(tenant_id=tenant.id, module="chief", prompt_version=PROMPT_VERSIONS[PROMPT_KEY]):
+            answers = {i.get("id"): i for i in _parse(asyncio.run(_complete(rows)))}
     except Exception as exc:  # noqa: BLE001 -- provider error / timeout: the rule's own text stands
         log.warning("chief_explain_failed", tenant_id=tenant.id, error=type(exc).__name__, prompt_version=version)
         answers = {}

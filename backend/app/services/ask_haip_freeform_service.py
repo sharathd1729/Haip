@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.adapters.llm import get_llm
+from app.adapters.llm.scope import llm_scope
 from app.models.ask_haip import AskHaipFreeformQuery
 from app.models.base import gen_uuid
 
@@ -234,9 +235,10 @@ async def answer_freeform_question(
 
     try:
         sql_llm = get_llm("ask_haip_freeform_sql")
-        gen = await sql_llm.complete(
-            system_prompt=SQL_SYSTEM_PROMPT, user_message=question, max_tokens=400,
-        )
+        with llm_scope(tenant_id=tenant_id, module="ask_haip", ref_type="ask_haip_query", ref_id=audit.id):
+            gen = await sql_llm.complete(
+                system_prompt=SQL_SYSTEM_PROMPT, user_message=question, max_tokens=400,
+            )
         raw_sql = gen.get("content", "").strip().strip("`").removeprefix("sql\n").strip()
         audit.generated_sql = raw_sql
 
@@ -262,11 +264,12 @@ async def answer_freeform_question(
         audit.row_count = len(rows)
 
         summary_llm = get_llm("ask_haip_freeform_summary")
-        summary_resp = await summary_llm.complete(
-            system_prompt=SUMMARY_SYSTEM_PROMPT,
-            user_message=json.dumps({"question": question, "rows": rows[:100]}, default=str),
-            max_tokens=800,
-        )
+        with llm_scope(tenant_id=tenant_id, module="ask_haip", ref_type="ask_haip_query", ref_id=audit.id):
+            summary_resp = await summary_llm.complete(
+                system_prompt=SUMMARY_SYSTEM_PROMPT,
+                user_message=json.dumps({"question": question, "rows": rows[:100]}, default=str),
+                max_tokens=800,
+            )
         content = summary_resp.get("content", "").strip()
         s, e = content.find("{"), content.rfind("}") + 1
         parsed = json.loads(content[s:e]) if s >= 0 and e > s else {"narrative": "", "chart": None}

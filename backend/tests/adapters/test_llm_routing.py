@@ -51,7 +51,7 @@ def test_concierge_draft_routes_to_gemini():
     replies at confidence 0.9) or 2.5-flash (blocked for new-project API keys). Every other task stays on NVIDIA."""
     from app.adapters.llm.gemini import GeminiAdapter
 
-    adapter = get_llm("concierge_draft")
+    adapter = get_llm("concierge_draft").inner
     assert isinstance(adapter, GeminiAdapter)
     assert adapter._default_model == "gemini-3.6-flash"
 
@@ -86,7 +86,7 @@ def test_lead_stage_classify_routes_to_the_structured_output_tier(monkeypatch):
     assert _TASK_ROUTES["lead_stage_classify"] == ("nvidia", "openai/gpt-oss-20b")
     assert _GEMINI_FALLBACK_TASKS["lead_stage_classify"] == 45
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
-    adapter = get_llm("lead_stage_classify")
+    adapter = get_llm("lead_stage_classify").inner
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 
@@ -101,7 +101,7 @@ def test_outcome_reason_routes_to_the_structured_output_tier_with_gemini_fallbac
     assert _GEMINI_FALLBACK_TASKS["outcome_reason"] == 45
     assert get_version("lead_outcome_reason") == "lead-outcome-reason-v1"
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
-    adapter = get_llm("outcome_reason")
+    adapter = get_llm("outcome_reason").inner
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 
@@ -115,7 +115,7 @@ def test_analyst_brief_routes_to_the_structured_output_tier_with_gemini_fallback
     assert _TASK_ROUTES["analyst_brief"] == ("nvidia", "openai/gpt-oss-20b")
     assert _GEMINI_FALLBACK_TASKS["analyst_brief"] == 90
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
-    adapter = get_llm("analyst_brief")
+    adapter = get_llm("analyst_brief").inner
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 
@@ -132,7 +132,7 @@ def test_analyst_followup_has_its_own_route_with_gemini_fallback(monkeypatch):
     assert "ask_haip_freeform_summary" not in _GEMINI_FALLBACK_TASKS
     assert get_version("analyst_followup") == "analyst-followup-v2"
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
-    adapter = get_llm("analyst_followup")
+    adapter = get_llm("analyst_followup").inner
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 
@@ -148,7 +148,7 @@ def test_chief_explain_routes_to_the_structured_output_tier_with_gemini_fallback
     assert _GEMINI_FALLBACK_TASKS["chief_explain"] == 45
     assert get_version("chief_explain") == "chief-explain-v1"
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
-    adapter = get_llm("chief_explain")
+    adapter = get_llm("chief_explain").inner
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 

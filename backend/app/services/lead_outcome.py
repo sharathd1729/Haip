@@ -296,10 +296,13 @@ def propose(db: Session, tenant_id: str, inquiry_id: str, kind: str, *, complete
             result = complete(system, user)
         else:
             from app.adapters.llm import get_llm
+            from app.adapters.llm.scope import llm_scope
             adapter = get_llm(TASK_KEY, tenant_id=tenant_id)
             loop = asyncio.new_event_loop()
             try:
-                result = loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=900))
+                with llm_scope(tenant_id=tenant_id, module="leads", ref_type="inquiry", ref_id=inquiry_id,
+                               prompt_version=base["prompt_version"]):
+                    result = loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=900))
             finally:
                 loop.close()
     except Exception as exc:  # noqa: BLE001 -- logged; the dialog shows "no proposal", a person still picks

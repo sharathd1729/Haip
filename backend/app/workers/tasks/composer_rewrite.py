@@ -19,6 +19,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 from app.workers.celery_app import celery_app
 from app.core.cache import set_cached
 from app.core.prompt_versions import stamp
+from app.adapters.llm.scope import scoped_task
 from app.adapters.llm import get_llm
 from app.workers.tasks.rewrite_draft import (
     REWRITE_HARD_TIME_LIMIT, REWRITE_SOFT_TIME_LIMIT, REWRITE_TIMEOUT_SECONDS, _build_system_prompt, _rewrite_completion,
@@ -38,6 +39,7 @@ COMPOSER_REWRITE_TTL = 120  # 2 minutes -- long enough for the frontend to poll 
     bind=True, max_retries=2, default_retry_delay=5, name="tasks.composer_rewrite",
     soft_time_limit=REWRITE_SOFT_TIME_LIMIT, time_limit=REWRITE_HARD_TIME_LIMIT,
 )
+@scoped_task("concierge", ref_type="composer_job", ref_arg="job_id", prompt_key="concierge_rewrite")
 def composer_rewrite(self, job_id: str, tenant_id: str, text: str, tone: str | None = None, target_language: str | None = None):
     key = f"composer_rewrite:{tenant_id}:{job_id}"
     try:
