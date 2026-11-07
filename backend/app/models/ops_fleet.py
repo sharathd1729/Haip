@@ -114,13 +114,14 @@ class OpsAutoMessage(Base, TimestampMixin, TenantMixin):
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     file_id = Column(String, ForeignKey("ops_files.id", ondelete="CASCADE"), nullable=False, index=True)
-    kind = Column(String(20), nullable=False)  # crew_brief | helper_chase | guest_pretrip | deposit_nudge
+    kind = Column(String(20), nullable=False)  # crew_brief | helper_chase | guest_pretrip | deposit_nudge | midstay_check
     recipient = Column(String(80), nullable=False)  # staff:<id> | guest | managers
-    status = Column(String(10), nullable=False)  # sent | failed
+    status = Column(String(10), nullable=False)  # sent | failed | skipped (midstay_check: a guard held it, retried)
     via = Column(String(10), nullable=True)  # text | template | alert
     reason = Column(Text, nullable=True)
     attempts = Column(Integer, nullable=False, default=1)
     sent_at = Column(DateTime(timezone=True), nullable=True)
+    response = Column(String(10), nullable=True)  # midstay_check: positive | problem (the guest's first answer)
 
     __table_args__ = (UniqueConstraint("file_id", "kind", "recipient", name="uq_ops_auto_messages_once"),)
 
