@@ -17,6 +17,7 @@ _ALLOWED_RECORDING_HOSTS = frozenset({
                                    # in the allowlist. Confirmed live in production.
 })
 _S3_BUCKET_PATH_PREFIX = "/app.mcube.com/"
+_OUTBOUND_CALLTYPES = frozenset({"outbound", "outgoing", "click2call", "clicktocall"})
 
 
 class McubeAdapter(IVRAdapter):
@@ -60,14 +61,27 @@ class McubeAdapter(IVRAdapter):
           duration naturally parses to 0 for anything but ANSWER, so
           call_ingest.py's `answered = duration_seconds > 0` still holds.
         """
+        landing = self._normalize_phone(payload.get("landingnumber", ""))
+        call_from = self._normalize_phone(payload.get("callfrom", ""))
+        call_to = self._normalize_phone(payload.get("callto", ""))
+        outbound = str(payload.get("calltype", "")).strip().lower() in _OUTBOUND_CALLTYPES
+        if outbound:
+            # Business calling out: callto is the guest, the business number is the caller.
+            guest, agent = call_to, ""
+        elif call_from and call_from == landing and call_to and call_to != landing:
+            # Jade's Mcube setup (7 Nov): callfrom repeats the landing number and the guest is in callto.
+            guest, agent = call_to, ""
+        else:
+            # Documented inbound shape: callfrom is the guest, callto the agent the call rang.
+            guest, agent = call_from, call_to
         return CallWebhookPayload(
             ivr_call_id=payload.get("callid", ""),
-            direction="inbound",
-            from_number=self._normalize_phone(payload.get("callfrom", "")),
-            to_number=self._normalize_phone(payload.get("landingnumber", "")),
+            direction="outbound" if outbound else "inbound",
+            from_number=(call_from or landing) if outbound else guest,
+            to_number=guest if outbound else landing,
             duration_seconds=self._parse_hms_duration(payload.get("duration", "")),
             recording_url=payload.get("filename", ""),
-            agent_number=self._normalize_phone(payload.get("callto", "")),
+            agent_number=agent,
             started_at=payload.get("starttime", ""),
             ended_at=payload.get("endtime", ""),
             provider="mcube",

@@ -55,6 +55,33 @@ def test_parse_call_webhook_maps_fields_correctly():
     assert normalized.raw == _SAMPLE_INBOUND_PAYLOAD
 
 
+def test_callfrom_repeating_landing_number_takes_guest_from_callto():
+    """Jade's Mcube setup (7 Nov): callfrom = the landing number, the guest is in callto, no agent number."""
+    payload = dict(_SAMPLE_INBOUND_PAYLOAD, callfrom="8035053336", callto="9876503053")
+    normalized = McubeAdapter().parse_call_webhook(payload)
+    assert normalized.direction == "inbound"
+    assert normalized.from_number == "+919876503053"
+    assert normalized.to_number == "+918035053336"
+    assert normalized.agent_number == ""
+
+
+@pytest.mark.parametrize("calltype", ["outbound", "Outbound", "outgoing", "click2call"])
+def test_outbound_call_puts_guest_in_to_number(calltype):
+    payload = dict(_SAMPLE_INBOUND_PAYLOAD, calltype=calltype, callfrom="8035053336", callto="9876503053")
+    normalized = McubeAdapter().parse_call_webhook(payload)
+    assert normalized.direction == "outbound"
+    assert normalized.to_number == "+919876503053"  # call_ingest takes the guest from to_number on outbound
+    assert normalized.from_number == "+918035053336"
+    assert normalized.agent_number == ""
+
+
+def test_documented_inbound_shape_unchanged_when_calltype_missing():
+    payload = {k: v for k, v in _SAMPLE_INBOUND_PAYLOAD.items() if k != "calltype"}
+    normalized = McubeAdapter().parse_call_webhook(payload)
+    assert (normalized.direction, normalized.from_number, normalized.agent_number) == (
+        "inbound", "+917816999444", "+918767316316")
+
+
 @pytest.mark.parametrize("raw,expected", [
     ("00:00:04", 4),
     ("00:05:00", 300),
