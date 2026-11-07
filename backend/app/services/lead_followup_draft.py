@@ -20,6 +20,7 @@ from typing import Optional
 import structlog
 from sqlalchemy.orm import Session
 
+from app.adapters.llm.scope import llm_scope
 from app.core.prompt_versions import PROMPT_VERSIONS
 from app.models.conversation import Conversation, Message, MessageDirection
 
@@ -114,7 +115,9 @@ def write_draft(db: Session, tenant_id: str, conversation_id: str, inquiry, gues
     user_message += _style(db, tenant_id)
     source = "ai"
     try:
-        reply = asyncio.run(_complete(user_message))
+        with llm_scope(tenant_id=tenant_id, module="lead_followups", ref_type="conversation", ref_id=conversation_id,
+                       prompt_version=version):
+            reply = asyncio.run(_complete(user_message))
         reason = check_reply(reply)
     except Exception as exc:  # noqa: BLE001 -- provider error or timeout: the fixed wording is still a useful draft
         reply, reason = "", f"provider {type(exc).__name__}"

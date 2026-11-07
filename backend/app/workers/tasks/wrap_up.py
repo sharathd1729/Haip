@@ -15,6 +15,7 @@ from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
 from app.core.prompt_versions import stamp
+from app.adapters.llm.scope import scoped_task
 from app.services.transcription_service import redact_pii
 import structlog
 
@@ -138,6 +139,7 @@ DISPOSITION_MAP = {
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=15, name="tasks.wrap_up")
+@scoped_task("calls", ref_type="call", ref_arg="call_id", prompt_key="call_wrap_up")
 def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, judge_result: dict = None):
     from app.core.database import set_tenant_context
     db = SessionLocal()

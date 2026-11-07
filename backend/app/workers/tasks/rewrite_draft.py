@@ -18,6 +18,7 @@ from app.core.database import SessionLocal, set_tenant_context
 from app.models.conversation import Message
 from app.adapters.llm import get_llm
 from app.core.prompt_versions import stamp
+from app.adapters.llm.scope import scoped_task
 import structlog
 
 log = structlog.get_logger()
@@ -134,6 +135,7 @@ def _build_system_prompt(original_text: str, tone: str | None, target_language: 
     bind=True, max_retries=1, default_retry_delay=10, name="tasks.rewrite_draft",
     soft_time_limit=REWRITE_SOFT_TIME_LIMIT, time_limit=REWRITE_HARD_TIME_LIMIT,
 )
+@scoped_task("concierge", ref_type="message", ref_arg="message_id", prompt_key="concierge_rewrite")
 def rewrite_draft(self, message_id: str, tenant_id: str, tone: str | None = None, target_language: str | None = None):
     db = SessionLocal()
     try:

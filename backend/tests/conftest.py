@@ -44,6 +44,13 @@ def setup_database():
         Base.metadata.drop_all(bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def _no_llm_meter_writes(monkeypatch):
+    """LLM metering (adapters/llm/metered.py) writes in its OWN committed session. Inside a test that would commit rows
+    outside the per-test transaction (or wait on its locks); tests/adapters/test_llm_metering.py tests the writer."""
+    monkeypatch.setattr("app.adapters.llm.metered.write_rows", lambda rows: None)
+
+
 @pytest.fixture()
 def db():
     """Per-test DB session, rolled back after each test."""

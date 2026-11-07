@@ -135,25 +135,27 @@ def generate_briefing(db: Session, tenant_id: str) -> Optional[dict]:
     else:
         try:
             from app.adapters.llm import get_llm
-            from app.core.prompt_versions import stamp
+            from app.adapters.llm.scope import llm_scope
+            from app.core.prompt_versions import get_version, stamp
 
             context = _build_context(snapshot)
             adapter = get_llm("daily_briefing")
             import asyncio
             loop = asyncio.new_event_loop()
             try:
-                raw = loop.run_until_complete(
-                    adapter.complete(
-                        system_prompt=SYSTEM_PROMPT,
-                        user_message=f"Worklist snapshot:\n{context}\n\nGenerate the JSON response.",
-                        # No explicit model= -- let it use get_llm("daily_briefing")'s
-                        # routed default. Used to hardcode the dead
-                        # nvidia/llama-3.3-nemotron-super-49b-v1.5 (EOL
-                        # 2026-08-26), which silently overrode the routing
-                        # table's replacement model via an explicit kwarg.
-                        max_tokens=800,
+                with llm_scope(tenant_id=tenant_id, module="daily_briefing", prompt_version=get_version("daily_briefing")):
+                    raw = loop.run_until_complete(
+                        adapter.complete(
+                            system_prompt=SYSTEM_PROMPT,
+                            user_message=f"Worklist snapshot:\n{context}\n\nGenerate the JSON response.",
+                            # No explicit model= -- let it use get_llm("daily_briefing")'s
+                            # routed default. Used to hardcode the dead
+                            # nvidia/llama-3.3-nemotron-super-49b-v1.5 (EOL
+                            # 2026-08-26), which silently overrode the routing
+                            # table's replacement model via an explicit kwarg.
+                            max_tokens=800,
+                        )
                     )
-                )
             finally:
                 loop.close()
 

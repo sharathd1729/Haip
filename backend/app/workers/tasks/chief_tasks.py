@@ -20,6 +20,7 @@ from __future__ import annotations
 import structlog
 from celery import shared_task
 
+from app.adapters.llm.scope import scoped_task
 from app.core.database import SessionLocal, set_tenant_context
 from app.models.tenant import Tenant
 
@@ -81,6 +82,7 @@ def detect_tenant(tenant_id: str, cadence: str = "urgent") -> dict:
 
 
 @shared_task(name="chief.explain_tenant")
+@scoped_task("chief", prompt_key="chief_explain")
 def explain_tenant(tenant_id: str) -> dict:
     from app.services.chief import explain
 

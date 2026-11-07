@@ -246,7 +246,13 @@ _CLAUDE_TIMEOUTS = {"concierge_draft": 30, "concierge_rewrite": 12}
 
 
 def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
-    """The routed adapter for `task`; with LLM_FORCE_PROVIDER=claude, Claude first and that adapter as the fallback."""
+    """The routed adapter for `task`, metered (adapters/llm/metered.py: one usage_events row per call; `.inner` is the
+    adapter below). With LLM_FORCE_PROVIDER=claude, Claude first and the routed adapter as the fallback."""
+    from app.adapters.llm.metered import MeteredAdapter
+    return MeteredAdapter(_unmetered_llm(task, tenant_id), task, tenant_id)
+
+
+def _unmetered_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     adapter = _routed_llm(task, tenant_id)
     if settings.LLM_FORCE_PROVIDER.strip().lower() != "claude" or not settings.ANTHROPIC_API_KEY:
         return adapter
@@ -310,8 +316,9 @@ def get_llm_adapter(provider: Optional[str] = None) -> LLMAdapter:
     Legacy / direct provider path.
     Prefer get_llm(task) for new code.
     """
+    from app.adapters.llm.metered import MeteredAdapter
     chosen = provider or settings.LLM_PROVIDER or _auto_detect_llm()
-    return _build_adapter(chosen, model=None)
+    return MeteredAdapter(_build_adapter(chosen, model=None), task=f"direct:{chosen}")
 
 
 # ─── Internals ───────────────────────────────────────────────────────────────

@@ -31,7 +31,7 @@ def _tool(name, data):
 
 
 def test_flag_on_routes_an_nvidia_task_to_claude_with_the_normal_route_as_fallback(claude_on):
-    adapter = get_llm("call_analysis")
+    adapter = get_llm("call_analysis").inner
     assert isinstance(adapter, FallbackAdapter)
     assert isinstance(adapter._primary, ClaudeAdapter) and adapter._primary._default_model == MODEL_SONNET
     assert adapter.provider == "claude"
@@ -41,7 +41,7 @@ def test_flag_on_routes_an_nvidia_task_to_claude_with_the_normal_route_as_fallba
 
 def test_flag_on_routes_the_guest_reply_to_claude_with_gemini_as_fallback(claude_on):
     from app.adapters.llm.gemini import GeminiAdapter
-    adapter = get_llm("concierge_draft")
+    adapter = get_llm("concierge_draft").inner
     assert isinstance(adapter._primary, ClaudeAdapter) and adapter._primary._default_model == MODEL_SONNET
     assert isinstance(adapter._secondary, GeminiAdapter)
     assert adapter._primary_timeout == 30          # inside concierge_draft's 60 s outer bound for "claude"
@@ -49,18 +49,18 @@ def test_flag_on_routes_the_guest_reply_to_claude_with_gemini_as_fallback(claude
 
 def test_fast_tasks_use_haiku(claude_on):
     for task in ("quick_classify", "bulk_batch", "concierge_rewrite"):
-        assert get_llm(task)._primary._default_model == MODEL_HAIKU
+        assert get_llm(task).inner._primary._default_model == MODEL_HAIKU
 
 
 @pytest.mark.parametrize("task", list(_TASK_ROUTES.keys()))
 def test_flag_on_covers_every_routed_task(claude_on, task):
-    assert isinstance(get_llm(task)._primary, ClaudeAdapter)
+    assert isinstance(get_llm(task).inner._primary, ClaudeAdapter)
 
 
 def test_flag_off_is_unchanged():
     with patch("app.core.config.settings.LLM_FORCE_PROVIDER", ""), \
          patch("app.core.config.settings.ANTHROPIC_API_KEY", "sk-ant-test-not-real"):
-        adapter = get_llm("concierge_draft")
+        adapter = get_llm("concierge_draft").inner
     assert not isinstance(adapter, FallbackAdapter)
     assert adapter._default_model == _TASK_ROUTES["concierge_draft"][1]
 
@@ -68,7 +68,7 @@ def test_flag_off_is_unchanged():
 def test_flag_without_a_key_is_unchanged():
     with patch("app.core.config.settings.LLM_FORCE_PROVIDER", "claude"), \
          patch("app.core.config.settings.ANTHROPIC_API_KEY", ""):
-        adapter = get_llm("concierge_draft")
+        adapter = get_llm("concierge_draft").inner
     assert not isinstance(adapter, FallbackAdapter)
 
 
@@ -109,7 +109,7 @@ async def test_constant_system_prompt_is_cached(claude_on):
 
 
 def _with_normal(adapter, answer):
-    adapter._secondary = MagicMock(provider="nvidia", complete=AsyncMock(return_value=answer))
+    adapter.inner._secondary = MagicMock(provider="nvidia", complete=AsyncMock(return_value=answer))
     return adapter
 
 
