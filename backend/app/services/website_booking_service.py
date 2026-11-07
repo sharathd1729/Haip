@@ -295,7 +295,9 @@ def on_hold_link_paid(db: Session, tenant: Tenant, hold: BookingHold, pay_ent: d
                     f"({hold.check_in:%d %b}): its nights fall in both the 5% and 18% GST slabs.",
                     guest_id=hold.guest_id, due_date=today_for(db, tenant.id), commit=False)
     nat = (details.get("nationality") or "").strip().lower()
-    if nat and nat not in ("india", "indian", "in"):
+    # A guest from abroad: the ops file's guest form + Form C helper cover it (ops_form_c). Only a business with no ops
+    # pack (no file, no form) still gets the old reminder task.
+    if nat and nat not in ("india", "indian", "in") and not _form_c_covers(db, tenant.id, stay):
         create_task(db, tenant.id, f"Foreign guest booked {prop.name} for {hold.check_in:%d %b}: collect passport and visa "
                     f"details at check-in and file Form C within 24 hours.", priority="high", guest_id=hold.guest_id,
                     due_date=hold.check_in, commit=False)
@@ -315,6 +317,16 @@ def on_hold_link_paid(db: Session, tenant: Tenant, hold: BookingHold, pay_ent: d
     except Exception as exc:  # noqa: BLE001 -- the booking is made; only the confirmation messages are late
         log.error("website_after_booking_dispatch_failed", tenant_id=tenant.id, hold_id=hold.id, error=type(exc).__name__)
     return "booked"
+
+
+def _form_c_covers(db: Session, tenant_id: str, stay) -> bool:
+    from app.services import ops_guest_form
+
+    try:
+        return ops_guest_form.expect_foreign(db, tenant_id, stay)
+    except Exception as exc:  # noqa: BLE001 -- never lose the booking; fall back to the reminder task
+        log.warning("website_form_c_hint_failed", tenant_id=tenant_id, stay_id=stay.id, error=type(exc).__name__)
+        return False
 
 
 def expire_holds(db: Session, tenant_id: str) -> list[tuple[str, Optional[str]]]:

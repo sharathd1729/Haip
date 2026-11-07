@@ -245,6 +245,9 @@ def check_in(db: Session, f: OpsFile, body: CheckInIn, actor_id: str) -> OpsFile
         target_id=f.id,
         payload={"stay_id": f.stay_id, "keys_handed": body.keys_handed, "deposit_collected": body.deposit_collected},
     )
+    from app.services import ops_form_c
+
+    ops_form_c.sync(db, f)  # the guests have arrived: Form C for anyone from abroad (due in 24 h)
     return f
 
 

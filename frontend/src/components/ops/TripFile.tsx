@@ -239,7 +239,7 @@ export function TripFile({ id }: { id: string }) {
         </CardBody>
       </Card>
 
-      <GuestFormCard f={f} canWrite={write} onSent={() => qc.invalidateQueries({ queryKey: ["ops-file", id] })} />
+      <GuestFormCard f={f} canWrite={write} canManage={manage} onSent={() => qc.invalidateQueries({ queryKey: ["ops-file", id] })} />
       {(f.state === "returned" || f.state === "closed") && <ReturnCheckCard f={f} />}
 
       <Card>
