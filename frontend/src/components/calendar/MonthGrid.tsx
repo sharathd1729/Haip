@@ -7,7 +7,9 @@
 import { useMemo } from "react";
 import { addDays, differenceInCalendarDays, format, isSameMonth, isToday, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
-import { BLOCK_TONE, DUE_TONE, moneyDue, type Entry, type RowLite } from "./CalendarParts";
+import { Calendar } from "@/lib/icons";
+import { cleanName, holdLabel, nightsWord } from "@/lib/calendarHolds";
+import { BLOCK_TONE, DUE_TONE, WAITING_STRIPE, moneyDue, type Entry, type RowLite } from "./CalendarParts";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** A short tag for the bar when several vehicles share the grid: "Ratha 1" -> "R1", "Caravan White" -> "CW". */
@@ -19,7 +21,7 @@ const tag = (name?: string) => {
 const LANE_H = 26;           // px per bar
 const DAY_NUM_H = 26;        // px reserved for the date number above the bars
 
-interface Seg { key: string; entry: Entry; col: number; end: number; lane: number; startsHere: boolean; endsHere: boolean; label: string; tone: { bg: string; text: string }; faded: boolean; dashed: boolean; mark: string; due?: boolean }
+interface Seg { key: string; entry: Entry; col: number; end: number; lane: number; startsHere: boolean; endsHere: boolean; label: string; tone: { bg: string; text: string }; faded: boolean; dashed: boolean; mark: string; due?: boolean; cal?: boolean }
 
 /** Lay one week's bars into lanes so overlapping ones stack instead of covering each other. */
 function layout(segs: Omit<Seg, "lane">[]): { segs: Seg[]; lanes: number } {
@@ -34,9 +36,12 @@ function layout(segs: Omit<Seg, "lane">[]): { segs: Seg[]; lanes: number } {
   return { segs: out, lanes: Math.max(1, laneEnd.length) };
 }
 
-export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channelLabel }: {
+export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channelLabel, stripes = [], legend }: {
   row: RowLite | undefined; monthStart: Date; gridStart: Date; onOpen: (e: Entry) => void;
   chColor: (src: string) => { bg: string; text: string }; channelLabel: (src: string) => string;
+  /** Days a "Which villa?" event might be this unit's (shown once above the grid): a faint stripe, never a bar. */
+  stripes?: { blocked_from: string; blocked_to: string }[];
+  legend?: string;
 }) {
   const weeks = useMemo(() => {
     const out: { days: Date[]; segs: Seg[]; lanes: number }[] = [];
@@ -55,7 +60,7 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
         const a = differenceInCalendarDays(parseISO(s.check_in), start), b = differenceInCalendarDays(parseISO(s.check_out), start);
         const [f, t] = a === b ? [a + 0.1, a + 0.9] : [a + 0.5, b + 0.5];            // a same-day stay still gets a bar
         place(`s${s.id}`, { kind: "stay", stay: s, propertyName: s.vehicle ?? row?.property_name ?? "" }, f, t,
-          `${s.vehicle ? `${tag(s.vehicle)} · ` : ""}${(s.guest_name || "Guest").split(" ")[0] || "Guest"}`,
+          `${s.vehicle ? `${tag(s.vehicle)} · ` : ""}${cleanName(s.guest_name).split(" ")[0] || "Guest"}`,
           moneyDue(s) ? DUE_TONE : chColor(s.channel_source),
           { faded: s.status === "quoted", dashed: s.status === "quoted", mark: s.status === "checked_in" ? "✓ " : "", due: moneyDue(s) });
       }
@@ -64,7 +69,8 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
         const z = Math.max(differenceInCalendarDays(parseISO(b.blocked_to), start), a + 1);   // a one-day hold still shows
         const tone = BLOCK_TONE(b.reason);
         place(`b${b.id}`, { kind: "block", block: b, propertyName: b.vehicle ?? row?.property_name ?? "" }, a, z,
-          `${b.vehicle ? `${tag(b.vehicle)} · ` : ""}${b.event?.details.guest_name?.split(" ")[0] || tone.label}`, { bg: tone.bg, text: tone.text });
+          `${b.vehicle ? `${tag(b.vehicle)} · ` : ""}${holdLabel(b)}${z - a > 1 ? ` · ${nightsWord(b.blocked_from, b.blocked_to)}` : ""}`,
+          { bg: tone.bg, text: tone.text }, { cal: !!b.event });
       }
       const { segs, lanes } = layout(raw);
       out.push({ days, segs, lanes });
@@ -85,18 +91,21 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
               const inMonth = isSameMonth(d, monthStart);
               return (
                 <div key={d.toISOString()} role="gridcell" aria-label={format(d, "EEEE d MMMM")}
-                  className={cn("border-r border-[var(--haip-border)] px-1 pt-1 last:border-r-0", !inMonth && "bg-[var(--haip-surface)]")}>
+                  className={cn("relative border-r border-[var(--haip-border)] px-1 pt-1 last:border-r-0", !inMonth && "bg-[var(--haip-surface)]")}>
                   <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[12px] tabular-nums",
                     isToday(d) ? "bg-[var(--haip-accent)] font-bold text-[var(--haip-on-accent)]" : inMonth ? "font-medium text-[var(--haip-fg)]" : "text-[var(--haip-fg-subtle)] opacity-60")}>
                     {d.getDate() === 1 ? format(d, "d MMM") : d.getDate()}
                   </span>
+                  {stripes.some(x => { const iso = format(d, "yyyy-MM-dd"); return x.blocked_from <= iso && iso < x.blocked_to; }) && (
+                    <i aria-hidden className={cn("pointer-events-none absolute inset-x-1 bottom-1 h-[5px] rounded-full", WAITING_STRIPE)} />
+                  )}
                 </div>
               );
             })}
             {w.segs.map(s => {
               const e = s.entry;
               const name = e.kind === "stay" ? `${e.stay.guest_name || "Guest"} (${channelLabel(e.stay.channel_source)}), ${e.stay.check_in} to ${e.stay.check_out}`
-                : `${BLOCK_TONE(e.block.reason).label}, ${e.block.blocked_from} to ${e.block.blocked_to}`;
+                : `${holdLabel(e.block)}${e.block.event ? " (Google Calendar)" : ""}, ${e.block.blocked_from} to ${e.block.blocked_to}`;
               return (
                 <button key={s.key} type="button" onClick={() => onOpen(s.entry)} aria-label={`${name}${s.due ? ", money still due" : ""}. Open details`}
                   data-due={s.due ? "true" : undefined}
@@ -105,12 +114,13 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
                     s.tone.bg, s.tone.text, s.faded && "opacity-60", s.dashed ? "border-dashed border-[var(--haip-fg-muted)]" : "border-transparent",
                     s.startsHere ? "rounded-l-full" : "rounded-l-none", s.endsHere ? "rounded-r-full" : "rounded-r-none")}
                   style={{ left: `calc(${(s.col / 7) * 100}% + 1px)`, width: `calc(${((s.end - s.col) / 7) * 100}% - 2px)`, top: DAY_NUM_H + s.lane * LANE_H, height: LANE_H - 2 }}>
+                  {s.startsHere && s.cal && <Calendar size={11} aria-hidden className="ml-1 shrink-0" />}
                   {s.startsHere && e.kind === "stay" && (
                     <span aria-hidden className="flex size-[20px] shrink-0 items-center justify-center rounded-full bg-[rgb(255_255_255/0.25)] text-[10.5px] font-bold">
                       {(e.stay.guest_name || "G").trim().charAt(0).toUpperCase()}
                     </span>
                   )}
-                  <span className={cn("truncate", !(s.startsHere && e.kind === "stay") && "pl-1.5")}>{s.mark}{s.startsHere || s.col === 0 ? s.label : ""}</span>
+                  <span className={cn("truncate", !(s.startsHere && (e.kind === "stay" || s.cal)) && "pl-1.5")}>{s.mark}{s.startsHere || s.col === 0 ? s.label : ""}</span>
                 </button>
               );
             })}
@@ -118,7 +128,7 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
         );
       })}
       <p className="px-3 py-2.5 text-[12px] text-[var(--haip-fg-subtle)]">
-        A stay runs from the afternoon of check-in to the morning of check-out. Dashed = a quote, ✓ = checked in, terracotta = money still due.
+        {legend ?? "A stay runs from the afternoon of check-in to the morning of check-out. Dashed = a quote, ✓ = checked in, terracotta = money still due."}
         {row ? "" : " No property selected."}
       </p>
     </div>

@@ -100,6 +100,7 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
         # The guest's WhatsApp thread and 24-hour reply window: a free-text message (or a pay link as text) only while open.
         "whatsapp": agenda.whatsapp_state(db, tenant_id, stay.guest_id),
         "trip": agenda.trips_for(db, tenant_id, [stay]).get(stay.id),
+        "caretaker": agenda.caretakers_for(db, tenant_id, [stay.id]).get(stay.id),
         "id": stay.id, "status": stay.status, "channel": stay.channel_source,
         "pms_managed": bool(stay.hostaway_booking_id),
         "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat(),

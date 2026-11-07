@@ -108,6 +108,14 @@ def parse_trip_dates(*texts: str) -> Optional[tuple[date, date]]:
     return None
 
 
+def clean_name(value: str) -> str:
+    """A name without the bold/italic markers people type in Google Calendar and WhatsApp: "*Mr.Saksham*" -> "Mr.Saksham",
+    "*Ms. Ritika* / _Mr. Rahul_" -> "Ms. Ritika / Mr. Rahul". Only markers at the ends of the name (or of each name in a
+    "/" pair) go; the separators keep their own spacing ("Mag/Sharma" stays as written)."""
+    parts = re.split(r"(\s*/\s*)", value or "")
+    return "".join(p if i % 2 else p.strip().strip("*_").strip() for i, p in enumerate(parts)).strip()
+
+
 def extract(summary: str, description: str) -> dict:
     """Everything readable from one event. Keys with no readable value are absent."""
     desc = unescape(description)
@@ -128,7 +136,7 @@ def extract(summary: str, description: str) -> dict:
 
     out: dict = {"title": (summary or "").strip()}
     if "guest_name" in fields:
-        out["guest_name"] = re.sub(r"^(ms|mr|mrs|miss|dr)\.?\s+", "", fields["guest_name"], flags=re.I).strip()
+        out["guest_name"] = re.sub(r"^(ms|mr|mrs|miss|dr)\.?\s+", "", clean_name(fields["guest_name"]), flags=re.I).strip()
     if "phone" in fields:
         m = _PHONE.search(fields["phone"])
         if m:
