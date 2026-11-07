@@ -7,6 +7,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page";
 import { CalendarActivity } from "@/components/settings/CalendarActivity";
+import { useBusinessType, type BusinessType } from "@/components/providers/WorkspaceProvider";
+
+/** What one bookable unit is called: caravans book vehicles, villa businesses villas, everyone else properties. */
+function unitWords(type: BusinessType | null): { one: string; many: string; example: string } {
+  if (type === "caravan") return { one: "vehicle", many: "vehicles", example: "white, white ratha" };
+  if (type === "villa_resort") return { one: "villa", many: "villas", example: "blue dome, blue" };
+  return { one: "property", many: "properties", example: "garden room, garden" };
+}
 
 interface Feed {
   id: string;
@@ -58,6 +66,7 @@ function errText(e: unknown, fallback: string): string {
 }
 
 export default function CalendarSyncPage() {
+  const unit = unitWords(useBusinessType());
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState<FormState | null>(null);
@@ -215,19 +224,19 @@ export default function CalendarSyncPage() {
                   {f.last_status === "error" && f.last_error && <p className="text-red-600 mt-1">{f.last_error}</p>}
                   {f.vehicles.length > 0 && (
                     <p className="text-[var(--haip-fg-subtle)] mt-1">
-                      Shared calendar: {f.vehicles.map(v => `${v.property_name ?? "Vehicle"} (${v.keywords.join(", ")})`).join(" · ")}
+                      Shared calendar: {f.vehicles.map(v => `${v.property_name ?? unit.one} (${v.keywords.join(", ")})`).join(" · ")}
                     </p>
                   )}
                   {f.vehicles.length > 0 && (
                     <p className="text-[var(--haip-fg-subtle)] mt-1">
                       {f.bookings} booking{f.bookings === 1 ? "" : "s"} made from this calendar. An event with a guest name, phone, total and dates becomes a booking;
-                      if it names no vehicle it waits on the &ldquo;Unassigned&rdquo; vehicle until you pick one at check-in.
+                      if it names no {unit.one} it waits on the &ldquo;Unassigned&rdquo; {unit.one} until you pick one at check-in.
                     </p>
                   )}
                   {f.vehicles.length > 0 && <div className="mt-1.5"><CalendarActivity feedId={f.id} /></div>}
                   {f.needs_vehicle > 0 && (
                     <p className="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5">
-                      {f.needs_vehicle} event{f.needs_vehicle > 1 ? "s are" : " is"} missing details for a booking (name, phone or total) and name no vehicle. Every vehicle is held until you complete {f.needs_vehicle > 1 ? "them" : "it"} in Google Calendar.
+                      {f.needs_vehicle} event{f.needs_vehicle > 1 ? "s are" : " is"} missing details for a booking (name, phone or total) and name no {unit.one}. Every {unit.one} is held until you complete {f.needs_vehicle > 1 ? "them" : "it"} in Google Calendar.
                     </p>
                   )}
                   {f.last_conflicts > 0 && (
@@ -310,10 +319,10 @@ export default function CalendarSyncPage() {
               </div>
               {properties.length > 1 && (
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">One calendar for several vehicles? (optional)</label>
+                  <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">One calendar for several {unit.many}? (optional)</label>
                   <p className="text-[11px] text-[var(--haip-fg-subtle)] mb-2">
-                    Type the words that appear in an event for each vehicle, separated by commas, e.g. &ldquo;white, white ratha&rdquo;. Leave a vehicle blank if it is not in this calendar.
-                    An event that names no vehicle holds all of them and adds a task.
+                    Type the words that appear in an event for each {unit.one}, separated by commas, e.g. &ldquo;{unit.example}&rdquo;. Leave a {unit.one} blank if it is not in this calendar.
+                    An event that names no {unit.one} holds all of them and adds a task.
                   </p>
                   <div className="space-y-2">
                     {properties.map(p => (

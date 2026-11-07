@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 
 interface Activity {
   bookings: { stay_id: string; guest_name: string | null; status: string; check_in: string; check_out: string; vehicle: string | null; locked: boolean; lead_linked: boolean }[];
@@ -13,6 +14,8 @@ interface Activity {
 }
 
 export function CalendarActivity({ feedId }: { feedId: string }) {
+  const businessType = useBusinessType();
+  const notChosen = businessType === "caravan" ? "Vehicle not chosen yet" : businessType === "villa_resort" ? "Villa not chosen yet" : "Property not chosen yet";
   const [open, setOpen] = useState(false);
   const { data, isLoading, isError } = useQuery<Activity>({
     queryKey: ["ical-activity", feedId],
@@ -40,7 +43,7 @@ export function CalendarActivity({ feedId }: { feedId: string }) {
                       <li key={b.stay_id} className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <Link href={`/dashboard/bookings/${b.stay_id}`} className="font-semibold text-[var(--haip-fg)] hover:underline">{b.guest_name || "Guest"}</Link>
                         <span className="text-[var(--haip-fg-subtle)]">{b.check_in} to {b.check_out}</span>
-                        <span className={b.vehicle ? "text-[var(--haip-fg-2)]" : "text-amber-700"}>{b.vehicle ?? "Vehicle not chosen yet"}</span>
+                        <span className={b.vehicle ? "text-[var(--haip-fg-2)]" : "text-amber-700"}>{b.vehicle ?? notChosen}</span>
                         {b.status !== "confirmed" && <span className="text-[var(--haip-fg-subtle)] capitalize">{b.status.replace("_", " ")}</span>}
                         {b.locked && <span className="text-[var(--haip-fg-subtle)]">Edited here</span>}
                         {b.lead_linked && <span className="text-green-700">Lead marked sold</span>}
