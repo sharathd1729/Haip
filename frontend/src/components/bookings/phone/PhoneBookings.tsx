@@ -22,6 +22,8 @@ import {
 } from "@/lib/bookingAgenda";
 import { BookingRowSheet, dateSpan } from "./BookingRowSheet";
 import { WeekStrip } from "./WeekStrip";
+import { EntrySheet, type Entry } from "@/components/calendar/CalendarParts";
+import { useSegment } from "@/lib/segments";
 
 const PER_PAGE = 50;
 const QUICK_SEGMENT: Record<string, Segment> = { upcoming: "upcoming", current: "staying", past: "past" };
@@ -72,6 +74,8 @@ export function PhoneBookings() {
   const rows = useMemo(() => (pending ? [] : list.data?.pages.flatMap(p => p.data) ?? []), [pending, list.data]);
   const today = first?.meta.today ?? todayIST();
   const nFilters = filterCount(filters);
+  const seg = useSegment();
+  const [holdFor, setHoldFor] = useState<Entry | null>(null);   // a calendar hold tapped on the strip
 
   // A bar on the strip may be a booking that is not in the loaded list (another segment): open its full page instead.
   const openById = (id: string) => {
@@ -84,8 +88,8 @@ export function PhoneBookings() {
       <div className="grid gap-3 px-4 pb-24 pt-3">
         <ChipRow label="Bookings by status" value={segment} onChange={v => setSegment(v as Segment)} onFilters={() => setShowFilters(true)} filterCount={nFilters}
           items={SEGMENTS.map(s => ({ value: s.value, label: SHORT[s.value], count: first?.meta.segment_counts?.[s.value] }))} />
-        <FilterSearch value={search} onChange={setSearch} placeholder="Guest, phone or vehicle" label="Search bookings" className="min-w-0 max-w-none" />
-        {(segment === "upcoming" || segment === "staying") && <WeekStrip onOpen={openById} />}
+        <FilterSearch value={search} onChange={setSearch} placeholder={`Guest, phone or ${seg.unit.one}`} label="Search bookings" className="min-w-0 max-w-none" />
+        {(segment === "upcoming" || segment === "staying") && <WeekStrip onOpen={openById} onOpenHold={(block, unitName) => setHoldFor({ kind: "block", block, propertyName: unitName })} />}
 
         {pending ? (
           <div className="grid gap-1.5" aria-busy="true">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-[72px] rounded-xl" />)}</div>
@@ -94,7 +98,7 @@ export function PhoneBookings() {
             action={<button type="button" onClick={() => list.refetch()} className="haip-btn-secondary min-h-11">Try again</button>} /></div>
         ) : rows.length === 0 ? (
           <div className="haip-card"><EmptyState
-            title={debounced || nFilters ? "No bookings match" : segment === "staying" ? "Nobody is on a trip right now" : `No ${SHORT[segment].toLowerCase()} bookings`}
+            title={debounced || nFilters ? "No bookings match" : segment === "staying" ? seg.nobodyIn : `No ${SHORT[segment].toLowerCase()} bookings`}
             hint={debounced || nFilters ? "Clear the search or a filter to see more." : undefined} /></div>
         ) : (
           <>
@@ -104,7 +108,7 @@ export function PhoneBookings() {
                 const tag = moneyTag(r, today);
                 return (
                   <CompactRow key={r.id} onClick={() => setPicked(r)} label={`${name}, open booking details`} avatar={<GuestAvatar name={name} />}
-                    title={r.trip ? `${name} · ${r.trip}` : name}
+                    title={r.trip && seg.card.includes("route") ? `${name} · ${r.trip}` : name}
                     subtitle={[dateSpan(r.checkin, r.checkout), r.property?.name].filter(Boolean).join(" · ")}
                     meta={r.total > 0 ? lakh(r.total) : undefined} metaTone="neutral"
                     extra={tag ? <RowTag tone={tag.tone}>{tag.label}</RowTag> : undefined} />
@@ -123,7 +127,8 @@ export function PhoneBookings() {
       <Fab label="New booking" href="/dashboard/bookings/new" />
       <BookingRowSheet row={picked} today={today} canCollect={canEdit} onClose={() => setPicked(null)}
         onCollect={id => { setPicked(null); setCollectFor(id); }} onWhatsApp={id => { setPicked(null); setWaFor(id); }} />
-      <FiltersSheet open={showFilters} onClose={() => setShowFilters(false)} value={filters} onApply={setFilters} vehicles={vehicles} />
+      <FiltersSheet open={showFilters} onClose={() => setShowFilters(false)} value={filters} onApply={setFilters} vehicles={vehicles} unitLabel={seg.unit.One} />
+      <EntrySheet entry={holdFor} onClose={() => setHoldFor(null)} channelLabel={src => src} />
       {waFor && <WhatsAppSheet bookingId={waFor} open onClose={() => setWaFor(null)} />}
       {collectFor && <CollectSheet bookingId={collectFor} open onClose={() => setCollectFor(null)} />}
     </div>

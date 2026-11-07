@@ -29,6 +29,8 @@ import {
 } from "@/lib/bookingAgenda";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneBookings } from "@/components/bookings/phone/PhoneBookings";
+import { EntrySheet, type Entry } from "@/components/calendar/CalendarParts";
+import { useSegment } from "@/lib/segments";
 
 const PER_PAGE = 50;
 // The Owner Command Center deep-links here with ?quick=..., so a figure opens the bookings it counted.
@@ -61,6 +63,8 @@ function BookingsList() {
   const [waFor, setWaFor] = useState<string | null>(null);
   const [collectFor, setCollectFor] = useState<string | null>(null);
   const [picked, setPicked] = useState(params.get("b") ?? "");
+  const seg = useSegment();
+  const [holdFor, setHoldFor] = useState<Entry | null>(null);   // a calendar hold tapped on the strip
   const wide = useIsPaneWide();
   // Every query-driven branch waits for hydration: the server and the first client render then match even when the persisted
   // query cache already holds bookings.
@@ -124,7 +128,7 @@ function BookingsList() {
         all.push(...res.data.data);
         if (pg >= res.data.meta.last_page) break;
       }
-      const head = ["Booking", "Guest", "Phone", "Vehicle", "Check-in", "Check-out", "Guests", "Status", "Channel", "Total", "Paid", "Due", "Payment status"];
+      const head = ["Booking", "Guest", "Phone", seg.unit.One, "Check-in", "Check-out", "Guests", "Status", "Channel", "Total", "Paid", "Due", "Payment status"];
       const lines = all.map(b => [
         b.external_id, guestName(b), b.main_guest?.phone ?? "", b.property?.name ?? "", b.checkin, b.checkout, b.adults + b.children,
         STATUS_STYLE[b.raw_status]?.label ?? b.raw_status, b.channel ?? "direct", b.total, b.total_paid, b.total_outstanding, PAYMENT_STYLE[b.payment_status].label,
@@ -166,7 +170,7 @@ function BookingsList() {
             }))} />
 
           <div className="flex items-center gap-2">
-            <FilterSearch value={search} onChange={setSearch} placeholder="Search guest, phone or vehicle" label="Search bookings" className="min-w-0 sm:max-w-none" />
+            <FilterSearch value={search} onChange={setSearch} placeholder={`Search guest, phone or ${seg.unit.one}`} label="Search bookings" className="min-w-0 sm:max-w-none" />
             <button type="button" onClick={() => setShowFilters(true)} className={outlineBtn} aria-label={nFilters ? `Filters, ${nFilters} on` : "Filters"}>
               <SlidersHorizontal size={15} /> Filters
               {nFilters > 0 && <span className="rounded-full bg-primary px-1.5 text-[12px] text-primary-foreground">{nFilters}</span>}
@@ -175,14 +179,14 @@ function BookingsList() {
           {(guestId || needsProperty || filtered) && (
             <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
               {guestId && <span className="rounded-lg bg-[var(--haip-primary-tint)] px-2.5 py-1 font-semibold text-primary">One guest&apos;s bookings</span>}
-              {needsProperty && <span className="rounded-lg bg-[var(--haip-status-warning-bg)] px-2.5 py-1 font-semibold text-[var(--haip-status-warning-fg)]">Waiting for a vehicle (on the Unassigned placeholder)</span>}
+              {needsProperty && <span className="rounded-lg bg-[var(--haip-status-warning-bg)] px-2.5 py-1 font-semibold text-[var(--haip-status-warning-fg)]">Waiting for a {seg.unit.one} ({seg.notChosen.split(" (")[0]})</span>}
               <button type="button" onClick={clearAll} className="inline-flex min-h-11 items-center gap-1 px-1 font-semibold text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]">
                 <X size={12} /> Clear search and filters
               </button>
             </div>
           )}
 
-          {showStrip && <OccupancyStrip onOpen={open} selectedId={picked} />}
+          {showStrip && <OccupancyStrip onOpen={open} selectedId={picked} onOpenHold={(block, unitName) => setHoldFor({ kind: "block", block, propertyName: unitName })} />}
 
           <div aria-busy={pending} aria-live="polite">
             {pending ? (
@@ -195,7 +199,7 @@ function BookingsList() {
             ) : rows.length === 0 ? (
               <div className="haip-card">
                 <EmptyState
-                  title={filtered ? `No ${segLabel} match` : segment === "staying" ? "Nobody is on a trip right now" : `No ${segLabel}`}
+                  title={filtered ? `No ${segLabel} match` : segment === "staying" ? seg.nobodyIn : `No ${segLabel}`}
                   hint={filtered ? "Clear the search or a filter to see more." : segment === "upcoming" ? "Create one, or move a lead to Sold." : undefined}
                   action={filtered ? <button type="button" onClick={clearAll} className={outlineBtn}>Clear search and filters</button> : undefined} />
               </div>
@@ -220,7 +224,8 @@ function BookingsList() {
       {wide && picked && <BookingSidePane id={picked} onClose={close} />}
       {wide === false && <BookingFullSheet id={picked || null} onClose={close} />}
 
-      <FiltersSheet open={showFilters} onClose={() => setShowFilters(false)} value={filters} onApply={setFilters} vehicles={vehicles} />
+      <FiltersSheet open={showFilters} onClose={() => setShowFilters(false)} value={filters} onApply={setFilters} vehicles={vehicles} unitLabel={seg.unit.One} />
+      <EntrySheet entry={holdFor} onClose={() => setHoldFor(null)} channelLabel={src => src} />
       {waFor && <WhatsAppSheet bookingId={waFor} open onClose={() => setWaFor(null)} />}
       {collectFor && <CollectSheet bookingId={collectFor} open onClose={() => setCollectFor(null)} />}
     </div>

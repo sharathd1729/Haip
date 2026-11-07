@@ -636,6 +636,8 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
         "unowned": sum(1 for i in all_items if unowned(i)),
         "flags": flags,
         "items": [i.as_dict() for i in shown if i.kind in wanted or (i.tasks and "followup" in wanted)],
+        # "Was the AI right?" nudge: a QA chore, not a person, so outside counts/people/severity (work_queue_signals).
+        "call_checks": work_queue_signals.call_checks(db, tenant, scope_user_id, now),
         "scope": "mine" if scope_user_id else "team",
     }
 

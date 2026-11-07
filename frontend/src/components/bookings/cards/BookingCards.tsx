@@ -10,14 +10,24 @@ import { VehicleTag } from "@/components/bookings/agenda/AgendaDays";
 import { STATUS_STYLE, STATUS_TONE } from "@/lib/bookings";
 import { guestName, type AgendaRow, type Segment } from "@/lib/bookingAgenda";
 import { groupCards, paidPct, payState, stayLine } from "@/lib/bookingCards";
+import { useSegment, type Segment as Seg } from "@/lib/segments";
+import { cleanName } from "@/lib/calendarHolds";
 
 const action = "flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap px-1.5 text-[13.5px] font-semibold disabled:cursor-default disabled:text-[var(--haip-fg-subtle)] hover:enabled:bg-[var(--haip-surface)]";
 
-function BookingCard({ r, today, selected, slot, canCollect, onOpen, onCall, onWhatsApp, onCollect }: {
-  r: AgendaRow; today: string; selected: boolean; slot: number; canCollect: boolean;
+const DEPOSIT_WORDS: Record<string, string> = { pending: "not collected yet", held: "held, return after check-out", released: "returned", forfeited: "kept" };
+
+/** The line under the dates for a stay business: "4 guests · Caretaker Lata"; a caravan keeps its own line. */
+function stayFacts(r: AgendaRow, seg: Seg): string {
+  const guests = r.adults + r.children;
+  return [`${guests} guest${guests === 1 ? "" : "s"}`, seg.card.includes("caretaker") && r.caretaker ? `Caretaker ${r.caretaker}` : ""].filter(Boolean).join(" · ");
+}
+
+function BookingCard({ r, today, selected, slot, canCollect, onOpen, onCall, onWhatsApp, onCollect, seg }: {
+  r: AgendaRow; today: string; selected: boolean; slot: number; canCollect: boolean; seg: Seg;
   onOpen: (id: string) => void; onCall: (r: AgendaRow) => void; onWhatsApp: (id: string) => void; onCollect: (id: string) => void;
 }) {
-  const name = guestName(r);
+  const name = cleanName(guestName(r)) || guestName(r);
   const cancelled = r.raw_status === "cancelled";
   const pay = payState(r, today);
   const guests = r.adults + r.children;
@@ -31,11 +41,22 @@ function BookingCard({ r, today, selected, slot, canCollect, onOpen, onCall, onW
           <StatusPill tone={STATUS_TONE[r.raw_status] ?? "info"}>{st.label}</StatusPill>
         </span>
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] text-[var(--haip-fg-2)]">
-          <VehicleTag name={r.property?.name} slot={slot} />
-          <span>{stayLine(r)}</span>
-          <span>{guests} guest{guests === 1 ? "" : "s"}</span>
+          {seg.unitTint ? <VehicleTag name={r.property?.name} slot={slot} /> : (
+            <span className={cn("inline-flex items-center rounded-lg px-2 py-px text-[12.5px] font-bold", r.property ? "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg)]" : "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]")}>
+              {r.property?.name ?? seg.whichUnit}
+            </span>
+          )}
+          <span>{stayLine(r, seg.dayUse)}</span>
+          {seg.unitTint && <span>{guests} guest{guests === 1 ? "" : "s"}</span>}
         </span>
-        {r.trip && <span className="text-[13px] text-[var(--haip-fg-subtle)] [overflow-wrap:anywhere]">{r.trip}</span>}
+        {!seg.unitTint && <span className="text-[13.5px] text-[var(--haip-fg-2)]">{stayFacts(r, seg)}</span>}
+        {seg.card.includes("route") && r.trip && <span className="text-[13px] text-[var(--haip-fg-subtle)] [overflow-wrap:anywhere]">{r.trip}</span>}
+        {seg.card.includes("deposit") && r.deposit && r.deposit.amount > 0 && !cancelled && (
+          <span className="flex items-center gap-1.5 text-[12.5px] text-[var(--haip-fg-2)]">
+            <i aria-hidden className={cn("size-2 rounded-full", r.deposit.status === "pending" ? "bg-[var(--haip-accent)]" : "bg-primary")} />
+            Deposit {formatINR(r.deposit.amount)} {DEPOSIT_WORDS[r.deposit.status] ?? r.deposit.status}
+          </span>
+        )}
         {cancelled ? (
           <span className="flex items-center justify-between gap-2 text-[13.5px]">
             <span className="text-[var(--haip-fg-subtle)]">{r.total_paid > 0 ? `${formatINR(r.total_paid)} was paid` : "Nothing was paid"}</span>
@@ -76,12 +97,13 @@ export function BookingCards({ rows, segment, today, selectedId, paneOpen, canCo
   slotOf: (r: AgendaRow) => number;
   onOpen: (id: string) => void; onCall: (r: AgendaRow) => void; onWhatsApp: (id: string) => void; onCollect: (id: string) => void;
 }) {
+  const seg = useSegment();
   return (
     <div data-testid="card-groups" data-pane-open={paneOpen ? "true" : undefined}
       className={cn("grid items-start gap-x-3 gap-y-4",
         // Columns of at least 330px (one on a phone); with the pane open each is also at least 34% wide, so never more than two.
         paneOpen ? "grid-cols-[repeat(auto-fill,minmax(min(100%,max(330px,34%)),1fr))]" : "grid-cols-[repeat(auto-fill,minmax(min(100%,330px),1fr))]")}>
-      {groupCards(rows, segment, today).map(g => (
+      {groupCards(rows, segment, today, seg.staying).map(g => (
         <section key={g.key} className="grid min-w-0 gap-2" aria-label={g.title}>
           <h3 className={cn("flex flex-wrap items-baseline gap-x-2 px-0.5 pt-1 text-[12.5px] font-bold uppercase tracking-[0.04em]",
             g.key === today ? "text-[var(--haip-accent-ink)]" : "text-[var(--haip-fg-subtle)]")}>
@@ -89,7 +111,7 @@ export function BookingCards({ rows, segment, today, selectedId, paneOpen, canCo
           </h3>
           <div className="grid gap-2.5">
             {g.rows.map(r => (
-              <BookingCard key={r.id} r={r} today={today} selected={r.id === selectedId} slot={slotOf(r)} canCollect={canCollect}
+              <BookingCard key={r.id} r={r} today={today} selected={r.id === selectedId} slot={slotOf(r)} canCollect={canCollect} seg={seg}
                 onOpen={onOpen} onCall={onCall} onWhatsApp={onWhatsApp} onCollect={onCollect} />
             ))}
           </div>

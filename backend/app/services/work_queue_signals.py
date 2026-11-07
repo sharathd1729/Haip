@@ -22,6 +22,10 @@ waiting on an answer still needs one). See ``booked_guests`` for which booking c
 
 Calendar clashes (``calendar_items``): tasks the calendar sync raises (double booking, "Which vehicle?", "Not enough
 vehicles"; ical_clash_tasks.is_calendar_task) are the queue kind ``clash``, listed apart from lead follow-ups.
+
+Call checks (``call_checks``, 7 Nov 2026): calls of the last 7 days the AI read (``ai_disposition``) that no person has
+confirmed yet (``human_disposition`` empty) -- My day's "Was the AI right?" nudge. Deliberately NOT a kind: it is a QA chore,
+not a person waiting, so it never enters people / severity / the nav badge / team alerts (lead_alert_service reads kinds).
 """
 from __future__ import annotations
 
@@ -38,6 +42,8 @@ from app.models.inquiry import Inquiry, InquiryStage
 
 NO_REPLY_AFTER = timedelta(hours=24)
 NO_REPLY_WINDOW = timedelta(days=14)        # = work_queue_service.LEAD_WINDOW
+CALL_CHECK_WINDOW = timedelta(days=7)
+CALL_CHECK_SHOWN = 5
 AT_RISK_QUIET = timedelta(hours=48)
 AT_RISK_DAYS = 30
 WARM = ("hot", "warm")
@@ -219,6 +225,27 @@ def calendar_items(db: Session, tenant_id: str, scope_user_id: Optional[str], no
             facts=facts,
         ))
     return items
+
+
+def call_checks(db: Session, tenant, scope_user_id: Optional[str], now: datetime) -> dict:
+    """Recent analysed calls without a person's confirmation: ``count`` + the newest few for My day to confirm inline. Scoped
+    like the queue (an agent sees the calls they handled; team view = every agent's)."""
+    q = (db.query(Call.id, Call.ai_disposition, Call.direction, Call.created_at, Call.duration_seconds, Guest.name)
+         .outerjoin(Guest, Guest.id == Call.guest_id)
+         .filter(Call.tenant_id == tenant.id, Call.ai_disposition.isnot(None), Call.human_disposition.is_(None),
+                 Call.is_sample.is_(False), Call.created_at >= now - CALL_CHECK_WINDOW))
+    if tenant.ivr_provider:
+        q = q.filter(Call.shown_for(tenant.ivr_provider))   # same calls the Calls page shows
+    if scope_user_id:
+        q = q.filter(Call.agent_id == scope_user_id)
+    count = q.order_by(None).count()
+    if not count:
+        return {"count": 0, "calls": []}
+    rows = q.order_by(Call.created_at.desc()).limit(CALL_CHECK_SHOWN).all()
+    return {"count": count, "calls": [{
+        "call_id": r[0], "ai_disposition": getattr(r[1], "value", r[1]), "direction": getattr(r[2], "value", r[2]),
+        "created_at": r[3].isoformat() if r[3] else None, "duration_seconds": r[4] or 0, "guest_name": r[5],
+    } for r in rows]}
 
 
 def apply_flags(db: Session, tenant_id: str, items: list, now: datetime, today: date, booked: frozenset = frozenset()) -> dict:

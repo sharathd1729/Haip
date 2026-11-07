@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
+import { AiCheck, OUTCOMES } from "@/components/calls/AiCheck";
 import type { GuestChannel } from "@/store/inbox";
 
 interface CallDetail {
@@ -33,23 +34,16 @@ interface CallDetail {
   ai_next_action?: string | null;
   wrap_up_notes?: string | null;
   disposition?: string | null;
+  ai_disposition?: string | null;
+  human_disposition?: string | null;
   transcription_status?: string | null;
   transcript?: { turns: { speaker: string; text: string; t0?: number }[] } | null;
   score?: { total_score: number; max_score: number; criteria: { criterion: string; score: number; max_score: number }[] } | null;
   recommended_actions?: { action_type: string; label: string; action_config?: { message_id?: string; conversation_id?: string } }[];
 }
 
-// Real CallDisposition values (backend models/call.py). The old filter and
-// wrap-up used pending/qualified/spam, which the server never accepted.
-export const OUTCOMES: { value: string; label: string; tone: string }[] = [
-  { value: "booked", label: "Booked", tone: "bg-violet-50 text-violet-700 border-violet-200" },
-  { value: "hot", label: "Hot lead", tone: "bg-rose-50 text-rose-700 border-rose-200" },
-  { value: "quoted", label: "Quoted", tone: "bg-primary/10 text-primary border-primary/30" },
-  { value: "callback", label: "Callback", tone: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]" },
-  { value: "lost", label: "Lost", tone: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
-  { value: "no_answer", label: "No answer", tone: "bg-[var(--haip-surface)] text-[var(--haip-fg-2)] border-[var(--haip-border)]" },
-  { value: "voicemail", label: "Voicemail", tone: "bg-[var(--haip-surface)] text-[var(--haip-fg-2)] border-[var(--haip-border)]" },
-];
+// Outcome chips live with the "Was the AI right?" control; re-exported for the Calls list and filter.
+export { OUTCOMES } from "@/components/calls/AiCheck";
 
 function fmt(s: number) {
   const m = Math.floor(s / 60);
@@ -81,6 +75,7 @@ export function CallDetailPanel({
   staleTime: 60_000,
   });
 
+  const aiRead = !!call?.ai_disposition;
   const [outcome, setOutcome] = useState<string>("");
   const [notes, setNotes] = useState("");
   useEffect(() => {
@@ -109,7 +104,9 @@ export function CallDetailPanel({
   });
 
   const saveWrapUp = useMutation({
-  mutationFn: () => api.post(`/calls/${callId}/wrap-up`, { disposition: outcome || undefined, notes }),
+  // Once the AI has read the call, the outcome is set only by "Was the AI right?" (the chips are pre-filled with the
+  // AI's guess, so saving notes used to record it as the person's answer).
+  mutationFn: () => api.post(`/calls/${callId}/wrap-up`, { disposition: aiRead ? undefined : outcome || undefined, notes }),
   onSuccess: () => {
   toast({ variant: "success", title: "Wrap-up saved" });
   qc.invalidateQueries({ queryKey: ["call-detail", callId] });
@@ -268,7 +265,8 @@ export function CallDetailPanel({
   <SendQuoteButton variant="primary" args={{ callId: call.id, inquiryId: call.inquiry_id ?? null, phone: call.inquiry_id ? null : call.guest_phone ?? null,
     from: "call", name: call.guest_name || null }} />
   </div>
-  <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Outcome">
+  <AiCheck callId={call.id} ai={call.ai_disposition} human={call.human_disposition} />
+  {!aiRead && <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Outcome">
   {OUTCOMES.map(o => (
   <button key={o.value} role="radio" aria-checked={outcome === o.value} onClick={() => setOutcome(o.value)}
   className={cn("text-xs font-semibold px-2.5 py-1 rounded-full border", outcome === o.value ? o.tone : "border-[color:var(--haip-border)]")}
@@ -276,13 +274,13 @@ export function CallDetailPanel({
   {o.label}
   </button>
   ))}
-  </div>
+  </div>}
   <div className="flex gap-2">
   <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Your notes (kept separate from the AI summary)"
   aria-label="Wrap-up notes"
   className="flex-1 min-w-0 text-sm rounded-lg px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
   style={{ background: "var(--muted)", color: "var(--haip-fg)" }} />
-  <button onClick={() => saveWrapUp.mutate()} disabled={saveWrapUp.isPending || (!outcome && !notes)}
+  <button onClick={() => saveWrapUp.mutate()} disabled={saveWrapUp.isPending || ((aiRead || !outcome) && !notes)}
   className="text-xs font-bold px-4 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50">
   {saveWrapUp.isPending ? <Loader2 size={12} className="animate-spin" /> : "Save"}
   </button>

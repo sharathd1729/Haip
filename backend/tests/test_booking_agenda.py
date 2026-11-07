@@ -199,7 +199,10 @@ def test_occupancy_strip_lists_each_vehicle_with_due_marker(client, db, world, t
     by_id = {b["booking_id"]: b for b in r1["bookings"]}
     assert set(by_id) == {w["today_in"].id}                         # checked_in ended yesterday; cancelled is not a hold
     assert by_id[w["today_in"].id]["due"] is True
-    assert r1["holds"] == [{"from": _d(8).isoformat(), "to": _d(10).isoformat(), "reason": "maintenance"}]
+    (hold,) = r1["holds"]                       # a hand-made hold: no calendar event behind it
+    assert {k: hold[k] for k in ("from", "to", "reason", "event")} == {"from": _d(8).isoformat(), "to": _d(10).isoformat(),
+                                                                      "reason": "maintenance", "event": None}
+    assert hold["id"]
     r2 = {b["booking_id"]: b for b in body["vehicles"][1]["bookings"]}
     assert set(r2) == {w["later"].id, w["staying"].id} and r2[w["staying"].id]["due"] is False
     assert w["foreign"].id not in str(body)
@@ -281,3 +284,25 @@ def test_pay_link_uses_the_template_when_the_window_is_closed(client, db, world,
     assert r.status_code == 201, r.text
     assert r.json()["whatsapp"] == {"status": "skipped", "reason": "template not approved", "via": "template"}
     assert sent.call_count == 1
+
+
+def test_caretaker_comes_from_the_stays_ops_file_and_stays_in_its_tenant(db):
+    from app.models.ops import StaffProfile
+    from app.models.ops_files import OpsFile
+    a = Tenant(id=str(uuid.uuid4()), name="Villas", slug=f"v-{uuid.uuid4().hex[:6]}", plan="growth")
+    b = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add_all([a, b])
+    db.flush()
+    p = _prop(db, a.id, "Villa Aster")
+    g = _guest(db, a.id)
+    with_file = Stay(tenant_id=a.id, guest_id=g.id, property_id=p.id, check_in=_d(2), check_out=_d(4), status="confirmed",
+                     currency="INR", special_requests=[], channel_source="direct")
+    without = Stay(tenant_id=a.id, guest_id=g.id, property_id=p.id, check_in=_d(6), check_out=_d(8), status="confirmed",
+                   currency="INR", special_requests=[], channel_source="direct")
+    ravi = StaffProfile(tenant_id=a.id, name="Ravi", phone_e164="+919800000001", active=True)
+    db.add_all([with_file, without, ravi])
+    db.flush()
+    db.add(OpsFile(tenant_id=a.id, stay_id=with_file.id, pack="villa", state="preparing", details={"caretaker_staff_id": ravi.id}))
+    db.commit()
+    assert agenda.caretakers_for(db, a.id, [with_file.id, without.id]) == {with_file.id: "Ravi"}
+    assert agenda.caretakers_for(db, b.id, [with_file.id, without.id]) == {}          # another tenant sees nothing

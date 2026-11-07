@@ -115,6 +115,10 @@ def get_calendar(
     rows = []
     total_confirmed_nights = 0
     total_possible_nights  = 0
+    total_held_nights      = 0
+    waiting_events: set    = set()
+    busy_today             = 0
+    today_iso              = date.today().isoformat()
     revenue_locked         = Decimal("0")
     revenue_quoted         = Decimal("0")
 
@@ -154,22 +158,15 @@ def get_calendar(
         for b in blocks_all:
             blocks_by_prop.setdefault(b.property_id, []).append(b)
 
-    # What imported calendar events said (title, guest, phone, destination, package, amounts), one query for all blocks.
-    # Failure must not break the grid.
-    event_details: dict = {}
-    try:
-        from app.models.ical_feed import ICalEventDetail
-        block_ids = [b.id for bl in blocks_by_prop.values() for b in bl]
-        if block_ids:
-            for d in db.query(ICalEventDetail).filter(ICalEventDetail.tenant_id == tenant_id,
-                                                      ICalEventDetail.blocked_date_id.in_(block_ids)).all():
-                shown = dict(d.details or {})
-                if not can_revenue:
-                    shown.pop("amounts", None)          # booking money needs revenue.read, like per-stay amounts
-                event_details[d.blocked_date_id] = {"title": d.title, "details": shown, "dates_source": d.dates_source,
-                                                    "needs_vehicle": bool(d.needs_vehicle)}
-    except Exception:  # noqa: BLE001
-        event_details = {}
+    # What imported calendar events said (title, guest, destination, package, amounts with revenue.read), plus the calendar
+    # link's name and a key shared by every copy of an event held on all units ("Which villa?"). Never breaks the grid.
+    from app.services import calendar_holds
+    event_details = calendar_holds.event_info(db, tenant_id, [b for bl in blocks_by_prop.values() for b in bl], can_revenue)
+
+    # Money per booking as the booking pages compute it (stay charge + add-ons, paid from the payment ledger), so the calendar
+    # can mark money still due. Same audience as the amounts: revenue.read.
+    from app.services import booking_service as bsvc
+    fins = bsvc.financials_for(db, tenant_id, [s for sl in stays_by_prop.values() for s in sl]) if can_revenue else {}
 
     # Best-effort guest enrichment (name + phone), batched across ALL properties
     # at once — failure MUST NOT break response.
@@ -214,7 +211,8 @@ def get_calendar(
                 "guest_phone":  guest_phones.get(str(s.guest_id), "") if s.guest_id else "",
                 # getattr guards for columns that may not exist in older DB schemas
                 "adults":       getattr(s, "adults", None) or 1,
-                "total_amount": (float(s.total_amount) if s.total_amount else None) if can_revenue else None,
+                "total_amount": float(fins[s.id]["total"]) if s.id in fins else None,
+                "paid_amount":  float(fins[s.id]["paid"]) if s.id in fins else None,
                 "channel_source": getattr(s, "channel_source", None) or "direct",
                 # Staff notes (the agent writes which caravan it is: Black / White). Same audience as the guest name and phone above.
                 "notes":        (getattr(s, "internal_notes", None) or "")[:300],
@@ -241,6 +239,18 @@ def get_calendar(
 
         # Stats
         confirmed_nights = sum(1 for v in cells.values() if v in ("confirmed", "checked_in"))
+        # Nights held by an imported calendar event that names this unit (owner, 7 Nov: they count toward occupancy, shown
+        # apart). Events still waiting for a unit ("Which villa?") are held on every unit and never count.
+        named = [b for b in blocks if b["event"] and not b["event"]["needs_vehicle"]]
+        held_nights = sum(1 for d in days if cells[d] not in ("confirmed", "checked_in")
+                          and any(b["blocked_from"] <= d < b["blocked_to"] for b in named))
+        total_held_nights += held_nights
+        for b in blocks:
+            if b["event"] and b["event"]["needs_vehicle"]:
+                waiting_events.add(b["event"]["event_key"])
+        real = [b for b in blocks if not (b["event"] and b["event"]["needs_vehicle"])]
+        if any(s["check_in"] <= today_iso < s["check_out"] and s["status"] in ("confirmed", "checked_in") for s in stays)                 or any(b["blocked_from"] <= today_iso < b["blocked_to"] for b in real):
+            busy_today += 1
         total_confirmed_nights += confirmed_nights
         total_possible_nights  += total_days
 
@@ -320,6 +330,8 @@ def get_calendar(
             "blocks":           blocks,
             "rates":            rates,
             "monthly_revenue":  monthly_revenue if can_revenue else None,
+            "booked_nights":    confirmed_nights,
+            "held_nights":      held_nights,
         })
 
     # Occupancy %
@@ -359,6 +371,14 @@ def get_calendar(
             "check_ins_today":    check_ins_today,
             "check_outs_today":   check_outs_today,
             "vacant_today":       vacant_today,
+            # Occupancy of the window shown, split: HAIP bookings vs nights held by a calendar event naming the unit.
+            "booked_nights":      total_confirmed_nights,
+            "held_nights":        total_held_nights,
+            "possible_nights":    total_possible_nights,
+            "occupancy_with_holds_pct": (round((total_confirmed_nights + total_held_nights) / total_possible_nights * 100, 1)
+                                         if total_possible_nights else 0),
+            "free_today":         len(rows) - busy_today,     # no booking and no real hold today ("Which villa?" ones do not count)
+            "waiting_events":     len(waiting_events),        # calendar events held on every unit until someone picks one
         },
         "suggestions": suggestions,
     }

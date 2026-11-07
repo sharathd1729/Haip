@@ -8,14 +8,14 @@ Schema only: drops the server default. No data is changed here; clearing old cop
 scripts/clear_derived_ai_modes.py (dry run default, --apply, one transaction per workspace so RLS context is set).
 DROP DEFAULT is idempotent (prod also runs create_all). SQLite cannot alter a default: skipped (tests build from the models).
 
-Revision ID: 188
-Revises: 187
+Revision ID: 189
+Revises: 188
 """
 
 from alembic import op
 
-revision = "188"
-down_revision = "187"
+revision = "189"
+down_revision = "188"
 branch_labels = None
 depends_on = None
 

@@ -1,6 +1,7 @@
 // The Bookings agenda (layout B): pure rules for the segments, day rows, money chips, the vehicle strip and the filters.
 // Shapes mirror backend/app/services/booking_agenda_service.py and GET /bookings (bookings.py).
 import { useSyncExternalStore } from "react";
+import { holdLabel, splitWaiting, type HoldBlock, type HoldEvent } from "@/lib/calendarHolds";
 import type { Tone } from "@/components/ui/page";
 import { formatINR } from "@/lib/utils";
 import type { BookingRow, BookingStatus, Deposit } from "@/lib/bookings";
@@ -18,6 +19,7 @@ export interface AgendaRow extends BookingRow {
   inquiry_id: string | null;
   trip: string | null;
   deposit: { amount: number; status: Deposit["status"] } | null;
+  caretaker?: string | null;     // from the stay's Ops file (villa businesses)
   raw_status: BookingStatus;
   check_in_time: string | null;
   check_out_time: string | null;
@@ -41,7 +43,8 @@ export interface Occupancy {
   vehicles: {
     property_id: string; name: string; slot: number; placeholder: boolean;
     bookings: { booking_id: string; guest_name: string; check_in: string; check_out: string; status: string; due: boolean }[];
-    holds: { from: string; to: string; reason: string }[];
+    // A hold read from a calendar carries its event (lib/calendarHolds); a hand-made one has event null.
+    holds: { id?: string; from: string; to: string; reason: string; notes?: string | null; event?: HoldEvent | null }[];
   }[];
 }
 
@@ -168,7 +171,11 @@ export function groupByDay(events: AgendaEvent[]): { day: string; events: Agenda
 
 // ── Vehicle strip ────────────────────────────────────────────────────────────
 
-export interface StripBlock { key: string; bookingId: string | null; label: string; title: string; start: number; span: number; due: boolean; hold: boolean }
+export interface StripBlock {
+  key: string; bookingId: string | null; label: string; title: string; start: number; span: number; due: boolean; hold: boolean;
+  block?: HoldBlock;      // a hold: what a tap opens (the Calendar's sheet)
+  cal?: boolean;          // a hold read from Google Calendar
+}
 
 /** Blocks for one vehicle across the strip's columns (0 = the first day). A trip fills its days from pickup up to the drop day
  *  (noon to noon); a same-day trip fills its one day. Holds (blocked dates) are drawn too, without a booking to open. */
@@ -187,10 +194,26 @@ export function stripBlocks(v: Occupancy["vehicles"][number], from: string, days
     const start = Math.max(0, daysBetween(from, h.from));
     const end = Math.min(days, daysBetween(from, h.to));
     if (end <= start) continue;
-    out.push({ key: `hold:${h.from}:${h.to}`, bookingId: null, label: h.reason === "maintenance" ? "Maint." : "Blocked", start, span: end - start,
-      due: false, hold: true, title: `${v.name} blocked ${shortDay(h.from)} to ${shortDay(addDays(h.to, -1))}` });
+    const block = toBlock(h);
+    const label = h.event ? holdLabel(block) : h.reason === "maintenance" ? "Maint." : "Blocked";
+    out.push({ key: `hold:${h.id ?? ""}:${h.from}:${h.to}`, bookingId: null, label, start, span: end - start, due: false, hold: true, block, cal: !!h.event,
+      title: `${h.event ? `${label} (Google Calendar)` : `${v.name} blocked`} ${shortDay(h.from)} to ${shortDay(addDays(h.to, -1))}` });
   }
   return out.sort((a, b) => a.start - b.start);
+}
+
+type Hold = Occupancy["vehicles"][number]["holds"][number];
+const toBlock = (h: Hold): HoldBlock => ({ id: h.id ?? `${h.from}:${h.to}`, blocked_from: h.from, blocked_to: h.to, reason: h.reason, notes: h.notes, event: h.event });
+const toHold = (b: HoldBlock): Hold => ({ id: b.id, from: b.blocked_from, to: b.blocked_to, reason: b.reason, notes: b.notes, event: b.event });
+
+/** The strip's units with back-to-back holds merged into one bar and "Which villa?" holds taken out (they show once, in their
+ *  own row): the same rules as the Calendar (lib/calendarHolds). */
+export function stripUnits(data: Occupancy): { units: Occupancy["vehicles"]; waiting: Hold[] } {
+  const split = splitWaiting(data.vehicles.map(v => ({ ...v, blocks: v.holds.map(toBlock) })));
+  return {
+    units: split.rows.map(({ blocks, ...v }) => ({ ...v, holds: blocks.map(toHold) })),
+    waiting: split.waiting.map(toHold),
+  };
 }
 
 // ── Filters sheet ────────────────────────────────────────────────────────────
