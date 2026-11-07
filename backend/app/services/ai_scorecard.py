@@ -12,10 +12,16 @@ Plain ORM, so SQLite and PostgreSQL agree.
   held_back            undecided or rejected AI drafts in the period, by the first reason they were held (the text before ":")
   conversion           enquiries created in the period with a consult vs without, and how many of each are won (moved to a
                        closed-won stage)
+  by_intent            ALWAYS the last 30 days, whatever ``period`` is: per ``ai_draft_outcomes.intent`` (None = "unknown"),
+                       drafts (every outcome row, expired too), decided (sent alone + approved + edited + rejected, as above),
+                       sent_autonomous, then verbatim / edited / rejected shares over HUMAN_REVIEWED_OUTCOMES only (an autonomous
+                       send has no reviewer), median edit_distance_pct of edited drafts, expired share of all drafts and median
+                       time_to_action_sec of human-reviewed drafts. Fewer than analyst ``stats.MIN_SAMPLE`` (30) decided drafts =
+                       ``too_few`` ("too few to judge") and every share/median is None.
 """
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -28,8 +34,12 @@ from app.models.inquiry import Inquiry
 from app.models.pipeline_stage import PipelineStage
 from app.services import agent_consult_settings as settings_svc
 from app.services import agent_escalation_rules as rules
+from app.services.ai_draft_outcomes_service import HUMAN_REVIEWED_OUTCOMES
+from app.services.analyst.stats import MIN_SAMPLE
 
 PERIODS = {"7d": 7, "30d": 30}
+DECIDED = ("sent_autonomous", "sent_verbatim", "sent_edited", "rejected")
+BY_INTENT_DAYS = 30
 
 
 def _aware(dt: Optional[datetime]) -> Optional[datetime]:
@@ -48,6 +58,39 @@ def _percentile(values: list[float], pct: float) -> Optional[float]:
     return round(s[idx], 1)
 
 
+def _by_intent(db: Session, tid: str, now: datetime) -> dict:
+    start = now - timedelta(days=BY_INTENT_DAYS)
+    groups: dict[str, list] = defaultdict(list)
+    for intent, outcome, edit_pct, secs in db.query(
+            AIDraftOutcome.intent, AIDraftOutcome.outcome, AIDraftOutcome.edit_distance_pct, AIDraftOutcome.time_to_action_sec).filter(
+            AIDraftOutcome.tenant_id == tid, AIDraftOutcome.created_at >= start, AIDraftOutcome.created_at <= now):
+        groups[intent or "unknown"].append((outcome, edit_pct, secs))
+    rows = []
+    for intent, items in groups.items():
+        n = Counter(o for o, _, _ in items)
+        decided = sum(n[k] for k in DECIDED)
+        reviewed = sum(n[k] for k in HUMAN_REVIEWED_OUTCOMES)
+        enough = decided >= MIN_SAMPLE
+
+        def share(part: int, whole: int) -> Optional[float]:
+            return _share(part, whole) if enough else None
+
+        def median(values: list) -> Optional[float]:
+            return _percentile([float(v) for v in values if v is not None], 0.5) if enough else None
+
+        rows.append({
+            "intent": intent, "drafts": len(items), "decided": decided, "sent_autonomous": n["sent_autonomous"],
+            "reviewed": reviewed, "too_few": not enough,
+            "verbatim_share": share(n["sent_verbatim"], reviewed), "edited_share": share(n["sent_edited"], reviewed),
+            "median_edit_pct": median([e for o, e, _ in items if o == "sent_edited"]),
+            "rejected_share": share(n["rejected"], reviewed), "expired_share": share(n["expired"], len(items)),
+            "median_action_sec": median([s for o, _, s in items if o in HUMAN_REVIEWED_OUTCOMES]),
+        })
+    rows.sort(key=lambda r: (-r["decided"], r["intent"]))
+    return {"period": "30d", "from": start.isoformat(), "to": now.isoformat(), "days": BY_INTENT_DAYS,
+            "min_decided": MIN_SAMPLE, "intents": rows}
+
+
 def build(db: Session, tenant, period: str = "7d", now: Optional[datetime] = None) -> dict:
     days = PERIODS.get(period, 7)
     now = now or datetime.now(timezone.utc)
@@ -57,7 +100,7 @@ def build(db: Session, tenant, period: str = "7d", now: Optional[datetime] = Non
 
     outcomes = Counter(o for (o,) in db.query(AIDraftOutcome.outcome).filter(
         AIDraftOutcome.tenant_id == tid, AIDraftOutcome.created_at >= start, AIDraftOutcome.created_at <= now))
-    decided = sum(outcomes[k] for k in ("sent_autonomous", "sent_verbatim", "sent_edited", "rejected"))
+    decided = sum(outcomes[k] for k in DECIDED)
     alone = outcomes["sent_autonomous"] + outcomes["sent_verbatim"]
     ai_replies = {**span, "sent_alone": outcomes["sent_autonomous"], "approved_as_written": outcomes["sent_verbatim"],
                   "edited": outcomes["sent_edited"], "rejected": outcomes["rejected"], "decided": decided,
@@ -103,4 +146,4 @@ def build(db: Session, tenant, period: str = "7d", now: Optional[datetime] = Non
     conversion = {**span, **{k: {"leads": v[0], "won": v[1], "rate": _share(v[1], v[0])} for k, v in groups.items()},
                   "note": "Enquiries created in the period; won = moved to a closed-won stage. Small numbers are not a trend."}
     return {"period": period, "ai_replies": ai_replies, "consults": consult_block, "answer_minutes": answer_block,
-            "held_back": held_block, "conversion": conversion}
+            "held_back": held_block, "conversion": conversion, "by_intent": _by_intent(db, tid, now)}
