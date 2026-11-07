@@ -41,7 +41,12 @@ UID_SUFFIX = "@haip"
 IMPORT_REASON = "offline_booking"           # existing BlockedDate reason: booked elsewhere
 _PAST_WINDOW = timedelta(days=30)           # history older than this is not imported
 _EXPORT_PAST = timedelta(days=7)
-_MAX_BYTES = 5_000_000
+# A Google Calendar feed carries every event ever (Jade's shared villa calendar went past 5 MB). The download cap is
+# generous; old events are dropped by _drop_old_events before parsing, so parse cost follows the live window only.
+_MAX_BYTES = 30_000_000
+_PREFILTER_KEEP = timedelta(days=90)       # wider than _PAST_WINDOW, so the parser still sees every event it imports
+_DTEND = re.compile(r"^DTEND[^:]*:(\d{8})", re.M)
+_DTSTART = re.compile(r"^DTSTART[^:]*:(\d{8})", re.M)
 _FEED_CAP_PER_PROPERTY = 10
 _FEED_ID_NOTE = re.compile(r"^ical:([0-9a-f-]{36}):")
 
@@ -239,7 +244,24 @@ def fetch_ics(url: str) -> str:
     text = resp.text
     if "BEGIN:VCALENDAR" not in text:
         raise ValueError("That link didn't return a calendar (expected an .ics feed).")
-    return text
+    return _drop_old_events(text)
+
+
+def _drop_old_events(text: str, today: Optional[date] = None) -> str:
+    """Remove VEVENT blocks that ended more than _PREFILTER_KEEP ago, before the (slow) full parse. Repeating events
+    (RRULE/RDATE) and events whose end date cannot be read are always kept."""
+    cutoff = ((today or datetime.now(timezone.utc).date()) - _PREFILTER_KEEP).strftime("%Y%m%d")
+    parts = text.split("BEGIN:VEVENT")
+    kept = [parts[0]]
+    for part in parts[1:]:
+        block = part.split("END:VEVENT", 1)[0]
+        m = _DTEND.search(block) or _DTSTART.search(block)
+        if m and m.group(1) < cutoff and "RRULE" not in block and "RDATE" not in block:
+            if "END:VCALENDAR" in part.split("END:VEVENT", 1)[-1]:
+                kept.append("\r\nEND:VCALENDAR\r\n")      # the dropped block carried the calendar's closing line
+            continue
+        kept.append("BEGIN:VEVENT" + part)
+    return "".join(kept)
 
 
 def _tenant_tz(db: Session, tenant_id: str) -> ZoneInfo:
