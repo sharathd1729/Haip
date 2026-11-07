@@ -132,7 +132,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",
-    "ask_haip_freeform_sql":  "ask-haip-freeform-sql-v1",
+    "ask_haip_freeform_sql":  "ask-haip-freeform-sql-v2",
     "ask_haip_freeform_summary": "ask-haip-freeform-summary-v1",
     # AI Autonomy Plan Phase 1 ticket 4: new intent classify+extract step
     # gating the grounded tool loop.

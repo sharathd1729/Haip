@@ -39,6 +39,7 @@ from app.adapters.llm import get_llm
 from app.adapters.llm.scope import llm_scope
 from app.models.ask_haip import AskHaipFreeformQuery
 from app.models.base import gen_uuid
+from app.services import ask_haip_kpi
 
 log = structlog.get_logger()
 
@@ -50,38 +51,59 @@ QUERY_TIMEOUT_S = 5
 # actual enforcement, but keeping these two lists identical means a
 # validator bug still fails closed at the DB layer instead of silently
 # returning "permission denied" as a confusing runtime error.
+# Columns and enum spellings are read from the SQLAlchemy models (describe_table), never typed by hand: a hand list
+# left out the sender columns and the model wrote `direction = 'outbound'` while the column stores 'OUTBOUND' (Ratha,
+# Nov 2026: "none" instead of 830). Only meaning that the models cannot carry is written here.
 ALLOWED_TABLES: dict[str, str] = {
-    "inquiries": "Leads360 pipeline entries. Columns include: id, tenant_id, guest_id, "
-                 "stage_id, source, check_in, check_out, adults, children, budget, "
-                 "quoted_amount, created_at, current_stage_entered_at, ai_summary.",
-    "guests": "Guest profiles. Columns: id, tenant_id, name, phone, email, city, "
-              "vip_tier, total_stays, total_inquiries, lifetime_value, created_at.",
-    "calls": "Phone call records. Columns: id, tenant_id, guest_id, direction, "
-             "duration_seconds, disposition, created_at.",
-    "stays": "Confirmed bookings. Columns: id, tenant_id, guest_id, property_id, "
-             "check_in, check_out, adults, children, status, total_amount, "
-             "channel_source, created_at.",
-    "conversations": "WhatsApp/Instagram conversation threads. Columns: id, tenant_id, "
-                      "guest_id, channel, is_open, ai_mode, last_message_at, created_at.",
-    "messages": "Individual chat messages. Columns: id, tenant_id, conversation_id, "
-                "direction, channel, body, created_at.",
-    "properties": "Bookable units (villas/caravans/rooms). Columns: id, tenant_id, "
-                  "name, type, city, price_per_day, is_active.",
-    "pipeline_stages": "Tenant's Leads360 stage taxonomy. Columns: id, tenant_id, key, "
-                        "label, category, is_closed_won, is_closed_lost.",
+    "inquiries": "Leads360 pipeline entries (enquiries; one person can have several). stage_id -> pipeline_stages.id. "
+                 "qualification_status 'unqualified' = spam. lead_type guest|b2b|partner (only guest is a guest lead). "
+                 "check_in/check_out are 'YYYY-MM-DD' text.",
+    "guests": "Guest profiles (people). A LEAD is a guest with lead_identified_at set (a usable phone number).",
+    "calls": "Phone call records.",
+    "stays": "Bookings. status confirmed|checked_in|checked_out|cancelled (live bookings = confirmed, checked_in, "
+             "checked_out). total_amount = the stay charge in INR.",
+    "conversations": "WhatsApp/Instagram conversation threads. ai_mode shadow|autonomous|off.",
+    "messages": "Individual chat messages. sender_kind human|ai_approved|ai_auto|ai_holding|system|playbook|campaign|"
+                "bridge_live|bridge_history|chat_export = who wrote an outbound message (NULL on older rows). "
+                "sender_name = the team member's or WhatsApp group member's display name.",
+    "properties": "Bookable units (villas/caravans/rooms).",
+    "pipeline_stages": "Tenant's Leads360 stage taxonomy. category valid|invalid|marketing (only valid stages count as "
+                       "leads).",
 }
+
+_TYPE_WORDS = {"String": "text", "Text": "text", "Integer": "int", "Numeric": "number", "Boolean": "bool",
+               "DateTime": "timestamptz", "Date": "date", "JSON": "json"}
+
+
+def describe_table(table: str) -> str:
+    """'name type, ...' for every column of the model's table; an enum lists its stored labels exactly."""
+    import sqlalchemy as sa
+    from app.core.database import Base
+    import app.models  # noqa: F401  registers every model on Base.metadata
+
+    parts = []
+    for col in Base.metadata.tables[table].columns:
+        if isinstance(col.type, sa.Enum):
+            parts.append(f"{col.name} enum(" + "|".join(f"'{v}'" for v in col.type.enums) + ")")
+        else:
+            parts.append(f"{col.name} {_TYPE_WORDS.get(type(col.type).__name__, 'text')}")
+    return ", ".join(parts)
+
 
 SQL_SYSTEM_PROMPT = f"""You are a SQL generator for a hospitality CRM. Given a
 question, write ONE read-only PostgreSQL SELECT statement that answers it.
 
 Available tables (query ONE of these only -- no JOINs):
-{chr(10).join(f"- {t}: {desc}" for t, desc in ALLOWED_TABLES.items())}
+{chr(10).join(f"- {t}: {desc} Columns: {describe_table(t)}." for t, desc in ALLOWED_TABLES.items())}
 
 Rules:
 - SELECT statements only. Never write INSERT/UPDATE/DELETE/DROP/ALTER/CREATE.
 - Query exactly one table -- no JOINs, no subqueries against other tables.
 - Never write a WHERE clause referencing tenant_id yourself -- it is added
   automatically after you respond. Do not mention tenant_id at all.
+- Use ONLY the columns listed. Enum values are case-sensitive: write them exactly as listed
+  (e.g. direction = 'OUTBOUND', never 'outbound').
+- Times are stored in UTC; the business runs on IST (UTC+5:30).
 - Always include a LIMIT (max 500).
 - Return ONLY the SQL statement, no markdown fences, no explanation.
 """
@@ -234,6 +256,14 @@ async def answer_freeform_question(
     )
 
     try:
+        # KPI questions get the dashboards' own definitions, never model-written SQL (ask_haip_kpi).
+        kpi = ask_haip_kpi.answer(db, tenant_id, question)
+        if kpi is not None:
+            audit.status = "ok"
+            audit.generated_sql = "-- shared metrics: " + ", ".join(kpi["metrics"])
+            audit.row_count = kpi["row_count"]
+            return kpi
+
         sql_llm = get_llm("ask_haip_freeform_sql")
         with llm_scope(tenant_id=tenant_id, module="ask_haip", ref_type="ask_haip_query", ref_id=audit.id):
             gen = await sql_llm.complete(
