@@ -5,7 +5,9 @@ When an inbound message matches an opt-out keyword:
 1. Find or create a Consent row for the guest (marketing scope).
 2. Set marketing_consent=False / True, record withdrawal proof.
 3. Write an AuditEvent.
-4. Queue a WhatsApp confirmation template (utility, pre-approved).
+4. Queue a WhatsApp confirmation template (utility, pre-approved) through wa_booking_messages.send_guest_template,
+   the service every system-initiated template send uses: APPROVED templates only, one per guest per direction per day,
+   a Message row in the inbox, audited. Never into a personal-bridge thread. A failure is logged, never raised.
 """
 from datetime import datetime, timezone
 import uuid
@@ -13,8 +15,11 @@ import structlog
 from sqlalchemy.orm import Session
 
 from app.models.consent import Consent
+from app.models.conversation import ChannelType, Conversation
 from app.models.guest import Guest
 from app.core.audit import append_audit
+from app.services import wa_booking_messages as wbm
+from app.workers.tasks.send_whatsapp import _phone_token
 
 log = structlog.get_logger()
 
@@ -123,19 +128,7 @@ def process_opt_out_event(
 
     db.commit()
 
-    # Queue confirmation template message (D2: non-blocking; skip if task module not available)
-    try:
-        from app.workers.tasks.send_whatsapp import send_template_message
-        template = OPT_OUT_REPLY_TEMPLATE if not granted else OPT_IN_REPLY_TEMPLATE
-        send_template_message.delay(
-            tenant_id=tenant_id,
-            to_phone=guest_phone,
-            template_name=template,
-            components=[],
-        )
-    except Exception:
-        # Template task missing is non-fatal during bootstrap
-        log.warning("opt_out_confirm_template_skipped", tenant_id=tenant_id)
+    _send_confirmation(db, tenant_id, guest_id, guest_phone, direction)
 
     log.info(
         "opt_out_event_processed",
@@ -143,3 +136,31 @@ def process_opt_out_event(
         direction=direction,
         keyword=matched_keyword,
     )
+
+
+def _send_confirmation(db: Session, tenant_id: str, guest_id: str, guest_phone: str, direction: str) -> dict | None:
+    """Queue the confirmation template. Returns send_guest_template's result, or None when nothing was tried.
+    Never raises: the consent change is already committed and the webhook must still switch the AI off."""
+    template = OPT_IN_REPLY_TEMPLATE if direction == "opt_in" else OPT_OUT_REPLY_TEMPLATE
+    try:
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+        if guest is None:
+            log.warning("opt_out_confirm_not_sent", tenant_id=tenant_id, phone=_phone_token(guest_phone), reason="guest not found")
+            return None
+        conv = (db.query(Conversation).filter_by(tenant_id=tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
+                .order_by(Conversation.last_message_at.desc()).first())
+        if conv is not None and conv.is_personal_bridge:   # read-only mirror: never answered from the official number
+            log.warning("opt_out_confirm_not_sent", tenant_id=tenant_id, phone=_phone_token(guest_phone), reason="personal_bridge")
+            return None
+        target = wbm.Target("guest", guest_id, "oo:", {"source": "opt_out_confirm", "consent_event": direction}, "consent")
+        result = wbm.send_guest_template(db, tenant_id, guest, template, [], target=target,
+                                         event=f"{direction}:{datetime.now(timezone.utc):%Y-%m-%d}")
+        if result["status"] == "skipped":   # send_guest_template already logged + audited the reason (e.g. template not approved)
+            log.warning("opt_out_confirm_not_sent", tenant_id=tenant_id, phone=_phone_token(guest_phone), template=template,
+                        reason=result["reason"])
+        return result
+    except Exception as exc:  # noqa: BLE001 -- consent is saved; a failed confirmation must not stop the webhook
+        db.rollback()
+        log.error("opt_out_confirm_failed", tenant_id=tenant_id, phone=_phone_token(guest_phone), template=template,
+                  error=str(exc)[:200])
+        return None
