@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { OpsNav } from "@/components/ops/OpsNav";
+import { StaffTabs } from "@/components/ops/StaffTabs";
 import { input, label, Shell } from "@/components/ops/TripSheets";
 
 const SHOWN_DUTIES = ["driver", "caretaker", "maintenance", "housekeeping", "ops_manager"];
@@ -72,6 +73,7 @@ export default function OpsStaffPage() {
       <PageHeader title="Staff" subtitle="Drivers and helpers. They use WhatsApp, not HAIP."
         actions={manage ? <button type="button" className="haip-btn-primary min-h-12" onClick={() => setForm({ ...EMPTY })}>Add a person</button> : undefined} />
       <OpsNav />
+      <StaffTabs />
       {!hydrated || isPending ? (
         <div className="flex flex-col gap-2" aria-busy="true"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
       ) : isError || !data ? (
