@@ -32,6 +32,31 @@ _ALLOWED_MEDIA_HOST_SUFFIXES = (
 )
 
 
+# Webhook fields HAIP handles (webhooks_instagram.py): DMs incl. echoes, button taps, ad referrals, comments.
+WEBHOOK_FIELDS = "messages,messaging_postbacks,messaging_referral,comments"
+
+
+def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
+    """Subscribe the connected account to HAIP's webhook fields (Instagram API with Instagram Login).
+
+    Without this call Meta sends no DMs for the account even though the token works. Returns (ok, error text);
+    never raises, so a failed subscribe never undoes a successful connect.
+    """
+    try:
+        resp = httpx.post(
+            f"{GRAPH_BASE}/me/subscribed_apps",
+            data={"subscribed_fields": WEBHOOK_FIELDS},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=15,
+        )
+        body = resp.json() if resp.content else {}
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)[:200]
+    if resp.status_code == 200 and body.get("success") is True:
+        return True, ""
+    return False, str((body.get("error") or {}).get("message") or body or resp.status_code)[:200]
+
+
 def validate_media_url(url: str) -> bool:
     """
     Return True only for HTTPS URLs whose host is on Meta's CDN allowlist.

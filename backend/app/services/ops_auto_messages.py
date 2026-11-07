@@ -6,6 +6,7 @@ helper_chase   24 h before: the helper gets the checklist photos still missing (
 guest_pretrip  24 h before, once a driver is set: the guest gets the vehicle, driver name and reporting time.
 deposit_nudge  24 h after return with the deposit still held: an ops item for the manager (the roster decides who hears,
                the usual alert template + escalation); it is resolved by itself once the deposit is settled.
+midstay_check  day 2 of a 2+ night stay, caravan and villa (ops_midstay_check, its own guards and reply handling).
 
 Staff get plain text while their 24-hour window is open (staff_profiles.last_inbound_at), else the pack's template
 (ops_templates). The guest gets text inside their window (wa_booking_messages.send_guest_text), else the approved template.
@@ -285,6 +286,9 @@ def run_tenant(db: Session, tenant_id: str, now: datetime | None = None) -> list
             log.error("ops_auto_messages_file_failed", tenant_id=tenant_id, file_id=f.id, error=str(exc)[:300])
     _settle_deposit_items(db, tenant_id)
     db.commit()
+    from app.services import ops_midstay_check
+
+    ops_midstay_check.run_tenant(db, tenant_id, now, tz)
     return sends
 
 

@@ -122,6 +122,8 @@ class OpsSettings(Base, TimestampMixin, TenantMixin):
     quiet_hours = Column(JSON, nullable=True)
     templates = Column(JSON, nullable=True)
     template_language = Column(String(10), nullable=False, default="en")
+    # Mid-stay check (ops_midstay_check): NULL = on once its template is approved; TRUE/FALSE = the owner's choice.
+    midstay_check_enabled = Column(Boolean, nullable=True)
 
 
 class OpsItem(Base, TimestampMixin, TenantMixin):
