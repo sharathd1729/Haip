@@ -283,56 +283,6 @@
         "Equipped with indoor entertainment such as TVs with premium sound, a pool table, and board games like Monopoly, UNO, and Jenga.",
         "Outdoor activity options include cricket, volleyball, frisbee, and archery to keep groups entertained."
       ]
-    },
-    {
-      "name": "Vanani by Jade",
-      "slug": "vanani",
-      "type": "farmhouse",
-      "bedrooms": 6,
-      "bathrooms": null,
-      "max_adults": 22,
-      "address": "Mysore Road",
-      "city": "Bangalore",
-      "state": "Karnataka",
-      "description": "Nestled on Mysore Road, Vanani by Jade is a serene private 6 bedroom farmhouse retreat combining contemporary design with the tranquility of nature. Surrounded by lush greenery, this expansive property offers the perfect setting for family vacations, friend getaways, or corporate retreats. With its unique blend of modern amenities and natural charm, Vanani provides an unparalleled escape from the city's hustle.",
-      "amenities": [
-        "Located on Mysore Road, offering convenient access and a tranquil environment.",
-        "Accommodates up to 22 guests across a 3-bedroom villa, 2-bedroom stone house, bamboo cottage suite, and a tiny cottage.",
-        "The 3-bedroom villa accommodates up to 12 guests and features a two-seater Jacuzzi for ultimate relaxation.",
-        "The 2-bedroom stone house accommodates up to 7 guests and includes a five-seater Jacuzzi (available at an additional cost).",
-        "The bamboo cottage suite offers a cozy one-bedroom retreat for 2 guests.",
-        "Features a lap pool with a cascading waterfall, surrounded by a lush lawn with exotic fruit trees.",
-        "Luxurious amenities such as in-house butler, personal chef, housekeeping, and power backup.",
-        "Sprawls across an acre, perfect for intimate gatherings or celebrations for 50-100 people.",
-        "Includes a gazebo and a fire pit for cozy evenings with friends or family.",
-        "Offers customizable experiences like barbecues, bonfires, candlelit dining, and floating breakfasts & movie nights under the stars with a 4K UHD projector.",
-        "Indoor and outdoor games, including Monopoly, cricket, archery, and volleyball.",
-        "Pet-friendly retreat welcoming furry companions."
-      ]
-    },
-    {
-      "name": "Royalty by Jade",
-      "slug": "royalty",
-      "type": "villa",
-      "bedrooms": 5,
-      "bathrooms": null,
-      "max_adults": 15,
-      "address": "Base of Varalakonda Hill (30 min from Nandi Hills, 50 min from the airport toll)",
-      "city": "Bangalore",
-      "state": "Karnataka",
-      "description": "Nestled at the base of the majestic Varalakonda Hill, Royalty by Jade is a 5-bedroom luxury villa that blends adventure, nature, and relaxation in a truly unique experience. This exclusive retreat is perfect for horse-riding enthusiasts, nature lovers, and those seeking a serene escape. With a private pool, Jacuzzi, and sweeping hill views, Royalty by Jade promises a memorable getaway for families, friends, or corporate retreats.\n\nA standout feature is the private horse ranch, home to three majestic horses, offering customized equestrian experiences for guests seeking adventure and inspiration. Whether indulging in a curated dining experience with an in-house chef, unwinding in the Jacuzzi, or hosting a glamorous poolside soirée, every moment here is crafted for delight and exclusivity. With thoughtful inclusions and impeccable hospitality, Royalty by Jade redefines the essence of luxury retreats",
-      "amenities": [
-        "Exquisite 5-bedroom villa that accommodates 12-15 guests with spacious living, dining, and kitchen areas.",
-        "Private horse stable with three majestic stallions, ideal for horse-riding enthusiasts and equestrian experiences.",
-        "Private pool and Jacuzzi with views of Varalakonda Hill for ultimate relaxation and leisure.",
-        "Located 50 minutes from the airport toll and 30 minutes from Nandi Hills",
-        "Breathtaking panoramic views of the surrounding hills and mesmerizing sunsets from almost every part of the property.",
-        "Lush, well-maintained lawns perfect for morning yoga, picnics, or intimate gatherings.",
-        "Expansive poolside party deck, ideal for hosting cocktail evenings, barbecues, or cozy fireside nights.",
-        "Modern kitchen for self-catering or optional in-house chef services.",
-        "Customised experiences like bonfire, BBQ, curated dining experiences, camping and movie nights under the stars with a projector setup - on prior request",
-        "Enjoy a variety of indoor and outdoor games, including Monopoly, UNO, Jenga, cricket, archery, frisbee, volleyball, and more."
-      ]
     }
   ]
 }
