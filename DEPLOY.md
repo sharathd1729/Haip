@@ -54,6 +54,23 @@ new connections fail with `EMAXCONNSESSION`. If the totals above exceed that poo
 transaction pooler (port 6543): HAIP keeps no session state (tenant context, `lock_timeout` and advisory locks are all
 transaction-local) and psycopg2 uses no server-side prepared statements.
 
+**Workers on the transaction pooler (live since 7 Nov).** `worker` and `worker_replies` also read an optional
+`backend/.env.workers` (gitignored, VPS only) that overrides `DATABASE_URL` with the transaction pooler; `api` and `beat`
+stay on the session pooler. Create it from the existing line, then recreate the two workers and check the ports:
+
+```bash
+grep -E '^DATABASE_URL=' backend/.env | sed 's#:5432/#:6543/#' > backend/.env.workers && chmod 600 backend/.env.workers
+```
+```bash
+docker compose -f docker-compose.prod.yml up -d --force-recreate worker worker_replies
+```
+```bash
+for c in haip_api haip_worker haip_worker_replies haip_beat; do echo -n "$c "; docker exec $c printenv DATABASE_URL | grep -o ':[0-9]*/postgres'; done
+```
+
+Expected: api and beat `:5432`, both workers `:6543`. To undo: delete `backend/.env.workers` and recreate the two workers.
+The optional `env_file` entry needs Docker Compose 2.24 or newer (`docker compose version`).
+
 Domains: the app is `https://genhaip.com` (API at `https://genhaip.com/api/v1` through the Next.js proxy). Client
 sites are `*.SITES_BASE_DOMAIN` and verified custom domains, served by nginx on the host to `127.0.0.1:3020`.
 
@@ -223,7 +240,7 @@ Add a row here whenever a release needs more than "pull, build, migrate, up".
 | `haip_api` keeps restarting | `docker logs --tail 50 haip_api` first; usually a bad value in `backend/.env` or the database unreachable |
 | `alembic upgrade head` logs success but `alembic current` did not move | A statement failed earlier in the same transaction and was swallowed; check `backend/alembic/env.py` and the full log (see CLAUDE.md, "Alembic migration gotcha") |
 | Database has the tables but `alembic_version` is behind | `alembic stamp <revision>` to the revision the schema matches, then `alembic upgrade head` |
-| `EMAXCONNSESSION` from Supabase | Lower `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` in `backend/.env`, recreate the backend services |
+| `EMAXCONNSESSION` from Supabase | Put the workers on the transaction pooler (`backend/.env.workers`, "Database connections" above), or lower `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` in `backend/.env`, then recreate the backend services |
 | A new feature's background job never runs | The worker or beat was not rebuilt; rebuild all five backend services and check `inspect registered` |
 | Guests get no AI drafts, approved replies stay queued | `haip_worker_replies` is not running (`docker ps`); it is the only consumer of the `replies` queue |
 | Worker / beat / frontend show no health status | Expected: their health checks are disabled |
