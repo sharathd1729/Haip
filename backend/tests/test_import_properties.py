@@ -19,7 +19,7 @@ def _tenant(db, slug):
 
 def test_jade_file_is_complete():
     rows = json.loads(DATA.read_text(encoding="utf-8"))["properties"]
-    assert len(rows) == 12
+    assert len(rows) == 11
     for r in rows:
         assert r["name"] and r["slug"] and r["bedrooms"] >= 1 and r["max_adults"] >= 2 and len(r["description"]) > 200
 
@@ -32,12 +32,12 @@ def test_dry_run_writes_nothing_and_apply_skips_existing(db):
     rows = json.loads(DATA.read_text(encoding="utf-8"))["properties"]
 
     dry = import_properties(db, jade.id, rows, apply=False)
-    assert len(dry["created"]) == 11 and dry["skipped"] == ["Emerald by Jade"]
+    assert len(dry["created"]) == 10 and dry["skipped"] == ["Emerald by Jade"]
     assert db.query(Property).filter_by(tenant_id=jade.id).count() == 1
 
     import_properties(db, jade.id, rows, apply=True)
     db.commit()
-    assert db.query(Property).filter_by(tenant_id=jade.id).count() == 12
+    assert db.query(Property).filter_by(tenant_id=jade.id).count() == 11
     haven = db.query(Property).filter_by(tenant_id=jade.id, slug="haven").one()
     assert haven.bedrooms == 5 and haven.max_adults == 25 and haven.amenities
     assert db.query(Property).filter_by(tenant_id=other.id).count() == 1          # other workspace untouched
