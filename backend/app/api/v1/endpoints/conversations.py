@@ -275,9 +275,14 @@ def list_conversations(
         if ad_title:
             ad_title_by_conv[row.conversation_id] = ad_title
 
+    # ai_mode on the wire = the mode the next reply will really use; the column only holds a per-thread "off".
+    from app.models.tenant import Tenant
+    from app.services import ai_mode_service
+    tenant_row = db.get(Tenant, current_user.tenant_id)
     result = []
     for c in conversations:
         out = ConversationOut.model_validate(c)
+        out.ai_mode = ai_mode_service.resolve_mode(tenant_row, c)
         out.guest_name = c.guest.name if c.guest else None
         out.last_message = preview_by_conv.get(c.id)
         out.last_inbound_at = _parse_dt(last_inbound_by_conv.get(c.id))
@@ -846,7 +851,7 @@ def update_conversation(
         # other value defers to the tenant's channel default again.
         if not isinstance(body["ai_enabled"], bool):
             raise HTTPException(status_code=422, detail="ai_enabled must be true or false")
-        conv.ai_mode = "shadow" if body["ai_enabled"] else "off"
+        conv.ai_mode = None if body["ai_enabled"] else "off"
         # Audited: it also ends an "AI turned off: guest asked for a person" banner (ai_handoff.off_reason).
         from app.core.audit import append_audit
         append_audit(db, tenant_id=current_user.tenant_id, action="conversation.ai_toggled", actor_user_id=current_user.id,

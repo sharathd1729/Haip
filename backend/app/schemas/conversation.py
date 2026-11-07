@@ -36,7 +36,7 @@ class ConversationOut(BaseModel):
     channel: str
     source: Optional[str] = None
     is_open: bool = True
-    ai_mode: Optional[str] = "shadow"
+    ai_mode: Optional[str] = None  # resolved mode (ai_mode_service), set by list_conversations
     last_message_at: Optional[datetime] = None
     last_inbound_at: Optional[datetime] = None  # D9: last inbound message timestamp (computed)
     snoozed_until: Optional[Union[datetime, str]] = None

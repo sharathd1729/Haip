@@ -32,6 +32,8 @@ from datetime import datetime, timedelta, timezone
 # remember PYTHONPATH.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import or_
+
 from app.core.database import SessionLocal, set_tenant_context
 from app.models.conversation import ChannelType, Conversation, Message, MessageDirection
 from app.models.tenant import Tenant
@@ -70,7 +72,8 @@ def main() -> int:
                 Conversation.tenant_id == tenant.id,
                 Conversation.channel.in_(channels),
                 Conversation.is_open.is_(True),
-                Conversation.ai_mode != "off",
+                # NULL = no override (follows the workspace); SQL `!= 'off'` alone would drop those rows.
+                or_(Conversation.ai_mode.is_(None), Conversation.ai_mode != "off"),
             )
             .all()
         )

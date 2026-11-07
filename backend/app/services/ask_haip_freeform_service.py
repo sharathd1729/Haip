@@ -62,7 +62,10 @@ ALLOWED_TABLES: dict[str, str] = {
              "check_in, check_out, adults, children, status, total_amount, "
              "channel_source, created_at.",
     "conversations": "WhatsApp/Instagram conversation threads. Columns: id, tenant_id, "
-                      "guest_id, channel, is_open, ai_mode, last_message_at, created_at.",
+                      "guest_id, channel, is_open, ai_mode, last_message_at, created_at. "
+                      "ai_mode is ONLY a per-thread override: 'off' = AI paused for that guest, NULL = "
+                      "follows the workspace setting (resolved per reply). It is NOT the conversation's AI "
+                      "mode; never count or report it as shadow/autonomous.",
     "messages": "Individual chat messages. Columns: id, tenant_id, conversation_id, "
                 "direction, channel, body, created_at.",
     "properties": "Bookable units (villas/caravans/rooms). Columns: id, tenant_id, "

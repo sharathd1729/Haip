@@ -24,6 +24,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
+from app.services import ai_mode_service
 from app.core.database import SessionLocal
 from app.models.integration import INSTAGRAM_INBOUND_STATUSES, Integration
 from app.models.guest import Guest
@@ -138,8 +139,7 @@ def process_instagram_comment(self, payload: dict) -> dict:
                 guest_id=guest_id,
                 channel=channel_val,
                 is_open=True,
-                # T3.2: inherit the tenant's Instagram AI default.
-                ai_mode=integration.tenant.ig_ai_mode_default if integration.tenant else "shadow",
+                # No ai_mode: NULL = follow the workspace's Instagram setting (ai_mode_service).
             )
             db.add(conversation)
             db.flush()
@@ -243,7 +243,7 @@ def process_instagram_comment(self, payload: dict) -> dict:
                 recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
                 comment_id=comment_id,
             )
-        elif text and text.strip() and conversation.ai_mode != "off":
+        elif text and text.strip() and ai_mode_service.resolve_mode(integration.tenant, conversation) != "off":
             try:
                 from app.workers.tasks.concierge_draft import concierge_draft
                 concierge_draft.apply_async(

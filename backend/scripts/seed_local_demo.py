@@ -271,7 +271,7 @@ def run() -> None:
         db.add(inq)
         conv = Conversation(id=uid(), tenant_id=tid, guest_id=g.id, inquiry_id=inq.id, property_id=inq.property_id,
                             assigned_to=inq.assigned_to, channel=channel, channel_conversation_id=f"demo-thread-{n}",
-                            is_open=stage_key not in ("sold", "lost", "unsuitable"), ai_mode="shadow",
+                            is_open=stage_key not in ("sold", "lost", "unsuitable"),
                             source=src.value, created_at=first_at)
         db.add(conv)
         db.flush()   # no ORM relationships between these tables, so parents must hit the DB before the children

@@ -222,7 +222,7 @@ def run_scenario(db: Session, world: World, scenario: dict, *, today: Optional[d
               lead_identified_at=datetime.now(timezone.utc) if has_phone else None)
     db.add(g)
     db.flush()
-    conv = Conversation(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, channel=channel, is_open=True, ai_mode="shadow")
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, channel=channel, is_open=True)
     db.add(conv)
     db.flush()
     now = datetime.now(timezone.utc)

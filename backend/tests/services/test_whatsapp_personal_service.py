@@ -1,7 +1,7 @@
 """Personal/Business-app WhatsApp bridge -- Phase 1 read-only capture.
 
 Covers: inbound ingestion mirrors the official WhatsApp path (guest
-resolution, conversation/inquiry creation, ai_mode forced to "shadow"),
+resolution, conversation/inquiry creation, no stored ai_mode override),
 duplicate bridge_message_id is a no-op, tenant isolation, and the
 per-session webhook-secret verification used by the bridge-facing
 endpoint's auth.
@@ -75,7 +75,7 @@ class TestIngestInboundMessage:
         assert msg.channel_metadata["source"] == "personal_bridge"
 
         conv = db.query(Conversation).filter_by(id=msg.conversation_id).first()
-        assert conv.ai_mode == "shadow"   # never autonomous on this pipe
+        assert conv.ai_mode is None   # no stored copy; concierge_draft refuses personal-bridge threads anyway
         assert conv.assigned_to == agent.id
 
         guest = db.query(Guest).filter_by(id=conv.guest_id, tenant_id=tenant.id).first()

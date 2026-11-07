@@ -91,7 +91,7 @@ def test_a_mirrored_chat_becomes_a_lead_when_the_person_writes_live(db, world):
 def test_a_live_guest_message_still_makes_a_lead_as_before(db, world):
     m = _ingest(db, world, from_phone="+919844455566", from_name="Sana", body="Hi, caravan rates?", chat_jid="919844455566@s.whatsapp.net")
     conv = db.query(Conversation).filter_by(id=m.conversation_id).one()
-    assert conv.ai_mode == "shadow" and conv.inquiry_id is not None
+    assert conv.ai_mode is None and conv.inquiry_id is not None
     assert db.query(Guest).filter_by(id=conv.guest_id).one().lead_identified_at is not None
 
 
