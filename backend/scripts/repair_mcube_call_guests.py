@@ -9,6 +9,8 @@ the right guest and lead:
 - From the recording file name: Mcube names it `<callto><callid>.wav`, so a name that ends with the call id gives
   the caller's number in front of it.
 - Or from an Mcube call-log export: `--numbers-csv file.csv` with columns `callid,number` (wins over the file name).
+  With an export, every Mcube call whose call id is in the file is checked, whatever number it was saved on (Jade's
+  own lines differ from the landing number); a call already on that number is skipped.
 
     python scripts/repair_mcube_call_guests.py --tenant-slug jade-hospitainment                  # dry run, counts only
     python scripts/repair_mcube_call_guests.py --tenant-slug jade-hospitainment --apply
@@ -16,7 +18,7 @@ the right guest and lead:
 
 Guest resolution goes through identity_service (via call_ingest._dedup_guest). Calls with no recoverable number are
 left as they are and counted. The bogus landing-number guest is NOT deleted; it is reported so a person can close its
-lead. Safe to re-run: a repaired call no longer has from_number == to_number. Output shows last 4 digits only.
+lead. Safe to re-run: a repaired call is already on the right number. Output shows last 4 digits only.
 """
 import argparse
 import csv
@@ -60,14 +62,16 @@ def repair(db, tenant_id: str, apply: bool, numbers: dict[str, str] | None = Non
 
     numbers = numbers or {}
     norm = McubeAdapter()._normalize_phone
-    calls = db.query(Call).filter(
-        Call.tenant_id == tenant_id, Call.ivr_provider == "mcube", Call.from_number == Call.to_number,
-    ).order_by(Call.created_at).all()
+    q = db.query(Call).filter(Call.tenant_id == tenant_id, Call.ivr_provider == "mcube")
+    # With an export, match by call id: Jade's old calls were saved on one of its own lines (not always equal to the
+    # landing number), so from == to does not find them. Without one, only the landing-number calls qualify.
+    q = q.filter(Call.ivr_call_id.in_(list(numbers))) if numbers else q.filter(Call.from_number == Call.to_number)
+    calls = q.order_by(Call.created_at).all()
     report = {"found": len(calls), "fixed": 0, "no_number": 0, "bogus_guest_ids": set(), "last4": []}
     for call in calls:
         raw = numbers.get(call.ivr_call_id) or number_from_filename(call.recording_url_ivr, call.ivr_call_id)
         guest_number = norm(raw) if raw else ""
-        if not guest_number or guest_number == call.to_number:
+        if not guest_number or guest_number in (call.to_number, call.from_number):
             report["no_number"] += 1
             continue
         report["fixed"] += 1
