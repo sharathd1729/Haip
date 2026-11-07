@@ -18,6 +18,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.audit import append_audit
+from app.core.tenant_tz import get_tenant_now, get_tz
 from app.models.marketing_partners import MarketingCreator, MarketingCreatorDeal
 from app.models.property import Property
 from app.models.tenant import Tenant
@@ -69,7 +70,7 @@ def free_windows(db: Session, tenant: Tenant, *, nights: int = 2, horizon: int =
                  today: Optional[date] = None) -> list[dict]:
     """Open runs of `nights`+ nights per vehicle/property in the next `horizon` days, skipping long weekends."""
     from app.services import marketing_demand as demand
-    today = today or date.today()
+    today = today or get_tenant_now(tenant).date()
     start, end = today + timedelta(days=3), today + timedelta(days=horizon)
     busy = set()
     for lw in demand.long_weekends(demand.home_state(db, tenant), start, end):
@@ -251,8 +252,12 @@ def creator_link(tenant: Tenant, deal: MarketingCreatorDeal, creator: MarketingC
 def results(db: Session, tenant: Tenant, deal: MarketingCreatorDeal, *, since: Optional[date] = None) -> dict:
     """Bookings traced to this deal's link since it was made, against what the free stay cost."""
     from app.services import marketing_attribution as attribution
-    start = since or (deal.created_at.date() if deal.created_at else date.today() - timedelta(days=90))
-    books = attribution.bookings(db, tenant.id, start, date.today())
+    today = get_tenant_now(tenant).date()            # attribution.bookings reads its dates as workspace days
+    made = deal.created_at
+    if made is not None:
+        made = (made if made.tzinfo else made.replace(tzinfo=timezone.utc)).astimezone(get_tz(tenant)).date()
+    start = since or made or today - timedelta(days=90)
+    books = attribution.bookings(db, tenant.id, start, today)
     mine = [r for r in books["bookings"] if (r["chain"]["credited"] or {}).get("creator_deal_id") == deal.id]
     revenue = round(sum(r["amount"] for r in mine), 2)
     return {"bookings": len(mine), "revenue": revenue, "cost_inr": deal.comp_value_inr,
