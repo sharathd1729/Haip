@@ -24,6 +24,7 @@ import { InvoicesMessagesCard } from "@/components/bookings/InvoicesMessagesCard
 import { CollectSheet, refreshBooking } from "@/components/bookings/CollectSheet";
 import { WhatsAppSheet } from "@/components/bookings/WhatsAppSheet";
 import { VehicleTag } from "@/components/bookings/agenda/AgendaDays";
+import { useSegment } from "@/lib/segments";
 import { useGuestCall } from "@/components/bookings/useGuestCall";
 import {
   CHANNEL_STYLE, PAYMENT_STYLE, PAYMENT_TONE, STATUS_OPTIONS, STATUS_STYLE, STATUS_TONE, LOAD_FAILURES, describeActivity, errorMessage, fmtDate, httpStatus, loadFailure,
@@ -94,6 +95,8 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
   const [editing, setEditing] = useState(false);
   const [changingGuest, setChangingGuest] = useState(false);
   const [sheet, setSheet] = useState<"collect" | "whatsapp" | null>(null);
+  const [pickUnit, setPickUnit] = useState("");   // "No villa chosen yet": the unit picked inline
+  const seg = useSegment();
   useEffect(() => { if (booking) setDraft(toDraft(booking)); }, [booking]);
   // A different booking in the pane starts closed.
   useEffect(() => { setEditing(false); setChangingGuest(false); setSheet(null); }, [id]);
@@ -210,7 +213,7 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
           <div className="grid min-w-0 flex-1">
             <b className="truncate text-[15px] text-[var(--haip-fg)]">{name}</b>
             <span className="truncate text-[12.5px] text-[var(--haip-fg-subtle)]">
-              {booking.property?.name ?? "No vehicle"} · {shortDay(booking.check_in)}{nights ? ` → ${shortDay(booking.check_out)} · ${nights} night${nights === 1 ? "" : "s"}` : " · day trip"}
+              {booking.property?.name ?? `No ${seg.unit.one} yet`} · {shortDay(booking.check_in)}{nights ? ` → ${shortDay(booking.check_out)} · ${nights} night${nights === 1 ? "" : "s"}` : ` · ${seg.dayUse}`}
             </span>
           </div>
           {statusPill}
@@ -286,9 +289,25 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
         )}
 
         {!booking.property && !cancelled && (
-          <p className="rounded-lg border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] px-3 py-2 text-xs text-[var(--haip-status-warning-fg)]">
-            No vehicle is assigned yet. Use Edit on the stay to pick one.
-          </p>
+          <div className="space-y-2 rounded-lg border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] px-3 py-2 text-xs text-[var(--haip-status-warning-fg)]">
+            <p>No {seg.unit.one} chosen yet.{canEdit ? ` Pick one; a ${seg.unit.one} that is not free on these dates is refused.` : ""}</p>
+            {canEdit && (
+              <div className="flex gap-2">
+                <label className="min-w-0 flex-1">
+                  <span className="sr-only">Choose a {seg.unit.one}</span>
+                  <select value={pickUnit} onChange={e => setPickUnit(e.target.value)}
+                    className="min-h-11 w-full rounded-lg border border-[var(--haip-status-warning-border)] bg-[var(--haip-card)] px-2 text-base text-[var(--haip-fg)]">
+                    <option value="">Choose a {seg.unit.one}</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <button type="button" disabled={!pickUnit || save.isPending} onClick={() => save.mutate({ property_id: pickUnit })}
+                  className="min-h-11 shrink-0 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+                  {save.isPending ? "Saving…" : `Save ${seg.unit.one}`}
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* The stay. */}
@@ -298,11 +317,19 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
           )} />
           <CardBody>
             <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-              <Fact name="Vehicle">{booking.property ? <VehicleTag name={booking.property.name} slot={slot} /> : "Not assigned"}</Fact>
+              <Fact name={seg.unit.One}>{booking.property ? (seg.unitTint ? <VehicleTag name={booking.property.name} slot={slot} /> : booking.property.name) : "Not chosen yet"}</Fact>
               <Fact name="Guests">{booking.adults} adult{booking.adults === 1 ? "" : "s"}{booking.children ? `, ${booking.children} child${booking.children === 1 ? "" : "ren"}` : ""}</Fact>
-              <Fact name="Pickup (check-in)">{dayAndTime(booking.check_in, booking.check_in_time)}</Fact>
-              <Fact name="Drop (check-out)">{dayAndTime(booking.check_out, booking.check_out_time)}</Fact>
-              <Fact name="Trip" wide>{booking.trip ? `${booking.trip} · ` : ""}{nights ? `${nights} night${nights === 1 ? "" : "s"}` : "Day trip"}</Fact>
+              <Fact name={seg.startLabel}>{dayAndTime(booking.check_in, booking.check_in_time)}</Fact>
+              <Fact name={seg.endLabel}>{dayAndTime(booking.check_out, booking.check_out_time)}</Fact>
+              <Fact name={seg.booking.one.charAt(0).toUpperCase() + seg.booking.one.slice(1)} wide={!seg.sections.bookingDetail.caretaker}>
+                {seg.sections.bookingDetail.route && booking.trip ? `${booking.trip} · ` : ""}{nights ? `${nights} night${nights === 1 ? "" : "s"}` : seg.dayUse.charAt(0).toUpperCase() + seg.dayUse.slice(1)}
+              </Fact>
+              {seg.sections.bookingDetail.caretaker && <Fact name="Caretaker">{booking.caretaker ? `${booking.caretaker} (from Ops)` : "Not set yet (Ops)"}</Fact>}
+              {seg.sections.bookingDetail.deposit && !seg.unitTint && booking.deposit && Number(booking.deposit.amount) > 0 && (
+                <Fact name="Security deposit"><span className={cn(booking.deposit.status === "pending" && "text-[var(--haip-accent-ink)]")}>
+                  {formatINR(Number(booking.deposit.amount))} · {booking.deposit.status === "pending" ? "not collected yet" : booking.deposit.status}
+                </span></Fact>
+              )}
               {booking.occasion && <Fact name="Reason for travel" wide>{booking.occasion}</Fact>}
               <Fact name="Total"><span className={cn("tabular-nums", cancelled && "text-[var(--haip-fg-subtle)] line-through")}>{formatINR(f.total)}</span>
                 {!cancelled && <> <StatusPill tone={PAYMENT_TONE[f.payment_status]}>{PAYMENT_STYLE[f.payment_status].label}</StatusPill></>}
@@ -314,9 +341,9 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
 
         {showForm && (
           <Card>
-            <CardHeader title="Edit trip" description="Dates, vehicle, guests, the stay charge, status and notes." />
+            <CardHeader title={`Edit ${seg.booking.one}`} description={`Dates, ${seg.unit.one}, guests, the stay charge, status and notes.`} />
             <div className="grid grid-cols-1 gap-3 px-4 pb-1 pt-2 @lg:grid-cols-2 sm:px-5">
-              <label className={cn(label, "@lg:col-span-2")}>Vehicle
+              <label className={cn(label, "@lg:col-span-2")}>{seg.unit.One}
                 <select className={cn(field, "mt-1")} value={draft.property_id} onChange={set("property_id")}>
                   {!properties.some(p => p.id === draft.property_id) && <option value={draft.property_id}>{booking.property?.name ?? "Unassigned"}</option>}
                   {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -356,7 +383,7 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
                 <textarea rows={2} className={cn(field, "mt-1 resize-none")} value={draft.special_requests} onChange={set("special_requests")} />
               </label>
               <label className={cn(label, "@lg:col-span-2")}>Notes <span className="font-normal text-[var(--haip-fg-subtle)]">(staff only)</span>
-                <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder="Which caravan: Black Ratha / White Ratha. Anything the team should know." value={draft.internal_notes} onChange={set("internal_notes")} />
+                <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder={seg.notesHint} value={draft.internal_notes} onChange={set("internal_notes")} />
               </label>
               <label className={cn(label, "@lg:col-span-2")}>Concierge notes <span className="font-normal text-[var(--haip-fg-subtle)]">(for the on-site team)</span>
                 <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder="Gate code, arrival time, preferences..." value={draft.concierge_notes} onChange={set("concierge_notes")} />

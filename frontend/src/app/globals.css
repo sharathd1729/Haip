@@ -560,6 +560,8 @@
   --haip-cal-due-bg: #FCE4D8; --haip-cal-due-edge: #B05033; --haip-cal-due-fg: #8A3A20;
   /* Bookings vehicle strip and vehicle tags: one soft tint per caravan (Ratha 1, Ratha 2), dark ink on top. */
   --haip-cal-vehicle-1: #CFE7D6; --haip-cal-vehicle-2: #E3E8D2; --haip-cal-vehicle-fg: #14201C;
+  /* Calendar occupancy bar: the lighter part = nights held by a Google Calendar event that names its unit. */
+  --haip-cal-held: #9DB8AA;
 
   /* Sign-in brand panel: always forest in both themes, with a light terracotta accent that passes AA on it. */
   --haip-brand-panel:  #0B2B26;
@@ -581,6 +583,7 @@
   --haip-cal-block:  #3A4F48; --haip-cal-block-fg: #E6F2EA;
   --haip-cal-due-bg: rgba(217,120,90,0.26); --haip-cal-due-edge: #D9785A; --haip-cal-due-fg: #F3B9A2;
   --haip-cal-vehicle-1: #24453A; --haip-cal-vehicle-2: #3A4430; --haip-cal-vehicle-fg: #E6F2EA;
+  --haip-cal-held: #5E7C70;
   --haip-status-success-bg: rgba(142,182,155,0.16); --haip-status-success-fg: #A9D9B8; --haip-status-success-border: rgba(142,182,155,0.34);
   --haip-status-warning-bg: rgba(232,196,96,0.13);  --haip-status-warning-fg: #EBCB72; --haip-status-warning-border: rgba(232,196,96,0.30);
   --haip-status-danger-bg:  rgba(240,140,128,0.13); --haip-status-danger-fg:  #F5A99F; --haip-status-danger-border:  rgba(240,140,128,0.30);

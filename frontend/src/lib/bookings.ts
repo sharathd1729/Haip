@@ -95,6 +95,7 @@ export interface ActivityEntry { id: string; action: string; at: string | null; 
 
 export interface BookingDetail {
   id: string;
+  caretaker?: string | null;   // from the stay's Ops file (villa businesses)
   status: BookingStatus;
   channel: string | null;
   pms_managed: boolean;

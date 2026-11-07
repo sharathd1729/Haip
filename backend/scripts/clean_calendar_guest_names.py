@@ -12,6 +12,7 @@ Usage (inside the API container):
     docker compose -f docker-compose.prod.yml exec api python3 scripts/clean_calendar_guest_names.py --tenant-slug jade-hospitainment
     docker compose -f docker-compose.prod.yml exec api python3 scripts/clean_calendar_guest_names.py --tenant-slug jade-hospitainment --apply
 """
+
 import argparse
 import os
 import sys
@@ -30,8 +31,12 @@ def clean_tenant(db, tenant_id: str, apply: bool) -> dict:
     from app.services.ical_booking_service import SOURCE
     from app.services.ical_event_details import clean_name
 
-    guest_ids = {gid for (gid,) in db.query(Stay.guest_id).filter(Stay.tenant_id == tenant_id, Stay.channel_source == SOURCE,
-                                                                   Stay.guest_id.isnot(None))}
+    guest_ids = {
+        gid
+        for (gid,) in db.query(Stay.guest_id).filter(
+            Stay.tenant_id == tenant_id, Stay.channel_source == SOURCE, Stay.guest_id.isnot(None)
+        )
+    }
     guests = 0
     for g in db.query(Guest).filter(Guest.tenant_id == tenant_id, Guest.id.in_(guest_ids)).all() if guest_ids else []:
         new = clean_name(g.name or "")
@@ -46,11 +51,18 @@ def clean_tenant(db, tenant_id: str, apply: bool) -> dict:
         if name and new and new != name:
             holds += 1
             if apply:
-                row.details = {**row.details, "guest_name": new}   # a new dict, so the JSON column is saved
+                row.details = {**row.details, "guest_name": new}  # a new dict, so the JSON column is saved
     if apply and (guests or holds):
         from app.core.audit import append_audit
-        append_audit(db, tenant_id=tenant_id, action="guest.names_cleaned", target_type="tenant", target_id=tenant_id,
-                     payload={"actor": "script:clean_calendar_guest_names", "guests": guests, "calendar_holds": holds})
+
+        append_audit(
+            db,
+            tenant_id=tenant_id,
+            action="guest.names_cleaned",
+            target_type="tenant",
+            target_id=tenant_id,
+            payload={"actor": "script:clean_calendar_guest_names", "guests": guests, "calendar_holds": holds},
+        )
     return {"guests": guests, "calendar_holds": holds}
 
 
@@ -66,15 +78,20 @@ def main() -> int:
             print(f"No tenant with slug {args.tenant_slug!r}")
             return 1
         from app.core.database import set_tenant_context
+
         set_tenant_context(db, tenant.id)
         counts = clean_tenant(db, tenant.id, args.apply)
         if args.apply:
             db.commit()
-            print(f"APPLIED: cleaned {counts['guests']} guest name(s) and {counts['calendar_holds']} calendar hold name(s).")
+            print(
+                f"APPLIED: cleaned {counts['guests']} guest name(s) and {counts['calendar_holds']} calendar hold name(s)."
+            )
         else:
             # Nothing was changed (a dry run only reads); closing the session discards the read transaction.
-            print(f"DRY RUN (nothing written; add --apply): would clean {counts['guests']} guest name(s) "
-                  f"and {counts['calendar_holds']} calendar hold name(s).")
+            print(
+                f"DRY RUN (nothing written; add --apply): would clean {counts['guests']} guest name(s) "
+                f"and {counts['calendar_holds']} calendar hold name(s)."
+            )
         return 0
     finally:
         db.close()

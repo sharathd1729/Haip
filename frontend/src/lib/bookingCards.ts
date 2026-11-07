@@ -17,12 +17,12 @@ export function dayHeading(iso: string, today: string): string {
 }
 
 /** The stay in one line: "24 → 26 Oct · 2 nights", "30 Oct → 1 Nov · 2 nights", a day trip "15 Oct · 9 am–9 pm · day trip". */
-export function stayLine(r: Pick<AgendaRow, "checkin" | "checkout" | "check_in_time" | "check_out_time">): string {
+export function stayLine(r: Pick<AgendaRow, "checkin" | "checkout" | "check_in_time" | "check_out_time">, dayUse = "day trip"): string {
   const n = nights(r);
   if (n === 0) {
     const a = clock(r.check_in_time)?.replace(":00", ""), b = clock(r.check_out_time)?.replace(":00", "");
     const times = a && b ? `${a}–${b}` : a ?? b;
-    return [dayMonth(r.checkin), times, "day trip"].filter(Boolean).join(" · ");
+    return [dayMonth(r.checkin), times, dayUse].filter(Boolean).join(" · ");
   }
   const s = dm(r.checkin), e = dm(r.checkout);
   const left = s.mon === e.mon ? `${s.day}` : `${s.day} ${s.mon}`;
@@ -48,12 +48,13 @@ export interface CardGroup { key: string; title: string; hint: string; rows: Age
 
 /** Groups for a tab. Upcoming / Past / Cancelled: by check-in day (Past and Cancelled newest first). Staying now: one group,
  *  "On a trip now", soonest check-out first. Each booking appears exactly once. */
-export function groupCards(rows: AgendaRow[], segment: Segment, today: string): CardGroup[] {
+export function groupCards(rows: AgendaRow[], segment: Segment, today: string,
+  staying: { heading: string; count: (n: number) => string } = { heading: "On a trip now", count: n => `${n} on a trip` }): CardGroup[] {
   const seen = new Set<string>();
   const unique = rows.filter(r => (seen.has(r.id) ? false : (seen.add(r.id), true)));
   if (segment === "staying") {
     const sorted = [...unique].sort((a, b) => a.checkout.localeCompare(b.checkout));
-    return sorted.length ? [{ key: "staying", title: "On a trip now", hint: `${sorted.length} on a trip`, rows: sorted }] : [];
+    return sorted.length ? [{ key: "staying", title: staying.heading, hint: staying.count(sorted.length), rows: sorted }] : [];
   }
   const newestFirst = segment === "past" || segment === "cancelled";
   const sorted = [...unique].sort((a, b) =>

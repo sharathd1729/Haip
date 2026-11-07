@@ -9,6 +9,7 @@ vi.mock("@/lib/api", () => ({ default: { get: (...a: unknown[]) => get(...a), po
 const sess = vi.hoisted(() => ({ role: "owner" }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { name: "Asha", role: sess.role } }, status: "authenticated" }) }));
 const push = vi.fn();
+vi.mock("@/components/providers/WorkspaceProvider", async (orig) => ({ ...(await orig<object>()), useBusinessType: () => "caravan" }));   // these screens are the caravan experience
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/bookings/CollectSheet", () => ({ CollectSheet: ({ bookingId }: { bookingId: string }) => <div>collect-sheet {bookingId}</div> }));

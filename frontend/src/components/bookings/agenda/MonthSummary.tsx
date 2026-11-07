@@ -46,7 +46,9 @@ export function MonthSummary() {
           </div>
           <div className="grid grid-cols-3 gap-2 md:grid-cols-4">
             <Figure label="Bookings" value={data.bookings}
-              sub={data.by_vehicle.length ? data.by_vehicle.map(v => `${v.count} on ${v.name}`).join(" · ") : "none yet"} />
+              sub={!data.by_vehicle.length ? "none yet" : data.by_vehicle.length > 3
+                ? `Busiest: ${[...data.by_vehicle].sort((a, b) => b.count - a.count)[0].name} (${[...data.by_vehicle].sort((a, b) => b.count - a.count)[0].count})`
+                : data.by_vehicle.map(v => `${v.count} on ${v.name}`).join(" · ")} />
             <Figure label="Booked value" {...money(data.booked_value)} />
             <Figure label="Collected" className="hidden md:grid" {...money(data.collected)}
               sub={isRestricted(data.collected) ? "needs revenue access" : `${formatINR(data.collected)} · deposits not included`} />

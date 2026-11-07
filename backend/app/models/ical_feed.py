@@ -97,3 +97,19 @@ class ICalEventBooking(Base, TimestampMixin, TenantMixin):
     locked = Column(Boolean, nullable=False, default=False)      # the CRM is in charge of this booking now
 
     __table_args__ = (UniqueConstraint("feed_id", "event_key", name="uq_ical_event_booking"),)
+
+
+class ICalEventAssignment(Base, TimestampMixin, TenantMixin):
+    """A person's answer to "Which villa / vehicle?" for one event of a shared calendar that named no unit. The sync reads it
+    as if the event had named that unit, so the hold (or the booking) stays on it and the other units are freed on every
+    later sync. One row per (feed, event key); changing the answer updates it."""
+    __tablename__ = "ical_event_assignments"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, nullable=False, index=True)
+    feed_id = Column(String, nullable=False)
+    event_key = Column(String(300), nullable=False)
+    property_id = Column(String, nullable=False)
+    assigned_by = Column(String, nullable=True)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "feed_id", "event_key", name="uq_ical_event_assignment"),)

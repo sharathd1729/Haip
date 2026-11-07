@@ -13,6 +13,7 @@ import { ActionSheet, SheetOption, sheetBtn, sheetInput, sheetLabel } from "@/co
 import { METHOD_LABEL, errorMessage, fmtDate, type BookingDetail, type PayMethod, type PaymentLink } from "@/lib/bookings";
 import { BALANCE_TEMPLATE, type BookingMessages } from "@/lib/invoices";
 import { todayIST } from "@/lib/bookingAgenda";
+import { useSegment } from "@/lib/segments";
 
 const METHODS: PayMethod[] = ["upi", "cash", "bank_transfer", "card", "other"];
 
@@ -26,6 +27,7 @@ export function refreshBooking(qc: QueryClient, b: BookingDetail) {
 
 export function CollectSheet({ bookingId, open, onClose }: { bookingId: string; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
+  const seg = useSegment();
   const qc = useQueryClient();
   const { data: b } = useQuery<BookingDetail>({
     queryKey: ["booking", bookingId], queryFn: () => api.get(`/bookings/${bookingId}`).then(r => r.data), enabled: open,
@@ -96,7 +98,7 @@ export function CollectSheet({ bookingId, open, onClose }: { bookingId: string; 
       ) : (
         <>
           <p className="text-[13px] text-[var(--haip-fg-subtle)]">
-            {b.property?.name ?? "No vehicle yet"} · {fmtDate(b.check_in, false)} to {fmtDate(b.check_out, false)} · <span className="tabular-nums">{formatINR(due)}</span> still due
+            {b.property?.name ?? `No ${seg.unit.one} yet`} · {fmtDate(b.check_in, false)} to {fmtDate(b.check_out, false)} · <span className="tabular-nums">{formatINR(due)}</span> still due
             {b.next_due ? `, ${formatINR(b.next_due.amount)} ${b.next_due.overdue ? "overdue since" : "due"} ${fmtDate(b.next_due.due_date, false)}` : ""}
           </p>
           <label className={sheetLabel}>Amount (₹)

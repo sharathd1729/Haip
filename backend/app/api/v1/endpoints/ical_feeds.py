@@ -7,6 +7,8 @@ Calendar (or any calendar that speaks iCal) by pasting a link.
   DELETE /ical-feeds/{id}                 remove; lifts the blocks it imported
   POST   /ical-feeds/{id}/sync            read the other calendar now
   POST   /ical-feeds/{id}/regenerate      new export URL (the old one stops working)
+  GET    /ical-feeds/holds/{block}/options   units a 'Which villa?' hold could be for, free or not
+  POST   /ical-feeds/holds/{block}/assign    hold only this unit (owner, manager, reservations; audited)
 
   GET    /ical/{token}.ics                HAIP's calendar for the property (public)
 
@@ -151,6 +153,36 @@ def _get_feed(db: Session, user: User, feed_id: str) -> ICalFeed:
     if not feed:
         raise HTTPException(status_code=404, detail="Calendar link not found")
     return feed
+
+
+# "Which villa?": put a shared-calendar event that named no unit on one unit (services/calendar_holds.py).
+_PLACE = (UserRole.OWNER, UserRole.MANAGER, UserRole.RESERVATIONS)
+
+
+class HoldAssign(BaseModel):
+    property_id: str = Field(min_length=1, max_length=64)
+
+
+@router.get("/holds/{block_id}/options")
+def hold_options(block_id: str, current_user: User = Depends(require_roles(*_PLACE)), db: Session = Depends(get_db)):
+    """The units this calendar hold could be for, each marked free or not on its dates."""
+    from app.services import calendar_holds
+    try:
+        return calendar_holds.options(db, current_user.tenant_id, block_id)
+    except calendar_holds.HoldError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message)
+
+
+@router.post("/holds/{block_id}/assign")
+def hold_assign(block_id: str, body: HoldAssign, current_user: User = Depends(require_roles(*_PLACE)), db: Session = Depends(get_db)):
+    """Hold only this unit: frees the others now and on every later sync, closes the "Which vehicle?" task. Audited."""
+    from app.services import calendar_holds
+    try:
+        out = calendar_holds.assign(db, current_user.tenant_id, block_id, body.property_id, current_user.id)
+    except calendar_holds.HoldError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message)
+    db.commit()
+    return out
 
 
 @router.get("")
