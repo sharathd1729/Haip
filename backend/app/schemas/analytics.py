@@ -147,6 +147,8 @@ class ExecutiveDashboardStats(BaseModel):
     funnel: List[FunnelStage] = []
     channel_mix: List[ChannelMixPoint] = []
     occupancy_heatmap: List[OccupancyHeatPoint] = []
+    # What each KPI card measures and over which period, in plain words (D-32). Keys = the field names above.
+    labels: Dict[str, str] = {}
 
 
 # ── Insights Panel ────────────────────────────────────────────────────────────

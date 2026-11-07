@@ -34,7 +34,8 @@ from app.schemas.analytics import (
 from app.core.cache import cache_key, get_cached, set_cached
 from app.services import kpi_metrics
 from app.services.date_presets import IST
-from app.services.work_queue_service import severity_for
+from app.services import vehicle_pool
+from app.services.work_queue_service import SLA_MINUTES, severity_for
 from app.models.lead_workflow import LeadJourney
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -83,7 +84,7 @@ def executive_dashboard(
         [p.strip() for p in property_ids.split(",") if p.strip()] if property_ids else None
     )
 
-    ck = cache_key("executive", tid, v=3, range_days=range_days, prop_ids=property_ids or "all")
+    ck = cache_key("executive", tid, v=4, range_days=range_days, prop_ids=property_ids or "all")
     cached = get_cached(ck)
     if cached is not None:
         return ExecutiveDashboardStats(**cached)
@@ -111,17 +112,22 @@ def executive_dashboard(
     revenue_prev = revenue(prev_start, prev_end)
 
     # ── Occupancy % (stay nights / available) ────────────────────────────────
+    # The "Unassigned" holder (vehicle_pool) is overflow, not capacity: out of the denominator and the heatmap.
+    # Bookings sitting on it still count as occupied nights (the business did sell them); capped at 100.
+    holders = vehicle_pool.placeholder_ids(db, tid)
     prop_count_q = db.query(func.count(Property.id)).filter(
         Property.tenant_id == tid, Property.is_active == True,
     )
+    if holders:
+        prop_count_q = prop_count_q.filter(Property.id.notin_(holders))
     if prop_ids:
         prop_count_q = prop_count_q.filter(Property.id.in_(prop_ids))
     prop_count = prop_count_q.scalar() or 1
 
     occ_n  = _occ_nights(db, tid, prop_ids, mtd_start, now)
     occ_pn = _occ_nights(db, tid, prop_ids, prev_start, prev_end)
-    occupancy_pct  = round(occ_n  / max(1, prop_count * mtd_days)  * 100, 1)
-    occupancy_prev = round(occ_pn / max(1, prop_count * prev_days) * 100, 1)
+    occupancy_pct  = min(100.0, round(occ_n  / max(1, prop_count * mtd_days)  * 100, 1))
+    occupancy_prev = min(100.0, round(occ_pn / max(1, prop_count * prev_days) * 100, 1))
 
     # ── Active inquiries ──────────────────────────────────────────────────────
     # Every auto-created inquiry permanently leaves the legacy Inquiry.stage
@@ -174,6 +180,7 @@ def executive_dashboard(
     # breached). Same rule as My day: an enquiry is on time when a PERSON contacted the guest (lead_journeys'
     # first_human_contact_at, the touch_rows contact rule) while work_queue_service.severity_for("new_lead") was
     # still "fresh". A still-waiting enquiry counts once it is past that SLA. Nothing due = None ("No data").
+    # AI replies do not count: labelled "Replies by a person within N min" (D-32, owner to choose whether to count them).
     def sla(start, end):
         q = db.query(LeadJourney.received_at, LeadJourney.first_human_contact_at).filter(
             LeadJourney.tenant_id == tid,
@@ -305,6 +312,8 @@ def executive_dashboard(
 
     # ── Occupancy heatmap (per property) ─────────────────────────────────────
     props_q = db.query(Property).filter(Property.tenant_id == tid, Property.is_active == True)
+    if holders:
+        props_q = props_q.filter(Property.id.notin_(holders))
     if prop_ids:
         props_q = props_q.filter(Property.id.in_(prop_ids))
     all_props = props_q.limit(50).all()
@@ -336,6 +345,17 @@ def executive_dashboard(
         funnel=funnel,
         channel_mix=channel_mix,
         occupancy_heatmap=occ_heat,
+        labels={
+            "revenue_mtd": "Revenue of bookings checking in this month to date (vs the whole of last month)",
+            "occupancy_pct": "Occupancy this month to date (vs the whole of last month): nights stayed ÷ "
+                             "(properties × days); the 'Unassigned' holder is not counted as a property",
+            "active_inquiries": f"Open valid enquiries received in the last {range_days} days (vs the {range_days} before)",
+            "qa_avg_score": f"Average call QA score, calls in the last {range_days} days (vs the {range_days} before)",
+            "sla_compliance_pct": f"Replies by a person within {SLA_MINUTES['new_lead'][0]} min: enquiries received "
+                                  f"in the last {range_days} days (vs the {range_days} before); AI replies are not counted",
+            "ai_draft_rate_pct": f"Share of outbound messages the AI wrote, last {range_days} days (vs the {range_days} before)",
+            "occupancy_heatmap": "Occupancy per property, this month to date",
+        },
     )
     set_cached(ck, result.model_dump(), ttl=300)
     return result

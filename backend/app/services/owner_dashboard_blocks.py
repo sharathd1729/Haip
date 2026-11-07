@@ -33,7 +33,7 @@ from app.models.pipeline_stage import PipelineStage
 from app.models.property import Property, Stay
 from app.models.sales_action import SalesAction
 from app.models.sales_target import SCOPE_TENANT
-from app.services import impact_metrics, kpi_metrics, lead_metrics, targets_service
+from app.services import impact_metrics, kpi_metrics, lead_metrics, targets_service, vehicle_pool
 from app.services.business_overview_common import Params, _change, _linked_stay_ids, people_filters
 from app.services.date_presets import ist_range_to_utc
 
@@ -210,7 +210,7 @@ def caravans(db: Session, p: Params, today: date) -> dict:
     items = []
     for prop in sorted(q.all(), key=lambda x: (x.name or "").lower()):
         nights = kpi_metrics.occupied_nights(db, p.tid, first, last + timedelta(days=1), property_ids=[prop.id])
-        placeholder = (prop.name or "").strip().lower() == "unassigned"
+        placeholder = vehicle_pool.is_placeholder_name(prop.name)  # shown only while it holds bookings, like the calendar
         if placeholder and not nights and not value.get(prop.id):
             continue
         items.append({"property_id": prop.id, "name": prop.name, "booked_value": _money(p, value.get(prop.id, 0.0)),
