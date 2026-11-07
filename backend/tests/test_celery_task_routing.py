@@ -20,6 +20,8 @@ import pytest
 # built-in default) is deliberately NOT in this set -- that's the queue
 # this test exists to make sure nothing silently falls into.
 _CONSUMED_QUEUES = {"transcription", "ai_scoring", "whatsapp", "call_ingest", "default",
+                    # consumed only by the worker_replies service (guest replies, docker-compose.prod.yml)
+                    "replies",
                     # consumed only by the opt-in research_collector service (docker-compose.prod.yml profile "research")
                     "research_collect"}
 
@@ -129,9 +131,39 @@ def test_inbox_rewrite_tasks_land_on_a_consumed_queue(celery_app_instance):
     import app.workers.tasks.composer_rewrite  # noqa: F401
     import app.workers.tasks.rewrite_draft  # noqa: F401
 
-    for name in ("tasks.rewrite_draft", "tasks.composer_rewrite"):
+    for name, queue in (("tasks.rewrite_draft", "replies"), ("tasks.composer_rewrite", "whatsapp")):
         assert name in celery_app_instance.tasks
-        assert _queue_of(celery_app_instance, name) == "whatsapp"
+        assert _queue_of(celery_app_instance, name) == queue
+
+
+_REPLY_TASKS = ("whatsapp.process_message", "tasks.concierge_draft", "tasks.rewrite_draft", "process_instagram_dm",
+                "tasks.send_whatsapp", "tasks.send_whatsapp_template", "send_instagram_dm",
+                "concierge.recover_missed_replies", "concierge.recover_missed_replies_all_tenants")
+
+
+def test_guest_reply_tasks_run_on_their_own_queue(celery_app_instance):
+    """Guest replies never wait behind campaigns, Meta Ads syncs or marketing runs (PHASE1_AI_RELIABILITY_SPEC Step 3)."""
+    _import_every_task_module()
+    app = celery_app_instance
+    for name in _REPLY_TASKS:
+        assert name in app.tasks, name
+        assert app.conf.task_routes.get(name) == {"queue": "replies"}, f"{name} needs an exact-name route"
+        assert _queue_of(app, name) == "replies", name
+    # Bulk work stays off the replies queue: a campaign blast must never hold up a guest's reply.
+    for name in ("tasks.run_campaign", "tasks.launch_due_campaigns", "meta_ads.sync_tenant", "meta_ads.backfill_tenant",
+                 "tasks.sync_wa_templates.sync_tenant", "tasks.automation_engine.fire_trigger"):
+        assert _queue_of(app, name) == "whatsapp", name
+    replies = {n for n in app.tasks if not n.startswith(_CELERY_INTERNAL_PREFIXES) and _queue_of(app, n) == "replies"}
+    assert replies == set(_REPLY_TASKS)
+
+
+def test_replies_queue_has_its_own_worker_in_production():
+    import pathlib
+    import re
+
+    compose = (pathlib.Path(__file__).resolve().parents[2] / "docker-compose.prod.yml").read_text(encoding="utf-8")
+    assert re.search(r"--queues=replies\s", compose), "worker_replies must consume the replies queue"
+    assert "--queues=transcription,ai_scoring,whatsapp,call_ingest,default" in compose  # main worker keeps its five
 
 
 def test_draft_expiry_sweep_is_scheduled_and_consumed(celery_app_instance):

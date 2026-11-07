@@ -78,3 +78,61 @@ def test_load_reads_only_this_tenants_recent_llm_call_rows(db, tenant_and_user):
     db.flush()
     rows, properties = load(db, tenant_id, days=7, now=now + timedelta(seconds=1))
     assert [r["units"] for r in rows] == [10] and properties == 1
+
+
+def _conversation(db, tenant_id):
+    from app.models.conversation import ChannelType, Conversation
+    from app.models.guest import Guest
+
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant_id, name="Test Guest")
+    db.add(guest)
+    db.flush()
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id, channel=ChannelType.WHATSAPP)
+    db.add(conv)
+    db.flush()
+    return conv
+
+
+def _msg(db, conv, at, inbound=False, ai=False, sender=None):
+    from app.models.conversation import ChannelType, Message, MessageDirection
+
+    db.add(Message(
+        id=str(uuid.uuid4()), tenant_id=conv.tenant_id, conversation_id=conv.id, channel=ChannelType.WHATSAPP,
+        direction=MessageDirection.INBOUND if inbound else MessageDirection.OUTBOUND, body="x",
+        is_ai_generated=ai, sender_name=sender, created_at=at,
+    ))
+
+
+def test_guest_to_draft_counts_only_drafts_answering_a_guest_message(db, tenant_and_user):
+    from app.services.llm_usage_report import guest_to_draft_ms, reply_latency
+
+    tenant_id = tenant_and_user["tenant"].id
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)
+    db.flush()
+    now = datetime.now(UTC).replace(microsecond=0)
+    t0 = now - timedelta(hours=5)
+    a, b, c = _conversation(db, tenant_id), _conversation(db, tenant_id), _conversation(db, other.id)
+    draft = {"ai": True, "sender": "AI Concierge"}
+    _msg(db, a, t0, inbound=True)
+    _msg(db, a, t0 + timedelta(seconds=20), **draft)                       # counted: 20 s
+    _msg(db, a, t0 + timedelta(minutes=5), **draft)                        # regenerated: prev is the earlier draft
+    _msg(db, a, t0 + timedelta(minutes=10), inbound=True)
+    _msg(db, a, t0 + timedelta(minutes=11), sender="Staff")                 # a person answered first
+    _msg(db, a, t0 + timedelta(minutes=12), **draft)                       # prev is the staff reply: not counted
+    _msg(db, a, t0 + timedelta(minutes=20), inbound=True)
+    _msg(db, a, t0 + timedelta(minutes=21), ai=True, sender="Follow-up")    # not a concierge draft
+    _msg(db, b, now - timedelta(days=8), inbound=True)
+    _msg(db, b, now - timedelta(days=8) + timedelta(seconds=9), **draft)   # outside the window
+    _msg(db, b, now - timedelta(hours=1), inbound=True)
+    _msg(db, b, now - timedelta(hours=1) + timedelta(seconds=90), **draft)  # counted: 90 s
+    _msg(db, c, t0, inbound=True)
+    _msg(db, c, t0 + timedelta(seconds=3), **draft)                        # other tenant
+    db.flush()
+
+    ms = sorted(guest_to_draft_ms(db, tenant_id, days=7, now=now))
+    assert ms == [20000, 90000]
+    assert reply_latency(ms) == {"drafts": 2, "p50_ms": 20000, "p95_ms": 90000}
+    assert reply_latency([]) == {"drafts": 0, "p50_ms": None, "p95_ms": None}
+    text = script.render("x", {**summarise([], 7, 0), "guest_to_draft": reply_latency(ms)})
+    assert "Guest message to draft stored: 2 drafts, p50 20.0s, p95 90.0s" in text

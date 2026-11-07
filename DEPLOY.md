@@ -14,6 +14,7 @@ Railway or Vercel any more, and `.github/workflows/deploy-prod.yml` (an AWS ECS 
 |---|---|---|
 | `haip_api` | FastAPI (`backend/`) | `8000` (nginx and the frontend proxy reach it) |
 | `haip_worker` | Celery worker, queues `transcription,ai_scoring,whatsapp,call_ingest,default` | none |
+| `haip_worker_replies` | Celery worker for guest replies only, queue `replies` (inbound WhatsApp/Instagram message, AI draft, rewrite, send, missed-reply recovery). If it is down, guests get no AI drafts and approved replies are not sent | none |
 | `haip_beat` | Celery beat (the schedule, IST) | none |
 | `haip_flower` | Celery monitor | `127.0.0.1:5555` only |
 | `haip_frontend` | Next.js app; proxies `/api/v1/*` to `haip_api` | `3000` |
@@ -21,7 +22,7 @@ Railway or Vercel any more, and `.github/workflows/deploy-prod.yml` (an AWS ECS 
 | `haip_whatsapp_bridge` | Personal WhatsApp bridge (Go, read-only) | internal `8085` only |
 | `haip_redis` | Redis 7 (Celery broker, cache), persisted to the `redis_data` volume | internal |
 
-`api`, `worker`, `beat` and `flower` are built from the same `backend/` image. The backend image includes `ffmpeg`
+`api`, `worker`, `worker_replies`, `beat` and `flower` are built from the same `backend/` image. The backend image includes `ffmpeg`
 (call audio, marketing reels) and `fonts-noto-core` (brand-kit typefaces on rendered posts).
 
 External services:
@@ -32,6 +33,26 @@ External services:
 | Cloudflare R2 (S3 API) | recordings and media (`AWS_*`, `S3_BUCKET_NAME`, `AWS_S3_ENDPOINT_URL`) |
 | Cloudflare DNS / for SaaS | `genhaip.com`, client site domains (see `docs/website-builder/DEPLOY.md`) |
 | Meta, Vobiz, Acefone, Razorpay, Resend, NVIDIA NIM, Gemini, Sarvam | integrations, keys in `backend/.env` |
+
+### Database connections
+
+Each process has its own SQLAlchemy pool (`DB_POOL_SIZE` + `DB_MAX_OVERFLOW`), and a Celery worker runs one process per
+`--concurrency` slot. Worst case, with `backend/.env` at 3 + 2:
+
+| Service | Processes | Pool per process | Max connections |
+|---|---|---|---|
+| `api` (gunicorn `--workers 2`) | 2 | 3 + 2 (`backend/.env`) | 10 |
+| `worker` (`--concurrency=2`) | 2 | 3 + 3 (compose) | 12 |
+| `worker_replies` (`--concurrency=2`) | 2 | 2 + 1 (compose) | 6 |
+| `beat` | 1 | 1 + 1 (compose) | 2 |
+| **Total on the app role** | | | **30** (24 before `worker_replies`) |
+
+Not counted: Ask HAIP's read-only engine in `api` (its own role, `ANALYST_RO_DATABASE_URL`, up to 5 per API process),
+the WhatsApp bridge (its own DSN, Go pool), the opt-in `research_collector` (1 process x 2), a one-off `alembic` run.
+Supabase's session pooler allows as many clients as its pool size (Dashboard > Database > Connection pooling); above it
+new connections fail with `EMAXCONNSESSION`. If the totals above exceed that pool size, point the workers at the
+transaction pooler (port 6543): HAIP keeps no session state (tenant context, `lock_timeout` and advisory locks are all
+transaction-local) and psycopg2 uses no server-side prepared statements.
 
 Domains: the app is `https://genhaip.com` (API at `https://genhaip.com/api/v1` through the Next.js proxy). Client
 sites are `*.SITES_BASE_DOMAIN` and verified custom domains, served by nginx on the host to `127.0.0.1:3020`.
@@ -55,11 +76,11 @@ cd /opt/haip && git rev-parse --short HEAD
 git pull origin master
 ```
 
-**3. Build the images that changed.** For a backend change rebuild all four backend services together, or the worker
+**3. Build the images that changed.** For a backend change rebuild all five backend services together, or the workers
 and beat keep running old code:
 
 ```bash
-docker compose -f docker-compose.prod.yml build api worker beat flower frontend sites
+docker compose -f docker-compose.prod.yml build api worker worker_replies beat flower frontend sites
 ```
 
 **4. Run the migrations with the new image, before restarting anything.** The API's startup `create_all` creates
@@ -80,7 +101,7 @@ see "Troubleshooting".
 **5. Restart the changed services:**
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d api worker beat flower frontend sites
+docker compose -f docker-compose.prod.yml up -d api worker worker_replies beat flower frontend sites
 ```
 
 **6. Check it is healthy:**
@@ -89,7 +110,7 @@ docker compose -f docker-compose.prod.yml up -d api worker beat flower frontend 
 docker ps --format "table {{.Names}}\t{{.Status}}"
 ```
 
-Expect `haip_api (healthy)` and `haip_redis (healthy)`; `haip_worker`, `haip_beat`, `haip_flower` and
+Expect `haip_api (healthy)` and `haip_redis (healthy)`; `haip_worker`, `haip_worker_replies`, `haip_beat`, `haip_flower` and
 `haip_frontend` show `Up` with no health tag (their health checks are disabled on purpose).
 
 ```bash
@@ -106,6 +127,10 @@ docker logs --tail 80 haip_worker
 
 ```bash
 docker logs --tail 40 haip_beat
+```
+
+```bash
+docker logs --tail 40 haip_worker_replies
 ```
 
 New Celery tasks only run if the worker was rebuilt; this lists what it knows:
@@ -172,7 +197,7 @@ docker compose -f docker-compose.prod.yml up -d
 After editing `backend/.env`, recreate the backend services (a plain restart does not reload `env_file`):
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --force-recreate api worker beat flower
+docker compose -f docker-compose.prod.yml up -d --force-recreate api worker worker_replies beat flower
 ```
 
 `frontend/.env.local`: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BACKEND_URL`.
@@ -185,6 +210,7 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate api worker beat
 |---|---|
 | Marketing agency M0–M7 (#76, #77, #78; migrations 159–167) | Rebuild `api worker beat flower frontend sites` (Dockerfile adds `fonts-noto-core`; requirements add `holidays`), run migrations (head `167`). Everything that spends money, posts or emails is OFF until the owner switches it on in Marketing Studio; Marketing Studio itself is per workspace. Meta ads need a token with `ads_management`; create the first ad PAUSED to confirm Meta accepts it. |
 | Website builder (migration 158) | `docs/website-builder/DEPLOY.md` |
+| Guest replies on their own worker (Phase 1 Step 3) | New container `worker_replies` (queue `replies`): build and start it in the SAME deploy as the code, or no guest gets an AI draft. Check the database connection budget first ("Database connections" below). |
 
 Add a row here whenever a release needs more than "pull, build, migrate, up".
 
@@ -198,7 +224,8 @@ Add a row here whenever a release needs more than "pull, build, migrate, up".
 | `alembic upgrade head` logs success but `alembic current` did not move | A statement failed earlier in the same transaction and was swallowed; check `backend/alembic/env.py` and the full log (see CLAUDE.md, "Alembic migration gotcha") |
 | Database has the tables but `alembic_version` is behind | `alembic stamp <revision>` to the revision the schema matches, then `alembic upgrade head` |
 | `EMAXCONNSESSION` from Supabase | Lower `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` in `backend/.env`, recreate the backend services |
-| A new feature's background job never runs | The worker or beat was not rebuilt; rebuild all four backend services and check `inspect registered` |
+| A new feature's background job never runs | The worker or beat was not rebuilt; rebuild all five backend services and check `inspect registered` |
+| Guests get no AI drafts, approved replies stay queued | `haip_worker_replies` is not running (`docker ps`); it is the only consumer of the `replies` queue |
 | Worker / beat / frontend show no health status | Expected: their health checks are disabled |
 | WhatsApp bridge "Couldn't link device" or keeps logging out | `docker logs haip_whatsapp_bridge`; it needs `WHATSAPP_PROXY_URL` (a residential SOCKS proxy) |
 | Stack does not come back after a reboot | `systemctl enable docker` |

@@ -79,3 +79,51 @@ def load(db: Session, tenant_id: str, days: int, now: datetime | None = None) ->
         n for (n,) in db.query(Property.name).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
     ]
     return rows, sum(1 for n in names if not is_placeholder_name(n))
+
+
+# A draft more than this long after the guest's message is still counted (missed-reply recovery runs up to 6 h);
+# only the look-back for "which message came before the draft" is bounded.
+_PREV_LOOKBACK = timedelta(days=1)
+
+
+def guest_to_draft_ms(db: Session, tenant_id: str, days: int, now: datetime | None = None) -> list[int]:
+    """Milliseconds from a guest message to the concierge draft stored for it (both `Message.created_at`), last `days` days.
+
+    Messages carry no link from draft to trigger, so a draft counts only when the message right before it in the same
+    conversation is the guest's (inbound): that is the message the draft run answered (a newer guest message supersedes
+    the run). Drafts after a staff reply, a regenerated draft (the earlier draft sits in between) and follow-up drafts
+    (not "AI Concierge") are left out. Includes the debounce wait, the queue wait and the model call.
+    """
+    from sqlalchemy import func, select
+
+    from app.models.conversation import Message, MessageDirection
+
+    since = (now or datetime.now(UTC)) - timedelta(days=days)
+    window = {"partition_by": Message.conversation_id, "order_by": (Message.created_at, Message.id)}
+    seq = (
+        select(
+            Message.created_at.label("at"),
+            Message.direction.label("direction"),
+            Message.is_ai_generated.label("ai"),
+            Message.sender_name.label("sender"),
+            func.lag(Message.created_at, type_=Message.created_at.type).over(**window).label("prev_at"),
+            func.lag(Message.direction, type_=Message.direction.type).over(**window).label("prev_direction"),
+        )
+        .where(Message.tenant_id == tenant_id, Message.created_at >= since - _PREV_LOOKBACK)
+        .subquery()
+    )
+    pairs = db.execute(
+        select(seq.c.at, seq.c.prev_at).where(
+            seq.c.at >= since,
+            seq.c.direction == MessageDirection.OUTBOUND,
+            seq.c.ai.is_(True),
+            seq.c.sender == "AI Concierge",
+            seq.c.prev_direction == MessageDirection.INBOUND,
+        )
+    )
+    return [max(0, int((at - prev).total_seconds() * 1000)) for at, prev in pairs if at and prev]
+
+
+def reply_latency(ms: list[int]) -> dict:
+    """{"drafts", "p50_ms", "p95_ms"} for guest message -> draft stored."""
+    return {"drafts": len(ms), "p50_ms": _pct(ms, 0.50), "p95_ms": _pct(ms, 0.95)}

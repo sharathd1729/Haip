@@ -56,6 +56,34 @@ services:
     healthcheck:
       disable: true
 
+  # Guest replies only (queue "replies": inbound WhatsApp/Instagram message -> AI draft -> send, missed-reply recovery),
+  # so a reply never waits behind campaigns, Meta Ads syncs or marketing agency runs on the main worker.
+  # Max DB connections: 2 processes x (2 + 1) = 6.
+  worker_replies:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: haip_worker_replies
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+      - DB_POOL_SIZE=2
+      - DB_MAX_OVERFLOW=1
+    command: >
+      celery -A app.workers.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=replies
+      -n replies@%h
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
   # Competitor collector (Marketing Studio plan phase 2): OFF unless started with
   # `docker compose --profile research up -d research_collector`. Logged out, public data only, egress through
   # RESEARCH_PROXY_URL; never uses a tenant's Instagram/Facebook token or HAIP's Meta app. Consumes research_collect only.
