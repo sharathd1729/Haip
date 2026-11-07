@@ -12,6 +12,7 @@ from typing import Optional
 import structlog
 from sqlalchemy.orm import Session
 
+from app.adapters.llm.scope import llm_scope
 from app.models.analyst import AgentExperiment, AnalystReport
 from app.services.analyst import brief as brief_svc
 from app.services.analyst import facts as facts_svc
@@ -57,7 +58,8 @@ def generate(db: Session, tenant, kind: str, *, today: Optional[date] = None, us
         return row
     facts = facts_svc.build(db, tenant, kind, today, lessons=_lessons(db, tenant.id),
                             last_followup=last_followup(db, tenant.id, kind, cur.d_from))
-    written = brief_svc.write(facts, use_llm=use_llm)
+    with llm_scope(tenant_id=tenant.id, module="analyst", prompt_version=brief_svc.PROMPT_VERSIONS[brief_svc.PROMPT_KEY]):
+        written = brief_svc.write(facts, use_llm=use_llm)
     if row is None:
         row = AnalystReport(tenant_id=tenant.id, kind=kind, period_start=cur.d_from, period_end=cur.d_to, created_by=actor_id)
         db.add(row)

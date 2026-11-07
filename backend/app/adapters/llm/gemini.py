@@ -14,6 +14,7 @@ function declarations.
 import json
 import re
 import httpx
+from datetime import date, datetime, timezone
 from typing import Optional
 from app.adapters.llm.base import LLMAdapter
 from app.core.config import settings
@@ -34,6 +35,23 @@ GEMINI_PRO        = "gemini-3.6-flash"       # alias kept for compat
 GEMINI_FLASH_8B   = GEMINI_FLASH_LITE        # legacy alias
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# USD per million tokens (input, output incl. thinking), Standard paid tier, text, from ai.google.dev/gemini-api/docs/pricing
+# (now aistudio.google.com/docs/pricing) on 7 Nov 2026. Rows are (price valid before this date, or None = from then on).
+# 3.6 Flash doubles on 1 Jan 2027. A model not listed has no cost (metering stores null, never a guess).
+# shortcut: promptTokenCount includes implicitly cached tokens, billed here at the full input rate (slight overcount).
+PRICES = {
+    "gemini-3.6-flash": [(date(2027, 1, 1), 0.75, 3.75), (None, 1.50, 7.50)],
+    "gemini-3.1-flash-lite": [(None, 0.25, 1.50)],
+}
+
+
+def cost_usd(model: Optional[str], input_tokens: int, output_tokens: int, today: Optional[date] = None) -> Optional[float]:
+    today = today or datetime.now(timezone.utc).date()
+    for until, price_in, price_out in PRICES.get(model or "", []):
+        if until is None or today < until:
+            return round((input_tokens * price_in + output_tokens * price_out) / 1_000_000, 6)
+    return None
 
 
 def _build_url(model: str) -> str:

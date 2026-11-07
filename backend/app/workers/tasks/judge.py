@@ -28,6 +28,7 @@ from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
 from app.core.prompt_versions import stamp
+from app.adapters.llm.scope import scoped_task
 from app.services.transcription_service import redact_pii
 from app.services.qa_service import get_default_rubric, store_score
 import structlog
@@ -101,6 +102,7 @@ DEFAULT_RUBRIC_CRITERIA = [
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="tasks.judge")
+@scoped_task("calls", ref_type="call", ref_arg="call_id", prompt_key="call_judge")
 def judge(self, call_id: str, tenant_id: str, classification: dict = None):
     from app.workers.tasks.wrap_up import wrap_up
 

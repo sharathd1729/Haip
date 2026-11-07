@@ -26,6 +26,7 @@ from app.adapters.llm import get_llm
 log = structlog.get_logger()
 
 from app.core.prompt_versions import get_version, stamp
+from app.adapters.llm.scope import scoped_task
 
 # Kept as a module constant for backwards compatibility with existing readers,
 # but the registry is now the single source of truth — bump it there.
@@ -525,6 +526,7 @@ def _run_async(coro):
     max_retries=2,
     default_retry_delay=60,
 )
+@scoped_task("leads", ref_type="inquiry", ref_arg="inquiry_id", prompt_key="leads360_summary")
 def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
     """
     Generate and store a 3-sentence AI summary for an inquiry.

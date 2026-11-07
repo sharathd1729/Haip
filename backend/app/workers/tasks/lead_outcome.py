@@ -9,6 +9,7 @@ The LLM is only ever called here, in a worker -- never in a request handler. A p
 """
 import structlog
 
+from app.adapters.llm.scope import scoped_task
 from app.core.database import SessionLocal
 from app.workers.celery_app import celery_app
 
@@ -16,6 +17,7 @@ log = structlog.get_logger()
 
 
 @celery_app.task(name="lead_outcome.propose", bind=True, max_retries=1, default_retry_delay=60)
+@scoped_task("leads", ref_type="inquiry", ref_arg="inquiry_id", prompt_key="lead_outcome_reason")
 def propose(self, inquiry_id: str, tenant_id: str, kind: str):
     from app.core.database import set_tenant_context
     from app.services import lead_outcome

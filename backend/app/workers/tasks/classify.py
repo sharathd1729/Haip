@@ -17,6 +17,7 @@ from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
 from app.core.prompt_versions import stamp
+from app.adapters.llm.scope import scoped_task
 from app.services.transcription_service import redact_pii
 import structlog
 
@@ -131,6 +132,7 @@ CLASSIFY_TOOL = {
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="tasks.classify")
+@scoped_task("calls", ref_type="call", ref_arg="call_id", prompt_key="call_classify")
 def classify(self, call_id: str, tenant_id: str):
     from app.workers.tasks.judge import judge
 

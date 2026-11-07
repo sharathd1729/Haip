@@ -249,6 +249,7 @@ def generate_agent_narrative(
     """Returns "" (never raises) on any failure -- a missing narrative must
     degrade the report to "no narrative this period," never break the send."""
     from app.adapters.llm import get_llm
+    from app.adapters.llm.scope import llm_scope
     from app.core.prompt_versions import stamp
 
     range_start, range_end_dt, _, _ = ist_range_to_utc(date_from, date_to)
@@ -298,7 +299,8 @@ def generate_agent_narrative(
         prompt = template.render(agent=agent, scorecard=scorecard, calls=call_notes, leads=lead_notes)
         adapter = get_llm("agent_performance_narrative")
         import asyncio
-        result = asyncio.run(adapter.complete(system_prompt=prompt, user_message="Write the narrative."))
+        with llm_scope(tenant_id=tenant_id, module="agent_reports", ref_type="user", ref_id=agent_id):
+            result = asyncio.run(adapter.complete(system_prompt=prompt, user_message="Write the narrative."))
         text = (result.get("content") or "").strip()
         log.info("agent_narrative_generated", tenant_id=tenant_id, agent_id=agent_id, **stamp("agent_performance_narrative"))
         return text
@@ -359,6 +361,7 @@ def generate_leads_summary_and_feedback(
     """Returns None (never raises) on any failure or empty input -- the
     report simply omits this section rather than showing a broken one."""
     from app.adapters.llm import get_llm
+    from app.adapters.llm.scope import llm_scope
     from app.core.prompt_versions import stamp
 
     if not leads:
@@ -373,7 +376,8 @@ def generate_leads_summary_and_feedback(
         prompt = template.render(agent=agent, leads=leads)
         adapter = get_llm("agent_leads_feedback")
         import asyncio
-        result = asyncio.run(adapter.complete(system_prompt=prompt, user_message="Generate the JSON response."))
+        with llm_scope(tenant_id=tenant_id, module="agent_reports", ref_type="user", ref_id=agent_id):
+            result = asyncio.run(adapter.complete(system_prompt=prompt, user_message="Generate the JSON response."))
         raw = (result.get("content") or "").strip()
         parsed = _parse_leads_feedback_response(raw) if raw else None
         if parsed is None:

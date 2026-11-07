@@ -18,11 +18,13 @@ from celery import shared_task
 
 from app.core.database import SessionLocal, set_tenant_context
 from app.models.tenant import Tenant
+from app.adapters.llm.scope import scoped_task
 
 log = structlog.get_logger()
 
 
 @shared_task(name="analyst.run_report")
+@scoped_task("analyst", prompt_key="analyst_brief")
 def run_report(tenant_id: str, kind: str, actor_id: Optional[str] = None, force: bool = False, deliver: bool = True) -> dict:
     from app.services.analyst import delivery, reports
     db = SessionLocal()
@@ -45,6 +47,7 @@ def run_report(tenant_id: str, kind: str, actor_id: Optional[str] = None, force:
 
 
 @shared_task(name="analyst.answer_followup")
+@scoped_task("analyst", ref_type="analyst_report", ref_arg="report_id", prompt_key="analyst_followup")
 def answer_followup(tenant_id: str, report_id: str, followup_id: str) -> dict:
     from app.services.analyst import ask, reports
     db = SessionLocal()

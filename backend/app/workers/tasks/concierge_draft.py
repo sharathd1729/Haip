@@ -24,7 +24,8 @@ from app.models.guest import Guest
 from app.models.tenant import Tenant
 from app.models.inquiry import Inquiry
 from app.adapters.llm import get_llm
-from app.core.prompt_versions import stamp
+from app.adapters.llm.scope import llm_scope, scoped_task
+from app.core.prompt_versions import get_version, stamp
 
 
 def _run_async(coro):
@@ -325,19 +326,20 @@ async def _classify_and_extract(latest_message: str, history=None, known: dict |
         context += "CONVERSATION SO FAR (oldest first; the guest's newest unanswered lines are last):\n" + block + "\n\n"
     if known:
         context += "ALREADY RECORDED ABOUT THIS ENQUIRY: " + json.dumps(known, default=str) + "\n\n"
-    result = await adapter.complete(
-        system_prompt=(
-            f"Today's date is {today}. Classify the newest WhatsApp/Instagram message from a hospitality guest and extract "
-            "the stay details the guest has STATED. A date or headcount given earlier in the conversation still counts; if the "
-            "guest later changed it, use the latest value. Only [GUEST] lines are the guest's own words: never take a date, "
-            "headcount, place or request from a line WE sent ([US: ...]), above all a [US: CAMPAIGN BROADCAST], which went to "
-            "many guests at once. Never guess: leave anything not stated as null. Resolve relative "
-            "dates (e.g. 'next weekend', 'the 14th') against today's date; if no year is given, assume the next future "
-            "occurrence of that date. List every distinct thing the guest is asking in `questions`."
-        ),
-        user_message=context + "NEWEST UNANSWERED GUEST MESSAGE(S):\n" + latest_message,
-        tools=[INTENT_TOOL],
-    )
+    with llm_scope(prompt_version=get_version("concierge_intent")):
+        result = await adapter.complete(
+            system_prompt=(
+                f"Today's date is {today}. Classify the newest WhatsApp/Instagram message from a hospitality guest and extract "
+                "the stay details the guest has STATED. A date or headcount given earlier in the conversation still counts; if the "
+                "guest later changed it, use the latest value. Only [GUEST] lines are the guest's own words: never take a date, "
+                "headcount, place or request from a line WE sent ([US: ...]), above all a [US: CAMPAIGN BROADCAST], which went to "
+                "many guests at once. Never guess: leave anything not stated as null. Resolve relative "
+                "dates (e.g. 'next weekend', 'the 14th') against today's date; if no year is given, assume the next future "
+                "occurrence of that date. List every distinct thing the guest is asking in `questions`."
+            ),
+            user_message=context + "NEWEST UNANSWERED GUEST MESSAGE(S):\n" + latest_message,
+            tools=[INTENT_TOOL],
+        )
     return result.get("tool_use") or {"intent": "general"}
 
 
@@ -922,6 +924,7 @@ def _sanitize_draft(draft: dict) -> tuple[dict, list[str]]:
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10, name="tasks.concierge_draft")
+@scoped_task("concierge", ref_type="message", ref_arg="message_id", prompt_key="concierge_reply")
 def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str, tone: str | None = None, force: bool = False):
     from app.workers.tasks.send_whatsapp import send_whatsapp
     from app.workers.tasks.send_instagram_dm import send_instagram_dm
