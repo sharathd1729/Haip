@@ -753,7 +753,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "get_dashboard_metrics",
-        "description": "Executive dashboard: 6 KPI cards (revenue, occupancy, active inquiries, QA, SLA, AI draft rate) plus chart datasets. Requires the analytics module.",
+        "description": "Executive dashboard: 6 KPI cards (revenue, occupancy, active inquiries, QA, replies by a person within the first-reply SLA, AI draft rate) plus chart datasets; `labels` says what each card measures and over which period. Requires the analytics module.",
         "inputSchema": {
             "type": "object",
             "properties": {

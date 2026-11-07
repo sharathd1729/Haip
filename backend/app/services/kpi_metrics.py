@@ -23,7 +23,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models.inquiry import Inquiry
-from app.models.property import Stay
+from app.models.property import Property, Stay
 from app.models.stay_finance import StayAddOn, StayPayment
 from app.services.lead_types import is_guest_sql
 
@@ -246,6 +246,19 @@ def occupied_nights(
         last = min(check_out, window_end)
         total += max(0, (last - first).days)
     return total
+
+
+def capacity_units(db: Session, tenant_id: str, *, property_ids: Optional[Iterable[str]] = None) -> int:
+    """Active properties that can be sold (the occupancy denominator's unit count). The "Unassigned" holder
+    (`vehicle_pool`) is overflow, never capacity (D-32); bookings on it still count in ``occupied_nights``."""
+    from app.services import vehicle_pool
+    q = db.query(func.count(Property.id)).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
+    holders = vehicle_pool.placeholder_ids(db, tenant_id)
+    if holders:
+        q = q.filter(Property.id.notin_(holders))
+    if property_ids is not None:
+        q = q.filter(Property.id.in_(list(property_ids)))
+    return q.scalar() or 0
 
 
 # ── stays.booked ─────────────────────────────────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ function Start-Logged([string]$Dir, [string]$Command) {
 switch ($Part) {
     "api" { Start-Logged $Backend "python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000" }
     # Windows cannot fork: the solo pool runs one task at a time, which is fine for local testing.
-    "worker" { Start-Logged $Backend "python -m celery -A app.workers.celery_app worker --pool=solo --loglevel=info --queues=transcription,ai_scoring,whatsapp,call_ingest,default" }
+    "worker" { Start-Logged $Backend "python -m celery -A app.workers.celery_app worker --pool=solo --loglevel=info --queues=transcription,ai_scoring,whatsapp,call_ingest,default,replies" }
     "beat" { Start-Logged $Backend "python -m celery -A app.workers.celery_app beat --loglevel=info -s `"$(Join-Path $LocalData 'celerybeat-schedule')`"" }
     "frontend" {
         # Checks for next itself: an interrupted first install leaves node_modules half-filled ("'next' is not recognized").

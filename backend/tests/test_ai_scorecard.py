@@ -57,3 +57,69 @@ def test_roles_and_tenants(client, db):
     _outcome(db, w, "rejected")
     db.commit()
     assert client.get(URL, headers=_h(other.owner)).json()["ai_replies"]["rejected"] == 0
+
+
+# ── by_intent (Phase 1 step 5): per-intent draft outcomes, always the last 30 days ─────────────────────────────────────────
+
+def _intent_row(db, w, intent, outcome, *, edit=None, secs=None, age_days=1):
+    m = Message(id=str(uuid.uuid4()), tenant_id=w.t.id, conversation_id=w.c.id, direction="outbound", channel="whatsapp",
+                body="x", is_ai_generated=True, ai_intent=intent)
+    db.add(m)
+    db.flush()
+    db.add(AIDraftOutcome(id=str(uuid.uuid4()), tenant_id=w.t.id, draft_message_id=m.id, outcome=outcome, intent=intent,
+                          edit_distance_pct=edit, time_to_action_sec=secs,
+                          created_at=datetime.now(timezone.utc) - timedelta(days=age_days)))
+
+
+def _faq_month(db, w):
+    """faq_answer: 20 autonomous + 4 verbatim + 4 edited + 2 rejected = 30 decided (10 reviewed), 2 expired; price_quote: 3."""
+    for _ in range(20):
+        _intent_row(db, w, "faq_answer", "sent_autonomous", secs=0)
+    for s in (60, 120, 180, 240):
+        _intent_row(db, w, "faq_answer", "sent_verbatim", secs=s)
+    for e, s in ((90.0, 300), (80.0, 300), (70.0, 300), (60.0, 300)):
+        _intent_row(db, w, "faq_answer", "sent_edited", edit=e, secs=s)
+    for _ in range(2):
+        _intent_row(db, w, "faq_answer", "rejected", secs=600)
+    for _ in range(2):
+        _intent_row(db, w, "faq_answer", "expired", secs=86400)
+    for o in ("sent_verbatim", "rejected", "sent_autonomous"):
+        _intent_row(db, w, "price_quote", o, secs=30)
+    _intent_row(db, w, "faq_answer", "rejected", age_days=40)   # outside the 30 days
+    db.commit()
+
+
+def test_by_intent_service_numbers(db):
+    from app.services import ai_scorecard
+    w = _world(db)
+    _faq_month(db, w)
+    got = ai_scorecard.build(db, w.t, "7d")["by_intent"]
+    assert got["days"] == 30 and got["min_decided"] == 30 and got["from"]
+    faq, price = got["intents"]
+    assert faq["intent"] == "faq_answer" and faq["decided"] == 30 and faq["drafts"] == 32 and faq["too_few"] is False
+    assert faq["sent_autonomous"] == 20 and faq["reviewed"] == 10
+    # verbatim / edited / rejected over human-reviewed drafts only, never the autonomous sends
+    assert (faq["verbatim_share"], faq["edited_share"], faq["rejected_share"]) == (0.4, 0.4, 0.2)
+    assert faq["expired_share"] == round(2 / 32, 3)
+    assert faq["median_edit_pct"] in (70.0, 80.0)
+    assert faq["median_action_sec"] == 300.0   # reviewed drafts only: autonomous 0s and expired 24h are left out
+    assert price["intent"] == "price_quote" and price["decided"] == 3 and price["too_few"] is True
+    assert price["verbatim_share"] is None and price["median_action_sec"] is None
+
+
+def test_by_intent_service_tenant_isolation(db):
+    from app.services import ai_scorecard
+    w, other = _world(db), _world(db)
+    _faq_month(db, w)
+    assert ai_scorecard.build(db, other.t, "30d")["by_intent"]["intents"] == []
+
+
+def test_by_intent_endpoint_roles_and_tenants(client, db):
+    w, other = _world(db), _world(db)
+    _faq_month(db, w)
+    _intent_row(db, w, None, "rejected")   # a draft written before intents were stored
+    db.commit()
+    rows = {r["intent"]: r for r in client.get(URL, headers=_h(w.mgr)).json()["by_intent"]["intents"]}
+    assert rows["faq_answer"]["decided"] == 30 and rows["unknown"]["too_few"] is True
+    assert client.get(URL, headers=_h(w.foh)).status_code == 403
+    assert client.get(URL, headers=_h(other.owner)).json()["by_intent"]["intents"] == []
