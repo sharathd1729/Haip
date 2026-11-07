@@ -134,7 +134,9 @@ class InvoiceProfile(BaseModel):
 
 class PaymentAutomation(BaseModel):
     """``brand_config["payments"]``: switches for what HAIP does around booking payments."""
-    auto_balance_reminder: bool = False     # daily: balance due in 3 days -> link + ratha_balance_due_v1, once per instalment
+    # daily: balance due in 3 days -> link + ratha_balance_due_v1, once per instalment. None = the owner never chose:
+    # ON while Razorpay is connected AND the template is approved (balance_reminder_service.switched_on). False always wins.
+    auto_balance_reminder: Optional[bool] = None
 
 
 class InvoiceSettingsIn(BaseModel):
