@@ -1,4 +1,4 @@
-"""The four WhatsApp templates HAIP sends around a booking (the "booking pack"), as Meta template components.
+"""The WhatsApp templates HAIP sends around a booking (the "booking pack"), as Meta template components.
 
 Texts come from the approved mock-up (docs/design/bookings-mockup/quotes.html, TEMPLATES). All are UTILITY, language
 "en". Pay buttons are URL buttons whose link ends in {{1}}: the Razorpay short link's path ("i/AbC123") is passed per
@@ -23,6 +23,7 @@ QUOTE_PAYMENT = "ratha_quote_payment_v1"
 BOOKING_CONFIRMED = "ratha_booking_confirmed_v1"
 BALANCE_DUE = "ratha_balance_due_v1"
 PAYMENT_RECEIVED = "ratha_payment_received_v1"
+MIDSTAY_CHECK = "haip_midstay_check_v1"   # ops_midstay_check: day 2 of a 2+ night stay; generic words, any business
 
 
 def _body(text: str, examples: list[str]) -> dict:
@@ -82,6 +83,16 @@ PACK: list[dict] = [
                   "Your updated invoice is attached.",
                   ["Kiran", "₹44,940", "#1050AB12", "Your trip is fully paid."]),
             {"type": "BUTTONS", "buttons": [{"type": "QUICK_REPLY", "text": "Talk to us"}]},
+        ],
+    },
+    {
+        "name": MIDSTAY_CHECK, "label": "Mid-stay check",
+        "when": "The morning after check-in on stays of 2+ nights (Ops settings switch; on once this is approved).",
+        "header": "None",
+        "components": [
+            _body("Hello {{1}}, everything okay with your {{2}}? Reply 1 if all good, or tell us what we can fix.",
+                  ["Kiran", "stay at Villa Amara"]),
+            {"type": "BUTTONS", "buttons": [{"type": "QUICK_REPLY", "text": "All good"}]},
         ],
     },
 ]

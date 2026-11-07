@@ -116,14 +116,14 @@ def test_booking_pack_endpoint_creates_drafts_once(client, db, tenant_and_user):
     tid = tenant_and_user["tenant"].id
     h = {"Authorization": f"Bearer {tenant_and_user['access_token']}"}
     listed = client.get("/api/v1/messaging/templates/booking-pack", headers=h).json()["templates"]
-    assert [t["status"] for t in listed] == [None] * 4
+    assert [t["status"] for t in listed] == [None] * len(wa_booking_pack.PACK)
     with patch("httpx.post") as meta:                      # nothing may reach Meta
         r = client.post("/api/v1/messaging/templates/booking-pack", headers=h).json()
         again = client.post("/api/v1/messaging/templates/booking-pack", headers=h).json()
     meta.assert_not_called()
     assert sorted(r["created"]) == sorted(t["name"] for t in wa_booking_pack.PACK) and again["created"] == []
     rows = db.query(WATemplate).filter_by(tenant_id=tid).all()
-    assert len(rows) == 4 and {r.status for r in rows} == {TemplateStatus.DRAFT} and {r.category for r in rows} == {TemplateCategory.UTILITY}
+    assert len(rows) == len(wa_booking_pack.PACK) and {r.status for r in rows} == {TemplateStatus.DRAFT} and {r.category for r in rows} == {TemplateCategory.UTILITY}
     assert db.query(AuditEvent).filter_by(tenant_id=tid, action="messaging.booking_pack_created").count() == 1
     assert {t["status"] for t in again["templates"]} == {"draft"}
 

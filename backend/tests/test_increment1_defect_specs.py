@@ -278,7 +278,6 @@ def test_explicit_do_not_contact_requests_are_recognised(text):
     assert detect_opt_out(text).matched
 
 
-@PR(2, "the opt-out confirmation imports send_template_message, which does not exist in send_whatsapp.py")
 def test_the_opt_out_confirmation_is_actually_queued(db):
     from app.services import opt_out_responder
     t = _tenant(db)

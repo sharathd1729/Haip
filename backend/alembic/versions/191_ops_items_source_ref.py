@@ -8,14 +8,14 @@ Existing tenant-scoped table: its RLS policy is unchanged (no new table). The ne
 the existing VARCHAR(15) status column (no schema change).
 ADD COLUMN / CREATE UNIQUE INDEX IF NOT EXISTS: idempotent, and repairs a table created by create_all (prod runs create_all).
 
-Revision ID: 190
-Revises: 189
+Revision ID: 191
+Revises: 190
 """
 
 from alembic import op
 
-revision = "190"
-down_revision = "189"
+revision = "191"
+down_revision = "190"
 branch_labels = None
 depends_on = None
 

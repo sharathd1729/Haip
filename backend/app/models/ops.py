@@ -123,6 +123,8 @@ class OpsSettings(Base, TimestampMixin, TenantMixin):
     quiet_hours = Column(JSON, nullable=True)
     templates = Column(JSON, nullable=True)
     template_language = Column(String(10), nullable=False, default="en")
+    # Mid-stay check (ops_midstay_check): NULL = on once its template is approved; TRUE/FALSE = the owner's choice.
+    midstay_check_enabled = Column(Boolean, nullable=True)
 
 
 class OpsItem(Base, TimestampMixin, TenantMixin):
@@ -141,7 +143,7 @@ class OpsItem(Base, TimestampMixin, TenantMixin):
     status = Column(String(15), nullable=False, default="open")
     source = Column(String(20), nullable=False, default="staff")  # staff | guest_chat | service_request | system | manager
     # Idempotency key of what opened it ("msg:<message id>" for a guest's chat, "ssr:<service request id>"): unique per
-    # tenant when set (migration 190), so the same message or request never opens a second ticket.
+    # tenant when set (migration 191), so the same message or request never opens a second ticket.
     source_ref = Column(String(120), nullable=True)
 
     property_id = Column(String, ForeignKey("properties.id"), nullable=True)

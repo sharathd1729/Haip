@@ -232,6 +232,7 @@ class OpsSettingsPut(BaseModel):
     quiet_hours: dict[str, str] | None = None  # {"start": "22:00", "end": "07:00"}
     templates: dict[str, str] | None = None  # {"alert": "...", "escalation": "..."}
     template_language: str | None = Field(default=None, max_length=10)
+    midstay_check_enabled: bool | None = None  # day-2 WhatsApp to the guest (ops_midstay_check)
 
     @field_validator("sla")
     @classmethod

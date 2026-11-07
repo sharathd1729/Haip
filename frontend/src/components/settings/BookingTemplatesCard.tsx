@@ -1,5 +1,5 @@
 "use client";
-// The four WhatsApp templates HAIP sends around a booking, with their Meta status. "Create drafts" only adds drafts;
+// The WhatsApp templates HAIP sends around a booking (incl. the mid-stay check), with their Meta status. "Create drafts" only adds drafts;
 // the owner reviews each one in the template editor (and uploads a sample PDF for document headers) and submits it.
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,7 +21,7 @@ export function BookingTemplatesCard({ canCreate = true }: { canCreate?: boolean
     mutationFn: () => api.post<{ created: string[]; templates: PackTemplate[] }>("/messaging/templates/booking-pack"),
     onSuccess: res => {
       queryClient.setQueryData(["booking-pack"], { templates: res.data.templates });
-      toast({ variant: "success", title: res.data.created.length ? `${res.data.created.length} drafts created` : "All four already exist" });
+      toast({ variant: "success", title: res.data.created.length ? `${res.data.created.length} drafts created` : "All of them already exist" });
     },
     onError: e => toast({ variant: "error", title: errorMessage(e, "Could not create the drafts") }),
   });

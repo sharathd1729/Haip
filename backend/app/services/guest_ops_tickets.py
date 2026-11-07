@@ -207,15 +207,17 @@ def open_for_chat(
     burst_text: str,
     details: dict | None,
     escalation: dict | None,
+    stay: Stay | None = None,
     now: datetime | None = None,
 ) -> TicketTurn | None:
     """Open (or link to) the guest's ticket for this turn. Commits and queues the alerts. None = not an in-stay problem,
-    no live stay, or a failure (logged: the consult path then runs as before)."""
+    no live stay, or a failure (logged: the consult path then runs as before). ``stay`` = the caller already knows the
+    stay (the mid-stay check's reply), so the live-stay lookup is skipped."""
     category, legal = issue_category(details, escalation)
     if category is None:
         return None
     try:
-        stay = live_stay(db, tenant.id, guest_id)
+        stay = stay or live_stay(db, tenant.id, guest_id)
         if stay is None:
             return None
         ref = f"msg:{message_id}"
@@ -259,7 +261,7 @@ def open_for_chat(
                     property_id=stay.property_id,
                     stay_id=stay.id,
                     guest_id=stay.guest_id,
-                    conversation_id=conversation.id,
+                    conversation_id=getattr(conversation, "id", None),
                     source="guest_chat",
                     source_ref=ref,
                     now=now,
@@ -291,7 +293,7 @@ def open_for_chat(
         return _turn(item, True)
     except Exception as exc:  # noqa: BLE001 -- the reply path must not fail on this
         db.rollback()
-        log.error("guest_ticket_open_failed", conversation_id=conversation.id, error=str(exc)[:300])
+        log.error("guest_ticket_open_failed", conversation_id=getattr(conversation, "id", None), error=str(exc)[:300])
         return None
 
 
@@ -332,7 +334,7 @@ def send_ack(
         msg = Message(
             id=str(uuid.uuid4()),
             tenant_id=tenant.id,
-            conversation_id=conversation.id,
+            conversation_id=getattr(conversation, "id", None),
             direction=MessageDirection.OUTBOUND,
             channel=conversation.channel,
             body=ack_text(turn),
@@ -353,7 +355,7 @@ def send_ack(
         return msg
     except Exception as exc:  # noqa: BLE001
         db.rollback()
-        log.error("guest_ticket_ack_failed", conversation_id=conversation.id, error=str(exc)[:200])
+        log.error("guest_ticket_ack_failed", conversation_id=getattr(conversation, "id", None), error=str(exc)[:200])
         return None
 
 
