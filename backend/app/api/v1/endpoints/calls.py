@@ -20,6 +20,7 @@ from app.models.guest import Guest
 from app.models.user import User
 from app.adapters.ivr import get_ivr_adapter
 from app.services import next_action_service, call_status_service
+from app.services.authz_service import require_capability
 from pydantic import BaseModel
 import structlog
 
@@ -714,6 +715,50 @@ def update_disposition(
     return {"status": "updated", "disposition": req.disposition}
 
 
+class DispositionCheck(BaseModel):
+    ai_correct: bool
+    disposition: Optional[str] = None   # the right outcome, required when ai_correct is False
+
+
+@router.post("/{call_id}/disposition/confirm")
+def confirm_disposition(
+    call_id: str,
+    req: DispositionCheck,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("leads.write")),
+):
+    """One tap "Was the AI right?": Yes copies the AI's outcome into human_disposition, No stores the outcome the
+    person picked. This is the ground truth Call QA compares the AI against (PHASE1_AI_RELIABILITY_SPEC Step 4c)."""
+    from app.core.audit import append_audit
+
+    call = db.query(Call).filter_by(id=call_id, tenant_id=current_user.tenant_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    if not call.ai_disposition:
+        raise HTTPException(status_code=409, detail="The AI has not read this call yet.")
+    if req.ai_correct:
+        chosen = call.ai_disposition
+    else:
+        try:
+            chosen = CallDisposition(req.disposition or "")
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Pick the right outcome for this call.")
+
+    previous = call.human_disposition
+    call.human_disposition = chosen
+    call.disposition_set_by = current_user.id
+    append_audit(
+        db, tenant_id=current_user.tenant_id, action="call.disposition_confirmed", actor_user_id=current_user.id,
+        target_type="call", target_id=call.id,
+        payload={"ai_disposition": call.ai_disposition.value, "human_disposition": chosen.value,
+                 "ai_correct": chosen == call.ai_disposition,
+                 "previous_human_disposition": previous.value if previous else None},
+    )
+    db.commit()
+    return {"status": "confirmed", "call_id": call.id, "ai_disposition": call.ai_disposition.value,
+            "human_disposition": chosen.value, "ai_correct": chosen == call.ai_disposition}
+
+
 @router.post("/{call_id}/wrap-up")
 def save_wrap_up(
     call_id: str,
@@ -945,6 +990,9 @@ def _serialize_call_detail(call: Call, db) -> dict:
         "transcription_status": call.transcription_status,
         "ai_score_status": call.ai_score_status,
         "disposition": disp.value if hasattr(disp, "value") else (disp or "pending"),
+        # "Was the AI right?" (POST /calls/{id}/disposition/confirm): the AI's read and the person's, apart.
+        "ai_disposition": call.ai_disposition.value if call.ai_disposition else None,
+        "human_disposition": call.human_disposition.value if call.human_disposition else None,
         "transcript": {"turns": normalised_turns} if normalised_turns else None,
         # Flat convenience fields for simpler consumers (Calls list quick-view
         # panel) alongside the nested transcript.turns/score shapes above,
