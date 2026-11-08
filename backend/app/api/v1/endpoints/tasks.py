@@ -63,7 +63,7 @@ def toggle_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    task = task_service.toggle_task(db, tenant_id=current_user.tenant_id, task_id=task_id)
+    task = task_service.toggle_task(db, tenant_id=current_user.tenant_id, task_id=task_id, actor_id=current_user.id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task

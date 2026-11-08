@@ -10,11 +10,12 @@ import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
   AtSign, BadgeCheck, BellRing, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CalendarClock, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
-  FlaskConical, MapPin, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
+  FlaskConical, ListChecks, MapPin, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
 import { OPS_READ_ROLES } from "@/lib/ops";
+import { SOPS_READ_ROLES } from "@/lib/sops";
 import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { OPS_BUSINESS_TYPES } from "@/lib/segments";
@@ -77,6 +78,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Instagram insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
     { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "Website", href: "/dashboard/marketing/website", icon: Globe, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
+    { label: "Get found", href: "/dashboard/marketing/sops", icon: ListChecks, resource: "inbox", onlyRoles: SOPS_READ_ROLES },
     { label: "QA & scores", href: "/dashboard/qa", icon: Star, resource: "qa" },
     { label: "Compliance", href: "/dashboard/compliance", icon: Shield, resource: "compliance" },
   ] },

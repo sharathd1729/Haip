@@ -198,7 +198,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.
     "marketing_review_reply": "marketing-review-reply-v1",
     # Agency M7: OTA listing copy drafts (marketing_reputation); a person pastes them into the OTA.
-    "marketing_ota_copy": "marketing-ota-copy-v2",
+    "marketing_ota_copy": "marketing-ota-copy-v3",  # v3: Agoda (Get found S2)
+    "sop_generate": "sop-generate-v2",  # v2: OTA/Facebook/TripAdvisor + offer names           # services/sops/generate.py SYSTEM (Get found profile texts)
     # Studio plan phase 1: creative tags from a post's / ad's own text (marketing_tagging) and the weekly Insights
     # report's plain-English lines over code-computed facts (marketing_insights_report).
     "marketing_tagging": "marketing-tagging-v1",
@@ -210,6 +211,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_deck": "marketing-strategy-deck-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
+    # Website SEO agency (website_seo_agency): weekly search brief + creator / partner outreach messages (a person sends).
+    "seo_brief": "seo-brief-v1",
+    "seo_outreach": "seo-outreach-v1",
 }
 
 UNKNOWN = "unregistered"

@@ -344,3 +344,27 @@ def api_webhooks_failing(ctx: Ctx) -> list[dict]:
         )
         for w in rows
     ]
+
+
+def getfound_overdue(ctx: Ctx) -> list[dict]:
+    """SEO1: Get found (dynamic SOP) steps more than 7 days overdue, all platforms together (sops.signals
+    ``sop_overdue``, the SOPs' own rule). The website SEO agency lists these as this week's tasks on Website > Grow."""
+    from app.services.sops import signals as sop_signals
+
+    rows = [s for s in sop_signals.signals(ctx.db, ctx.tenant, ctx.now) if s["code"] == "sop_overdue"]
+    if not rows:
+        return []
+    steps = sum(int(s["numbers"].get("steps") or 0) for s in rows)
+    worst = max(int(s["days"] or 0) for s in rows)
+    return [
+        _hit(
+            "high" if worst >= 21 else "medium",
+            f"{_plural(steps, 'Get found step')} overdue",
+            f"{_plural(steps, 'step')} on {_plural(len(rows), 'platform')} are more than a week late, the oldest by "
+            f"{worst} days. Guests find you on these sites before they find your website.",
+            {"steps": steps, "platforms": len(rows), "oldest_days": worst},
+            [ref for s in rows for ref in s["refs"]],
+            cta_label="Open Website > Grow",
+            cta_href="/dashboard/marketing/website/grow",
+        )
+    ]

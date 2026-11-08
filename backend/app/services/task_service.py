@@ -64,12 +64,15 @@ def list_tasks(
     return q.order_by(Task.is_done.asc(), Task.due_date.asc().nullslast(), Task.created_at.desc()).all()
 
 
-def toggle_task(db: Session, tenant_id: str, task_id: str) -> Optional[Task]:
+def toggle_task(db: Session, tenant_id: str, task_id: str, actor_id: Optional[str] = None) -> Optional[Task]:
     task = db.query(Task).filter_by(id=task_id, tenant_id=tenant_id).first()
     if not task:
         return None
     task.is_done = not task.is_done
     task.completed_at = datetime.now(timezone.utc) if task.is_done else None
+    if task.kind == "sop":
+        from app.services.sops import service as sops
+        sops.on_task_toggled(db, task, actor_id)
     db.commit()
     db.refresh(task)
     return task

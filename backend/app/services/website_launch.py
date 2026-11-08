@@ -140,6 +140,7 @@ def build(db: Session, tenant: Tenant, site: Site) -> dict:
         "reviews_shown": sum(1 for r in website_reviews.listing(db, tenant.id) if r["shown"]),
         "promo_codes_on": db.query(WebsitePromoCode).filter_by(tenant_id=tenant.id, active=True).count(),
         "languages": ["English", *[website_seo_lang(x) for x in langs]],
+        "get_found": _get_found(db, tenant),
     }
     out["open_items"] = [c["title"] for c in wspec.checks(db, site, doc) if not c["ok"]]
     return out
@@ -158,6 +159,14 @@ def speed_rows(sp: dict) -> list:
         rows.append([p.get("label") or p["url"], f"Phones: {verdict}{' (whole site)' if m.get('whole_site') else ''}; "
                      f"lab test {lab if lab is not None else '-'}/100" if p.get("mobile") else "Phones: check failed"])
     return rows
+
+
+def _get_found(db: Session, tenant: Tenant) -> dict:
+    """Steps done across the Get found checklists (services/sops): Google profile, Instagram, WhatsApp."""
+    from app.services.sops import service as sops
+
+    rows = sops.list_view(db, tenant)["instances"]
+    return {"done": sum(r["done"] for r in rows), "total": sum(r["total"] for r in rows), "checklists": len(rows)}
 
 
 def website_seo_lang(code: str) -> str:
@@ -282,6 +291,8 @@ def render(report: dict, *, brand: str | None = None) -> bytes:
                 ["Reviews shown", c["reviews_shown"]],
                 ["Promo codes on", c["promo_codes_on"]],
                 ["Languages", ", ".join(c["languages"])],
+                ["Get found steps done", f"{c['get_found']['done']} of {c['get_found']['total']}"
+                 if c.get("get_found", {}).get("checklists") else "No checklist started"],
             ],
         )
     if report.get("open_items"):

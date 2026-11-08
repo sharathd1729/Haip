@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, marketing_home, marketing_sources, marketing_strategy, lead_touches, lead_calls, lead_review, lead_evidence, lead_validity, lead_outcome, package_share, marketing_partners, marketing_channels, marketing_public, website, website_builder, website_growth, website_google, website_public,
+    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, marketing_home, marketing_sources, marketing_strategy, lead_touches, lead_calls, lead_review, lead_evidence, lead_validity, lead_outcome, package_share, marketing_partners, marketing_channels, marketing_public, website, website_builder, website_growth, website_google, website_seo_agency, website_public,
     tenants, users, guests, inquiries, conversations, properties,
     qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, reports_crm, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
@@ -41,6 +41,7 @@ from app.api.v1.endpoints import (
     ops_guest_form_public,
     guest_addons,
     ops_gps,
+    sops,
     webhooks_gps,
     targets,
     work_queue,
@@ -88,6 +89,7 @@ api_router.include_router(marketing_studio.router)
 api_router.include_router(website_builder.router)   # before website.router: /websites/builder/*
 api_router.include_router(website_growth.router)   # before website.router: /websites/tracking, /report ...
 api_router.include_router(website_google.router)   # before website.router: /websites/google/*
+api_router.include_router(website_seo_agency.router)   # before website.router: /websites/grow, /seo-agency/*
 api_router.include_router(website.router)
 api_router.include_router(website_public.router)
 api_router.include_router(marketing_agency.router)
@@ -119,6 +121,7 @@ api_router.include_router(ops_guest_form_public.router)  # /public/ops/guest-for
 api_router.include_router(guest_addons.public_router)  # /public/addons/{token} (no login)
 api_router.include_router(guest_addons.router)  # /ops/files/{id}/addons, /ops/addon-orders/{id}/approve|decline
 api_router.include_router(ops_gps.router)  # /ops/gps/* (trackers, live map, trip track, alerts)
+api_router.include_router(sops.router)  # /sops/* (Get found: dynamic SOPs)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)

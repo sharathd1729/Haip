@@ -224,6 +224,14 @@ CATALOGUE: tuple[Detector, ...] = (
         "Publish the drafts so the website and the AI can offer them.",
         g.website_drafts_unpublished,
     ),
+    Detector(
+        "SEO1",
+        "website",
+        "daily",
+        "revenue",
+        "Do the late Get found steps this week; Website > Grow lists them.",
+        g.getfound_overdue,
+    ),
     Detector("PA1", "partnerships", "daily", "quality", "Reply yes or no to each request.", g.partnerships_unanswered),
     Detector(
         "API1",

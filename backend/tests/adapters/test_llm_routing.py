@@ -195,3 +195,32 @@ def test_website_art_director_plans_on_flash_and_polishes_copy_on_flash_lite():
     assert _TASK_ROUTES["website_copy"] == ("gemini", "gemini-3.1-flash-lite")
     assert _TASK_ROUTES["website_change"] == ("gemini", "gemini-3.1-flash-lite")      # small task, low model
     assert MAX_TOKENS["website_plan"] >= 24000 and MAX_TOKENS["website_copy"] >= 4000
+
+
+def test_sop_generate_routes_to_the_structured_output_tier_with_gemini_fallback(monkeypatch):
+    """Get found SOP texts (services/sops/generate.py): gpt-oss-20b on NVIDIA, Gemini fallback (60 s) when a key is set."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+    from app.core.prompt_versions import get_version
+
+    assert _TASK_ROUTES["sop_generate"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["sop_generate"] == 60
+    assert get_version("sop_generate") == "sop-generate-v2"
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("sop_generate").inner
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
+
+
+def test_seo_agency_routes_brief_to_the_low_model_and_outreach_to_the_content_model():
+    """Website SEO agency (services/website_seo_roles.py): the analyst's short brief over code-computed numbers is a small
+    task (Flash-Lite, Haiku under the Claude switch); outreach messages are drafts (3.6 Flash). Both versioned."""
+    from app.adapters.llm import _CLAUDE_FAST_TASKS
+    from app.core.prompt_versions import get_version
+    from app.services.marketing_ai_service import MAX_TOKENS
+
+    assert _TASK_ROUTES["seo_brief"] == ("gemini", "gemini-3.1-flash-lite")
+    assert _TASK_ROUTES["seo_outreach"] == ("gemini", "gemini-3.6-flash")
+    assert "seo_brief" in _CLAUDE_FAST_TASKS and "seo_outreach" not in _CLAUDE_FAST_TASKS
+    assert get_version("seo_brief") == "seo-brief-v1" and get_version("seo_outreach") == "seo-outreach-v1"
+    assert MAX_TOKENS["seo_brief"] >= 4000 and MAX_TOKENS["seo_outreach"] >= 4000
