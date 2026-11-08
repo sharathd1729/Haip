@@ -5,10 +5,10 @@ export const SOPS_READ_ROLES = ["owner", "manager", "marketing", "reservations",
 export const SOPS_MANAGE_ROLES = ["owner", "manager"];
 
 export type Platform = "google_business" | "instagram" | "whatsapp" | "facebook_page" | "airbnb" | "booking" | "makemytrip"
-  | "agoda" | "tripadvisor";
+  | "agoda" | "tripadvisor" | "links";
 export const PLATFORM_LABEL: Record<Platform, string> = {
   google_business: "Google Business Profile", instagram: "Instagram", whatsapp: "WhatsApp Business", facebook_page: "Facebook Page",
-  airbnb: "Airbnb", booking: "Booking.com", makemytrip: "MakeMyTrip / Goibibo", agoda: "Agoda", tripadvisor: "TripAdvisor",
+  airbnb: "Airbnb", booking: "Booking.com", makemytrip: "MakeMyTrip / Goibibo", agoda: "Agoda", tripadvisor: "TripAdvisor", links: "Links and citations",
 };
 export const PLATFORM_ORDER = Object.keys(PLATFORM_LABEL) as Platform[];
 

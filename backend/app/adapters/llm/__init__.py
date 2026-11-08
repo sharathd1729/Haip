@@ -204,6 +204,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # "Change something" on the Website screen (website_change.py): a short list of edits for one plain-words request. Small
     # task, low model; a retry after failed checks runs on website_plan.
     "website_change": ("gemini", "gemini-3.1-flash-lite"),
+    # Website SEO agency (website_seo_agency): the search analyst's short weekly brief over code-computed numbers (low
+    # model; a sentence with an unknown number is dropped) and the outreach messages a person sends to creators and
+    # partners (drafts: the content model).
+    "seo_brief": ("gemini", "gemini-3.1-flash-lite"),
+    "seo_outreach": ("gemini", "gemini-3.6-flash"),
 }
 
 
@@ -241,7 +246,7 @@ _SINGLE_PRIMARY_ATTEMPT = {"analyst_followup"}
 # LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.
 _CLAUDE_FAST_TASKS = frozenset({
     "quick_classify", "bulk_batch", "ask_haip_intent", "concierge_rewrite", "lead_stage_classify",
-    "marketing_tagging", "marketing_review_reply", "website_copy", "website_change",
+    "marketing_tagging", "marketing_review_reply", "website_copy", "website_change", "seo_brief",
 })
 # The guest reply and the rewrite think least: a person is waiting, and chat does well at low effort.
 _CLAUDE_LOW_EFFORT = _CLAUDE_FAST_TASKS | {"concierge_draft"}

@@ -239,9 +239,12 @@ WHATSAPP_PROFILE = Template(
 )
 
 from app.services.sops.catalogue_ota import OTA_TEMPLATES  # noqa: E402 -- needs Step/Template above (phase S2)
+from app.services.sops.catalogue_links import LINKS_TEMPLATES  # noqa: E402 -- website SEO agency (links, citations)
 from app.services.sops.catalogue_upkeep import UPKEEP_TEMPLATES  # noqa: E402 -- phase S3
 
-TEMPLATES: tuple[Template, ...] = (GBP_SETUP, INSTAGRAM_PROFILE, WHATSAPP_PROFILE, *OTA_TEMPLATES, *UPKEEP_TEMPLATES)
+TEMPLATES: tuple[Template, ...] = (
+    GBP_SETUP, INSTAGRAM_PROFILE, WHATSAPP_PROFILE, *OTA_TEMPLATES, *UPKEEP_TEMPLATES, *LINKS_TEMPLATES,
+)
 BY_KEY = {t.key: t for t in TEMPLATES}
 VERIFY = ("auto", "evidence", "manual")
 

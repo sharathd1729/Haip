@@ -19,6 +19,7 @@ PLATFORMS = (
     "makemytrip",
     "agoda",
     "tripadvisor",
+    "links",
 )
 PLATFORM = Literal[
     "google_business",
@@ -30,6 +31,7 @@ PLATFORM = Literal[
     "makemytrip",
     "agoda",
     "tripadvisor",
+    "links",
 ]
 RULE_KINDS = ("category", "text_limit", "photo_spec", "advice", "programme")
 # business_kind() values (website_seo.KINDS): the one segment rule

@@ -213,6 +213,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_deck": "marketing-strategy-deck-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
+    # Website SEO agency (website_seo_agency): weekly search brief + creator / partner outreach messages (a person sends).
+    "seo_brief": "seo-brief-v1",
+    "seo_outreach": "seo-outreach-v1",
 }
 
 UNKNOWN = "unregistered"

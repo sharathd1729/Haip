@@ -82,6 +82,7 @@ celery_app = Celery(
         "app.workers.tasks.gps",
         # Dynamic SOPs / Get found: version generation + automatic checks
         "app.workers.tasks.sops",
+        "app.workers.tasks.website_seo_agency",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -278,6 +279,8 @@ celery_app.conf.update(
         "sops.generate_version":                     {"queue": "ai_scoring"},
         "sops.check_instance":                       {"queue": "default"},
         "sops.tick_all_tenants":                     {"queue": "default"},
+        "website_seo.orchestrate":                   {"queue": "default"},
+        "website_seo.run_week":                      {"queue": "default"},
         "sops.tick_tenant":                          {"queue": "whatsapp"},
         "sops.refresh_all_tenants":                  {"queue": "default"},
         "sops.refresh_tenant":                       {"queue": "default"},
@@ -666,6 +669,8 @@ celery_app.conf.beat_schedule = {
         "task": "marketing_ads.evaluate_all",
         "schedule": crontab(minute=20),
     },
+    # Website SEO agency: hourly check, runs once each Monday from 09:00 workspace time (the Studio's slot).
+    "website-seo-agency-orchestrate-hourly": {"task": "website_seo.orchestrate", "schedule": crontab(minute=11)},
     # Get found (dynamic SOPs, phase S3): next cycles, tasks and reminders hourly at :07; new versions where the data,
     # platform rules or template changed, nightly 03:55 IST.
     "sops-tick-hourly": {
