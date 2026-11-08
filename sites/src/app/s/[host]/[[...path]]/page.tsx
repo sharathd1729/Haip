@@ -148,7 +148,7 @@ export default async function SitePage({ params, searchParams }: { params: Promi
       {r.v2 ? <div lang={lang || undefined}><SiteRendererV2 live={r.live} page={r.page} env={env} main={sys?.main} banner={switcher} /></div>
         : <><V1Fonts /><SiteRenderer live={r.live} page={r.page} env={env} /></>}
       <PageView path={p} />
-      <Consent pixel={r.live.tracking?.pixel_id} ga4={r.live.tracking?.ga4_id} />
+      <Consent pixel={r.live.tracking?.pixel_id} ga4={r.live.tracking?.ga4_id} gads={r.live.tracking?.gads} />
     </>
   );
 }

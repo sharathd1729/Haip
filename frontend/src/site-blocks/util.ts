@@ -1,5 +1,5 @@
 // Small helpers shared by the interactive site pieces.
-import { CHOICE_KEY } from "./consent";
+import { CHOICE_KEY, storedClick, type Click } from "./consent";
 export async function readError(r: Response, fallback: string): Promise<string> {
   try {
     const j = await r.json();
@@ -21,11 +21,13 @@ export function track(name: Parameters<Tracker>[0], eventId: string | undefined,
 
 /** Meta's _fbp / _fbc cookies (set by the pixel, so only after consent), sent with forms for the server-side event.
  *  Plus the cookie-banner choice and GA4's client id ("GA1.1.<random>.<seconds>" -> "<random>.<seconds>"), so the
- *  server's GA4 purchase joins the browser's visit, and goes only when the visitor tapped Accept. */
-export function adIds(): { fbp?: string; fbc?: string; analytics_consent?: boolean; ga_client_id?: string } {
+ *  server's GA4 purchase joins the browser's visit, and goes only when the visitor tapped Accept. Plus the Google Ads
+ *  click ids kept after Accept (consent.ts), so the lead (and later its booking upload) carries the ad click. */
+type AdIds = { fbp?: string; fbc?: string; analytics_consent?: boolean; ga_client_id?: string } & Click;
+export function adIds(): AdIds {
   if (typeof document === "undefined") return {};
   const get = (k: string) => document.cookie.split("; ").find(c => c.startsWith(k + "="))?.slice(k.length + 1)?.slice(0, 200);
-  const out: { fbp?: string; fbc?: string; analytics_consent?: boolean; ga_client_id?: string } = {};
+  const out: AdIds = {};
   const fbp = get("_fbp"), fbc = get("_fbc");
   if (fbp) out.fbp = fbp;
   if (fbc) out.fbc = fbc;
@@ -35,6 +37,7 @@ export function adIds(): { fbp?: string; fbc?: string; analytics_consent?: boole
     out.analytics_consent = true;
     const cid = get("_ga")?.match(/^GA\d\.\d\.(\d{1,20}\.\d{1,20})$/)?.[1];
     if (cid) out.ga_client_id = cid;
+    Object.assign(out, storedClick());
   }
   return out;
 }

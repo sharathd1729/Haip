@@ -3,10 +3,15 @@ import api from "@/lib/api";
 
 const WEB = "/websites";
 
-export type Tracking = { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_test_code: string | null;
-  has_capi_token: boolean; has_ga4_api_secret: boolean; ga4_server: boolean;
-  recent?: { channel?: "meta" | "ga4"; event_name: string; status: string; reason: string | null; created_at: string }[] };
-export type TrackingIn = { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_token?: string | null;
+// Google Ads (website growth #5, google_ads_conversions): browser tag + labels and the booking upload settings.
+export type GadsSettings = { gads_id: string | null; gads_enquiry_label: string | null; gads_checkout_label: string | null;
+  gads_customer_id: string | null; gads_login_customer_id: string | null; gads_booking_action_id: string | null;
+  gads_upload_enabled: boolean };
+export type GadsStatus = { available: boolean; connected: boolean; status: string; last_error: string | null; last_upload_at: string | null };
+export type Tracking = GadsSettings & { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_test_code: string | null;
+  has_capi_token: boolean; has_ga4_api_secret: boolean; ga4_server: boolean; google_ads?: GadsStatus;
+  recent?: { channel?: "meta" | "ga4" | "google_ads"; event_name: string; status: string; reason: string | null; created_at: string }[] };
+export type TrackingIn = GadsSettings & { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_token?: string | null;
   capi_test_code: string | null; ga4_api_secret?: string | null };
 export type ReportRow = { source: string; visits: number; enquiries: number; bookings: number; enquiry_rate: number | null; value?: number };
 export type Report = { days: number; since: string; total: { visits: number; enquiries: number; bookings: number }; rows: ReportRow[];

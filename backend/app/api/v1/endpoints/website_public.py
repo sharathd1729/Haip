@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.schemas.website import EnquiryIn, HoldIn, ManageLookupIn, PageViewIn, QuoteIn
+from app.schemas.website import EnquiryIn, HoldIn, ManageLookupIn, PageViewIn, QuoteIn, WaClickIn
+from app.services import google_ads_conversions as gads
 from app.services import website_booking_service as book
 from app.services import website_public_service as pub
 from app.services import website_tracking as track
@@ -143,6 +144,9 @@ def hold(host: str, body: HoldIn, request: Request, db: Session = Depends(get_db
                  guest_id=h.guest_id if h else None, inquiry_id=h.inquiry_id if h else None, hold_id=out["hold_id"],
                  value=out["quote"].get("total") if paying else None, source_url=_page_url(host, body.path),
                  user_agent=request.headers.get("user-agent"), fbp=body.fbp, fbc=body.fbc)
+    if h is not None and h.inquiry_id:
+        from app.models.inquiry import Inquiry
+        gads.stamp(db, db.get(Inquiry, h.inquiry_id), gads.click_from(body), via="website")
     db.commit()
     return {**out, "event_id": event_id, **({} if shown else {"quote": _no_figures(out.get("quote"))})}
 
@@ -178,8 +182,18 @@ def enquiries(host: str, body: EnquiryIn, request: Request, db: Session = Depend
         track.record(db, site, name="Lead", event_id=event_id, guest_id=inq.guest_id if inq else None,
                      inquiry_id=out["inquiry_id"], source_url=_page_url(host, body.path),
                      user_agent=request.headers.get("user-agent"), fbp=body.fbp, fbc=body.fbc)
+        gads.stamp(db, inq, gads.click_from(body), via="website")
     db.commit()
     return {"status": out["status"], "event_id": event_id}
+
+
+@router.post("/sites/{host}/wa-click", status_code=202)
+def wa_click(host: str, body: WaClickIn, db: Session = Depends(get_db)):
+    """A WhatsApp button tap after the visitor accepted the cookie banner: keep code -> Google click ids (Redis, 30 days)
+    so the chat's lead gets them when the guest's first message carries "(Ref ...-<code>)". Always 202."""
+    tenant, _site, _ = _live(db, host)
+    gads.remember_wa_click(tenant.id, body.code, {k: getattr(body, k) for k in gads.CLICK_KEYS if getattr(body, k)})
+    return {"status": "ok"}
 
 
 @router.post("/sites/{host}/manage/lookup")

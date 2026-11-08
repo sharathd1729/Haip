@@ -1144,6 +1144,10 @@ export default function IntegrationsPage() {
       router.push("/dashboard/settings/ivr");
       return;
     }
+    if (provider === "google_data_manager") {   // Google sign-in for booking uploads to Google Ads (Data Manager API)
+      void openOAuth("/websites/google-ads/oauth-start");
+      return;
+    }
     const item = catalog.find(c => c.provider === provider);
     if (!item) return;
     setConnectModal({ provider, name: item.name, authType: item.auth_type, notes: item.notes });
