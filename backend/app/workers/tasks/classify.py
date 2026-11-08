@@ -263,20 +263,7 @@ def classify(self, call_id: str, tenant_id: str):
             judge.delay(call_id=call_id, tenant_id=tenant_id, classification=classification)
         except Exception as chain_exc:
             log.warning("classify_chain_judge_skipped", call_id=call_id, error=str(chain_exc))
-
-        # Leads360: trigger AI summary refresh for the linked inquiry (no debounce for calls)
-        if call.inquiry_id:
-            try:
-                from app.services.leads_service import trigger_summary_refresh
-                trigger_summary_refresh(
-                    db=db,
-                    inquiry_id=str(call.inquiry_id),
-                    tenant_id=tenant_id,
-                    source="call",
-                )
-            except Exception as summary_exc:
-                log.warning("classify_summary_refresh_skipped", call_id=call_id,
-                            error=str(summary_exc))
+        # The lead's summary refresh runs at the END of wrap_up, once the call's own summary/next action exist.
 
     except Exception as exc:
         log.error("classify_failed", call_id=call_id, error=str(exc))

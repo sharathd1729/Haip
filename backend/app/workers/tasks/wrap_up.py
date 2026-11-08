@@ -245,6 +245,15 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         except Exception as _ap_exc:
             log.warning("wrap_up_autopilot_enqueue_failed", call_id=call_id, error=str(_ap_exc)[:200])
 
+        # Leads360: the lead's summary now, with this call's summary and next action in it (it used to run from classify,
+        # before they existed). The summary queues its own autopilot evaluation afterwards.
+        if call.inquiry_id:
+            try:
+                from app.services.leads_service import trigger_summary_refresh
+                trigger_summary_refresh(db=db, inquiry_id=str(call.inquiry_id), tenant_id=tenant_id, source="call")
+            except Exception as _sum_exc:
+                log.warning("wrap_up_summary_refresh_skipped", call_id=call_id, error=str(_sum_exc)[:200])
+
         # Emit SSE event so the frontend cockpit updates in real time
         _emit_sse(tenant_id=tenant_id, event="call_processed", call_id=call_id)
 

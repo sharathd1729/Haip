@@ -121,7 +121,9 @@ def build_context(db: Session, tenant_id: str, inquiry, stages: StageMap) -> tup
             kept.append(line)
             index[ref] = body
         lines.extend(reversed(kept))
-    fingerprint = f"{inquiry.stage_id}:{newest_msg_id}:{calls[0].id if calls else ''}"
+    # "+" once the newest call has its wrap-up: a read made before the call was analysed must not mark that call as seen.
+    newest_call = f"{calls[0].id}{'+' if calls[0].ai_summary or calls[0].ai_insights else ''}" if calls else ""
+    fingerprint = f"{inquiry.stage_id}:{newest_msg_id}:{newest_call}"
     return "\n".join(lines), index, fingerprint
 
 

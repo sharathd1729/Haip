@@ -363,6 +363,30 @@ async def _classify_and_extract(latest_message: str, history=None, known: dict |
     return result.get("tool_use") or {"intent": "general"}
 
 
+_STATED_TRIP_FIELDS = ("check_in", "check_out", "adults", "children", "occasion", "budget")
+
+
+def _persist_stated_details(db, tenant_id: str, inquiry, details: dict) -> None:
+    """What the guest stated this burst (already validated, headcount guest-only) goes onto the enquiry now, through the
+    summary's own write rules (generate_ai_summary._apply_extracted_fields: restated trip fields update, a chat date never
+    overwrites a call date). Best effort: never costs the guest their reply."""
+    from app.core.database import set_tenant_context as _set_ctx
+    from app.workers.tasks.generate_ai_summary import _apply_extracted_fields
+    stated = {k: details[k] for k in _STATED_TRIP_FIELDS if details.get(k) is not None}
+    if not stated:
+        return
+    try:
+        written = _apply_extracted_fields(inquiry, stated)
+        if written:
+            db.commit()                 # committed now: a later rollback in this task must not lose it
+            _set_ctx(db, tenant_id)     # the RLS setting is transaction-local
+            log.info("concierge_trip_fields_saved", inquiry_id=inquiry.id, fields=written)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        _set_ctx(db, tenant_id)
+        log.warning("concierge_trip_fields_save_failed", inquiry_id=getattr(inquiry, "id", None), error=str(exc)[:200])
+
+
 async def _ground_reply(
     db, tenant_id: str, latest_message: str, inquiry,
     history=None, known: dict | None = None, details_out: dict | None = None, property_id: str | None = None,
@@ -1059,6 +1083,8 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             except Exception as exc:
                 log.warning("concierge_grounding_failed", conversation_id=conversation_id, error=str(exc))
                 grounded_facts = []
+        if details and inquiry is not None:
+            _persist_stated_details(db, tenant_id, inquiry, details)
 
         # Capacity is cheap, static tenant data (Property.max_adults), not
         # date-gated like availability -- but _ground_reply() above only
