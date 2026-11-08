@@ -130,6 +130,8 @@ class OpsSettings(Base, TimestampMixin, TenantMixin):
     pack_config = Column(JSON, nullable=True)
     # Staff assistant (ops_staff_assistant, migration 193): NULL/FALSE = off; TRUE = the owner turned it on.
     staff_assistant_enabled = Column(Boolean, nullable=True)
+    # Review request (ops_review_request): NULL = on once its template is approved; TRUE/FALSE = the owner's choice.
+    review_request_enabled = Column(Boolean, nullable=True)
 
 
 class OpsItem(Base, TimestampMixin, TenantMixin):

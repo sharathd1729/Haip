@@ -598,18 +598,35 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
 
     # ── Ops: the guest's answer to the day-2 mid-stay check (ops_midstay_check) ──
     # "1" / "all good" = noted on the stay file, no AI reply; anything else = an ops item, and the AI still answers.
+    midstay_answer = None
     if ticket_answer is None:
         try:
             from app.services import ops_midstay_check
-            if ops_midstay_check.on_guest_message(
+            midstay_answer = ops_midstay_check.on_guest_message(
                 db, tenant.id, guest.id, conversation.id, body, message_id=message.id
-            ) == "positive":
+            )
+            if midstay_answer == "positive":
                 message.automation_outcome = "midstay_check_positive"
                 db.commit()
                 return
         except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
             db.rollback()
             log.warning("ops_midstay_check_reply_failed", tenant_id=tenant.id, error=str(exc)[:200])
+
+    # ── Ops: the guest's answer to the day-after-check-out review request (ops_review_request) ──
+    # Any answer gets thanks + the Google review link (no gating); 1-3 also opens a guest ticket. No AI reply.
+    if ticket_answer is None and midstay_answer is None:
+        try:
+            from app.services import ops_review_request
+            if ops_review_request.on_guest_message(
+                db, tenant.id, guest.id, conversation.id, body, message_id=message.id
+            ):
+                message.automation_outcome = "review_request_answered"
+                db.commit()
+                return
+        except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
+            db.rollback()
+            log.warning("ops_review_request_reply_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
     # ── Lead workflows: "Call me back" on one of our missed-call / no-answer WhatsApps ──
     # A callback task + a short "we'll call you" reply (lead_playbooks.on_callback_tap) instead of an AI answer.

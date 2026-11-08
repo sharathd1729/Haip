@@ -240,6 +240,7 @@ class OpsSettingsPut(BaseModel):
     template_language: str | None = Field(default=None, max_length=10)
     midstay_check_enabled: bool | None = None  # day-2 WhatsApp to the guest (ops_midstay_check)
     staff_assistant_enabled: bool | None = None  # answers staff questions on WhatsApp (ops_staff_assistant), owner only
+    review_request_enabled: bool | None = None  # day-after-check-out "how was it?" (ops_review_request)
 
     @field_validator("sla")
     @classmethod

@@ -7,6 +7,7 @@ guest_pretrip  24 h before, once a driver is set: the guest gets the vehicle, dr
 deposit_nudge  24 h after return with the deposit still held: an ops item for the manager (the roster decides who hears,
                the usual alert template + escalation); it is resolved by itself once the deposit is settled.
 midstay_check  day 2 of a 2+ night stay, caravan and villa (ops_midstay_check, its own guards and reply handling).
+review_request the day after check-out: "how was it? 1-5"; every reply gets the Google review link (ops_review_request).
 
 Staff get plain text while their 24-hour window is open (staff_profiles.last_inbound_at), else the pack's template
 (ops_templates). The guest gets text inside their window (wa_booking_messages.send_guest_text), else the approved template.
@@ -293,6 +294,9 @@ def run_tenant(db: Session, tenant_id: str, now: datetime | None = None) -> list
     from app.services import ops_midstay_check
 
     ops_midstay_check.run_tenant(db, tenant_id, now, tz)
+    from app.services import ops_review_request
+
+    ops_review_request.run_tenant(db, tenant_id, now, tz)
     from app.services import ops_form_c
 
     ops_form_c.run_tenant(db, tenant_id, now)  # check-in date reached with a guest from abroad: Form C due

@@ -28,6 +28,16 @@ SUMMARY_MAX = 1500
 STARS = {"ONE": 1, "TWO": 2, "THREE": 3, "FOUR": 4, "FIVE": 5}
 
 
+def review_url(metadata: Optional[dict]) -> Optional[str]:
+    """The location's "write a review" link: Google's newReviewUri, else built from its placeId, else None."""
+    m = metadata or {}
+    uri = m.get("newReviewUri")
+    if isinstance(uri, str) and uri.startswith("https://"):
+        return uri
+    place = m.get("placeId")
+    return f"https://search.google.com/local/writereview?placeid={place}" if isinstance(place, str) and place.isascii()         and place.replace("-", "").replace("_", "").isalnum() else None
+
+
 def authorize_url(client_id: str, redirect_uri: str, state: str) -> str:
     return AUTH + "?" + urlencode({"client_id": client_id, "redirect_uri": redirect_uri, "response_type": "code",
                                    "scope": SCOPE, "access_type": "offline", "prompt": "consent", "state": state})
@@ -81,8 +91,10 @@ class GoogleBusiness:
     def locations(self) -> list[dict]:
         out = []
         for acct in self._req("GET", ACCOUNTS).get("accounts") or []:
-            data = self._req("GET", f"{INFO}{acct['name']}/locations", params={"readMask": "name,title", "pageSize": 100})
-            out += [{"account": acct["name"], "location": loc["name"], "title": loc.get("title")}
+            data = self._req("GET", f"{INFO}{acct['name']}/locations",
+                             params={"readMask": "name,title,metadata", "pageSize": 100})
+            out += [{"account": acct["name"], "location": loc["name"], "title": loc.get("title"),
+                     "review_url": review_url(loc.get("metadata"))}
                     for loc in data.get("locations") or []]
         return out
 

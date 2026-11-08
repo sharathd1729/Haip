@@ -105,15 +105,12 @@ def _open_conversation(db: Session, tenant_id: str, guest_id: str) -> Conversati
     )
 
 
-def _hold(db: Session, tenant_id: str, stay: Stay, now: datetime, tz) -> str | None:
-    """Why the check may not go now, or None."""
+def guest_hold(db: Session, tenant_id: str, guest) -> str | None:
+    """Why no automatic message may go to this guest at all, or None. Shared with ops_review_request."""
     from app.services import ai_handoff
     from app.services import lead_playbook_guards as guards
     from app.services.sales_agent_service import guest_said_stop
 
-    if stay.status not in LIVE_STAY:
-        return "the booking is cancelled or checked out"
-    guest = stay.guest
     if guest is None:
         return "no guest on the booking"
     problem = guards.phone_problem(db, tenant_id, guest)
@@ -126,6 +123,19 @@ def _hold(db: Session, tenant_id: str, stay: Stay, now: datetime, tz) -> str | N
         return "the guest's chat is on personal WhatsApp"
     if conv is not None and ai_handoff.off_reason(db, tenant_id, conv):
         return "the guest asked for a person (AI is off on this chat)"
+    return None
+
+
+def _hold(db: Session, tenant_id: str, stay: Stay, now: datetime, tz) -> str | None:
+    """Why the check may not go now, or None."""
+    from app.services import lead_playbook_guards as guards
+
+    if stay.status not in LIVE_STAY:
+        return "the booking is cancelled or checked out"
+    why = guest_hold(db, tenant_id, stay.guest)
+    if why:
+        return why
+    guest = stay.guest
     midnight = datetime.combine(now.astimezone(tz).date(), time(0), tzinfo=tz).astimezone(UTC)
     if guards.contacted_since(db, tenant_id, guest.id, midnight):
         return "someone already messaged the guest today"
