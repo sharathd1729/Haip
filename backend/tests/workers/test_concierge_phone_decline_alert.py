@@ -59,7 +59,7 @@ def _run(db, tenant_id, conv_id, message_id, reply_adapter, channel="instagram")
     object the test loaded earlier. A second call in the same test must not
     touch attributes on objects from before the first call."""
     def _fake_get_llm(task):
-        return _FakeIntentLLM() if task == "quick_classify" else reply_adapter
+        return _FakeIntentLLM() if task == "concierge_intent" else reply_adapter
 
     send_target = (
         "app.workers.tasks.send_instagram_dm.send_instagram_dm.delay"

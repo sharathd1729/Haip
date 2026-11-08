@@ -8,6 +8,7 @@ only once this task marks it "done".
 
 import structlog
 from celery import shared_task
+from app.adapters.llm.scope import scoped_task
 from sqlalchemy import or_
 
 from datetime import datetime, timezone
@@ -49,6 +50,7 @@ def _ensure_phrasings(db, entry: KnowledgeEntry) -> None:
 
 
 @shared_task(name="knowledge.embed_entry", bind=True, max_retries=3)
+@scoped_task("knowledge", ref_type="knowledge_entry", ref_arg="entry_id")
 def embed_entry(self, tenant_id: str, entry_id: str):
     """Embed a single entry. Retries on transient failure."""
     db = SessionLocal()
@@ -96,6 +98,7 @@ def _due(entry: KnowledgeEntry, now: datetime, min_age_seconds: int, force: bool
 
 
 @shared_task(name="knowledge.embed_pending")
+@scoped_task("knowledge")
 def embed_pending(tenant_id: str, limit: int = 200, min_age_seconds: int = 0, force: bool = False):
     """Embed every entry for a tenant that is pending or failed.
 

@@ -100,11 +100,23 @@ class ConsentIn(_Strict):
     notice_version: str = Field("website-v1", max_length=40)
 
 
+_CLICK_ID = r"^[A-Za-z0-9_\-]{8,200}$"
+
+
 class _AdIds(_Strict):
     """Meta's browser ids (_fbp / _fbc cookies), present only after the visitor accepted the cookie banner. Sent with the
     server-side event so Meta can match it to the pixel's (website_tracking)."""
     fbp: Optional[str] = Field(None, max_length=200)
     fbc: Optional[str] = Field(None, max_length=200)
+    # GA4: the visitor's banner choice and the client id from their _ga cookie ("<random>.<seconds>"), both read in
+    # the browser; the server Purchase goes to GA4 only when analytics_consent is true (website_tracking.ga4_purchase).
+    analytics_consent: bool = False
+    ga_client_id: Optional[str] = Field(None, pattern=r"^\d{1,20}\.\d{1,20}$")
+    # Google Ads click ids from the landing URL, kept by the site only after Accept; stored on the lead only when
+    # analytics_consent is true (google_ads_conversions.click_from).
+    gclid: Optional[str] = Field(None, pattern=_CLICK_ID)
+    gbraid: Optional[str] = Field(None, pattern=_CLICK_ID)
+    wbraid: Optional[str] = Field(None, pattern=_CLICK_ID)
 
 
 class HoldIn(_AdIds):
@@ -137,12 +149,30 @@ class ManageLookupIn(_Strict):
 
 
 class TrackingIn(_Strict):
-    """Website › Tracking (owner/manager). capi_token: None = keep the stored one, "" = remove it."""
+    """Website › Tracking (owner/manager). capi_token / ga4_api_secret: None = keep the stored one, "" = remove it."""
     pixel_id: Optional[str] = Field(None, pattern=r"^\d{6,20}$")
     ga4_id: Optional[str] = Field(None, pattern=r"^G-[A-Z0-9]{4,15}$")
     capi_enabled: bool = False
     capi_token: Optional[str] = Field(None, max_length=400)
     capi_test_code: Optional[str] = Field(None, pattern=r"^[A-Z0-9]{3,20}$")
+    ga4_api_secret: Optional[str] = Field(None, max_length=200)   # GA4 Measurement Protocol secret; None keep, "" remove
+    # Google Ads (website growth #5): browser tag id + labels (enquiry, begin checkout) and the booking upload
+    # (customer id, optional manager/login customer id, "Import from clicks" conversion action id), google_ads_conversions.
+    gads_id: Optional[str] = Field(None, pattern=r"^AW-\d{6,15}$")
+    gads_enquiry_label: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9_\-]{4,40}$")
+    gads_checkout_label: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9_\-]{4,40}$")
+    gads_customer_id: Optional[str] = Field(None, pattern=r"^\d{10}$")
+    gads_login_customer_id: Optional[str] = Field(None, pattern=r"^\d{10}$")
+    gads_booking_action_id: Optional[str] = Field(None, pattern=r"^\d{1,20}$")
+    gads_upload_enabled: bool = False
+
+
+class WaClickIn(_Strict):
+    """A WhatsApp button tap on the site: the 8-letter code the site added to its Ref + the click ids (after Accept)."""
+    code: str = Field(pattern=r"^[A-Z0-9]{8}$")
+    gclid: Optional[str] = Field(None, pattern=_CLICK_ID)
+    gbraid: Optional[str] = Field(None, pattern=_CLICK_ID)
+    wbraid: Optional[str] = Field(None, pattern=_CLICK_ID)
 
 
 class PromoIn(_Strict):

@@ -33,13 +33,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # provider-specific dialect to the canonical ToolSpec shape rendered
     # per-provider by adapters/llm/tools.py -- same semantic fields, but the
     # code path producing a stored/logged result is genuinely different now.
-    "call_classify":   "call-classify-v2",      # classify.jinja
-    # v3 (2026-10-18): missed_revenue items say what was missed and quote the evidence; est_value only when a figure
-    # was stated on the call (null otherwise) -- the old free estimate read as fact.
-    "call_judge":      "call-judge-v3",         # judge.jinja
-    # v5 (2026-10-18): actionable output (services/ai_actionable.py) + outcome/decline_reason/decline_quote that the
-    # lead autopilot reads. Stored in calls.ai_insights; summary/next_action/disposition unchanged.
-    "call_wrap_up":    "call-wrap-up-v5",       # wrap_up.jinja
+    # v6 (2026-11-08, AI cost audit): classify (call-classify-v2) + judge (call-judge-v3) + wrap-up (call-wrap-up-v5)
+    # merged into ONE tool call; the rubric/auto-fail rules and the wrap-up/actionable wording are unchanged.
+    # call_scores.analysis_version stores this string (one score row per call per version).
+    "call_analysis":   "call-analysis-v6",      # call_analysis.jinja
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied
@@ -96,7 +93,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # AUTOMATED MESSAGE / CAMPAIGN BROADCAST); a campaign broadcast is never the guest's request.
     # v19 (2026-11-04): a knowledge snippet about one property says which ("about Ratha 1 only").
     # v20 (2026-11-04): published records show km per day, at-cost items, best months, notes, km per stop, day stops.
-    "concierge_reply": "concierge-reply-v20",   # concierge_reply.jinja
+    # v21 (2026-11-08): caching layout, same rules: rules first (cached system prompt), the guest's data and per-message
+    # lines after <<<CONCIERGE_CONTEXT>>> (the user message; concierge_draft.split_prompt).
+    "concierge_reply": "concierge-reply-v21",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja
@@ -157,6 +156,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     "analyst_followup": "analyst-followup-v2",
     # AI Executive (services/chief/explain.py): why a code-detected finding matters + the next step, grounded on its numbers.
     "chief_explain": "chief-explain-v1",
+    # Staff assistant on WhatsApp (ops_staff_assistant): answers a staff question from their own facts only.
+    "staff_assistant": "staff-assistant-v1",
     # Lead workflows follow-up draft (lead_followup_draft.py): one short follow-up a person approves; never a price.
     # v2 (2026-10-22): the owner's follow-up style from the sales playbook is added to the user message when set.
     "lead_followup_draft": "lead-followup-draft-v2",
@@ -197,7 +198,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.
     "marketing_review_reply": "marketing-review-reply-v1",
     # Agency M7: OTA listing copy drafts (marketing_reputation); a person pastes them into the OTA.
-    "marketing_ota_copy": "marketing-ota-copy-v2",
+    "marketing_ota_copy": "marketing-ota-copy-v3",  # v3: Agoda (Get found S2)
+    "sop_generate": "sop-generate-v2",  # v2: OTA/Facebook/TripAdvisor + offer names           # services/sops/generate.py SYSTEM (Get found profile texts)
     # Studio plan phase 1: creative tags from a post's / ad's own text (marketing_tagging) and the weekly Insights
     # report's plain-English lines over code-computed facts (marketing_insights_report).
     "marketing_tagging": "marketing-tagging-v1",
@@ -209,6 +211,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_deck": "marketing-strategy-deck-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
+    # Website SEO agency (website_seo_agency): weekly search brief + creator / partner outreach messages (a person sends).
+    "seo_brief": "seo-brief-v1",
+    "seo_outreach": "seo-outreach-v1",
 }
 
 UNKNOWN = "unregistered"
@@ -229,7 +234,7 @@ def stamp(prompt_key: str, model: Optional[str] = None, **extra: Any) -> dict[st
     """
     Build the provenance fields for a structured log line or audit payload.
 
-        log.info("call_classified", call_id=call.id, **stamp("call_classify", model))
+        log.info("call_classified", call_id=call.id, **stamp("call_analysis", model))
 
     Keeping this in one helper means every AI call site emits the same field
     names, so results stay filterable by prompt version across all of them.

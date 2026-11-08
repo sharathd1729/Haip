@@ -1,18 +1,13 @@
-"""Actionable AI output (services/ai_actionable.py) in the two analyses: call wrap-up v5 (calls.ai_insights), lead
+"""Actionable AI output (services/ai_actionable.py) in the two analyses: call analysis v6 (calls.ai_insights), lead
 summary v8 (inquiries.ai_analysis). Mocked LLM JSON shaped like real Ratha answers, including
 malformed output, which must degrade to empty fields -- never a crash, never an invented rupee figure."""
 import json
-import uuid
-from unittest.mock import patch
-
-from sqlalchemy.orm import Session as SASession
 
 from app.core.prompt_versions import get_version
-from app.models.call import Call, CallDirection
-from app.models.tenant import Tenant
+from app.models.call import Call
 from app.services import ai_actionable as aa
 from app.workers.tasks import generate_ai_summary as gas
-from app.workers.tasks import wrap_up as wrap_up_module
+from tests.workers import call_analysis_harness as h
 
 KIRAN = {
     "next_best_action": {"action": "Call Kiran: confirm 24-25 Oct for 4 adults, offer the Coorg route as fallback",
@@ -56,58 +51,30 @@ class TestCleaner:
             "Call Kiran: confirm 24-25 Oct for 4 adults, offer the Coorg route as fallback (call, today before 6 PM)"
 
 
-def _call(db):
-    t = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth")
-    db.add(t)
-    db.commit()
-    c = Call(id=str(uuid.uuid4()), tenant_id=t.id, ivr_provider="vobiz", ivr_call_id=f"c-{uuid.uuid4().hex[:8]}",
-             direction=CallDirection.OUTBOUND, from_number="+912271264296", to_number="+919845012345", duration_seconds=240)
-    db.add(c)
-    db.commit()
-    return t, c
+def _run_analysis(db, tool_use):
+    t = h.tenant(db)
+    c = h.call(db, t.id)
+    llm = h.ScriptedLLM(tool_use)
+    fx = h.run(db, t.id, c.id, llm)
+    return db.get(Call, c.id), llm.calls[0][1], fx.autopilot
 
 
-def _run_wrap_up(db, t, c, tool_use):
-    captured = {}
-
-    class _LLM:
-        async def complete(self, **kw):
-            captured.update(kw)
-            return {"tool_use": tool_use, "model": "fake"}
-    with patch.object(wrap_up_module, "get_llm", return_value=_LLM()), \
-         patch.object(wrap_up_module, "SessionLocal", return_value=SASession(bind=db.connection())), \
-         patch("app.services.lead_autopilot_service.queue_evaluation") as queued, \
-         patch.object(wrap_up_module, "_emit_sse"):
-        wrap_up_module.wrap_up.run(call_id=c.id, tenant_id=t.id)
-    db.refresh(c)
-    return c, captured, queued
-
-
-class TestWrapUpV5:
+class TestCallAnalysisV6:
     def test_insights_are_stored_and_the_autopilot_is_queued(self, db):
-        t, c = _call(db)
-        c, captured, queued = _run_wrap_up(db, t, c, {
-            "summary": "Kiran wants Coorg 24-25 Oct for 4 adults; price feels high.", "suggested_disposition": "hot",
-            "next_action": "", "confidence": 0.82, "outcome": "negotiating", **KIRAN})
+        c, captured, queued = _run_analysis(db, h.answer(
+            summary="Kiran wants Coorg 24-25 Oct for 4 adults; price feels high.", suggested_disposition="hot",
+            next_action="", confidence=0.82, outcome="negotiating", **KIRAN))
         assert c.ai_insights["outcome"] == "negotiating" and c.ai_insights["decline_reason"] is None
         assert c.ai_insights["next_best_action"]["deadline"] == "today before 6 PM"
         assert c.ai_next_action.startswith("Call Kiran: confirm 24-25 Oct")       # filled from next_best_action
         assert "next_best_action" in captured["system_prompt"] and "outcome" in captured["system_prompt"]
-        queued.assert_called_once()
+        assert len(queued) == 1
 
     def test_a_decline_keeps_its_reason_and_quote(self, db):
-        t, c = _call(db)
-        c, _, _ = _run_wrap_up(db, t, c, {"summary": "Declined.", "suggested_disposition": "lost", "next_action": "None",
-                                          "outcome": "declined", "decline_reason": "booked_elsewhere",
-                                          "decline_quote": "We already booked another caravan", "confidence": 0.9})
-        assert (c.ai_insights["decline_reason"], c.ai_insights["decline_quote"], c.ai_insights["confidence"]) == \
-               ("booked_elsewhere", "We already booked another caravan", 0.9)
-
-    def test_an_old_shaped_answer_still_works(self, db):
-        t, c = _call(db)
-        c, _, _ = _run_wrap_up(db, t, c, {"summary": "Short call.", "suggested_disposition": "callback",
-                                          "next_action": "Call back tomorrow"})
-        assert c.ai_insights is None and c.ai_next_action == "Call back tomorrow"
+        c, _, _ = _run_analysis(db, h.answer(summary="Declined.", suggested_disposition="lost", next_action="None",
+                                             outcome="declined", decline_reason="booked_elsewhere",
+                                             decline_quote="We already booked another caravan", confidence=0.9))
+        assert (c.ai_insights["decline_reason"], c.ai_insights["decline_quote"], c.ai_insights["confidence"]) ==                ("booked_elsewhere", "We already booked another caravan", 0.9)
 
 
 class TestLeadSummaryV8:
@@ -127,4 +94,4 @@ class TestLeadSummaryV8:
     def test_prompt_asks_for_the_block_and_is_versioned(self):
         assert '"next_best_action"' in gas.SYSTEM_PROMPT and "__ACTIONABLE__" not in gas.SYSTEM_PROMPT
         assert get_version("leads360_summary") == "leads360-summary-v10"
-        assert get_version("call_wrap_up") == "call-wrap-up-v5" and get_version("call_judge") == "call-judge-v3"
+        assert get_version("call_analysis") == "call-analysis-v6"

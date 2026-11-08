@@ -390,6 +390,11 @@ the older blocks stay in the payload for other readers.
 | D-30 | (23 Oct 2026) **By check-in month**: guest enquiries grouped by the month of `inquiries.check_in` (string; unreadable = skipped and counted, never guessed); valid = D-28; won / lost = the closed stage they are in NOW (a lead lost in October for a December trip counts in December); lost reasons = confirmed `outcome_reason`, else the older `lost_reason` mapped, never an unconfirmed AI proposal; booked revenue = booked value (D-24: rental + add-ons) of live bookings by CHECK-IN month, `revenue.read` only. Enquiries with no check-in date are one row, "Date not given yet" (created in the last 90 days or since the window's first month). |
 | D-31 | (4 Nov 2026, Shrii health check: Home said 9 follow-ups, My day's Follow-ups chip 72) **Follow-ups are counted as PEOPLE, from one place**: `work_queue_service.build()["followup_people"]`, deduped like `people_waiting` (guest, else the task itself). `all` = My day's Follow-ups chip and list (everyone with an open follow-up task, any lead, including gone-cold ones); `open_lead_due` = Home's "Follow-ups overdue" card (follow-up on an open valid-stage lead, not gone cold). `counts["followup"]` stays task rows for scripts. **OWNER TO CONFIRM**: should Home's card count the same people as My day (all follow-ups), or keep the narrower "active leads, not cold" scope it says on the card? Until answered the two scopes stay, each labelled. |
 | D-32 | (7 Nov 2026, Interlink & Simplicity Audit #3; Ratha executive dashboard read 3 properties and 7.4% SLA) **Occupancy capacity = real vehicles / properties only.** The "Unassigned" holder (`vehicle_pool.is_placeholder_name`) is overflow, never capacity: left out of the executive occupancy denominator and heatmap (Home's caravans block lists it only while it holds a booking). Bookings on it still count as occupied nights for the business, and the percentage is capped at 100. **The executive "SLA" card measures replies by a PERSON** within `SLA_MINUTES["new_lead"][0]` (15 min), AI replies not counted, and is labelled that way (`labels.sla_compliance_pct`); the metric itself is unchanged. **OWNER TO CHOOSE**: (a) keep it human-only under that label (current), or (b) count an autonomous AI reply as on time (would read close to 100% for Ratha and hide whether a person ever followed up). Until answered, (a). |
+| D-33 | (8 Nov 2026, Ops gap 2) **Review rate and rating = HAIP's own post-stay ask.** Rating rate = stays answered with 1-5 ÷ stays asked (asked = sent), average stars over those answers. **No review gating** (Google policy): every guest who answers gets the same Google review link whatever they rated; a 1-3 also opens a guest ticket. Google reviews cannot be tied to a stay (Google gives a display name only and identity is never matched on names), so "Google reviews per stay asked" is reviews dated in the window ÷ stays asked in the window, labelled as such. |
+| D-34 | (8 Nov 2026, website growth #6/#7) **Google visibility = Business Profile impressions + Search Console impressions**, shown apart and as a sum labelled "appearances": one search can show both the profile and the website, so the sum is not people. Search Console uses the date totals (Google drops rare queries from query rows). |
+| D-35 | (8 Nov 2026) **Google actions = profile website clicks + call clicks + direction requests + messaging clicks + search-result clicks.** Each part is shown; none is counted as an enquiry or a lead (those stay `lead_metrics`). |
+| D-36 | (8 Nov 2026) **Money search position = impression-weighted average position** of the owner's picked searches over Search Console query rows. Rows are capped at 1,000 per day, so a day the search fell outside the cap is unknown (left out), never position 0 or 100. |
+| D-37 | (8 Nov 2026, website growth #10) **Speed = Google's real-visitor verdict** (PageSpeed Insights CrUX p75, last 28 days), phones first; when the page has too few visits the whole site's verdict is used and labelled. The lab score and HAIP's static check (`website_quality`) are other numbers, each shown under its own name, never merged. |
 
 (The open questions numbered D-22 / D-23 in `OWNER_DASHBOARD_AUDIT.md` were renumbered D-25 / D-26 so the ids stay unique.)
 
@@ -438,6 +443,62 @@ received -> contacted -> proposal -> sold and per-owner speeds: section 16). New
 
 Change detection: rates by two-proportion z-test, counts by a Poisson difference, p < 0.05; fewer than 30 cases (10 events)
 on either side = "too few to judge", never called a change. Rupee impact is an estimate (see findings.py), always labelled.
+
+## 18. Guest reviews after the stay  *(8 Nov 2026, D-33)*
+
+`kpi_metrics.review_request_results(db, tenant, start, end)`; the asks come from `ops_review_request` (Ops, the day after
+check-out). Not shown on a screen yet: Ops today and the owner brief read it later.
+
+| Metric | Definition |
+|---|---|
+| Stays asked | `ops_auto_messages` rows kind `review_request`, status sent, `sent_at` in the window (one per stay, ever). |
+| Rating rate | asked stays whose first answer was a 1-5 rating (`response` "1"-"5") ÷ stays asked; None when nothing was asked. Word answers are counted apart as `feedback`. |
+| Average stars | mean of those ratings; None with no rating. |
+| Google reviews per stay asked | Google reviews synced into `marketing_guest_reviews` (source google) with `reviewed_at` in the window ÷ stays asked. Window-level, NOT traced per stay (D-33). |
+
+## 19. Google surfaces: visibility, actions, money searches, speed  *(8 Nov 2026)*
+
+Owner: `services/google_metrics.py` (the only definition; the website report's `google` block, `GET /websites/google`
+and the launch report read it). Sources, pulled through official APIs only (`google_surfaces_sync`): Business Profile
+Performance API (`gbp_daily_metrics`), Search Console search analytics (`gsc_daily_totals`, `gsc_search_rows`, rows
+capped at 1,000 per day), PageSpeed Insights (`pagespeed_runs`). Period = workspace (IST) days ending **yesterday**
+(Google reports 2-3 days late; `data_through` says how far each source goes); the previous period is the same length
+before it. No row in a period = `None` ("No data", never 0); a change is shown only against a non-zero previous value.
+
+| Metric | Definition | Evidence |
+|---|---|---|
+| `google.visibility` (Seen on Google) | Business Profile impressions (Search + Maps, mobile + desktop: the 4 `BUSINESS_IMPRESSIONS_*` metrics) and Search Console impressions (date totals, not the capped query rows), each shown, plus their sum (D-34) | T |
+| `google.actions` (Google actions) | Business Profile `WEBSITE_CLICKS` + `CALL_CLICKS` + `BUSINESS_DIRECTION_REQUESTS` + `BUSINESS_CONVERSATIONS` (messaging clicks) + Search Console clicks (D-35) | T |
+| `google.money_query_position` | per owner-picked search (max 10, lower-cased exact match): impression-weighted mean position over the stored query rows in the period; previous period the same way; weekly trend for 8 weeks (D-36) | T |
+| `google.speed` | latest measured week, per page (home + top 3 stay pages by website visits), mobile first: CrUX p75 field verdict FAST / AVERAGE / SLOW (page, else whole site, flagged), LCP / INP / CLS p75; lab Lighthouse performance score shown apart (D-37) | T |
+
+## 20. Operations: how operations are doing  *(8 Nov 2026, ops gap 10; shared; evidence T)*
+
+`GET /ops/files/metrics?days=7..90` (owner/manager + `ops.read`), the "How operations are doing" block on Ops Today and
+the owner brief's operations lines all read `services/ops_metrics.py` (`build` / `last_days`). Period = IST calendar
+days; every metric is overall and per unit (`by_property`). Tests: `tests/services/test_ops_metrics.py`.
+
+| Metric | Definition |
+|---|---|
+| `ops.time_to_acknowledge` | D-39. Ops items opened in the period, median + p90 minutes to the first Acknowledge, by severity. |
+| `ops.time_to_resolve` | D-39. Opened -> fixed, median + p90 by severity; guest tickets by the guest's yes. |
+| `ops.issues_per_10_stays` | D-40. Issues opened in the period per 10 stays checking in, per unit, plus repeated checklist failures. |
+| `ops.ready_on_time` | D-41. Readiness gate green at the check-in moment. |
+| `ops.paperwork_before_arrival` | D-42. Guest form sent AND paid in full before the check-in moment. |
+| `ops.addon_revenue_per_stay` | D-43. Paid add-ons / stays; "No data" while the workspace never had add-ons. |
+| `ops.in_stay_reply` | D-44. Guest turns during a stay answered inside the work queue's `reply` SLA. |
+| Review rate and rating | D-45. Not shown: post-stay review requests ("Ops 3b") are not merged. |
+
+| Id | Decision |
+|---|---|
+| D-38 | (8 Nov 2026) **Which stays the ops metrics judge.** Stays checking in inside the period (IST). Left out: cancelled stays, stays on the "Unassigned" placeholder unit (`vehicle_pool.placeholder_ids`, D-32) and comp stays = creator barter stays (`channel_source = "creator"`, amount 0, section M7). Ops items on the placeholder unit are left out too. "Before check-in" = the check-in moment: the check-in date at the stay's `check_in_time` (pickup), else 12:00 IST; a stay is judged only once that moment has passed. Ready on time and paperwork need an ops file (businesses with an ops pack). Empty = None ("No data"), never 0 or 100%. |
+| D-39 | (8 Nov 2026) **Ticket times.** Every ops item that was not cancelled, opened in the period (`created_at`, IST). Acknowledge = `acknowledged_at` (the Acknowledge tap; resolving an item nobody acknowledged stamps it, so that counts); the clock starts when the alert could first go out, i.e. after a quiet-hours / morning hold (`dispatch_after`). Not yet acknowledged = counted apart. Resolve: a guest ticket (source guest_chat / service_request with a guest) is fixed at the guest's YES (`guest_confirmed` event, PR #141); one closed without the guest's answer (24 h timeout, or the question could not be sent) is counted apart and not timed; any other item is fixed when a person resolved it (`resolved_at`). Median and p90 (linear interpolation, as `impact_metrics.percentile`). |
+| D-40 | (8 Nov 2026) **Issues per 10 stays.** Ops items opened in the period that are tied to a unit (its own `property_id`, else its stay's unit), not cancelled, and not the scheduled paperwork reminders (`category` deposit, form_c), x 10 / stays checking in in the period (D-38), overall and per unit. Repeats = the same checklist item (by key) on the same unit failing 2+ times across the period's stays: red now, or a staff photo the AI check said was not fine. A fixed item that turned green again leaves no trace, so repeats are a floor. |
+| D-41 | (8 Nov 2026) **Ready on time.** Of the stays judged (D-38) with an ops file: the last readiness-gate event on the file's timeline at or before the check-in moment says green ("Every critical check is green", written by `ops_trip_service.refresh` / `ops_stay_service.refresh`); no gate event before it = not ready. |
+| D-42 | (8 Nov 2026) **Paperwork before arrival.** Of the stays judged with an ops file: the guest form was submitted before the check-in moment AND payments dated on or before the check-in day (refunds subtracted) cover the rental + the add-ons added before the check-in moment. A booking with nothing to pay is judged on the form alone. The security deposit is not part of it. |
+| D-43 | (8 Nov 2026) **Add-on revenue per stay** = add-ons (`stay_addons`, quantity x unit price) on stays that are fully paid now (`booking_service.financials_for` outstanding 0), divided by all stays checking in in the period (D-38). The caravan "Extra distance" line is a charge for the trip, not an add-on, and is left out. "Live" = the workspace has an add-on catalogue entry or ever sold an add-on; not live = None ("No data"), never Rs 0. |
+| D-44 | (8 Nov 2026) **In-stay reply time.** Guest turns (`replies.first_response`'s rule, `impact_metrics.guest_turns`: a turn starts at a guest message after our reply or 24 h of silence; turns under 60 min old are not judged) that started while one of the guest's stays (D-38) was on (check-in day to check-out day, IST). On time = the reply came while `work_queue_service.severity_for("reply", ...)` was still `fresh` (the work queue's own SLA, no second rule); unanswered = late. AI replies count, as they do for the queue. |
+| D-45 | (8 Nov 2026) **Review rate and rating are not shown yet.** They wait for the post-stay review requests ("Ops 3b"); the API returns `reviews.available = false` with a note. **OWNER TO CONFIRM** when that lands: whether a review counts by the stay's check-out month. |
 
 ## 13. Decisions needed (none is assumed)
 

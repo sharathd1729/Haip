@@ -99,7 +99,7 @@ class Scripted:
 
             async def complete(self, **kwargs):
                 outer.calls.append(task)
-                if task == "quick_classify":
+                if task == "concierge_intent":
                     return {"tool_use": {"intent": "booking_status"}}
                 return {"tool_use": {"reply": "Great, I'll check the weekend for you now.", "confidence": 0.9,
                                      "citations": [], "needs_human": False}}

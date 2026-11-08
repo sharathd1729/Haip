@@ -1,12 +1,12 @@
 """
 One-off backfill: re-run call classification for already-transcribed calls
-whose guest is still unnamed, so the newly-added guest_name extraction in
-classify.py (see workers/tasks/classify.py) gets a chance to pick up a
-name from transcripts that were classified before that field existed.
+whose guest is still unnamed, so the guest_name extraction in the call
+analysis (workers/tasks/call_analysis.py, one AI call per call: it also
+re-scores and re-writes the wrap-up) gets a chance to pick up a name.
 
-Safe to re-run: classify() only ever writes Guest.name when it's
+Safe to re-run: the analysis only ever writes Guest.name when it's
 currently empty or "Unknown Guest" (never overwrites a real name), and
-re-classifying is otherwise idempotent (same fields recomputed).
+keeps one call_scores row per call per prompt version.
 
 Usage (inside the API container, against production):
     docker compose -f docker-compose.prod.yml exec api \
@@ -21,7 +21,7 @@ from app.core.database import SessionLocal
 from app.models.call import Call
 from app.models.guest import Guest
 from app.models.tenant import Tenant
-from app.workers.tasks.classify import classify
+from app.workers.tasks.call_analysis import analyze_call
 
 UNNAMED = [None, "", "Unknown Guest"]
 
@@ -64,7 +64,7 @@ def main():
             print(f"  call_id={call.id} guest_id={guest.id}")
             if args.dry_run:
                 continue
-            classify.delay(call_id=call.id, tenant_id=call.tenant_id)
+            analyze_call.delay(call_id=call.id, tenant_id=call.tenant_id)
             dispatched += 1
 
         if args.dry_run:

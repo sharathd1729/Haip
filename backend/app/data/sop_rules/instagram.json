@@ -1,0 +1,20 @@
+[
+  {
+    "key": "ig.bio_max",
+    "platform": "instagram",
+    "kind": "text_limit",
+    "value": 150,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "Commonly quoted bio length. Not yet checked against Instagram's own help pages."
+  },
+  {
+    "key": "ig.highlights",
+    "platform": "instagram",
+    "kind": "advice",
+    "value": ["How to book", "Reviews", "The place", "Questions"],
+    "status": "haip_advice",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP advice: the highlights a guest looks for before messaging. Not an Instagram rule."
+  }
+]

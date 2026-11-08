@@ -15,6 +15,7 @@ Never retried automatically: the next scheduled run picks up anything left; a fa
 """
 import structlog
 from celery import shared_task
+from app.adapters.llm.scope import scoped_task
 
 from app.core.database import SessionLocal
 
@@ -102,6 +103,7 @@ def queue_reads(tenant_id: str):
 
 
 @shared_task(name="marketing_research.read_video")
+@scoped_task("marketing_studio", ref_type="competitor_post", ref_arg="post_id")
 def read_video(tenant_id: str, post_id: str):
     from app.models.tenant import Tenant
     from app.services import marketing_video_read as reader

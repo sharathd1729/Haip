@@ -14,8 +14,16 @@ Server side: a `website_events` row per event, only while CAPI is on with a pixe
 guest's latest MARKETING consent is granted (same rule as marketing_capi: sharing with Meta for ads is marketing),
 else `skipped` and nothing about the guest leaves HAIP. Consent is re-checked at send. Identifiers are hashed
 (marketing_capi.user_data); fbp/fbc only exist when the visitor accepted the banner. Beat `website.send_events` sends.
+
+GA4 server purchase (Measurement Protocol): with a GA4 id + the owner's API secret (Fernet in `sites.ga4_secret_enc`,
+never returned or logged), a paid website booking also gets a row "ga4:stay:<id>" sent to GA4 as `purchase` with
+transaction_id "stay:<id>" = the browser's, so GA4 counts it once even when the guest never comes back from Razorpay.
+Only when the visitor accepted the cookie banner (`booking_holds.analytics_consent`, set at checkout); client_id = the
+_ga cookie's, else one HAIP generates (GA4 then sees a new user for that purchase). Value = the hold total in INR (GST
+included; a security deposit is never part of it). Fixed host, no redirects; failures back off (5, 10, 20, 40 min).
 """
 
+import secrets
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -30,13 +38,17 @@ from app.core.encryption import decrypt_credentials, encrypt_credentials
 from app.models.guest import Guest
 from app.models.tenant import Tenant
 from app.models.website import Site, WebsiteEvent
-from app.services import marketing_capi
+from app.services import google_ads_conversions, marketing_capi
 
 log = structlog.get_logger()
 
 WINDOW = timedelta(days=7)
 BATCH = 100
 MAX_TRIES = 5
+GA4_URL = "https://www.google-analytics.com/mp/collect"  # fixed: nothing a person types reaches the URL (no SSRF)
+GA4_WINDOW = timedelta(hours=72)  # Measurement Protocol drops events timestamped more than 72 h back
+GA4_BACKOFF = timedelta(minutes=5)
+GA4_PREFIX = "ga4:"
 
 
 def _now() -> datetime:
@@ -51,13 +63,20 @@ def settings_out(site: Site) -> dict:
         "capi_enabled": bool(t.get("capi_enabled")),
         "capi_test_code": t.get("capi_test_code"),
         "has_capi_token": bool(site.capi_token_enc),
+        "has_ga4_api_secret": bool(site.ga4_secret_enc),
+        "ga4_server": ga4_on(site),
+        **google_ads_conversions.tracking_settings(site),
     }
 
 
 def public(site: Site) -> dict:
-    """What the guest's browser may know: the two public ids (empty = no banner, nothing loads)."""
+    """What the guest's browser may know: the public ids + Google Ads conversion labels (empty = no banner)."""
     t = site.tracking or {}
-    return {k: t[k] for k in ("pixel_id", "ga4_id") if t.get(k)}
+    out = {k: t[k] for k in ("pixel_id", "ga4_id") if t.get(k)}
+    if t.get("gads_id"):
+        out["gads"] = {"id": t["gads_id"], **{k: t[f"gads_{k}_label"] for k in ("enquiry", "checkout")
+                                              if t.get(f"gads_{k}_label")}}
+    return out
 
 
 def update(db: Session, site: Site, body, *, actor_id: str) -> dict:
@@ -67,10 +86,15 @@ def update(db: Session, site: Site, body, *, actor_id: str) -> dict:
         "ga4_id": body.ga4_id,
         "capi_enabled": body.capi_enabled,
         "capi_test_code": body.capi_test_code,
+        **{k: getattr(body, k) for k in ("gads_id", "gads_enquiry_label", "gads_checkout_label", "gads_customer_id",
+                                         "gads_login_customer_id", "gads_booking_action_id", "gads_upload_enabled")},
     }
     if body.capi_token is not None:
         token = body.capi_token.strip()
         site.capi_token_enc = encrypt_credentials({"token": token}).decode() if token else None
+    if body.ga4_api_secret is not None:
+        secret = body.ga4_api_secret.strip()
+        site.ga4_secret_enc = encrypt_credentials({"secret": secret}).decode() if secret else None
     after = settings_out(site)
     append_audit(
         db,
@@ -207,6 +231,8 @@ def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Callable | None 
             WebsiteEvent.site_id == site.id,
             WebsiteEvent.status.in_(("pending", "failed")),
             WebsiteEvent.tries < MAX_TRIES,
+            ~WebsiteEvent.event_id.startswith(GA4_PREFIX),
+            ~WebsiteEvent.event_id.startswith(google_ads_conversions.PREFIX),
         )
         .order_by(WebsiteEvent.created_at.asc())
         .limit(BATCH)
@@ -278,6 +304,8 @@ def recent(db: Session, site: Site, limit: int = 30) -> list[dict]:
     )
     return [
         {
+            "channel": "ga4" if r.event_id.startswith(GA4_PREFIX)
+            else "google_ads" if r.event_id.startswith(google_ads_conversions.PREFIX) else "meta",
             "event_name": r.event_name,
             "status": r.status,
             "reason": r.reason,
@@ -286,3 +314,159 @@ def recent(db: Session, site: Site, limit: int = 30) -> list[dict]:
         }
         for r in rows
     ]
+
+
+# ─── GA4 Measurement Protocol (server purchase) ───────────────────────────────────────────────────────
+
+
+class Ga4Error(Exception):
+    pass
+
+
+def ga4_on(site: Site) -> bool:
+    return bool((site.tracking or {}).get("ga4_id") and site.ga4_secret_enc)
+
+
+def _ga4_secret(site: Site) -> str | None:
+    if not site.ga4_secret_enc:
+        return None
+    try:
+        return decrypt_credentials(site.ga4_secret_enc.encode()).get("secret") or None
+    except Exception:  # noqa: BLE001 -- a key rotation without re-entry: treat as no secret, logged
+        log.error("website_ga4_secret_unreadable", tenant_id=site.tenant_id, site_id=site.id)
+        return None
+
+
+def new_client_id() -> str:
+    """GA4's own shape "<random>.<seconds>", for a consenting visitor whose _ga cookie did not reach us."""
+    return f"{secrets.randbelow(2**31)}.{int(_now().timestamp())}"
+
+
+def ga4_purchase(db: Session, site: Site, hold, stay) -> WebsiteEvent | None:
+    """Queue the GA4 server purchase for a paid hold (no row when GA4 server sending is off). Idempotent per stay."""
+    if not ga4_on(site):
+        return None
+    ok = bool(hold.analytics_consent)
+    event_id = f"{GA4_PREFIX}stay:{stay.id}"
+    row = WebsiteEvent(
+        tenant_id=site.tenant_id,
+        site_id=site.id,
+        event_name="purchase",
+        event_id=event_id,
+        guest_id=hold.guest_id,
+        inquiry_id=hold.inquiry_id,
+        hold_id=hold.id,
+        value=Decimal(str(hold.total)),
+        currency="INR",
+        ga_client_id=(hold.ga_client_id or new_client_id()) if ok else None,
+        status="pending" if ok else "skipped",
+        reason=None if ok else "no analytics consent",
+    )
+    try:
+        with db.begin_nested():
+            db.add(row)
+    except IntegrityError:
+        return db.query(WebsiteEvent).filter_by(tenant_id=site.tenant_id, event_id=event_id).first()
+    return row
+
+
+def _aware(d: datetime) -> datetime:
+    return d if d.tzinfo else d.replace(tzinfo=UTC)
+
+
+def _ga4_body(row: WebsiteEvent) -> dict:
+    return {
+        "client_id": row.ga_client_id,
+        "timestamp_micros": int(_aware(row.created_at).timestamp() * 1_000_000),
+        "consent": {"ad_user_data": "GRANTED", "ad_personalization": "GRANTED"},  # rows exist only after "Accept"
+        "events": [
+            {
+                "name": "purchase",
+                "params": {
+                    "transaction_id": row.event_id[len(GA4_PREFIX) :],  # "stay:<id>", the browser event's id
+                    "value": float(row.value or 0),
+                    "currency": row.currency or "INR",
+                },
+            }
+        ],
+    }
+
+
+def _ga4_post(measurement_id: str, secret: str, body: dict) -> None:
+    import httpx
+
+    resp = httpx.post(
+        GA4_URL,
+        params={"measurement_id": measurement_id, "api_secret": secret},
+        json=body,
+        timeout=10,
+        follow_redirects=False,
+    )
+    if resp.status_code >= 300:
+        raise Ga4Error(f"GA4 answered {resp.status_code}")
+
+
+def _ga4_due(row: WebsiteEvent, now: datetime) -> bool:
+    if row.status == "pending":
+        return True
+    return now >= _aware(row.updated_at) + GA4_BACKOFF * (2 ** max(row.tries - 1, 0))
+
+
+def send_ga4_tenant(db: Session, tenant: Tenant, *, post: Callable | None = None) -> dict:
+    """Beat `website.send_events`: this tenant's due GA4 rows, one request each (MP takes one client per call).
+    A failure's reason is the error class or status only: the request URL carries the API secret."""
+    from app.services.website_service import get_site
+
+    site = get_site(db, tenant.id)
+    if site is None or not ga4_on(site):
+        return {"sent": 0, "skipped": "off"}
+    now = _now()
+    rows = [
+        r
+        for r in db.query(WebsiteEvent)
+        .filter(
+            WebsiteEvent.tenant_id == tenant.id,
+            WebsiteEvent.site_id == site.id,
+            WebsiteEvent.event_id.startswith(GA4_PREFIX),
+            WebsiteEvent.status.in_(("pending", "failed")),
+            WebsiteEvent.tries < MAX_TRIES,
+        )
+        .order_by(WebsiteEvent.created_at.asc())
+        .limit(BATCH)
+        if _ga4_due(r, now)
+    ]
+    if not rows:
+        return {"sent": 0}
+    secret = _ga4_secret(site)
+    if not secret:
+        return {"sent": 0, "skipped": "no secret"}
+    measurement_id = (site.tracking or {})["ga4_id"]
+    send = post or _ga4_post
+    sent = failed = 0
+    for r in rows:
+        if _aware(r.created_at) < now - GA4_WINDOW:
+            r.status, r.reason = "skipped", "too old for GA4"
+            continue
+        try:
+            send(measurement_id, secret, _ga4_body(r))
+        except Exception as exc:  # noqa: BLE001 -- never str(exc) of an httpx error: it names the URL with the secret
+            r.tries, r.status = r.tries + 1, "failed"
+            r.reason = str(exc)[:300] if isinstance(exc, Ga4Error) else type(exc).__name__
+            failed += 1
+            continue
+        r.tries, r.status, r.sent_at, r.reason = r.tries + 1, "sent", _now(), None
+        sent += 1
+    if failed:
+        log.warning("website_ga4_failed", tenant_id=tenant.id, failed=failed)
+    if sent:
+        append_audit(
+            db,
+            tenant_id=tenant.id,
+            action="website.ga4_sent",
+            actor_user_id=None,
+            target_type="site",
+            target_id=site.id,
+            payload={"actor": "system", "events": sent},
+        )
+    db.commit()
+    return {"sent": sent, "failed": failed}

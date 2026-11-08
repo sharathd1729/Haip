@@ -142,7 +142,8 @@ def guest_turns(db: Session, tenant_id: str, start: Bound, end: Bound, *, now: O
                 if now - at < TOO_RECENT:
                     too_recent += 1
                     continue
-                open_turn = {"at": at, "channel": _channel_of(m), "reply_seconds": None, "responder": None, "sender_id": None}
+                open_turn = {"at": at, "channel": _channel_of(m), "reply_seconds": None, "responder": None, "sender_id": None,
+                             "conversation_id": m.conversation_id}
                 turns.append(open_turn)
         else:
             if not _went_out(m):

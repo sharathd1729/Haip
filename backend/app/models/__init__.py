@@ -33,6 +33,7 @@ from app.models.marketing_ads import MarketingAdDraft, MarketingBoostRule, Marke
 from app.models.marketing_partners import MarketingCreator, MarketingCreatorDeal, MarketingOtaCopy
 from app.models.website import (BookingHold, GuestAccessToken, Site, SiteAiJob, SiteDomain, SitePageView, SiteVersion,
                                 WebsiteEvent, WebsitePromoCode)
+from app.models.google_surfaces import GbpDailyMetric, GscDailyTotal, GscSearchRow, PageSpeedRun
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
@@ -61,10 +62,13 @@ from app.models.ops import (
     OpsAlertSend,
 )
 from app.models.ops_files import OpsChecklistTemplate, OpsExpense, OpsExtra, OpsFile, OpsFileEvent, OpsJob, OpsJobItem
+from app.models.guest_addons import GuestAddonLink, GuestAddonOrder
 from app.models.ops_fleet import OpsAutoMessage, OpsDefect, OpsGuestForm, OpsInventoryItem, OpsPaper, OpsService
 from app.models.gps import GpsAlertEpisode, GpsDevice, GpsPosition
+from app.models.sop import SopInstance, SopStepProgress, SopVersion
 
 __all__ = [
+    "SopInstance", "SopVersion", "SopStepProgress",
     "ChiefDetectorTuning",
     "ChiefProposal",
     "GpsDevice", "GpsPosition", "GpsAlertEpisode",
@@ -96,5 +100,6 @@ __all__ = [
     "StaffProfile", "StaffDuty", "ShiftPattern", "ShiftOverride", "EscalationChain", "OpsSettings", "OpsItem",
     "OpsEscalationEvent", "OpsAlertSend",
     "OpsFile", "OpsFileEvent", "OpsChecklistTemplate", "OpsJob", "OpsJobItem", "OpsExpense", "OpsExtra",
-    "OpsPaper", "OpsDefect", "OpsService", "OpsInventoryItem", "OpsAutoMessage", "OpsGuestForm",
+    "OpsPaper", "OpsDefect", "OpsService", "OpsInventoryItem", "OpsAutoMessage", "OpsGuestForm", "GuestAddonLink", "GuestAddonOrder",
+    "GbpDailyMetric", "GscDailyTotal", "GscSearchRow", "PageSpeedRun",
 ]

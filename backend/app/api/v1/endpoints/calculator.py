@@ -19,7 +19,7 @@ from __future__ import annotations
 import uuid
 import logging
 from decimal import Decimal
-from typing import List, Optional, Any
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -69,6 +69,10 @@ class ShareRequest(BaseModel):
     advance_percent: int = 30
 
 
+StayChange = Literal["early_check_in", "late_check_out", "extra_night"]
+StayChangeOrNone = Literal["early_check_in", "late_check_out", "extra_night", ""]
+
+
 class AddOnCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
@@ -77,6 +81,8 @@ class AddOnCreateRequest(BaseModel):
     price_type: str = "per_stay"          # per_stay|per_night|per_person|per_unit
     currency: str = "INR"
     sort_order: int = 0
+    needs_approval: bool = False          # guest add-ons page: a person OKs it before the payment link
+    stay_change: Optional[StayChange] = None  # availability checked before the guest page offers it
 
 
 class AddOnUpdateRequest(BaseModel):
@@ -87,6 +93,8 @@ class AddOnUpdateRequest(BaseModel):
     price_type: Optional[str] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
+    needs_approval: Optional[bool] = None
+    stay_change: Optional[StayChangeOrNone] = None  # "" clears it
 
 
 class AddOnOut(BaseModel):
@@ -100,6 +108,8 @@ class AddOnOut(BaseModel):
     currency: str
     is_active: bool
     sort_order: int
+    needs_approval: bool = False
+    stay_change: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -397,7 +407,7 @@ def update_addon(
     if not addon:
         raise HTTPException(status_code=404, detail="Add-on not found")
     for k, v in body.model_dump(exclude_none=True).items():
-        setattr(addon, k, v)
+        setattr(addon, k, v or None if k == "stay_change" else v)
     db.commit()
     db.refresh(addon)
     return addon

@@ -67,6 +67,9 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # call, no prose fallback, no cold-start lag. Same NVIDIA key, same
     # provider branch, just a model-string swap.
     "quick_classify":  ("nvidia",  "openai/gpt-oss-20b"),
+    # The guest-reply classifier/extractor (concierge_draft._classify_and_extract): quick_classify's model, but it runs
+    # inside the reply's 8 s grounding window, so its bounds below fit that window (quick_classify's 30 s never could).
+    "concierge_intent": ("nvidia", "openai/gpt-oss-20b"),
     "deep_reason":     ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     # Leads360 summary + structured analysis. Split off from concierge_draft
     # (guest-facing tone, now Gemini -- see below) because this is an
@@ -145,9 +148,17 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # route (it used ask_haip_freeform_summary, which has no Gemini fallback and timed out in production at 60 s); the Ask
     # HAIP summary route stays without one because it reads raw query rows.
     "analyst_followup": ("nvidia", "openai/gpt-oss-20b"),
+    # Get found SOP texts (services/sops/generate.py): description, Instagram bio, WhatsApp About, Q&A from the shared facts
+    # block. A person pastes them; price policy + grounding lint run first. A reply with no tool output gets one Gemini try
+    # (marketing_ai_service._call), errors/timeouts the fallback below.
+    "sop_generate": ("nvidia", "openai/gpt-oss-20b"),
     # AI Executive (services/chief/explain.py): two grounded sentences per finding that code already detected. Internal,
     # structured JSON; a sentence with a number not in the finding is dropped and the rule's own text stands on any failure.
     "chief_explain": ("nvidia", "openai/gpt-oss-20b"),
+    # Staff assistant on WhatsApp (ops_staff_assistant.py): a short answer to a staff member's question from THEIR facts only
+    # (their properties, the KB via search_detailed, their own job today). JSON output; a phone number or email not in the
+    # facts is refused in code. Internal (staff, not guests), mid tier with the Gemini fallback below.
+    "staff_assistant": ("nvidia", "openai/gpt-oss-20b"),
     # Marketing Studio: every step runs on Gemini (24 Oct 2026). On gpt-oss-20b the studio's tool calls came back empty
     # (reasoning used the whole output budget; live: brand voice, finish_reason MAX_TOKENS, 0 output tokens), and the
     # owner chose Gemini for these steps. Structured output via one tool; every result is re-validated and reviewed by
@@ -182,6 +193,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # "Change something" on the Website screen (website_change.py): a short list of edits for one plain-words request. Small
     # task, low model; a retry after failed checks runs on website_plan.
     "website_change": ("gemini", "gemini-3.1-flash-lite"),
+    # Website SEO agency (website_seo_agency): the search analyst's short weekly brief over code-computed numbers (low
+    # model; a sentence with an unknown number is dropped) and the outreach messages a person sends to creators and
+    # partners (drafts: the content model).
+    "seo_brief": ("gemini", "gemini-3.1-flash-lite"),
+    "seo_outreach": ("gemini", "gemini-3.6-flash"),
 }
 
 
@@ -193,37 +209,43 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
 # Gemini model (gemini-3.1-flash-lite, cheap, no thinking), not 3.6 Flash. Guest-facing tasks are not listed:
 # concierge_draft is already on Gemini and has its own retry/timeout handling.
 _GEMINI_FALLBACK_TASKS: dict[str, float] = {
-    "call_analysis":               60,
+    "call_analysis":               90,    # the one read per phone call (score + wrap-up + details, call-analysis-v6)
     "call_scoring":                60,
     "lead_summary":                60,
     "quick_classify":              30,
+    "concierge_intent":            4,     # + Gemini Flash-Lite in the rest of concierge_draft.MAX_GROUNDING_SECONDS (8)
     "lead_stage_classify":         45,
     "agent_performance_narrative": 60,
     "agent_leads_feedback":        60,
-    "deep_reason":                 120,   # judge's low-confidence re-score
+    "deep_reason":                 120,   # borderline call-score re-check (evidence only) + deep analysis
     "assessment_narrative":        60,
     "lead_followup_draft":         40,
     "outcome_reason":              45,
     "analyst_brief":               90,
     "analyst_followup":            40,
+    "sop_generate":                60,
     "chief_explain":               45,
+    "staff_assistant":             30,
     "website_content":             90,
 }
 
 # A person waits on these in the UI: one NVIDIA attempt, then the fallback, so the wait is not doubled.
-_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup"}
+_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup", "concierge_intent", "staff_assistant"}
 
 
 # LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.
 _CLAUDE_FAST_TASKS = frozenset({
-    "quick_classify", "concierge_rewrite", "lead_stage_classify",
-    "marketing_tagging", "marketing_review_reply", "website_copy", "website_change",
+    "quick_classify", "concierge_intent", "concierge_rewrite", "lead_stage_classify",
+    "marketing_tagging", "marketing_review_reply", "website_copy", "website_change", "seo_brief",
 })
 # The guest reply and the rewrite think least: a person is waiting, and chat does well at low effort.
 _CLAUDE_LOW_EFFORT = _CLAUDE_FAST_TASKS | {"concierge_draft"}
 # Claude's bound where the caller's own outer bound is tighter than 60 s, so the fallback still has time to answer
 # (concierge_draft: 60 s outer for provider "claude"; rewrite_draft: 30 s outer).
-_CLAUDE_TIMEOUTS = {"concierge_draft": 30, "concierge_rewrite": 12}
+_CLAUDE_TIMEOUTS = {"concierge_draft": 30, "concierge_rewrite": 12, "concierge_intent": 4}
+# Tasks whose system prompt is the same for every call of a workspace (data in the user message): Claude caches it even
+# when the user message is short. concierge_draft: concierge_reply.jinja v21 (rules / <<<CONCIERGE_CONTEXT>>> / data).
+_CLAUDE_CACHE_SYSTEM_TASKS = frozenset({"concierge_draft"})
 
 
 def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
@@ -237,14 +259,22 @@ def _unmetered_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     adapter = _routed_llm(task, tenant_id)
     if settings.LLM_FORCE_PROVIDER.strip().lower() != "claude" or not settings.ANTHROPIC_API_KEY:
         return adapter
-    from app.adapters.llm.anthropic_claude import MODEL_HAIKU, MODEL_SONNET, ClaudeAdapter
+    from app.adapters.llm.anthropic_claude import ClaudeAdapter
     from app.adapters.llm.fallback import FallbackAdapter
-    timeout = _CLAUDE_TIMEOUTS.get(task) or _GEMINI_FALLBACK_TASKS.get(task) or 60
-    claude = ClaudeAdapter(default_model=MODEL_HAIKU if task in _CLAUDE_FAST_TASKS else MODEL_SONNET,
-                           effort="low" if task in _CLAUDE_LOW_EFFORT else "medium", timeout=timeout)
+    model, effort, timeout = claude_route(task)
+    claude = ClaudeAdapter(default_model=model, effort=effort, timeout=timeout,
+                           cache_system=task in _CLAUDE_CACHE_SYSTEM_TASKS)
     claude.provider = "claude"
     # One Claude attempt (paid): a failure goes straight to the normal route.
     return FallbackAdapter(primary=claude, secondary=adapter, task=task, primary_timeout=timeout, primary_attempts=1)
+
+
+def claude_route(task: str) -> tuple[str, str, float]:
+    """(model, effort, timeout) for `task` under LLM_FORCE_PROVIDER=claude; also used by the batch path (batch.py)."""
+    from app.adapters.llm.anthropic_claude import MODEL_HAIKU, MODEL_SONNET
+    timeout = _CLAUDE_TIMEOUTS.get(task) or _GEMINI_FALLBACK_TASKS.get(task) or 60
+    return (MODEL_HAIKU if task in _CLAUDE_FAST_TASKS else MODEL_SONNET,
+            "low" if task in _CLAUDE_LOW_EFFORT else "medium", timeout)
 
 
 def _routed_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:

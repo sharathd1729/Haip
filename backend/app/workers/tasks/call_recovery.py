@@ -29,6 +29,10 @@ Oct 2026 (Ratha): this task was never actually in the beat schedule, and only
 looked at "pending". Calls that failed during a provider incident stayed
 "failed" forever. It is now scheduled, also retries recent "failed" calls (up
 to MAX_SCORE_ATTEMPTS starts per call), and goes newest-first.
+
+Nov 2026 (one AI call per call): it dispatches tasks.analyze_call, which RESUMES: the model's answer is kept before
+any DB write, so a call that failed while writing is written again without a second model call, and its call_scores
+row is updated, not duplicated. A call left "processing" (worker killed mid-call) is picked up too once quiet.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -47,13 +51,14 @@ log = structlog.get_logger()
 # single LLM call, not a slow pipeline.
 STALL_THRESHOLD_MINUTES = 30
 
-# "pending": judge() was never invoked. "failed": it ran and gave up after
-# its own 3 quick retries (~90s) -- a provider incident lasting longer than
-# that left calls "failed" forever, because nothing here used to look at them
-# (Ratha, Oct 2026: calls from 28 Sep stuck "failed").
-_RECOVERABLE_STATES = ("pending", "failed")
+# "pending": the analysis was never invoked. "failed": it ran and gave up after
+# its own quick retries -- a provider incident lasting longer than that left
+# calls "failed" forever, because nothing here used to look at them (Ratha,
+# Oct 2026: calls from 28 Sep stuck "failed"). "processing" that has been quiet
+# for STALL_THRESHOLD_MINUTES: the worker died mid-call.
+_RECOVERABLE_STATES = ("pending", "failed", "processing")
 
-# Stop retrying a call after this many judge() starts. A call that cannot be
+# Stop retrying a call after this many analysis starts. A call that cannot be
 # scored (unusable audio, a transcript the model keeps rejecting) must not be
 # re-sent to the LLM every 30 minutes forever.
 MAX_SCORE_ATTEMPTS = 5
@@ -65,10 +70,10 @@ FAILED_LOOKBACK_DAYS = 14
 
 @shared_task(name="calls.recover_stalled_scoring", bind=True, max_retries=1)
 def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
-    """Re-dispatch judge() for one tenant's stalled or failed calls."""
+    """Re-dispatch the call analysis for one tenant's stalled or failed calls (it resumes from a kept answer)."""
     from sqlalchemy import and_, or_
 
-    from app.workers.tasks.judge import judge
+    from app.workers.tasks.call_analysis import analyze_call
 
     db = SessionLocal()
     try:
@@ -76,8 +81,8 @@ def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
         now = datetime.now(timezone.utc)
         cutoff = (now - timedelta(minutes=STALL_THRESHOLD_MINUTES)).isoformat()
         failed_since = (now - timedelta(days=FAILED_LOOKBACK_DAYS)).isoformat()
-        # A "failed" call is only retried once it has been quiet for a while:
-        # judge()'s own Celery retries (30s apart) may still be in flight.
+        # A "failed"/"processing" call is only retried once it has been quiet for a while:
+        # the analysis's own Celery retries (60s apart) may still be in flight.
         quiet_before = now - timedelta(minutes=STALL_THRESHOLD_MINUTES)
 
         stuck = (
@@ -91,7 +96,7 @@ def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
                 or_(
                     Call.ai_score_status == "pending",
                     and_(
-                        Call.ai_score_status == "failed",
+                        Call.ai_score_status.in_(("failed", "processing")),
                         Call.started_at >= failed_since,
                         Call.updated_at < quiet_before,
                     ),
@@ -106,7 +111,7 @@ def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
         )
 
         for call in stuck:
-            judge.delay(call_id=call.id, tenant_id=tenant_id, classification={})
+            analyze_call.delay(call_id=call.id, tenant_id=tenant_id)
 
         if stuck:
             log.info(

@@ -24,6 +24,7 @@ BOOKING_CONFIRMED = "ratha_booking_confirmed_v1"
 BALANCE_DUE = "ratha_balance_due_v1"
 PAYMENT_RECEIVED = "ratha_payment_received_v1"
 MIDSTAY_CHECK = "haip_midstay_check_v1"   # ops_midstay_check: day 2 of a 2+ night stay; generic words, any business
+REVIEW_REQUEST = "haip_review_request_v1"  # ops_review_request: the day after check-out; feedback on THEIR booking (UTILITY)
 
 
 def _body(text: str, examples: list[str]) -> dict:
@@ -93,6 +94,18 @@ PACK: list[dict] = [
             _body("Hello {{1}}, everything okay with your {{2}}? Reply 1 if all good, or tell us what we can fix.",
                   ["Kiran", "stay at Villa Amara"]),
             {"type": "BUTTONS", "buttons": [{"type": "QUICK_REPLY", "text": "All good"}]},
+        ],
+    },
+    {
+        # Post-stay feedback about the guest's own booking, no offer, no link, no incentive: keeps it UTILITY. Meta may
+        # still recategorise it as MARKETING; then it is no longer "approved" under this name and nothing is sent.
+        "name": REVIEW_REQUEST, "label": "How was your stay?",
+        "when": "The day after check-out (Ops settings switch; on once this is approved). Every reply gets the Google "
+                "review link; a 1-3 also alerts the team.",
+        "header": "None",
+        "components": [
+            _body("Hello {{1}}, thank you for your {{2}}. How was it? Please reply with a number from 1 (poor) to "
+                  "5 (excellent).", ["Kiran", "stay at Villa Amara"]),
         ],
     },
 ]

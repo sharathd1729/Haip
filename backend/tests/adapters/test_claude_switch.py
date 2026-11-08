@@ -91,7 +91,7 @@ async def test_request_shape_is_valid_for_5_5_models(claude_on):
 
 @pytest.mark.asyncio
 async def test_call_analysis_structured_output_parses_on_claude(claude_on):
-    from app.workers.tasks.wrap_up import WRAP_UP_TOOL
+    from app.services.call_analysis import CALL_ANALYSIS_TOOL as WRAP_UP_TOOL
     data = {"summary": "Guest asked about Coorg in May.", "disposition": "hot"}
     claude_on.return_value.messages.create = AsyncMock(return_value=_reply(
         SimpleNamespace(type="thinking", thinking=""), _tool(WRAP_UP_TOOL["name"], data)))
@@ -124,7 +124,7 @@ async def test_claude_error_falls_back_to_the_normal_route(claude_on):
 
 @pytest.mark.asyncio
 async def test_a_reply_without_the_tool_call_falls_back(claude_on):
-    from app.workers.tasks.wrap_up import WRAP_UP_TOOL
+    from app.services.call_analysis import CALL_ANALYSIS_TOOL as WRAP_UP_TOOL
     claude_on.return_value.messages.create = AsyncMock(return_value=_reply(SimpleNamespace(type="text", text="prose")))
     adapter = _with_normal(get_llm("call_analysis"), {"content": "", "tool_use": {"summary": "nvidia"}})
     result = await adapter.complete(system_prompt="sys", user_message="hi", tools=[WRAP_UP_TOOL])
@@ -142,14 +142,14 @@ def test_cost_uses_the_published_prices():
     from app.adapters.llm.anthropic_claude import cost_usd
     usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000, "cache_read_input_tokens": 1_000_000,
              "cache_creation_input_tokens": 0}
-    assert cost_usd(MODEL_SONNET, usage) == 12.10   # $2 in + $10 out + $0.10 cache read (0.05x input, pricing page 7 Nov 2026)
+    assert cost_usd(MODEL_SONNET, usage) == 12.20   # $2 in + $10 out + $0.20 cache read (0.1x input; AI cost audit 8 Nov 2026)
     assert cost_usd(MODEL_HAIKU, usage) == 0.61
 
 
-def test_sonnet_cache_read_is_priced_at_0_05x_input():
-    """Pricing page, 7 Nov 2026: Sonnet 5.5 cache hits are $0.10 / M (0.05x the $2 input), not $0.20."""
+def test_sonnet_cache_read_is_priced_at_0_1x_input():
+    """AI cost audit, 8 Nov 2026: Sonnet 5.5 cache hits are $0.20 / M (0.1x the $2 input); the 7 Nov table had $0.10."""
     from app.adapters.llm.anthropic_claude import MODEL_HAIKU, MODEL_SONNET, cost_usd
     usage = {"input_tokens": 1_000, "cache_read_input_tokens": 100_000, "output_tokens": 500}
-    # 1,000 x $2 + 100,000 x $0.10 + 500 x $10, per million
-    assert cost_usd(MODEL_SONNET, usage) == round((2_000 + 10_000 + 5_000) / 1_000_000, 6)
+    # 1,000 x $2 + 100,000 x $0.20 + 500 x $10, per million
+    assert cost_usd(MODEL_SONNET, usage) == round((2_000 + 20_000 + 5_000) / 1_000_000, 6)
     assert cost_usd(MODEL_HAIKU, {"cache_read_input_tokens": 1_000_000}) == 0.01

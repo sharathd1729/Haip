@@ -20,7 +20,7 @@ from app.core.config import settings
 # Guest-facing first, then what feeds or follows it.
 TASKS = (
     ("concierge_draft", "Guest reply on WhatsApp and Instagram (the AI concierge draft / autonomous send)"),
-    ("quick_classify", "Reading the guest's message before the reply: intent, dates, party, destination"),
+    ("concierge_intent", "Reading the guest's message before the reply: intent, dates, party, destination"),
     ("concierge_rewrite", "Rewrite / translate a draft or the composer text on request"),
     ("lead_summary", "Lead summary and analysis on the lead card"),
 )

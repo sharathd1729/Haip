@@ -28,6 +28,8 @@ def subject(brief: dict, tenant_name: str) -> str:
 
 def text(brief: dict, tenant_name: str) -> str:
     lines = [f"{tenant_name} · {brief['period']} ({brief['day_label']})", "", " ".join(brief["sentences"]), ""]
+    if brief.get("ops_lines"):
+        lines += [" ".join(brief["ops_lines"]), ""]
     if brief["todos"]:
         lines.append("Today")
         lines += [f"- {t['text']}  {t['url']}" for t in brief["todos"]]
@@ -40,6 +42,8 @@ def text(brief: dict, tenant_name: str) -> str:
 def html(brief: dict, tenant_name: str) -> str:
     title = "Morning brief" if brief["kind"] == "morning" else "Evening check"
     para = escape(" ".join(brief["sentences"]))
+    ops = (f'<p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:{INK}">{escape(" ".join(brief["ops_lines"]))}</p>'
+           if brief.get("ops_lines") else "")
     todo_rows = "".join(
         f'<tr><td style="padding:10px 0;border-top:1px solid {RULE};font-size:15px;line-height:1.45;color:{INK}">'
         f'<a href="{escape(t["url"], quote=True)}" style="color:{INK};text-decoration:none">{escape(t["text"])}</a>'
@@ -56,6 +60,7 @@ def html(brief: dict, tenant_name: str) -> str:
 <p style="margin:0;font-size:13px;color:{MUTED}">{escape(tenant_name)} · {escape(brief['period'])}, {escape(brief['day_label'])}</p>
 <h1 style="margin:4px 0 14px;font-size:22px;line-height:1.25;color:{INK}">{escape(title)}</h1>
 <p style="margin:0;font-size:16px;line-height:1.6;color:{INK}">{para}</p>
+{ops}
 {today}
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px"><tr>
 <td style="background:{BRAND};border-radius:10px"><a href="{escape(brief['my_day_url'], quote=True)}" style="display:inline-block;padding:12px 18px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none">Open My day</a></td>

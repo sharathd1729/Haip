@@ -89,3 +89,34 @@ def find_matching_rule(
         if not excluded(r) and keywords_match(r):
             return r
     return None
+
+
+# ── Throwaway comments (no AI call) ──────────────────────────────────────────────────────────────────────────────────
+# "nice 😍", "wow", "@friend": every unmatched comment used to get an intent call + a reply draft. A comment is throwaway
+# when it asks nothing (no "?") and is emoji/punctuation only, or only praise words, or 3 words or fewer with no word a lead
+# would use. Workspaces add their own praise words in brand_config["ig_comment_skip_words"] (list or comma string).
+_PRAISE_WORDS = frozenset("""
+nice wow woww wowww awesome amazing beautiful lovely gorgeous stunning superb super great cool love loved loving lit fab
+fabulous fantastic excellent perfect pretty cute mast mazza maza badhiya sundar wah waah osm awsm omg dope fire goals
+congrats congratulations thanks thank you thx ty good very so too much place view vibes vibe dream dreamy yes yay hi hello
+hey heyy ok okay the this is a an and what wonderful best bro dude sir mam ma'am brother sister wow nice
+""".split()) - {"much", "what"}
+_LEAD_WORDS = frozenset("""
+price prices pricing rate rates cost costs charge charges tariff fare book booking bookings booked available availability
+details detail info information dm inbox contact number call whatsapp how much when where which dates date package packages
+interested interest location rent rental enquiry inquiry enquire plan trip trips kitna kitne kya kaise kab kaha kahan rates
+budget weekend night nights days stay quote
+""".split())
+
+
+def is_throwaway_comment(text: str, extra_skip_words=None) -> bool:
+    body = (text or "").strip()
+    if not body or "?" in body:
+        return not body
+    words = re.findall(r"[^\W_]+", body.lower())
+    if not words:
+        return True                                   # emoji / punctuation only
+    if any(w in _LEAD_WORDS for w in words):
+        return False
+    praise = _PRAISE_WORDS | {w.strip().lower() for w in _keyword_list(extra_skip_words) if w.strip()}
+    return len(words) <= 3 or all(w in praise for w in words)

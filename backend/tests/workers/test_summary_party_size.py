@@ -7,6 +7,7 @@ extracted.party_size and generate_ai_summary._adults_with_party_size raises adul
 """
 import json
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -46,7 +47,8 @@ def _setup(db, **inquiry_kw):
     tenant = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth")
     db.add(tenant)
     db.flush()
-    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Monika", phone="+919800000031")
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Monika", phone="+919800000031",
+                  lead_identified_at=datetime.now(timezone.utc))
     db.add(guest)
     db.flush()
     inquiry = Inquiry(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, source=InquirySource.WA_DIRECT, **inquiry_kw)

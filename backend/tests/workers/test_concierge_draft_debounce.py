@@ -129,7 +129,7 @@ class TestConciergeDraftBurstEndToEnd:
                 }}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -202,7 +202,7 @@ class TestConciergeDraftSupersededBeforeSend:
                 }}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
         mark_pending_draft(tenant.id, conv.id, msg1.id)

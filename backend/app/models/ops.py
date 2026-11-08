@@ -128,6 +128,10 @@ class OpsSettings(Base, TimestampMixin, TenantMixin):
     # The business's copy of its pack's data (ops_pack_seed, migration 192): {pack: {duties, issue_types, paperwork, addons,
     # auto_messages, flow}}. Seeding fills missing keys only; a person's edit is never overwritten.
     pack_config = Column(JSON, nullable=True)
+    # Staff assistant (ops_staff_assistant, migration 193): NULL/FALSE = off; TRUE = the owner turned it on.
+    staff_assistant_enabled = Column(Boolean, nullable=True)
+    # Review request (ops_review_request): NULL = on once its template is approved; TRUE/FALSE = the owner's choice.
+    review_request_enabled = Column(Boolean, nullable=True)
 
 
 class OpsItem(Base, TimestampMixin, TenantMixin):

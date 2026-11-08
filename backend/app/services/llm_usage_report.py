@@ -1,8 +1,11 @@
-"""Per-task LLM usage for one tenant, from the `usage_events` rows kind="llm_call" (adapters/llm/metered.py). Read-only.
+"""Per-task model usage for one tenant, from `usage_events` rows of KINDS (adapters/llm/metered.py). Read-only.
 
-Only `llm_call` rows are read: the Studio's older `llm_tokens` rows describe some of the same calls, so adding them would count
-those calls twice. Cost is the sum of known costs; calls whose cost is unknown (a model missing from a price table, a failed
-paid call) are counted in `cost_unknown_calls`, never estimated. No exchange rate is built in: INR only when one is passed.
+KINDS: `llm_call` (one row per get_llm().complete() call, retries and fallback attempts summed in; Message Batches results
+carry meta `batch: true`, shown as "<task> (batch)"), `embedding_call` (knowledge-base embeddings) and `vision_call`
+(photo / video reading). The Studio's older `llm_tokens` / `vision` / `video_read` rows describe some of the same calls, so
+adding them would count those calls twice. Cost is the sum of known costs; calls whose cost is unknown (a model missing from a
+price table, a failed paid call) are counted in `cost_unknown_calls`, never estimated. Rupees use DEFAULT_USD_INR unless a
+rate is passed.
 """
 
 from __future__ import annotations
@@ -21,11 +24,25 @@ def _pct(values: list[int], q: float) -> int | None:
     return s[max(0, math.ceil(q * len(s)) - 1)]  # nearest-rank percentile
 
 
-def summarise(rows: list[dict], days: int, properties: int, usd_inr: float | None = None) -> dict:
-    """rows: dicts with units + meta (as stored). Returns {"tasks": [...], "total": {...}} sorted by cost, then calls."""
+KINDS = ("llm_call", "embedding_call", "vision_call")
+# shortcut: one fixed USD->INR rate (approximate, Nov 2026); pass --usd-inr (or usd_inr=) with the day's rate for an invoice.
+DEFAULT_USD_INR = 88.0
+
+
+def _task_label(r: dict) -> str:
+    meta = r.get("meta") or {}
+    task = meta.get("task") or "(unknown)"
+    return f"{task} (batch)" if meta.get("batch") else task
+
+
+def summarise(rows: list[dict], days: int, properties: int, usd_inr: float | None = DEFAULT_USD_INR) -> dict:
+    """rows: dicts with kind + units + meta (as stored). Returns {"tasks": [...], "kinds": [...], "total": {...}}, tasks
+    sorted by cost, then calls."""
     by_task: dict[str, list[dict]] = defaultdict(list)
+    by_kind: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
-        by_task[(r.get("meta") or {}).get("task") or "(unknown)"].append(r)
+        by_task[_task_label(r)].append(r)
+        by_kind[r.get("kind") or "llm_call"].append(r)
 
     def block(name: str, items: list[dict]) -> dict:
         metas = [r.get("meta") or {} for r in items]
@@ -35,11 +52,13 @@ def summarise(rows: list[dict], days: int, properties: int, usd_inr: float | Non
         per_property_month = round(cost / properties * 30 / days, 6) if properties and days else None
         out = {
             "task": name,
+            "kind": ",".join(sorted({r.get("kind") or "llm_call" for r in items})),
             "calls": len(items),
             "p50_ms": _pct(lat, 0.50),
             "p95_ms": _pct(lat, 0.95),
             "error_pct": round(100 * sum(1 for m in metas if m.get("ok") is False) / len(items), 1),
             "fallback_pct": round(100 * sum(1 for m in metas if m.get("fallback_used")) / len(items), 1),
+            "attempts": sum(int(m.get("attempts") or 1) for m in metas),
             "tokens": sum(int(r.get("units") or 0) for r in items),
             "cost_usd": cost,
             "cost_unknown_calls": sum(1 for c in costs if c is None),
@@ -58,27 +77,45 @@ def summarise(rows: list[dict], days: int, properties: int, usd_inr: float | Non
         "properties": properties,
         "usd_inr": usd_inr,
         "tasks": tasks,
+        "kinds": [block(k, by_kind[k]) for k in KINDS if k in by_kind],
         "total": block("TOTAL", rows) if rows else None,
     }
 
 
 def load(db: Session, tenant_id: str, days: int, now: datetime | None = None) -> tuple[list[dict], int]:
-    """(llm_call rows of the last `days` days, active properties excluding the "Unassigned" placeholder)."""
+    """(KINDS rows of the last `days` days, active properties excluding the "Unassigned" placeholder)."""
     from app.models.property import Property
     from app.models.usage_event import UsageEvent
     from app.services.vehicle_pool import is_placeholder_name
 
     since = (now or datetime.now(UTC)) - timedelta(days=days)
     rows = [
-        {"units": u, "meta": m}
-        for u, m in db.query(UsageEvent.units, UsageEvent.meta).filter(
-            UsageEvent.tenant_id == tenant_id, UsageEvent.kind == "llm_call", UsageEvent.created_at >= since
+        {"kind": k, "units": u, "meta": m}
+        for k, u, m in db.query(UsageEvent.kind, UsageEvent.units, UsageEvent.meta).filter(
+            UsageEvent.tenant_id == tenant_id, UsageEvent.kind.in_(KINDS), UsageEvent.created_at >= since
         )
     ]
     names = [
         n for (n,) in db.query(Property.name).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
     ]
     return rows, sum(1 for n in names if not is_placeholder_name(n))
+
+
+def tenant_totals(db: Session, days: int, usd_inr: float | None = DEFAULT_USD_INR,
+                  now: datetime | None = None) -> list[dict]:
+    """Every active tenant's TOTAL block (USD and INR, per property per month), most expensive first. One tenant context
+    at a time (RLS)."""
+    from app.core.database import set_tenant_context
+    from app.models.tenant import Tenant
+
+    out = []
+    for tenant_id, slug in db.query(Tenant.id, Tenant.slug).filter(Tenant.is_active.is_(True)).all():
+        set_tenant_context(db, tenant_id)
+        rows, properties = load(db, tenant_id, days, now)
+        total = summarise(rows, days, properties, usd_inr)["total"]
+        if total:
+            out.append({**total, "task": slug, "tenant": slug, "properties": properties})
+    return sorted(out, key=lambda b: -b["cost_usd"])
 
 
 # A draft more than this long after the guest's message is still counted (missed-reply recovery runs up to 6 h);

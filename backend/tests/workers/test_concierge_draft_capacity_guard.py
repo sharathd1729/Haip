@@ -146,14 +146,14 @@ class TestCapacityAlwaysGrounded:
 
         class _FakeConciergeLLM:
             async def complete(self, **kwargs):
-                captured_prompt["system_prompt"] = kwargs.get("system_prompt", "")
+                captured_prompt["system_prompt"] = kwargs.get("system_prompt", "") + "\n" + kwargs.get("user_message", "")
                 return {"tool_use": {
                     "reply": "Each caravan fits up to 8 guests -- for larger groups we can arrange more than one!",
                     "confidence": 0.85, "citations": [], "needs_human": False,
                 }}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -204,7 +204,7 @@ class TestConciergeDraftEndToEndCapacityGuard:
                 }}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 

@@ -3,10 +3,10 @@ Leads360 — Async AI Summary Generation Task
 
 Generates a 3-sentence narrative for an inquiry and writes it to
 inquiries.ai_summary. Called by:
-  - leads_service.trigger_summary_refresh() on inquiry creation
-  - classify task (after call.analyzed — immediate, no debounce)
-  - concierge_draft / message handlers (debounced 30 min via Redis TTL)
-  - POST /leads/{inquiry_id}/refresh-summary (manual — always immediate)
+  - wrap_up (end of the call's analysis) and the Dograh processor — immediate
+  - concierge_draft / message handlers — one trailing run per 10-min burst (leads_service)
+  - POST /leads/{inquiry_id}/refresh-summary (manual — immediate, 2-min cooldown, force=True)
+Skips the LLM for a non-lead without trip details and when the input fingerprint is unchanged.
 
 Constitution checks:
   ✓ Uses get_llm("lead_summary") — never direct provider import
@@ -512,6 +512,42 @@ def _previous_analysis_text(inquiry) -> str:
     return "\n".join(parts)
 
 
+def _fact_lines(db, tenant_id: str, inquiry) -> list[str]:
+    """What the enquiry records, as the model reads it (and as the input fingerprint hashes it)."""
+    return [
+        f"Assigned agent: {inquiry.assigned_user.name if inquiry.assigned_user else 'unassigned'}",
+        f"Inquiry source: {inquiry.source.value if inquiry.source else 'unknown'}",
+        f"Stage: {_stage_label(inquiry)}",
+        f"Booking status: {_booking_status_text(db, tenant_id, inquiry)}",
+        f"Occasion: {inquiry.occasion or 'not specified'}",
+        f"Intent: {inquiry.intent_tag or 'not classified'}",
+        f"Check-in: {inquiry.check_in or '?'} · Check-out: {inquiry.check_out or '?'}",
+        f"Adults: {inquiry.adults or '?'} · Children: {inquiry.children or '?'}",
+        f"Budget: {inquiry.budget or 'not stated'} {inquiry.currency or 'INR'}",
+    ]
+
+
+def input_fingerprint(facts: list[str], evidence: list[str]) -> str:
+    """Hash of everything new a run could learn from: the enquiry's facts, calls and messages (+ the prompt version).
+
+    Left out on purpose: today's date (changes every minute) and the previous summary/analysis (the model's own output:
+    hashing it would make every run look new to the next one)."""
+    import hashlib
+    return hashlib.sha256("\n".join([PROMPT_VERSION, *facts, *evidence]).encode("utf-8")).hexdigest()
+
+
+def worth_summarising(db, tenant_id: str, inquiry) -> bool:
+    """A lead (the guest has a usable phone, guests.lead_identified_at) or an enquiry with trip details (dates, party size,
+    a quote). A "hi" / spam / no-phone DM thread with nothing in it gets no summary until one of those appears."""
+    if inquiry.check_in or inquiry.adults or inquiry.quoted_amount:
+        return True
+    guest = inquiry.guest
+    if guest is not None and guest.lead_identified_at is not None:
+        return True
+    from app.models.inquiry_360 import InquiryQuote
+    return db.query(InquiryQuote.id).filter_by(tenant_id=tenant_id, inquiry_id=inquiry.id).first() is not None
+
+
 def _run_async(coro):
     loop = asyncio.new_event_loop()
     try:
@@ -527,10 +563,13 @@ def _run_async(coro):
     default_retry_delay=60,
 )
 @scoped_task("leads", ref_type="inquiry", ref_arg="inquiry_id", prompt_key="leads360_summary")
-def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
+def generate_ai_summary(self, inquiry_id: str, tenant_id: str, force: bool = False):
     """
     Generate and store a 3-sentence AI summary for an inquiry.
     Gracefully degrades: on LLM failure, leaves ai_summary unchanged.
+
+    No LLM call (unless force=True, a person's manual refresh) when the enquiry is not worth summarising (not a lead, no
+    trip details: worth_summarising) or when its input fingerprint equals the one stored with the last summary.
     """
     db = SessionLocal()
     try:
@@ -546,21 +585,15 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         if not inquiry:
             log.warning("generate_ai_summary_inquiry_not_found", inquiry_id=inquiry_id)
             return
+        if not force and not worth_summarising(db, tenant_id, inquiry):
+            log.info("generate_ai_summary_skipped_not_lead", inquiry_id=inquiry_id, tenant_id=tenant_id)
+            return
 
         # ── Build context ──────────────────────────────────────────────────────
         from zoneinfo import ZoneInfo
-        lines = [
-            f"Today: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')} IST",
-            f"Assigned agent: {inquiry.assigned_user.name if inquiry.assigned_user else 'unassigned'}",
-            f"Inquiry source: {inquiry.source.value if inquiry.source else 'unknown'}",
-            f"Stage: {_stage_label(inquiry)}",
-            f"Booking status: {_booking_status_text(db, tenant_id, inquiry)}",
-            f"Occasion: {inquiry.occasion or 'not specified'}",
-            f"Intent: {inquiry.intent_tag or 'not classified'}",
-            f"Check-in: {inquiry.check_in or '?'} · Check-out: {inquiry.check_out or '?'}",
-            f"Adults: {inquiry.adults or '?'} · Children: {inquiry.children or '?'}",
-            f"Budget: {inquiry.budget or 'not stated'} {inquiry.currency or 'INR'}",
-        ]
+        facts = _fact_lines(db, tenant_id, inquiry)
+        evidence: list[str] = []          # calls + messages, for the input fingerprint
+        lines = [f"Today: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')} IST", *facts]
 
         # Last 5 calls
         calls = (
@@ -572,9 +605,10 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         )
         for i, (summary, next_action) in enumerate(calls, 1):
             if summary:
-                lines.append(f"Call {i} summary: {summary[:200]}")
+                evidence.append(f"Call {i} summary: {summary[:200]}")
             if next_action:
-                lines.append(f"Call {i} next action: {next_action[:100]}")
+                evidence.append(f"Call {i} next action: {next_action[:100]}")
+        lines.extend(evidence)
 
         previous = _previous_analysis_text(inquiry)
         if previous:
@@ -633,10 +667,16 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
                 budget_left -= len(line)
                 kept.append(line)
             lines.extend(reversed(kept))
+            evidence.extend(kept)
 
         if reference_date is None:
             reference_date = inquiry.created_at or datetime.now(timezone.utc)
         lines.insert(0, f"Reference date (when this conversation was last active): {reference_date.date().isoformat()}")
+
+        stored = inquiry.ai_analysis if isinstance(inquiry.ai_analysis, dict) else {}
+        if not force and stored.get("input_hash") == input_fingerprint(facts, evidence):
+            log.info("generate_ai_summary_skipped_unchanged", inquiry_id=inquiry_id, tenant_id=tenant_id)
+            return
 
         context = "\n".join(lines)
         user_message = f"Lead context:\n{context}\n\nGenerate the JSON response."
@@ -701,6 +741,11 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             if dropped:
                 log.info("generate_ai_summary_headcount_not_from_guest", inquiry_id=inquiry_id, dropped=dropped)
         fields_written = _apply_extracted_fields(inquiry, extracted) if extracted else []
+        # Fingerprint of the input as the NEXT run will rebuild it: facts after this run's own field writes (else every run
+        # that fills a field would look new once more), calls/messages as read above (a message that arrived meanwhile is
+        # not in them, so it still triggers a run).
+        inquiry.ai_analysis = {**(inquiry.ai_analysis if isinstance(inquiry.ai_analysis, dict) else {}),
+                               "input_hash": input_fingerprint(_fact_lines(db, tenant_id, inquiry), evidence)}
         db.add(inquiry)
         db.commit()
 

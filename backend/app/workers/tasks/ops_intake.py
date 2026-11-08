@@ -9,6 +9,7 @@ import asyncio
 
 import structlog
 from celery import shared_task
+from app.adapters.llm.scope import scoped_task
 
 from app.core.database import SessionLocal, set_tenant_context
 
@@ -28,6 +29,7 @@ def _fetch(token: str, media_id: str) -> tuple[bytes, str]:
 
 
 @shared_task(name="ops.process_staff_photo", bind=True, max_retries=MAX_RETRIES)
+@scoped_task("ops")
 def process_staff_photo(self, tenant_id: str, staff_id: str, media_id: str, caption: str, message_id: str):
     from app.adapters.vision import VisionError, VisionModelBlocked
     from app.core.cache import get_cached, set_cached
@@ -79,3 +81,33 @@ def process_staff_photo(self, tenant_id: str, staff_id: str, media_id: str, capt
             )
         queue_delivery(tenant_id, sends)
         lead_alert_sender.send_text(db, tenant_id, staff.phone_e164, reply)
+
+
+@shared_task(name="ops.staff_assistant_answer")
+def staff_assistant_answer(tenant_id: str, staff_id: str, question: str, message_id: str):
+    """A staff member's question on WhatsApp (services/ops_staff_assistant.py): answer from their own facts, reply as plain
+    text (their message just opened the 24-hour window). A redelivered message is answered once. Never retried: a provider
+    failure already becomes "ask the manager" inside the service."""
+    from app.core.cache import get_cached, set_cached
+    from app.models.ops import StaffProfile
+    from app.services import lead_alert_sender, ops_staff_assistant
+
+    done_key = f"haip:ops:assist:{message_id}"
+    if message_id and get_cached(done_key):
+        return
+    with SessionLocal() as db:
+        set_tenant_context(db, tenant_id)
+        staff = db.query(StaffProfile).filter_by(id=staff_id, tenant_id=tenant_id, active=True).first()
+        if staff is None:
+            return
+        try:
+            reply = ops_staff_assistant.answer(db, tenant_id, staff, question)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 -- logged loudly; the staff member can still call the manager
+            db.rollback()
+            log.error("staff_assistant_task_failed", tenant_id=tenant_id, staff_id=staff_id, error=type(exc).__name__)
+            return
+        if message_id:
+            set_cached(done_key, "1", ttl=86400)
+        if reply:
+            lead_alert_sender.send_text(db, tenant_id, staff.phone_e164, reply)

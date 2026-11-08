@@ -19,7 +19,7 @@ from app.models.integration import Integration
 from app.models.tenant import Tenant
 from app.workers.tasks.meta_quality_poll import MetaQualitySnapshot   # module level so create_all sees the inline table
 from app.core.audit import append_audit
-from app.services import webhook_verify_service
+from app.services import integration_health, webhook_verify_service
 from app.schemas.integration import IntegrationOut, IntegrationConnectRequest, IntegrationHealthResponse
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -143,6 +143,16 @@ CATALOG = [
             "Application (not a separate \"Secret\" field there)."
         ),
     },
+    {
+        "provider": "google_data_manager",
+        "name": "Google Ads (bookings)",
+        "description": "Send every booking to Google Ads with its value (Data Manager API), so Google learns which ads bring real stays.",
+        "category": "marketing",
+        "auth_type": "oauth2",
+        "logo": "chart",
+        "popular": False,
+        "notes": "Sign in with Google. HAIP keeps only encrypted access tokens, never a password. Set the conversion ids in Website > Tracking.",
+    },
 ]
 
 
@@ -203,7 +213,8 @@ def list_integrations(
                 "provider_category": cat.get("category"),
                 "provider_auth_type": cat.get("auth_type"),
                 "provider_logo": cat.get("logo"),
-                "last_error": (row.config or {}).get("last_error"),
+                "last_error": (row.config or {}).get("last_error") or integration_health.pull_failure(row.config)[1],
+                "health": integration_health.classify(row.kind, row.status or "", row.last_health_at, config=row.config),
             },
             installed_at=row.installed_at,
             last_health_at=row.last_health_at,

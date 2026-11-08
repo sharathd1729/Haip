@@ -1,15 +1,22 @@
 // Website phases 2-6 (backend endpoints/website_growth.py): tracking, results report, and the launch tools.
 import api from "@/lib/api";
+import type { GoogleSummary, Speed } from "@/lib/websiteGoogle";
 
 const WEB = "/websites";
 
-export type Tracking = { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_test_code: string | null;
-  has_capi_token: boolean; recent?: { event_name: string; status: string; reason: string | null; created_at: string }[] };
-export type TrackingIn = { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_token?: string | null;
-  capi_test_code: string | null };
+// Google Ads (website growth #5, google_ads_conversions): browser tag + labels and the booking upload settings.
+export type GadsSettings = { gads_id: string | null; gads_enquiry_label: string | null; gads_checkout_label: string | null;
+  gads_customer_id: string | null; gads_login_customer_id: string | null; gads_booking_action_id: string | null;
+  gads_upload_enabled: boolean };
+export type GadsStatus = { available: boolean; connected: boolean; status: string; last_error: string | null; last_upload_at: string | null };
+export type Tracking = GadsSettings & { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_test_code: string | null;
+  has_capi_token: boolean; has_ga4_api_secret: boolean; ga4_server: boolean; google_ads?: GadsStatus;
+  recent?: { channel?: "meta" | "ga4" | "google_ads"; event_name: string; status: string; reason: string | null; created_at: string }[] };
+export type TrackingIn = GadsSettings & { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_token?: string | null;
+  capi_test_code: string | null; ga4_api_secret?: string | null };
 export type ReportRow = { source: string; visits: number; enquiries: number; bookings: number; enquiry_rate: number | null; value?: number };
 export type Report = { days: number; since: string; total: { visits: number; enquiries: number; bookings: number }; rows: ReportRow[];
-  buttons: { code: string; enquiries: number; bookings: number }[]; money_restricted: boolean };
+  buttons: { code: string; enquiries: number; bookings: number }[]; money_restricted: boolean; google?: GoogleSummary };
 
 export type Promo = { id: string; code: string; kind: "percent" | "flat"; value: number; starts_on: string | null; ends_on: string | null;
   min_nights: number; max_uses: number | null; used_count: number; property_ids: string[]; label: string | null; active: boolean };
@@ -29,6 +36,7 @@ export type LaunchReport = {
   domain?: { host: string; kind: string; status: string; https: boolean }[];
   pages?: { title: string; path: string; sections: string[]; languages: string[] }[]; extra_pages?: string[];
   quality?: { scores: { performance: number; accessibility: number; seo: number }; to_improve: string[] };
+  speed_real?: Speed;
   schema?: Record<string, string[]>;
   tracking?: { meta_pixel: boolean; ga4: boolean; conversions_api: boolean; cookie_banner: boolean; last_event_sent_at: string | null };
   booking?: { mode: string; prices_shown: boolean; razorpay_connected: boolean | null; last_booking_at: string | null;

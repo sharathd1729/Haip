@@ -6,6 +6,7 @@ identity_service; this only reads the message text). A code counts only when its
 own prefix, so a pasted code from another business is ignored. Writes inquiry.custom_fields["website_ref"]
 {code, page, section} once; a lead the website created just now (source WA_DIRECT, under 10 minutes old) becomes
 source WEBSITE. Older leads keep their stored source (a returning guest's lead is not re-labelled). Audited.
+"(Ref WW-HOME-HERO-K7F2Q9XA)": the last part is a Google Ads click code (google_ads_conversions.stamp_from_code).
 """
 
 import re
@@ -16,13 +17,9 @@ from sqlalchemy.orm import Session
 from app.core.audit import append_audit
 from app.models.inquiry import Inquiry, InquirySource
 
-REF_IN_TEXT = re.compile(r"\(Ref ([A-Z0-9]{2,8})-([A-Z0-9]{1,12})-([A-Z0-9]{1,12})\)")
+# An optional 4th part "-<8 letters>" is the Google Ads click code the site added at the tap (google_ads_conversions).
+REF_IN_TEXT = re.compile(r"\(Ref ([A-Z0-9]{2,8})-([A-Z0-9]{1,12})-([A-Z0-9]{1,12})(?:-([A-Z0-9]{8}))?\)")
 FRESH = timedelta(minutes=10)
-
-
-def find(text: str | None) -> tuple[str, str, str] | None:
-    m = REF_IN_TEXT.search(text or "")
-    return (m.group(1), m.group(2), m.group(3)) if m else None
 
 
 def site_prefix(db: Session, tenant_id: str) -> str | None:
@@ -37,12 +34,16 @@ def site_prefix(db: Session, tenant_id: str) -> str | None:
 
 
 def stamp(db: Session, tenant_id: str, inquiry: Inquiry, text: str | None) -> dict | None:
-    found = find(text)
-    if not found or (inquiry.custom_fields or {}).get("website_ref"):
+    m = REF_IN_TEXT.search(text or "")
+    if not m or m.group(1) != site_prefix(db, tenant_id):
         return None
-    prefix, page, section = found
-    if prefix != site_prefix(db, tenant_id):
+    if m.group(4):
+        from app.services import google_ads_conversions
+
+        google_ads_conversions.stamp_from_code(db, tenant_id, inquiry, m.group(4))
+    if (inquiry.custom_fields or {}).get("website_ref"):
         return None
+    prefix, page, section = m.group(1), m.group(2), m.group(3)
     ref = {"code": f"{prefix}-{page}-{section}", "page": page, "section": section}
     inquiry.custom_fields = {**(inquiry.custom_fields or {}), "website_ref": ref}
     made = inquiry.created_at

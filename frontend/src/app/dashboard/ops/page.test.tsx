@@ -14,6 +14,8 @@ const session = vi.hoisted(() => ({ role: "manager" }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { role: session.role } }, status: "authenticated" }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/ops", useParams: () => ({ id: "f1" }) }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+// The owner/manager metrics block reads its own endpoint and has its own tests (OpsHealth.test.tsx).
+vi.mock("@/components/ops/OpsHealth", () => ({ OpsHealth: () => null }));
 
 import OpsTodayPage from "./page";
 import { TripFile } from "@/components/ops/TripFile";

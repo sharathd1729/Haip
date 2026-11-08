@@ -75,6 +75,11 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "ops.read": {"owner", "manager", "reservations", "concierge", "foh"},
     "ops.write": {"owner", "manager", "concierge", "foh"},
     "ops.manage": {"owner", "manager"},
+    # Dynamic SOPs / Get found (migration 188 grants these to existing tenants). Anyone with sops.read may also work on
+    # an SOP assigned to them (services/sops/service.py::can_work).
+    "sops.read": {"owner", "manager", "marketing", "reservations", "concierge", "foh"},
+    "sops.work": {"owner", "manager", "marketing"},
+    "sops.manage": {"owner", "manager"},
 }
 
 

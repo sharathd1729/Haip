@@ -20,9 +20,8 @@ celery_app = Celery(
         "app.workers.tasks.whatsapp",
         # New pipeline tasks
         "app.workers.tasks.transcribe",
-        "app.workers.tasks.classify",
-        "app.workers.tasks.judge",
-        "app.workers.tasks.wrap_up",
+        # One AI read per call (tasks.analyze_call) + the old classify/judge/wrap_up names as wrappers
+        "app.workers.tasks.call_analysis",
         "app.workers.tasks.concierge_draft",
         "app.workers.tasks.rewrite_draft",
         "app.workers.tasks.send_whatsapp",
@@ -52,6 +51,7 @@ celery_app = Celery(
         "app.workers.tasks.lead_autopilot",
         # Why a lead was won / lost: the AI's proposal from the lead's evidence (a person confirms)
         "app.workers.tasks.lead_outcome",
+        "app.workers.tasks.llm_batch",
         # Daily lead report email (11:00 IST) + the 10:30 "update your leads" reminder
         "app.workers.tasks.lead_reports",
         # Lead workflows: missed-call / no-answer WhatsApp playbooks + the lead journey sweep
@@ -80,6 +80,9 @@ celery_app = Celery(
         "app.workers.tasks.ops_intake",
         "app.workers.tasks.ops_files",
         "app.workers.tasks.gps",
+        # Dynamic SOPs / Get found: version generation + automatic checks
+        "app.workers.tasks.sops",
+        "app.workers.tasks.website_seo_agency",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -111,6 +114,7 @@ celery_app = Celery(
         "app.workers.tasks.marketing_research_tasks",  # studio plan phase 2: research sources, collector, swipe file
         "app.workers.tasks.marketing_ads",
         "app.workers.tasks.website",
+        "app.workers.tasks.google_surfaces",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
@@ -159,9 +163,6 @@ celery_app.conf.update(
         "whatsapp.*":                               {"queue": "whatsapp"},
         "app.workers.tasks.whatsapp.*":             {"queue": "whatsapp"},
         "app.workers.tasks.transcribe.*":           {"queue": "transcription"},
-        "app.workers.tasks.classify.*":             {"queue": "ai_scoring"},
-        "app.workers.tasks.judge.*":                {"queue": "ai_scoring"},
-        "app.workers.tasks.wrap_up.*":              {"queue": "ai_scoring"},
         "app.workers.tasks.concierge_draft.*":      {"queue": "replies"},
         "app.workers.tasks.rewrite_draft.*":        {"queue": "replies"},
         "app.workers.tasks.send_whatsapp.*":        {"queue": "replies"},
@@ -216,6 +217,7 @@ celery_app.conf.update(
         "tasks.check_automation_timers.run":         {"queue": "whatsapp"},
         "tasks.check_automation_timers.check_tenant": {"queue": "whatsapp"},
         "tasks.classify":                            {"queue": "ai_scoring"},
+        "tasks.analyze_call":                        {"queue": "ai_scoring"},
         "tasks.concierge_draft":                     {"queue": "replies"},
         "tasks.dpdp_purge":                          {"queue": "call_ingest"},
         # Nightly intent tags from the stated occasion (keyword matching, no LLM; owner OK 20 Oct 2026).
@@ -270,6 +272,14 @@ celery_app.conf.update(
         "marketing_studio.tag_photo":                {"queue": "default"},
         "marketing_studio.render_reel":              {"queue": "default"},
         "marketing_studio.ota_copy":                 {"queue": "default"},
+        "sops.generate_version":                     {"queue": "ai_scoring"},
+        "sops.check_instance":                       {"queue": "default"},
+        "sops.tick_all_tenants":                     {"queue": "default"},
+        "website_seo.orchestrate":                   {"queue": "default"},
+        "website_seo.run_week":                      {"queue": "default"},
+        "sops.tick_tenant":                          {"queue": "whatsapp"},
+        "sops.refresh_all_tenants":                  {"queue": "default"},
+        "sops.refresh_tenant":                       {"queue": "default"},
         "marketing_studio.draft_profile":            {"queue": "default"},
         "marketing_studio.canva_design":             {"queue": "default"},
         "marketing_studio.video_submit":             {"queue": "default"},
@@ -308,6 +318,10 @@ celery_app.conf.update(
         "website.send_events":                       {"queue": "default"},
         "website.blog_draft":                        {"queue": "default"},
         "website.translate":                         {"queue": "default"},
+        "google_surfaces.pull_all":                  {"queue": "default"},
+        "google_surfaces.pull_tenant":               {"queue": "default"},
+        "google_surfaces.pagespeed_all":             {"queue": "default"},
+        "google_surfaces.pagespeed_tenant":          {"queue": "default"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from
@@ -349,6 +363,7 @@ celery_app.conf.update(
         "ops.escalation_tick":                           {"queue": "whatsapp"},
         "ops.escalation_tick_tenant":                    {"queue": "whatsapp"},
         "ops.process_staff_photo":                       {"queue": "ai_scoring"},   # vision reads a staff photo
+        "ops.staff_assistant_answer":                    {"queue": "ai_scoring"},   # answers a staff question (LLM)
         "ops.sync_files_all":                            {"queue": "default"},
         "ops.sync_files_tenant":                         {"queue": "default"},
         "ops.auto_messages_all":                         {"queue": "whatsapp"},   # trip messages go out on WhatsApp
@@ -363,6 +378,8 @@ celery_app.conf.update(
         # Won/lost reason proposals (lead_outcome.py): LLM work, same queue as the autopilot classifier.
         "lead_outcome.propose":                       {"queue": "ai_scoring"},
         "lead_outcome.sweep_all_tenants":             {"queue": "ai_scoring"},
+        "llm_batch.submit":                           {"queue": "ai_scoring"},
+        "llm_batch.poll":                             {"queue": "ai_scoring"},
         # Daily lead report email + reminder (lead_reports.py): same queue as the other report emails.
         "lead_reports.daily_email_tick":              {"queue": "ai_scoring"},
         # Lead workflows (lead_playbooks.py): the playbook steps queue WhatsApp sends, so they share that queue.
@@ -650,6 +667,18 @@ celery_app.conf.beat_schedule = {
         "task": "marketing_ads.evaluate_all",
         "schedule": crontab(minute=20),
     },
+    # Website SEO agency: hourly check, runs once each Monday from 09:00 workspace time (the Studio's slot).
+    "website-seo-agency-orchestrate-hourly": {"task": "website_seo.orchestrate", "schedule": crontab(minute=11)},
+    # Get found (dynamic SOPs, phase S3): next cycles, tasks and reminders hourly at :07; new versions where the data,
+    # platform rules or template changed, nightly 03:55 IST.
+    "sops-tick-hourly": {
+        "task": "sops.tick_all_tenants",
+        "schedule": crontab(minute=7),
+    },
+    "sops-refresh-nightly": {
+        "task": "sops.refresh_all_tenants",
+        "schedule": crontab(minute=55, hour=3),
+    },
     "marketing-capi-sweep": {
         "task": "marketing_capi.sweep_all",
         "schedule": crontab(minute=50),
@@ -700,7 +729,16 @@ celery_app.conf.beat_schedule = {
         "task": "website.verify_domains",
         "schedule": crontab(minute=17),
     },
-    # Website Conversions API: Lead / InitiateCheckout / Purchase rows (website_tracking) to Meta.
+    # Google surfaces: Business Profile metrics + Search Console daily (07:10 IST), PageSpeed weekly (Mon 05:40 IST).
+    "google-surfaces-pull-daily": {
+        "task": "google_surfaces.pull_all",
+        "schedule": crontab(minute=10, hour=7),
+    },
+    "google-surfaces-pagespeed-weekly": {
+        "task": "google_surfaces.pagespeed_all",
+        "schedule": crontab(minute=40, hour=5, day_of_week=1),
+    },
+    # Website Conversions API: Lead / InitiateCheckout / Purchase rows (website_tracking) to Meta + GA4 server purchases.
     "website-send-events": {
         "task": "website.send_events",
         "schedule": crontab(minute="2-59/5"),
