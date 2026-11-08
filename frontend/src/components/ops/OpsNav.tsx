@@ -20,7 +20,7 @@ export function OpsNav() {
   return (
     <nav aria-label="Ops" className="flex gap-2">
       {LINKS.filter(l => !(villa && VEHICLE_ONLY.includes(l.href))).map(l => {
-        const on = path === l.href;
+        const on = path === l.href || (l.href === "/dashboard/ops/staff" && path.startsWith(`${l.href}/`));
         return (
           <Link key={l.href} href={l.href} aria-current={on ? "page" : undefined}
             className={cn("inline-flex min-h-11 flex-1 items-center justify-center rounded-full border px-4 text-[15px] font-semibold sm:flex-none",

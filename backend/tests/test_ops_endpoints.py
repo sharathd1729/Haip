@@ -92,6 +92,47 @@ def test_shift_creation_and_on_duty(client, db, w):
     )
 
 
+def _all_week(db, tenant_id, s, duty):
+    from tests.ops_helpers import shift
+
+    for wd in range(7):
+        shift(db, tenant_id, s.id, duty, wd, 0, 24)
+    db.flush()
+
+
+def test_on_duty_lists_every_chain_step_with_who_it_reaches(client, db, w):
+    _all_week(db, w.t.id, staff(db, w.t.id, "Ravi", "maintenance"), "maintenance")
+    _all_week(db, w.t.id, staff(db, w.t.id, "Farhan", "ops_manager"), "ops_manager")
+    r = client.get("/api/v1/ops/on-duty", params={"duty": "maintenance"}, headers=_h(w.foh))
+    assert r.status_code == 200, r.text
+    steps = r.json()["steps"]
+    assert [s["spec"] for s in steps] == [
+        {"type": "on_shift"},
+        {"type": "on_shift", "duty": "ops_manager"},
+        {"type": "role", "role": "manager"},
+        {"type": "role", "role": "owner"},
+    ]
+    assert [s["recipients"] for s in steps] == [["Ravi"], ["Farhan"], ["manager"], ["owner"]]
+    crit = client.get("/api/v1/ops/on-duty", params={"duty": "maintenance", "severity": "critical"}, headers=_h(w.foh))
+    assert crit.json()["steps"][0]["recipients"] == ["Ravi", "Farhan"]  # critical reaches the ops manager at once
+    assert client.get("/api/v1/ops/on-duty", params={"duty": "maintenance", "severity": "urgent"}, headers=_h(w.foh)).status_code == 422
+
+
+def test_on_duty_steps_need_ops_read(client, w):
+    assert client.get("/api/v1/ops/on-duty", params={"duty": "maintenance"}, headers=_h(w.mkt)).status_code == 403
+
+
+def test_on_duty_steps_never_show_another_workspaces_people(client, db, w):
+    _all_week(db, w.t.id, staff(db, w.t.id, "Ravi", "maintenance"), "maintenance")
+    other = tenant(db)
+    seed_capabilities(db, other.id)
+    intruder = _user(db, other.id, UserRole.OWNER)
+    intruder.name = "Their owner"
+    db.commit()
+    steps = client.get("/api/v1/ops/on-duty", params={"duty": "maintenance"}, headers=_h(intruder)).json()["steps"]
+    assert [n for s in steps for n in s["recipients"]] == ["Their owner"]  # not Ravi, not this workspace's owner/manager
+
+
 def test_shift_for_other_tenants_staff_is_404(client, db, w):
     other = tenant(db)
     s = staff(db, other.id, "Theirs", "maintenance")
