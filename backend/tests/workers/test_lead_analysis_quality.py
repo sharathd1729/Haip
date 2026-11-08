@@ -29,7 +29,8 @@ def _setup(db, **inquiry_kw):
     tenant = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth")
     db.add(tenant)
     db.flush()
-    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Chitra", phone="+919800000011")
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Chitra", phone="+919800000011",
+                  lead_identified_at=datetime.now(timezone.utc))
     db.add(guest)
     db.flush()
     inquiry = Inquiry(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, source=InquirySource.WA_DIRECT, **inquiry_kw)
@@ -228,18 +229,19 @@ def test_another_tenants_enquiry_is_untouched(db):
 
 # ─── how soon the analysis follows new messages ───────────────────────────────
 
-def test_a_new_message_is_reflected_within_the_debounce_window_and_a_second_one_is_not_lost(monkeypatch):
+def test_a_burst_is_reflected_by_one_trailing_run_at_the_end_of_the_window(monkeypatch):
+    """AI cost audit (8 Nov 2026): no immediate run any more; the burst's first message schedules ONE run at the end of
+    the window, which reads every message of the burst from the DB."""
     assert leads_service.SUMMARY_DEBOUNCE_TTL <= 600
     store: dict = {}
     monkeypatch.setattr(leads_service, "get_cached", lambda k: store.get(k))
     monkeypatch.setattr(leads_service, "set_cached", lambda k, v, ttl=None: store.__setitem__(k, v))
-    with patch("app.workers.tasks.generate_ai_summary.generate_ai_summary.delay") as now, \
-         patch("app.workers.tasks.generate_ai_summary.generate_ai_summary.apply_async") as later:
+    with patch("app.workers.tasks.generate_ai_summary.generate_ai_summary.delay") as now,          patch("app.workers.tasks.generate_ai_summary.generate_ai_summary.apply_async") as later:
         assert leads_service.trigger_summary_refresh(MagicMock(), "i1", "t1", source="message") is True
-        assert now.call_count == 1
-        assert leads_service.trigger_summary_refresh(MagicMock(), "i1", "t1", source="message") is True      # inside the window
-        assert later.call_args.kwargs["countdown"] == leads_service.SUMMARY_DEBOUNCE_TTL                   # one trailing catch-up
+        assert now.call_count == 0
+        assert later.call_args.kwargs["countdown"] == leads_service.SUMMARY_DEBOUNCE_TTL                   # one trailing run
         assert leads_service.trigger_summary_refresh(MagicMock(), "i1", "t1", source="message") is False     # absorbed by it
+        assert later.call_count == 1
 
 
 def test_an_inquiry_whose_ai_is_off_still_gets_its_analysis_refreshed(db):

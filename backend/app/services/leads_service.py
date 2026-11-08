@@ -82,7 +82,8 @@ _SOURCE_CHANNEL_MAP: dict[str, str] = {
 # Stages grouped as "Closed" in the pipeline
 _CLOSED_STAGES = {InquiryStage.LOST.value, InquiryStage.GHOSTED.value}
 
-SUMMARY_DEBOUNCE_TTL = 600    # 10 minutes: a new message is reflected in the analysis within this window (was 30)
+SUMMARY_DEBOUNCE_TTL = 600    # 10 minutes: a message burst gets ONE summary run when this window ends
+SUMMARY_MANUAL_COOLDOWN = 120  # a manual "Refresh" queues at most one run per 2 minutes per lead
 TIMELINE_CAP = 50
 
 
@@ -607,46 +608,50 @@ def trigger_summary_refresh(
     """
     Enqueue an async AI summary generation for this inquiry.
 
-    - source="message": debounced (30-min Redis TTL key). A message that
-      lands while already debounced schedules one trailing catch-up run at
-      the end of the window instead of being silently dropped -- otherwise
-      a guest who sends their travel dates/guest count in a second message
-      right after their first never gets that captured until some unrelated
-      later trigger (a call, a manual refresh) happens to fire. The task
-      always rebuilds context fresh from the DB at execution time, so a
-      delayed run correctly reflects whatever arrived in the meantime.
-    - source="call":    always immediate, skip debounce.
-    - source="manual":  always immediate (POST /refresh-summary endpoint).
+    - source="message": trailing edge only. The first message of a burst
+      schedules ONE run at the end of a 10-minute window (Redis key);
+      every later message in that window is absorbed by it. The task
+      rebuilds context from the DB when it runs, so it sees the whole burst.
+    - source="call":    immediate (end of wrap_up, once the call's analysis exists).
+    - source="manual":  immediate, at most once per SUMMARY_MANUAL_COOLDOWN
+      (POST /refresh-summary); also skips the "nothing new" and lead checks.
 
-    Returns True if task was enqueued (immediately or as a scheduled
-    catch-up), False if this call was fully absorbed by an already-scheduled
-    catch-up.
+    The task itself skips the LLM when its input has not changed since the
+    last summary, and for a non-lead without trip details (see
+    generate_ai_summary). Returns True if a run was queued.
     """
-    debounce_key = cache_key("summary_debounce", tenant_id, iid=inquiry_id)
+    from app.workers.tasks.generate_ai_summary import generate_ai_summary
 
     if source == "message":
+        debounce_key = cache_key("summary_debounce", tenant_id, iid=inquiry_id)
         if get_cached(debounce_key) is not None:
-            followup_key = cache_key("summary_followup", tenant_id, iid=inquiry_id)
-            if get_cached(followup_key) is not None:
-                log.debug("summary_refresh_debounced", inquiry_id=inquiry_id, source=source)
-                return False
-            set_cached(followup_key, "1", ttl=SUMMARY_DEBOUNCE_TTL)
-            try:
-                from app.workers.tasks.generate_ai_summary import generate_ai_summary
-                generate_ai_summary.apply_async(
-                    kwargs={"inquiry_id": inquiry_id, "tenant_id": tenant_id},
-                    countdown=SUMMARY_DEBOUNCE_TTL,
-                )
-                log.info("summary_refresh_followup_scheduled", inquiry_id=inquiry_id, source=source)
-                return True
-            except Exception as exc:
-                log.warning("summary_refresh_followup_enqueue_failed", inquiry_id=inquiry_id, error=str(exc))
-                return False
+            log.debug("summary_refresh_debounced", inquiry_id=inquiry_id, source=source)
+            return False
         set_cached(debounce_key, "1", ttl=SUMMARY_DEBOUNCE_TTL)
+        try:
+            generate_ai_summary.apply_async(
+                kwargs={"inquiry_id": inquiry_id, "tenant_id": tenant_id},
+                countdown=SUMMARY_DEBOUNCE_TTL,
+            )
+            log.info("summary_refresh_scheduled", inquiry_id=inquiry_id, source=source)
+            return True
+        except Exception as exc:
+            log.warning("summary_refresh_enqueue_failed", inquiry_id=inquiry_id, error=str(exc))
+            return False
+
+    force = source == "manual"
+    if force:
+        cooldown_key = cache_key("summary_manual", tenant_id, iid=inquiry_id)
+        if get_cached(cooldown_key) is not None:
+            log.info("summary_refresh_manual_cooldown", inquiry_id=inquiry_id)
+            return False
+        set_cached(cooldown_key, "1", ttl=SUMMARY_MANUAL_COOLDOWN)
 
     try:
-        from app.workers.tasks.generate_ai_summary import generate_ai_summary
-        generate_ai_summary.delay(inquiry_id=inquiry_id, tenant_id=tenant_id)
+        if force:
+            generate_ai_summary.delay(inquiry_id=inquiry_id, tenant_id=tenant_id, force=True)
+        else:
+            generate_ai_summary.delay(inquiry_id=inquiry_id, tenant_id=tenant_id)
         log.info("summary_refresh_queued", inquiry_id=inquiry_id, source=source)
         return True
     except Exception as exc:

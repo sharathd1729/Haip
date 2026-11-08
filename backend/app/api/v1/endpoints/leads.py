@@ -355,7 +355,8 @@ def refresh_summary(
 ) -> RefreshSummaryResponse:
     """
     Trigger immediate async regeneration of the AI summary for this lead.
-    Bypasses the 30-minute debounce (manual trigger). All roles allowed.
+    Bypasses the message debounce; at most one run per lead every 2 minutes
+    (queued=false inside that cooldown). All roles allowed.
     """
     # Verify inquiry belongs to this tenant
     from app.models.inquiry import Inquiry
@@ -365,13 +366,13 @@ def refresh_summary(
     if not inquiry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
 
-    leads_service.trigger_summary_refresh(
+    queued = leads_service.trigger_summary_refresh(
         db=db,
         inquiry_id=inquiry_id,
         tenant_id=current_user.tenant_id,
         source="manual",
     )
-    return RefreshSummaryResponse(queued=True, inquiry_id=inquiry_id)
+    return RefreshSummaryResponse(queued=queued, inquiry_id=inquiry_id)
 
 
 # ── POST /leads/{inquiry_id}/merge ────────────────────────────────────────────

@@ -38,7 +38,8 @@ def _setup(db, **inquiry_overrides):
     db.add(tenant); db.commit()
 
     guest_id = str(uuid.uuid4())
-    guest = Guest(id=guest_id, tenant_id=tenant_id, name="Chitra", phone="+15308440648")
+    guest = Guest(id=guest_id, tenant_id=tenant_id, name="Chitra", phone="+15308440648",
+                  lead_identified_at=datetime.now(timezone.utc))
     db.add(guest); db.commit()
 
     inquiry_id = str(uuid.uuid4())

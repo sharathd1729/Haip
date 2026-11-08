@@ -66,8 +66,12 @@ def process_dograh_call_completed(self, tenant_id: str, payload: dict):
     db: Session = SessionLocal()
     try:
         set_tenant_context(db, tenant_id)
-        _process(self, db, tenant_id, payload)
+        inquiry_id = _process(self, db, tenant_id, payload)
         db.commit()
+        try:
+            generate_ai_summary.delay(inquiry_id=inquiry_id, tenant_id=tenant_id)
+        except Exception as exc:
+            log.warning("dograh_ai_trigger_failed", inquiry_id=inquiry_id, error=str(exc))
     except IntegrityError:
         db.rollback()
         log.info(
@@ -83,7 +87,7 @@ def process_dograh_call_completed(self, tenant_id: str, payload: dict):
         db.close()
 
 
-def _process(task_self, db: Session, tenant_id: str, payload: dict) -> None:
+def _process(task_self, db: Session, tenant_id: str, payload: dict) -> str:
     phone = payload.get("phone_number", "")
     dograh_call_id = payload.get("call_id", "")
     dograh_agent_id = payload.get("agent_id", "")
@@ -192,11 +196,7 @@ def _process(task_self, db: Session, tenant_id: str, payload: dict) -> None:
         except Exception as exc:
             log.warning("dograh_recording_fetch_failed", call_id=call.id, error=str(exc))
 
-    # ── 6. AI analysis trigger ────────────────────────────────────────────────
-    try:
-        generate_ai_summary.delay(inquiry_id=inquiry.id, tenant_id=tenant_id)
-    except Exception as exc:
-        log.warning("dograh_ai_trigger_failed", inquiry_id=inquiry.id, error=str(exc))
+    # ── 6. AI analysis trigger: after the commit (process_dograh_call_completed), so the run sees this call ──
 
     # ── 7. Leads360 update ────────────────────────────────────────────────────
     inquiry.last_activity_at = _now() if hasattr(inquiry, "last_activity_at") else None
@@ -266,6 +266,7 @@ def _process(task_self, db: Session, tenant_id: str, payload: dict) -> None:
         guest_token=_phone_token(phone),
         occasion=detected_occasion,
     )
+    return inquiry.id
 
 
 def _fetch_and_store_recording(db: Session, call: Call, recording_url: str, tenant_id: str) -> None:

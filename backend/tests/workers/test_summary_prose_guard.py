@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -37,7 +38,8 @@ def _setup(db, **inquiry_kw):
     tenant = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth")
     db.add(tenant)
     db.flush()
-    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Asha", phone="+919800000021")
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Asha", phone="+919800000021",
+                  lead_identified_at=datetime.now(timezone.utc))
     db.add(guest)
     db.flush()
     inquiry = Inquiry(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, source=InquirySource.META_IG, **inquiry_kw)
