@@ -472,6 +472,34 @@ before it. No row in a period = `None` ("No data", never 0); a change is shown o
 | `google.money_query_position` | per owner-picked search (max 10, lower-cased exact match): impression-weighted mean position over the stored query rows in the period; previous period the same way; weekly trend for 8 weeks (D-36) | T |
 | `google.speed` | latest measured week, per page (home + top 3 stay pages by website visits), mobile first: CrUX p75 field verdict FAST / AVERAGE / SLOW (page, else whole site, flagged), LCP / INP / CLS p75; lab Lighthouse performance score shown apart (D-37) | T |
 
+## 20. Operations: how operations are doing  *(8 Nov 2026, ops gap 10; shared; evidence T)*
+
+`GET /ops/files/metrics?days=7..90` (owner/manager + `ops.read`), the "How operations are doing" block on Ops Today and
+the owner brief's operations lines all read `services/ops_metrics.py` (`build` / `last_days`). Period = IST calendar
+days; every metric is overall and per unit (`by_property`). Tests: `tests/services/test_ops_metrics.py`.
+
+| Metric | Definition |
+|---|---|
+| `ops.time_to_acknowledge` | D-39. Ops items opened in the period, median + p90 minutes to the first Acknowledge, by severity. |
+| `ops.time_to_resolve` | D-39. Opened -> fixed, median + p90 by severity; guest tickets by the guest's yes. |
+| `ops.issues_per_10_stays` | D-40. Issues opened in the period per 10 stays checking in, per unit, plus repeated checklist failures. |
+| `ops.ready_on_time` | D-41. Readiness gate green at the check-in moment. |
+| `ops.paperwork_before_arrival` | D-42. Guest form sent AND paid in full before the check-in moment. |
+| `ops.addon_revenue_per_stay` | D-43. Paid add-ons / stays; "No data" while the workspace never had add-ons. |
+| `ops.in_stay_reply` | D-44. Guest turns during a stay answered inside the work queue's `reply` SLA. |
+| Review rate and rating | D-45. Not shown: post-stay review requests ("Ops 3b") are not merged. |
+
+| Id | Decision |
+|---|---|
+| D-38 | (8 Nov 2026) **Which stays the ops metrics judge.** Stays checking in inside the period (IST). Left out: cancelled stays, stays on the "Unassigned" placeholder unit (`vehicle_pool.placeholder_ids`, D-32) and comp stays = creator barter stays (`channel_source = "creator"`, amount 0, section M7). Ops items on the placeholder unit are left out too. "Before check-in" = the check-in moment: the check-in date at the stay's `check_in_time` (pickup), else 12:00 IST; a stay is judged only once that moment has passed. Ready on time and paperwork need an ops file (businesses with an ops pack). Empty = None ("No data"), never 0 or 100%. |
+| D-39 | (8 Nov 2026) **Ticket times.** Every ops item that was not cancelled, opened in the period (`created_at`, IST). Acknowledge = `acknowledged_at` (the Acknowledge tap; resolving an item nobody acknowledged stamps it, so that counts); the clock starts when the alert could first go out, i.e. after a quiet-hours / morning hold (`dispatch_after`). Not yet acknowledged = counted apart. Resolve: a guest ticket (source guest_chat / service_request with a guest) is fixed at the guest's YES (`guest_confirmed` event, PR #141); one closed without the guest's answer (24 h timeout, or the question could not be sent) is counted apart and not timed; any other item is fixed when a person resolved it (`resolved_at`). Median and p90 (linear interpolation, as `impact_metrics.percentile`). |
+| D-40 | (8 Nov 2026) **Issues per 10 stays.** Ops items opened in the period that are tied to a unit (its own `property_id`, else its stay's unit), not cancelled, and not the scheduled paperwork reminders (`category` deposit, form_c), x 10 / stays checking in in the period (D-38), overall and per unit. Repeats = the same checklist item (by key) on the same unit failing 2+ times across the period's stays: red now, or a staff photo the AI check said was not fine. A fixed item that turned green again leaves no trace, so repeats are a floor. |
+| D-41 | (8 Nov 2026) **Ready on time.** Of the stays judged (D-38) with an ops file: the last readiness-gate event on the file's timeline at or before the check-in moment says green ("Every critical check is green", written by `ops_trip_service.refresh` / `ops_stay_service.refresh`); no gate event before it = not ready. |
+| D-42 | (8 Nov 2026) **Paperwork before arrival.** Of the stays judged with an ops file: the guest form was submitted before the check-in moment AND payments dated on or before the check-in day (refunds subtracted) cover the rental + the add-ons added before the check-in moment. A booking with nothing to pay is judged on the form alone. The security deposit is not part of it. |
+| D-43 | (8 Nov 2026) **Add-on revenue per stay** = add-ons (`stay_addons`, quantity x unit price) on stays that are fully paid now (`booking_service.financials_for` outstanding 0), divided by all stays checking in in the period (D-38). The caravan "Extra distance" line is a charge for the trip, not an add-on, and is left out. "Live" = the workspace has an add-on catalogue entry or ever sold an add-on; not live = None ("No data"), never Rs 0. |
+| D-44 | (8 Nov 2026) **In-stay reply time.** Guest turns (`replies.first_response`'s rule, `impact_metrics.guest_turns`: a turn starts at a guest message after our reply or 24 h of silence; turns under 60 min old are not judged) that started while one of the guest's stays (D-38) was on (check-in day to check-out day, IST). On time = the reply came while `work_queue_service.severity_for("reply", ...)` was still `fresh` (the work queue's own SLA, no second rule); unanswered = late. AI replies count, as they do for the queue. |
+| D-45 | (8 Nov 2026) **Review rate and rating are not shown yet.** They wait for the post-stay review requests ("Ops 3b"); the API returns `reviews.available = false` with a note. **OWNER TO CONFIRM** when that lands: whether a review counts by the stay's check-out month. |
+
 ## 13. Decisions needed (none is assumed)
 
 | Id | Decision |

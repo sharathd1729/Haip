@@ -10,6 +10,7 @@ Rules every function here follows:
   * time is explicit: callers pass the period bounds (the IST day boundaries converted to UTC by
     ``date_presets.ist_range_to_utc``), this module never decides "today";
   * the value a caller gets back for an empty period is 0, never None or an error.
+    (Exception: the ``ops.*`` metrics live in ``ops_metrics`` and give None for "No data", D-38.)
 
 Registry: ``CANONICAL_METRICS`` is the machine-readable index of what is shared. tests/services/test_kpi_metrics.py
 fails if a metric listed here is missing from the catalogue document, so code and documentation cannot drift apart.
@@ -157,6 +158,59 @@ CANONICAL_METRICS: dict[str, dict[str, str]] = {
                       "Inquiry.lost_reason (empty = Not recorded). Records, not people.",
         "date_basis": "Inquiry.current_stage_entered_at (else updated_at)",
         "function": "impact_metrics.lost_enquiries",
+    },
+    # Operations (ops gap 10, D-38 .. D-45). Shared exclusions: cancelled, the Unassigned holder, comp (creator) stays.
+    "ops.time_to_acknowledge": {
+        "name": "Time to acknowledge",
+        "definition": "Ops items opened in the period (not cancelled): minutes from opening (or from the end of a "
+                      "quiet-hours / morning hold) to the first Acknowledge (a resolve without one counts), median + p90, "
+                      "by severity. Not yet acknowledged = counted apart.",
+        "date_basis": "OpsItem.created_at, IST days as UTC instants",
+        "function": "ops_metrics.acknowledge_times",
+    },
+    "ops.time_to_resolve": {
+        "name": "Time to resolve",
+        "definition": "Opened -> fixed, median + p90 by severity. A guest ticket is fixed when the guest said yes "
+                      "(guest_confirmed); closed without the guest's answer = counted apart, not timed. Other items: "
+                      "resolved by a person.",
+        "date_basis": "OpsItem.created_at, IST days as UTC instants",
+        "function": "ops_metrics.resolve_times",
+    },
+    "ops.issues_per_10_stays": {
+        "name": "Issues per 10 stays",
+        "definition": "Ops items tied to a unit (not cancelled, not the deposit / Form C reminders) opened in the period "
+                      "per 10 stays checking in in the period, overall and per unit; plus checklist items that failed on "
+                      "the same unit 2+ times.",
+        "date_basis": "OpsItem.created_at / Stay.check_in, IST days",
+        "function": "ops_metrics.build",
+    },
+    "ops.ready_on_time": {
+        "name": "Ready on time",
+        "definition": "Stays with an ops file checking in in the period whose readiness gate was green (its last gate "
+                      "event) at the check-in moment, of those whose check-in moment has passed.",
+        "date_basis": "Stay.check_in (+ check_in_time, else 12:00 IST)",
+        "function": "ops_metrics.ready_on_time",
+    },
+    "ops.paperwork_before_arrival": {
+        "name": "Paperwork before arrival",
+        "definition": "Stays with an ops file whose guest form was sent AND rental + add-ons were paid in full before "
+                      "the check-in moment, of those whose check-in moment has passed.",
+        "date_basis": "Stay.check_in; OpsGuestForm.submitted_at; StayPayment.paid_on",
+        "function": "ops_metrics.paperwork_done",
+    },
+    "ops.addon_revenue_per_stay": {
+        "name": "Add-on revenue per stay",
+        "definition": "Add-ons on fully paid stays (not the caravan Extra distance charge) / stays checking in in the "
+                      "period. None (No data) while the workspace has never had an add-on.",
+        "date_basis": "Stay.check_in, IST days",
+        "function": "ops_metrics.addon_revenue",
+    },
+    "ops.in_stay_reply": {
+        "name": "In-stay reply time",
+        "definition": "Guest turns (replies.first_response's rule) written during the guest's stay, answered while the "
+                      "work queue's reply SLA was still fresh (work_queue_service.severity_for); AI replies count.",
+        "date_basis": "turn start, IST days; stay = check-in day to check-out day",
+        "function": "ops_metrics.in_stay_replies",
     },
 }
 

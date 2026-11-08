@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, EmptyState, PageHeader } from "@/components/ui/kit";
 import { DayList, NeedCard, UnitCards } from "@/components/ops/TodayParts";
 import { OpsNav } from "@/components/ops/OpsNav";
+import { OpsHealth } from "@/components/ops/OpsHealth";
 
 export default function OpsTodayPage() {
   const hydrated = useHydrated();
@@ -80,6 +81,8 @@ export default function OpsTodayPage() {
               ? <Card><EmptyState title={`No ${data.file_word}s today or tomorrow`} hint={`New bookings show up here once they are confirmed.`} /></Card>
               : <DayList day={data.day} today={data.date} />}
           </section>
+
+          {canManageOps(session?.user?.role) && <OpsHealth />}
         </>
       )}
     </div>
