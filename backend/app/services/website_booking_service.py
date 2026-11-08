@@ -163,7 +163,9 @@ def create_hold(db: Session, tenant: Tenant, site: Site, host: str, body, *, ip_
         adults=qin.adults, children=qin.children, mode=mode, status="requested" if mode == "request" else "held",
         quote=q.to_api(), total=q.total, pay_now=q.pay_now, gst_percent=q.gst_percent,
         guest_details=body.guest.model_dump(exclude={"phone"}, mode="json"), session_hash=_sha(session),
-        expires_at=_now() + timedelta(minutes=minutes), guest_id=guest_id, inquiry_id=inquiry_id)
+        expires_at=_now() + timedelta(minutes=minutes), guest_id=guest_id, inquiry_id=inquiry_id,
+        analytics_consent=body.analytics_consent,
+        ga_client_id=body.ga_client_id if body.analytics_consent else None)   # no consent: the browser id is not kept
     db.add(hold)
     db.flush()
     if mode == "request" or q.pay_now <= 0:
@@ -308,6 +310,7 @@ def on_hold_link_paid(db: Session, tenant: Tenant, hold: BookingHold, pay_ent: d
     if site is not None:
         from app.services import website_tracking
         website_tracking.purchase(db, site, hold, stay)
+        website_tracking.ga4_purchase(db, site, hold, stay)
     append_audit(db, tenant_id=tenant.id, action="website.booking_confirmed", target_type="booking", target_id=stay.id,
                  payload={"hold_id": hold.id, "payment_id": pay_id, "amount": str(paid), "total": str(hold.total)})
     db.commit()

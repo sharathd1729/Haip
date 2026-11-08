@@ -70,6 +70,15 @@ def put_tracking(
                 "problems": [],
             },
         )
+    if body.ga4_api_secret and not body.ga4_id:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ga4_needed",
+                "message": "Add the GA4 measurement id (G-...) before saving the Measurement Protocol secret.",
+                "problems": [],
+            },
+        )
     out = track.update(db, site, body, actor_id=user.id)
     db.commit()
     _revalidate(user.tenant_id, site.id)

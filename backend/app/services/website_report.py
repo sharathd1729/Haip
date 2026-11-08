@@ -18,9 +18,22 @@ from app.models.website import Site, SitePageView
 
 MAX_LEADS = 5000
 
+# Chat assistants that link to sites: one source of their own (the ONE list; a referrer host or a utm_source naming
+# any of them). Matched on the whole host or a subdomain of it, so "gemini.google.com" never swallows "google.com".
+AI_ASSISTANTS = "AI assistants"
+AI_HOSTS = ("chatgpt.com", "chat.openai.com", "perplexity.ai", "gemini.google.com", "copilot.microsoft.com", "claude.ai")
+AI_UTM = {"chatgpt", "chatgpt.com", "openai", "perplexity", "gemini", "copilot", "claude", "claude.ai"}
+
+
+def _ai_assistant(s: str) -> bool:
+    host = s.split("//")[-1].split("/")[0].split(":")[0]
+    return s in AI_UTM or any(host == h or host.endswith("." + h) for h in AI_HOSTS)
+
 
 def norm(source: str) -> str:
     s = (source or "").strip().lower()
+    if _ai_assistant(s):
+        return AI_ASSISTANTS
     if "." in s:
         parts = [p for p in s.split(".") if p]
         while len(parts) > 2 and parts[0] in ("www", "l", "m", "lm", "web", "mobile"):

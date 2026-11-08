@@ -701,7 +701,7 @@ celery_app.conf.beat_schedule = {
         "task": "website.verify_domains",
         "schedule": crontab(minute=17),
     },
-    # Website Conversions API: Lead / InitiateCheckout / Purchase rows (website_tracking) to Meta.
+    # Website Conversions API: Lead / InitiateCheckout / Purchase rows (website_tracking) to Meta + GA4 server purchases.
     "website-send-events": {
         "task": "website.send_events",
         "schedule": crontab(minute="2-59/5"),

@@ -4,9 +4,10 @@ import api from "@/lib/api";
 const WEB = "/websites";
 
 export type Tracking = { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_test_code: string | null;
-  has_capi_token: boolean; recent?: { event_name: string; status: string; reason: string | null; created_at: string }[] };
+  has_capi_token: boolean; has_ga4_api_secret: boolean; ga4_server: boolean;
+  recent?: { channel?: "meta" | "ga4"; event_name: string; status: string; reason: string | null; created_at: string }[] };
 export type TrackingIn = { pixel_id: string | null; ga4_id: string | null; capi_enabled: boolean; capi_token?: string | null;
-  capi_test_code: string | null };
+  capi_test_code: string | null; ga4_api_secret?: string | null };
 export type ReportRow = { source: string; visits: number; enquiries: number; bookings: number; enquiry_rate: number | null; value?: number };
 export type Report = { days: number; since: string; total: { visits: number; enquiries: number; bookings: number }; rows: ReportRow[];
   buttons: { code: string; enquiries: number; bookings: number }[]; money_restricted: boolean };
