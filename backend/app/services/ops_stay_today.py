@@ -1,5 +1,6 @@
-"""Ops Today for villa businesses (phase 4): the same screen and shape as ops_today_service (units, needs red first, today
-and tomorrow), with the villa pack's rules. ops_today_service.build hands villa tenants here.
+"""Ops Today for stay businesses (villa phase 4; every whole_unit and room pack since Ops 2): the same screen and shape as
+ops_today_service (units, needs red first, today and tomorrow), with the stay machine's rules and the pack's words.
+ops_today_service.build hands every stay-pack tenant here.
 
 needs: open ops items (staff flags), arrival < 72 h with critical checks open (red < 24 h), ready to welcome, no caretaker
 close to arrival, today's meals the cook has not confirmed, a mid-stay clean due, the check-out inspection (damage = red),
@@ -45,12 +46,14 @@ def _file_needs(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, t
                     "red" if hours < 24 else "amber",
                     unit,
                     f"{n} check{'s' if n != 1 else ''} still open",
-                    f"{who}: {arrives_text(hours).lower()}. The villa is not ready to welcome yet.",
+                    f"{who}: {arrives_text(hours).lower()}. The {packs.get(f.pack)['unit_word']} is not ready to welcome "
+                    "yet.",
                     f.id,
                 )
             )
         if not d.caretaker_staff_id and hours < 72:
-            out.append(_need("amber", unit, "Pick the caretaker", f"{who}: {arrives_text(hours).lower()}.", f.id))
+            host = stays.unit_words(f.pack)[1].lower()
+            out.append(_need("amber", unit, f"Pick the {host}", f"{who}: {arrives_text(hours).lower()}.", f.id))
         if f.state == "ready" and hours < 24:
             out.append(
                 _need("amber", unit, "Ready to welcome", f"{who}: {arrives_text(hours).lower()}. Tap Check in.", f.id)
@@ -151,14 +154,15 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
     rows = (
         db.query(OpsFile, Stay)
         .join(Stay, Stay.id == OpsFile.stay_id)
-        .filter(OpsFile.tenant_id == tenant_id, OpsFile.pack == stays.PACK, OpsFile.state.in_(stays.LIVE))
+        .filter(OpsFile.tenant_id == tenant_id, OpsFile.pack.in_(packs.STAY_PACKS), OpsFile.state.in_(stays.LIVE))
         .order_by(Stay.check_in)
         .all()
     )
     needs: list[dict] = []
     file_needs: dict[str, list[dict]] = {}
     for f, stay in rows:
-        fn = _file_needs(db, f, stay, names.get(stay.property_id, "Villa"), now, tz, today)
+        unit = names.get(stay.property_id, packs.get(f.pack)["unit_word"].capitalize())
+        fn = _file_needs(db, f, stay, unit, now, tz, today)
         file_needs[f.id] = fn
         needs += fn
     by_stay = {stay.id: f for f, stay in rows}
@@ -246,7 +250,7 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
     day = []
     horizon = today + timedelta(days=1)
     for f, s in rows:
-        unit = names.get(s.property_id, "Villa")
+        unit = names.get(s.property_id, packs.get(f.pack)["unit_word"].capitalize())
         tone = "red" if any(n["level"] == "red" for n in file_needs.get(f.id, [])) else "ok"
         if f.state == "staying":
             day.append(
@@ -286,11 +290,15 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
                 }
             )
     day.sort(key=lambda e: (not e["now"], e["date"], e["time"] or "99:99"))
-    spec = packs.get(stays.PACK)
+    bt = tenant.business_type if tenant else None
+    pack = packs.pack_for_business_type(bt)
+    pack = pack if packs.is_stay(pack) else stays.PACK
+    spec = packs.get(pack)
     return {
         "date": today.isoformat(),
-        "pack": stays.PACK,
-        "unit_word": spec["unit_word"],
+        "pack": pack,
+        "flow": spec["flow"],
+        "unit_word": packs.unit_word_for(bt) or spec["unit_word"],
         "file_word": spec["file_word"],
         "units": units,
         "needs": needs,

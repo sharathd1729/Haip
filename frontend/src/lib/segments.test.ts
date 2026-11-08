@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SEGMENTS, placeholderLabel, segmentFor } from "./segments";
+import { BUSINESS_TYPE_OPTIONS, OPS_BUSINESS_TYPES, SEGMENTS, placeholderLabel, segmentFor } from "./segments";
 
 describe("segment profile", () => {
   it("maps every business type to its own experience, and anything unknown or loading to a plain property", () => {
@@ -8,7 +8,28 @@ describe("segment profile", () => {
     expect(segmentFor("homestay").key).toBe("homestay");
     expect(segmentFor("hotel").key).toBe("hotel");
     expect(segmentFor(null).key).toBe("property");
-    expect(segmentFor("farmhouse" as never).key).toBe("property");
+    expect(segmentFor("travel_agency").key).toBe("property");
+    expect(segmentFor("toString").key).toBe("property");
+    expect(segmentFor("villa").key).toBe("villa");          // older stored value
+  });
+
+  it("gives every sign-up type a segment with its ops flow and unit word (backend ops_pack_catalog)", () => {
+    const want: Record<string, [string, string | null, string]> = {
+      caravan: ["caravan", "trip", "vehicle"], villa_resort: ["villa", "whole_unit", "villa"],
+      farmhouse: ["farmhouse", "whole_unit", "farmhouse"], vacation_rental: ["rental", "whole_unit", "apartment"],
+      homestay: ["homestay", "whole_unit", "property"], hotel: ["hotel", "room", "room"],
+      resort: ["hotel", "room", "room"], guesthouse: ["hotel", "room", "room"],
+    };
+    expect(BUSINESS_TYPE_OPTIONS.map(o => o.value)).toEqual(Object.keys(want));
+    for (const [type, [key, flow, unit]] of Object.entries(want)) {
+      const s = segmentFor(type);
+      expect([s.key, s.ops.flow, s.unit.one]).toEqual([key, flow, unit]);
+      expect(OPS_BUSINESS_TYPES).toContain(type);
+    }
+    expect(segmentFor("caravan").ops).toEqual({ flow: "trip", fleet: true, selfCheckIn: false });
+    expect(segmentFor("vacation_rental").ops.selfCheckIn).toBe(true);
+    expect(segmentFor("hotel").ops.selfCheckIn).toBe(false);   // a front desk meets the guest
+    expect(segmentFor(null).ops.flow).toBeNull();
   });
 
   it("keeps the caravan words and sections exactly as they are today", () => {

@@ -3,7 +3,9 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import api from "@/lib/api";
 
-export type BusinessType = "caravan" | "villa_resort" | "homestay" | "hotel";
+// = backend ops_pack_catalog.BUSINESS_TYPES (the segment picks the ops pack); lib/segments.ts BUSINESS_TYPE_OPTIONS labels them.
+export type BusinessType =
+  | "caravan" | "villa_resort" | "farmhouse" | "vacation_rental" | "homestay" | "hotel" | "resort" | "guesthouse";
 
 export interface WorkspaceContext {
   workspace_id: string;

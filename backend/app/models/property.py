@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Integer, Numeric, Date
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Integer, Numeric, Date, text
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -58,6 +58,11 @@ class Property(Base, TimestampMixin, TenantMixin):
     # Brand
     brand_voice = Column(Text, nullable=True)
     faqs = Column(JSON, default=list)
+
+    # Self check-in (Ops 2, migration 192): nobody meets the guest (whole_unit packs). The steps, lock code and key box
+    # live ONLY Fernet-encrypted (ops_self_check_in); never logged, shown only to ops.manage roles.
+    self_check_in = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    self_check_in_enc = Column(Text, nullable=True)
 
     tenant = relationship("Tenant", back_populates="properties")
     rate_plans = relationship("RatePlan", back_populates="property", lazy="dynamic")

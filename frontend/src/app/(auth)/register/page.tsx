@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Eye, EyeOff, ArrowRight, Check } from "@/lib/icons";
+import { BUSINESS_TYPE_OPTIONS } from "@/lib/segments";
 
 const PERKS = [
   "14-day free trial, no credit card required",
@@ -62,12 +63,8 @@ function friendlyError(detail: string): { msg: string; field?: string } {
   return { msg: detail };
 }
 
-const BUSINESS_TYPES = [
-  { value: "caravan",      label: "Caravans",            emoji: "🚐" },
-  { value: "villa_resort", label: "Villa / Resort",      emoji: "🏝️" },
-  { value: "homestay",     label: "Homestays",           emoji: "🏡" },
-  { value: "hotel",        label: "Hotels",              emoji: "🏨" },
-];
+// The segment picks the ops pack (backend ops_pack_catalog.BUSINESS_TYPES); one list for sign-up and Settings.
+const BUSINESS_TYPES = BUSINESS_TYPE_OPTIONS;
 
 export default function RegisterPage() {
   const router = useRouter();

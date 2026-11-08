@@ -29,10 +29,10 @@ from app.services import ops_money as money
 from app.services import ops_pack_catalog as packs
 from app.services import ops_trip_service as trips
 
-PACK = "villa"
+PACK = "villa"  # the first stay pack; vacation_rental, homestay and boutique_hotel files run this machine too
 BEFORE_WELCOME = ("preparing", "ready")
 LIVE = BEFORE_WELCOME + ("staying", "checked_out", "settling")
-CLEAN_EVERY_DAYS = 3
+CLEAN_EVERY_DAYS = 3  # the villa pack's midstay_clean; each stay pack sets its own (None = no tracked mid-stay clean)
 CLEAN_MIN_NIGHTS = 4
 # Who does what at a villa: the file's role -> the staff duty that suggests a person for it (schemas/ops.py DUTIES).
 ROLES = {"caretaker": "caretaker", "cook": "fnb", "cleaner": "housekeeping"}
@@ -66,13 +66,25 @@ def _suggest(db: Session, tenant_id: str, property_id: str, duty: str) -> str | 
     return ids.pop() if len(ids) == 1 else None
 
 
-def create_file(db: Session, tenant_id: str, stay: Stay) -> OpsFile:
-    """The stay's file (called by ops_trip_service.ensure_file). A guest already in the villa starts at "staying"."""
+def _clean_rule(pack: str) -> tuple[int, int] | None:
+    """(every N days, from M nights) for the pack's mid-stay clean, or None."""
+    rule = packs.get(pack).get("midstay_clean")
+    return (int(rule["every_days"]), int(rule["min_nights"])) if rule else None
+
+
+def unit_words(pack: str) -> tuple[str, str]:
+    """('Villa', 'Caretaker') / ('Room', 'Front desk'): the pack's unit and host words for screens and the timeline."""
+    spec = packs.get(pack)
+    return spec["unit_word"].capitalize(), spec.get("host_label", "Caretaker")
+
+
+def create_file(db: Session, tenant_id: str, stay: Stay, pack: str = PACK) -> OpsFile:
+    """The stay's file (called by ops_trip_service.ensure_file). A guest already in the unit starts at "staying"."""
     d = VillaDetails(
         **{f"{role}_staff_id": _suggest(db, tenant_id, stay.property_id, duty) for role, duty in ROLES.items()}
     )
-    state = {"checked_in": "staying", "checked_out": "checked_out"}.get(stay.status, packs.get(PACK)["first_state"])
-    f = OpsFile(tenant_id=tenant_id, stay_id=stay.id, pack=PACK, state=state, details={})
+    state = {"checked_in": "staying", "checked_out": "checked_out"}.get(stay.status, packs.get(pack)["first_state"])
+    f = OpsFile(tenant_id=tenant_id, stay_id=stay.id, pack=pack, state=state, details={})
     money.save_details(f, d)
     db.add(f)
     db.flush()
@@ -212,8 +224,9 @@ def check_in(db: Session, f: OpsFile, body: CheckInIn, actor_id: str) -> OpsFile
     tenant = db.get(Tenant, f.tenant_id)
     tz = get_tz(tenant) if tenant else UTC
     nights = (stay.check_out - stay.check_in).days
-    if nights >= CLEAN_MIN_NIGHTS:
-        for k in range(CLEAN_EVERY_DAYS, nights, CLEAN_EVERY_DAYS):
+    rule = _clean_rule(f.pack)
+    if rule is not None and nights >= rule[1]:
+        for k in range(rule[0], nights, rule[0]):
             due = datetime.combine(stay.check_in + timedelta(days=k), time(11, 0), tzinfo=tz)
             db.add(
                 OpsJob(
@@ -421,8 +434,9 @@ def service_requests(db: Session, f: OpsFile) -> list[StayServiceRequest]:
 
 
 def stage(db: Session, f: OpsFile) -> dict:
-    names_ = packs.get(PACK)["step_names"]
-    step = packs.step_of(PACK, f.state)
+    names_ = packs.get(f.pack)["step_names"]
+    step = packs.step_of(f.pack, f.state)
+    unit, host = unit_words(f.pack)
     d, a = _d(f), money.account(db, f)
     today = booking_agenda_service.tenant_today(db, f.tenant_id)
 
@@ -434,20 +448,23 @@ def stage(db: Session, f: OpsFile) -> dict:
     if f.state in BEFORE_WELCOME:
         g = trips.gate(trips.readiness_items(db, f))
         tasks = [
-            t("people", "Caretaker assigned", d.caretaker_staff_id, "The cook and cleaner are set the same way"),
-            t("gate", "Villa ready to welcome", g["ready"], f"{g['green']} of {g['total']} green"),
+            t("people", f"{host} assigned", d.caretaker_staff_id, "The cook and cleaner are set the same way"),
+            t("gate", f"{unit} ready to welcome", g["ready"], f"{g['green']} of {g['total']} green"),
         ]
         if f.state == "ready":
             tasks.append(t("checkin", "Guest welcomed", False, "Always your tap"))
     elif f.state == "staying":
         due = [j for j in _cleaning(db, f) if j.status == "open" and j.due_at and _aware(j.due_at).date() <= today]
         meals = ops_stay_meals.unconfirmed_meals(f, today)
-        tasks = [
-            extras,
-            t("clean", "Mid-stay cleaning done", not due),
-            t("meals", "Today's meals confirmed by the cook", not meals, ", ".join(m.meal for m in meals) or None),
-            t("checkout", "Guest checked out", False),
-        ]
+        # Each pack shows the steps it has: a tracked mid-stay clean (villa) and a cook's meal plan (packs with fnb staff).
+        tasks = [extras]
+        if _clean_rule(f.pack) is not None or due:
+            tasks.append(t("clean", "Mid-stay cleaning done", not due))
+        if "fnb" in packs.get(f.pack)["duties"] or meals:
+            tasks.append(
+                t("meals", "Today's meals confirmed by the cook", not meals, ", ".join(m.meal for m in meals) or None)
+            )
+        tasks.append(t("checkout", "Guest checked out", False))
     elif f.state == "checked_out":
         left = [i for i in trips.readiness_items(db, f, "inspection") if i.status == "pending"]
         tasks = [

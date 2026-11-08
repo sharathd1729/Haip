@@ -33,6 +33,7 @@ from app.models.property import Property
 from app.schemas.ops_files import ExpenseIn
 from app.services import ops_escalation_service as esc
 from app.services import ops_money as money
+from app.services import ops_pack_catalog as packs
 from app.services import ops_trip_service as trips
 
 log = structlog.get_logger()
@@ -378,7 +379,7 @@ def _bill(db, f, staff, jpeg, key, ans, hint) -> Outcome:
     total = money.account(db, f)["total_expenses"]
     return Outcome(
         f"Recorded {fields['category']} Rs {fields['amount']:,}. "
-        f"{'Stay' if f.pack == 'villa' else 'Trip'} expenses so far Rs {total:,}.",
+        f"{'Stay' if packs.is_stay(f.pack) else 'Trip'} expenses so far Rs {total:,}.",
         sends,
     )
 
@@ -442,7 +443,7 @@ def handle_photo(
     f = active_file(db, tenant_id, staff)
     if f is None:
         return Outcome("No trip found for your number right now. Please check with the manager.")
-    if f.pack == "villa":
+    if packs.is_stay(f.pack):
         from app.services import ops_stay_photos
 
         return ops_stay_photos.handle(

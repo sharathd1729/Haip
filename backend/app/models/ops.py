@@ -125,6 +125,9 @@ class OpsSettings(Base, TimestampMixin, TenantMixin):
     template_language = Column(String(10), nullable=False, default="en")
     # Mid-stay check (ops_midstay_check): NULL = on once its template is approved; TRUE/FALSE = the owner's choice.
     midstay_check_enabled = Column(Boolean, nullable=True)
+    # The business's copy of its pack's data (ops_pack_seed, migration 192): {pack: {duties, issue_types, paperwork, addons,
+    # auto_messages, flow}}. Seeding fills missing keys only; a person's edit is never overwritten.
+    pack_config = Column(JSON, nullable=True)
 
 
 class OpsItem(Base, TimestampMixin, TenantMixin):

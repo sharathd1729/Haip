@@ -46,6 +46,7 @@ from app.services import (
     ops_trip_report,
 )
 from app.services import ops_money as money
+from app.services import ops_pack_catalog as packs
 from app.services import ops_stay_service as stays
 from app.services import ops_trip_service as trips
 from app.services.authz_service import has_capability, require_capability
@@ -76,8 +77,8 @@ def _stay_summary(db: Session, stay: Stay) -> dict:
 
 
 def _flow(f: OpsFile):
-    """The pack's state machine: villa stays or caravan trips (same function names)."""
-    return stays if f.pack == stays.PACK else trips
+    """The pack's state machine: stays (villa, rental, homestay, room packs) or caravan trips (same function names)."""
+    return stays if packs.is_stay(f.pack) else trips
 
 
 def _items_out(items) -> list[dict]:
@@ -118,6 +119,9 @@ def _card(db: Session, f: OpsFile) -> dict:
     return {
         "id": f.id,
         "pack": f.pack,
+        "flow": packs.flow_of(f.pack),
+        "machine": packs.machine(f.pack),
+        "unit_word": packs.get(f.pack)["unit_word"],
         "state": f.state,
         "step": st["step"],
         "step_name": st["step_name"],
@@ -133,7 +137,7 @@ def _full(db: Session, f: OpsFile) -> dict:
         s.id: s.name
         for s in db.query(StaffProfile).filter(StaffProfile.tenant_id == f.tenant_id, StaffProfile.id.in_(crew_ids))
     }
-    villa = f.pack == stays.PACK
+    villa = packs.is_stay(f.pack)  # every stay pack carries the villa pack's extras (people, inspection, cleaning)
     items = trips.readiness_items(db, f)
 
     def q(m):
@@ -263,7 +267,7 @@ def get_file(file_id: str, user: User = Depends(_read), db: Session = Depends(ge
 def trip_report(file_id: str, user: User = Depends(_manage), db: Session = Depends(get_db)):
     """The Trip Account Report (Saleem shape). Money for the business, so owner/manager only; "DRAFT" until approved."""
     f = _file(db, user, file_id)
-    villa = f.pack == stays.PACK
+    villa = packs.is_stay(f.pack)
     pdf = ops_trip_report.render((ops_stay_report if villa else ops_trip_report).build(db, f))
     stay = money.stay_of(db, f)
     name = f"{'stay' if villa else 'trip'}-account-{stay.check_in.isoformat()}-{f.id[:8]}.pdf"

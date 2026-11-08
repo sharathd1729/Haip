@@ -21,6 +21,7 @@ from app.core.database import get_db
 from app.models.ops_files import OpsFile
 from app.models.user import User
 from app.schemas.ops_files import CheckInIn, DepositDecisionIn, MealIn, PeopleIn
+from app.services import ops_pack_catalog as packs
 from app.services import ops_stay_meals as meals
 from app.services import ops_stay_service as stays
 
@@ -34,8 +35,8 @@ class MealIdsIn(BaseModel):
 
 def _stay(db: Session, user: User, file_id: str) -> OpsFile:
     f = _file(db, user, file_id)
-    if f.pack != stays.PACK:
-        raise HTTPException(status_code=409, detail="This step is for villa stays only.")
+    if not packs.is_stay(f.pack):
+        raise HTTPException(status_code=409, detail="This step is for stays only.")
     return f
 
 

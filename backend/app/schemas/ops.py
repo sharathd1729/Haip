@@ -39,6 +39,12 @@ INCIDENT_CATEGORIES = (
     "maintenance",
     "complaint",
     "service_request",
+    "access",  # lock, code, key box (self check-in segments)
+    "pool",
+    "gas",
+    "appliance",
+    "hot_water",
+    "route",
     "other",
 )
 

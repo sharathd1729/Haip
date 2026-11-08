@@ -14,6 +14,7 @@ import { AgentPolicyCard } from "@/components/settings/AgentPolicyCard";
 import { SalesPlaybookCard } from "@/components/settings/SalesPlaybookCard";
 import { AiScorecardCard } from "@/components/settings/AiScorecardCard";
 import { SecurityStatusCards } from "@/components/settings/SecurityStatusCards";
+import { BusinessTypeCard } from "@/components/settings/BusinessTypeCard";
 
 type Tab = "workspace" | "ai" | "notifications" | "security";
 
@@ -293,6 +294,8 @@ function WorkspaceSettings() {
           }}
         />
       </Card>
+
+      <BusinessTypeCard current={tenant?.business_type} />
     </div>
   );
 }

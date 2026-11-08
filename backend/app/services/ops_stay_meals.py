@@ -15,6 +15,7 @@ from app.models.ops import StaffProfile
 from app.models.ops_files import OpsFile
 from app.schemas.ops_files import Meal, MealIn, VillaDetails
 from app.services import ops_money as money
+from app.services.ops_pack_catalog import STAY_PACKS
 
 PACK = "villa"
 OPEN = ("preparing", "ready", "staying", "checked_out", "settling")
@@ -118,7 +119,9 @@ def cook_reply(db: Session, tenant_id: str, staff: StaffProfile, text: str) -> s
     if not _CONFIRM.match(text or ""):
         return None
     done: list[Meal] = []
-    for f in db.query(OpsFile).filter(OpsFile.tenant_id == tenant_id, OpsFile.pack == PACK, OpsFile.state.in_(OPEN)):
+    for f in db.query(OpsFile).filter(
+        OpsFile.tenant_id == tenant_id, OpsFile.pack.in_(STAY_PACKS), OpsFile.state.in_(OPEN)
+    ):
         d = _d(f)
         if d.cook_staff_id != staff.id:
             continue

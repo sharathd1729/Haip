@@ -51,7 +51,10 @@ class RegisterRequest(BaseModel):
     password: str
     tenant_name: str
     tenant_slug: str
-    business_type: Optional[Literal["caravan", "villa_resort", "homestay", "hotel"]] = None
+    # = ops_pack_catalog.BUSINESS_TYPES (the segment picks the ops pack)
+    business_type: Optional[
+        Literal["caravan", "villa_resort", "farmhouse", "vacation_rental", "homestay", "hotel", "resort", "guesthouse"]
+    ] = None
     consent_transactional: bool = True
     consent_marketing: bool = False
     consent_analytics: bool = False
@@ -124,6 +127,9 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
     from app.services.workspace_context import provision_default_modules
     provision_default_modules(db, tenant.id)
+
+    from app.services import ops_pack_seed
+    ops_pack_seed.seed(db, tenant.id)  # the segment's ops pack: checklists + pack data (nothing when no type chosen)
 
     from app.services.pipeline_stage_service import seed_default_pipeline_stages
     seed_default_pipeline_stages(db, tenant.id)

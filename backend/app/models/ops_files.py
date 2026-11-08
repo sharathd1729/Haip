@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 
 from app.core.database import Base
@@ -73,8 +74,10 @@ class OpsFileEvent(Base, TenantMixin):
 
 
 class OpsChecklistTemplate(Base, TimestampMixin, TenantMixin):
-    """A business's own checklist for one pack + kind, seeded from the pack's defaults. items = [{key, label, critical,
-    source (staff | system | manager), photo}]. Editing the words never changes jobs already opened."""
+    """A business's own checklist for one pack + kind, seeded from the pack's defaults (ops_pack_seed, never over an
+    edit). property_id NULL = the business's default; a row with a property_id = that property's own copy (migration 192),
+    used for its jobs instead. items = [{key, label, critical, source (staff | system | manager), photo}]. Editing the
+    words never changes jobs already opened."""
 
     __tablename__ = "ops_checklist_templates"
 
@@ -85,8 +88,29 @@ class OpsChecklistTemplate(Base, TimestampMixin, TenantMixin):
     name = Column(String(120), nullable=False)
     items = Column(JSON, nullable=False, default=list)
     active = Column(Boolean, nullable=False, default=True)
+    property_id = Column(String, ForeignKey("properties.id", ondelete="CASCADE"), nullable=True)
 
-    __table_args__ = (UniqueConstraint("tenant_id", "pack", "kind", name="uq_ops_checklist_templates_kind"),)
+    __table_args__ = (
+        Index(
+            "ux_ops_checklist_templates_default",
+            "tenant_id",
+            "pack",
+            "kind",
+            unique=True,
+            postgresql_where=text("property_id IS NULL"),
+            sqlite_where=text("property_id IS NULL"),
+        ),
+        Index(
+            "ux_ops_checklist_templates_property",
+            "tenant_id",
+            "pack",
+            "kind",
+            "property_id",
+            unique=True,
+            postgresql_where=text("property_id IS NOT NULL"),
+            sqlite_where=text("property_id IS NOT NULL"),
+        ),
+    )
 
 
 class OpsJob(Base, TimestampMixin, TenantMixin):

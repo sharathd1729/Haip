@@ -25,7 +25,7 @@ from app.models.ops import (
     OpsSettings,
     StaffProfile,
 )
-from app.schemas.ops import DEFAULT_QUIET_HOURS, DEFAULT_SLA_MINUTES, DEFAULT_TEMPLATES
+from app.schemas.ops import DEFAULT_QUIET_HOURS, DEFAULT_SLA_MINUTES, DEFAULT_TEMPLATES, SEVERITIES
 from app.services import roster_service
 
 log = structlog.get_logger()
@@ -124,6 +124,20 @@ def _event(
 # ── Create ─────────────────────────────────────────────────────────────────
 
 
+# Money and paperwork reminders are not made more urgent by an empty property; guest issues are.
+_NOT_RAISED = ("deposit", "payment", "balance")
+
+
+def _unattended(
+    db: Session, tenant_id: str, kind: str, source: str, category: str | None, property_id: str | None
+) -> bool:
+    if not property_id or category in _NOT_RAISED or not (kind == "incident" or source == "guest_chat"):
+        return False
+    from app.services import ops_self_check_in
+
+    return ops_self_check_in.nobody_on_site(db, tenant_id, property_id)
+
+
 def create_item(
     db: Session,
     tenant_id: str,
@@ -149,6 +163,10 @@ def create_item(
     the tick dispatches it. ``source_ref`` is the idempotency key (unique per tenant): the caller checks it first."""
     now = _now(now)
     cfg = effective_settings(db, tenant_id)
+    raised_from = None
+    if _unattended(db, tenant_id, kind, source, category, property_id) and severity != "critical":
+        # Self check-in property: nobody on site to sort it out, so a guest issue goes one step higher (Ops 2, gap 7).
+        raised_from, severity = severity, SEVERITIES[SEVERITIES.index(severity) + 1]
     _, resolve_minutes = cfg["sla"][severity]
     item = OpsItem(
         tenant_id=tenant_id,
@@ -187,6 +205,7 @@ def create_item(
             "duty": duty,
             "source": source,
             **({"held_until": held.isoformat()} if held else {}),
+            **({"raised_from": raised_from, "raised_why": "self check-in: nobody on site"} if raised_from else {}),
         },
     )
     if held:

@@ -35,6 +35,7 @@ from app.api.v1.endpoints import (
     learning,
     ops,
     ops_files,
+    ops_packs,
     ops_stays,
     ops_fleet,
     ops_guest_form_public,
@@ -109,7 +110,8 @@ api_router.include_router(marketing_channels.router)
 api_router.include_router(marketing_public.router)
 api_router.include_router(ops.router)
 api_router.include_router(ops_files.router)  # /ops/files/* (one ops file per booking)
-api_router.include_router(ops_stays.router)  # /ops/files/* villa-only steps
+api_router.include_router(ops_stays.router)  # /ops/files/* stay-only steps (villa, rental, homestay, room packs)
+api_router.include_router(ops_packs.router)  # /ops/pack/* (packs as data), /ops/properties/{id}/self-check-in
 api_router.include_router(ops_fleet.router)  # /ops/fleet/* (papers, defects, services, stock)
 api_router.include_router(ops_guest_form_public.router)  # /public/ops/guest-form/{token} (no login)
 api_router.include_router(ops_gps.router)  # /ops/gps/* (trackers, live map, trip track, alerts)

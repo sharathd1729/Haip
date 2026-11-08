@@ -90,6 +90,20 @@ def update_my_tenant(
         merged.update(incoming)
         tenant.brand_config = merged
 
+    if "business_type" in data:
+        if data["business_type"] == tenant.business_type:
+            data.pop("business_type")
+        elif current_user.role != UserRole.OWNER:
+            raise HTTPException(status_code=403, detail="Only the owner can change the type of business.")
+        else:
+            # The segment picks the ops pack: seed its checklists and pack data (insert-only, never over an edit).
+            from app.services import ops_pack_seed
+
+            append_audit(db, tenant_id=tenant.id, action="tenant.business_type_changed", actor_user_id=current_user.id,
+                         target_type="tenant", target_id=tenant.id,
+                         payload={"from": tenant.business_type, "to": data["business_type"]})
+            ops_pack_seed.seed(db, tenant.id, data["business_type"])
+
     if "timezone" in data and data["timezone"] != tenant.timezone:
         # Business days, quiet hours and reminders all follow it.
         append_audit(db, tenant_id=tenant.id, action="tenant.timezone_changed", actor_user_id=current_user.id,

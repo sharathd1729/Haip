@@ -169,7 +169,7 @@ class _NoClose:
 def test_daily_job_opens_files_only_for_businesses_with_a_pack(db):
     from app.workers.tasks import ops_files as task
 
-    caravan, hotel = _tenant(db), _tenant(db, "hotel")
+    caravan, hotel = _tenant(db), _tenant(db, "travel_agency")  # a business type with no ops pack
     s = _stay(db, caravan, prop(db, caravan.id), start=4)
     with (
         patch.object(task, "SessionLocal", return_value=_NoClose(db)),
