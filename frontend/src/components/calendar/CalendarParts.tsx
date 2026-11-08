@@ -17,6 +17,7 @@ import { Drawer, StatusPill } from "@/components/ui/kit";
 export interface StayLite {
   id: string; check_in: string; check_out: string; status: string; guest_id?: string | null; guest_name: string; guest_phone?: string;
   adults: number; total_amount?: number | null; paid_amount?: number | null; channel_source: string; inquiry_id?: string | null;
+  addons?: string[];  // add-on names on the booking (no amounts), e.g. a guest add-on paid online
   notes?: string;      // staff notes: the agent writes which caravan it is (Black / White)
   vehicle?: string;    // set when several units are drawn on one grid
 }
@@ -144,6 +145,7 @@ export function EntrySheet({ entry, onClose, channelLabel }: { entry: Entry | nu
           <Row label="Booked through">{channelLabel(stay.channel_source)}</Row>
           <Row label="Guests">{stay.adults}</Row>
           {stay.notes && <Row label="Notes">{stay.notes}</Row>}
+          {!!stay.addons?.length && <Row label="Add-ons">{stay.addons.join(", ")}</Row>}
           {money(stay.total_amount) && <Row label="Total">{money(stay.total_amount)}</Row>}
           {moneyDue(stay) && (
             <Row label="Still due">

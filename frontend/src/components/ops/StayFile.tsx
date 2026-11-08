@@ -13,6 +13,7 @@ import {
 import { Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui/kit";
 import { TripSheets, type SheetKind } from "./TripSheets";
 import { StaySheets, type StaySheetKind } from "./StaySheets";
+import { AddonsCard } from "./AddonsCard";
 import { GuestFormCard } from "./TripCards";
 
 type Submit = (path: string, body?: object, method?: "post" | "put" | "delete") => Promise<boolean>;
@@ -260,6 +261,7 @@ export function StayFile({ f, submit, busy, write, manage, onReport, reportBusy 
         </CardBody>
       </Card>
 
+      <AddonsCard fileId={f.id} canWrite={write} />
       <GuestFormCard f={f} canWrite={write} canManage={manage}
         onSent={() => qc.invalidateQueries({ queryKey: ["ops-file", f.id] })} />
 

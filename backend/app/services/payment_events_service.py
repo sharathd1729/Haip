@@ -57,7 +57,7 @@ def razorpay_paid_on(payment_payload: dict, tenant: Tenant) -> date:
 
 def on_payment_link_paid(db: Session, tenant: Tenant, link: StayPaymentLink, payment_payload: dict,
                          link_payload: Optional[dict] = None) -> str:
-    """Returns "recorded", "duplicate", "ignored", or for a quote link "booked", "paid_no_vehicle", "double_payment",
+    """Returns "recorded", "duplicate", "ignored", "addons_paid" (guest add-ons link), or for a quote link "booked", "paid_no_vehicle", "double_payment",
     "quote_recorded". Commits."""
     pay_id = (payment_payload or {}).get("id")
     if not pay_id:
@@ -68,6 +68,12 @@ def on_payment_link_paid(db: Session, tenant: Tenant, link: StayPaymentLink, pay
 
     if link.stay_id is None:
         return _quote_link_paid(db, tenant, link, pay_id, amount, method)
+
+    from app.services import guest_addon_payments
+    order = guest_addon_payments.order_for_link(db, link)
+    if order is not None:   # a guest add-ons link: payment + add-on lines + ops job, one savepoint
+        return guest_addon_payments.on_link_paid(db, tenant, link, order, pay_id, amount, method,
+                                         razorpay_paid_on(payment_payload, tenant))
 
     link.status = "paid"
     payment = StayPayment(tenant_id=tenant.id, stay_id=link.stay_id, kind="payment", amount=amount, method="razorpay",
