@@ -192,6 +192,9 @@ def test_concierge_facts_are_empty_when_nothing_is_published_and_a_refusal_has_n
     assert "total" not in facts["package_quote"]["result"]
 
 
+from app.workers.tasks.concierge_draft import split_prompt  # noqa: E402  (v21: rules / data)
+
+
 def _render(facts, mode):
     tenant = SimpleNamespace(brand_name="Ratha", brand_config={"price_disclosure": mode}, name="Ratha")
     prompt_facts = facts if mode == "grounded" else price_policy.redact_price_facts(facts)
@@ -205,7 +208,7 @@ def test_the_real_prompt_never_shows_a_price_in_handoff_mode(ws, db):
     policies(db, ws)
     out = _render(gw.concierge_business_facts(db, ws.t.id, DETAILS), "handoff")
     assert "PACKAGES, ROUTES AND POLICIES" in out and "Signature Caravan - Coorg" in out and "Madikeri" in out and "check-in 14:00" in out
-    assert "40320" not in out and "36000" not in out and "18000" not in out and "advance" not in out.lower().split("pricing rule")[0].split("packages, routes and policies")[1]
+    assert "40320" not in out and "36000" not in out and "18000" not in out and "advance" not in split_prompt(out)[1].lower().split("packages, routes and policies")[1]
     assert "Cancellation:" not in out and "Payment:" not in out
     assert price_policy.detect_price(out.split("PACKAGES, ROUTES AND POLICIES")[1].split("THIS GUEST")[0].split("LIVE AVAILABILITY")[0]) is None
 

@@ -186,9 +186,9 @@ class ScriptedLLM:
             provider = "scripted"
 
             async def complete(self, **kwargs):
-                if task == "quick_classify":
+                if task == "concierge_intent":
                     return {"tool_use": outer.classify}
-                outer.prompts.append(kwargs.get("system_prompt") or "")
+                outer.prompts.append((kwargs.get("system_prompt") or "") + "\n" + (kwargs.get("user_message") or ""))
                 return {"tool_use": outer.reply}
         return _LLM()
 

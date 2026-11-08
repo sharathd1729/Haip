@@ -79,7 +79,7 @@ def test_settings_default_off_and_changes_are_audited(db):
 def test_the_model_report_says_what_answers_guests():
     r = report(Tenant(llm_provider_override="nvidia"))
     assert r["guest_reply"]["provider"] == "gemini" and r["override_applied"] is False and r["tenant_override"] == "nvidia"
-    assert {t["task"] for t in r["tasks"]} >= {"concierge_draft", "quick_classify"}
+    assert {t["task"] for t in r["tasks"]} >= {"concierge_draft", "concierge_intent"}
     assert r["keys"]["GEMINI_API_KEY"] in ("present", "absent") and r["keys"]["NVIDIA_API_KEY"] in ("present", "absent")
 
 

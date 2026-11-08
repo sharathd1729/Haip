@@ -54,7 +54,7 @@ def _reply_llm(reply="Check-in is from 2 PM, and check-out by 11."):
 
 def _run(db, tenant, conv, inbound):
     def _fake_get_llm(task):
-        return _FakeIntentLLM() if task == "quick_classify" else _reply_llm()
+        return _FakeIntentLLM() if task == "concierge_intent" else _reply_llm()
     with patch("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm), \
          patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
          patch("app.services.push_service.send_to_tenant"), \
@@ -117,7 +117,7 @@ def test_every_draft_gets_an_intent_from_the_fixed_list(db, returned, stored):
             return {"tool_use": {"intent": returned} if returned else None}
 
     def _fake_get_llm(task):
-        return _Intent() if task == "quick_classify" else _reply_llm()
+        return _Intent() if task == "concierge_intent" else _reply_llm()
     with patch("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm), \
          patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
          patch("app.services.push_service.send_to_tenant"), \

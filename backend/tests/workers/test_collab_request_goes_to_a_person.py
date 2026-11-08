@@ -147,7 +147,7 @@ class Scripted:
             provider = "scripted"
 
             async def complete(self, **kwargs):
-                if task == "quick_classify":
+                if task == "concierge_intent":
                     return {"tool_use": {"intent": "general"}}
                 return {"tool_use": {"reply": "Thanks! Our team reviews every collaboration request and will reach out.",
                                      "confidence": 0.9, "citations": [], "needs_human": False}}

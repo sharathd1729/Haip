@@ -51,7 +51,7 @@ def _confident_reply_llm(needs_human=False, reply="Sure, let me know your dates 
 
 def _run_draft(db, conv, inbound, tenant, reply_llm):
     def _fake_get_llm(task):
-        return _FakeIntentLLM() if task == "quick_classify" else reply_llm
+        return _FakeIntentLLM() if task == "concierge_intent" else reply_llm
     with patch("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm), \
          patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
          patch("app.services.push_service.send_to_tenant"):
@@ -111,7 +111,7 @@ class TestPhoneNudgeSuggestedAction:
         db.commit()
 
         with patch("app.workers.tasks.concierge_draft.get_llm",
-                   lambda task: _FakeIntentLLM() if task == "quick_classify" else _confident_reply_llm()), \
+                   lambda task: _FakeIntentLLM() if task == "concierge_intent" else _confident_reply_llm()), \
              patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
              patch("app.services.push_service.send_to_tenant"), \
              patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay"):

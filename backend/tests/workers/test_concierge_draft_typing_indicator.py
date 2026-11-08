@@ -53,7 +53,7 @@ class TestTypingIndicator:
                 return {"tool_use": {"reply": "Let me check!", "confidence": 0.5, "citations": [], "needs_human": False}}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -93,7 +93,7 @@ class TestTypingIndicator:
                 return {"tool_use": {"reply": "Let me check!", "confidence": 0.5, "citations": [], "needs_human": False}}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -121,7 +121,7 @@ class TestTypingIndicator:
                 return {"tool_use": {"reply": "Let me check!", "confidence": 0.5, "citations": [], "needs_human": False}}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 

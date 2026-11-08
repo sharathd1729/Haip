@@ -45,6 +45,17 @@ log = structlog.get_logger()
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
 
+# concierge_reply.jinja renders the rules first and the guest's data after this line. The rules are the same for every
+# guest of a workspace (byte-stable: no ids, times or per-message values), so they go in the system prompt, which the
+# Claude adapter caches for this task; the data is the user message.
+CONTEXT_MARKER = "<<<CONCIERGE_CONTEXT>>>"
+
+
+def split_prompt(rendered: str) -> tuple[str, str]:
+    """(system prompt, user message) from a rendered concierge_reply.jinja."""
+    rules, _, data = rendered.partition(CONTEXT_MARKER)
+    return rules.strip() + "\n", data.strip() + "\n"
+
 # Already the canonical ToolSpec shape (adapters/llm/tools.py) -- passed to
 # adapter.complete() raw, unconverted. Works unchanged for both Claude (its
 # native dialect) and Gemini (adapters/llm/gemini.py's own
@@ -338,7 +349,8 @@ async def _classify_and_extract(latest_message: str, history=None, known: dict |
     It used to see only the newest burst, so "and for 3 nights?" lost the dates and party size the guest gave a message earlier,
     and the draft asked for them again. `history` is the recent conversation; `known` is what the enquiry already records.
     """
-    adapter = get_llm("quick_classify")
+    # Its own route: one short attempt + the fallback, both inside MAX_GROUNDING_SECONDS (adapters/llm/__init__.py).
+    adapter = get_llm("concierge_intent")
     today = date.today().isoformat()
     context = ""
     block = _history_block(history)
@@ -981,11 +993,10 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             return
 
         guest_id = conversation.guest_id
-        ctx = build_concierge_context(db, tenant_id=tenant_id, conversation_id=conversation_id, guest_id=guest_id)
-
-        guest = ctx["guest"]
-        tenant = ctx["tenant"]
-        inquiry = ctx["inquiry"]
+        # Only what the two early exits below need; the full context (a knowledge-base search = an embedding call) is built
+        # once a reply will actually be written.
+        tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+        inquiry = db.query(Inquiry).filter_by(id=conversation.inquiry_id).first() if conversation.inquiry_id else None
 
         # "Off" must suppress drafting entirely, on every channel. The
         # Instagram path checked this before dispatching but the WhatsApp
@@ -1012,6 +1023,11 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         if not force and _closing_acknowledgement(db, tenant_id, conversation_id):
             log.info("concierge_draft_skipped_acknowledgement", conversation_id=conversation_id, message_id=message_id)
             return
+
+        ctx = build_concierge_context(db, tenant_id=tenant_id, conversation_id=conversation_id, guest_id=guest_id)
+        guest = ctx["guest"]
+        tenant = ctx["tenant"]
+        inquiry = ctx["inquiry"]
 
         # Let the guest see "typing…" while the draft is being generated --
         # grounding + LLM completion can take several seconds, and a silent
@@ -1174,7 +1190,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         prompt_facts = grounded_facts if price_mode == "grounded" else price_policy.redact_price_facts(grounded_facts)
         _by_tool = {f.get("tool"): f for f in prompt_facts}
         questions = details.get("questions") or []
-        system_prompt = template.render(
+        system_prompt, user_message = split_prompt(template.render(
             tenant=TenantProxy(tenant),
             guest=guest,
             inquiry=inquiry,
@@ -1197,7 +1213,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             qualified=qualified,
             playbook=_learning.prompt_playbook(db, tenant_id) if _learning is not None else sales_playbook.prompt_view(tenant),
             proven_lessons=_proven,
-        )
+        ))
 
         # No explicit model= here: whatever get_llm("concierge_draft") routes
         # to (Gemini as of 2026-08-25, see _TASK_ROUTES) is what should
@@ -1217,7 +1233,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     asyncio.wait_for(
                         adapter.complete(
                             system_prompt=system_prompt,
-                            user_message="Draft a reply for this guest.",
+                            user_message=user_message,
                             tools=[CONCIERGE_TOOL],
                             max_tokens=REPLY_MAX_TOKENS,
                         ),
@@ -1229,7 +1245,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     "concierge_completion_ok", conversation_id=conversation_id, attempt=attempt,
                     provider=getattr(adapter, "provider", None),
                     elapsed_sec=round(time.monotonic() - completion_start, 2),
-                    prompt_chars=len(system_prompt),
+                    prompt_chars=len(system_prompt) + len(user_message),
                     **{k: result.get(k) for k in ("model", "input_tokens", "output_tokens", "tokens_used") if result.get(k) is not None},
                 )
                 break

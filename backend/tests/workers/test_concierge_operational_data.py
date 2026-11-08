@@ -92,10 +92,10 @@ class Scripted:
 
         class _LLM:
             async def complete(self, **kwargs):
-                if task == "quick_classify":
+                if task == "concierge_intent":
                     outer.classifier_input = kwargs.get("user_message")
                     return {"tool_use": outer.classification}
-                outer.system_prompt = kwargs.get("system_prompt")
+                outer.system_prompt = (kwargs.get("system_prompt") or "") + "\n" + (kwargs.get("user_message") or "")  # rules + data (concierge v21)
                 return {"tool_use": outer.reply}
 
         return _LLM()
@@ -259,7 +259,7 @@ def test_dates_and_party_given_earlier_are_remembered_and_not_asked_again(db):
     assert "4 adults, " + CHECK_IN in llm.classifier_input                  # the classifier saw the earlier message
     assert "ALREADY KNOWN FROM THIS CONVERSATION" in llm.system_prompt
     assert f"Travel dates: {CHECK_IN} → {CHECK_OUT}" in llm.system_prompt and "Party: 4 adults" in llm.system_prompt
-    ask_block = llm.system_prompt.split("WHAT WE STILL NEED FROM THIS LEAD")[1].split("INSTRUCTIONS")[0]
+    ask_block = llm.system_prompt.split("STILL NEEDED FROM THIS GUEST\n")[1].split("THIS MESSAGE")[0]
     for asked in ("travel dates (check-in and check-out)", "how many guests (adults and children)",
                   "which property or destination", "any special requests or occasion"):
         assert asked not in ask_block                                             # all four were already given in chat

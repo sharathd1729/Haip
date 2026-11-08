@@ -207,7 +207,7 @@ class TestConciergeDraftEndToEnd:
                 }}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -249,7 +249,7 @@ class TestConciergeDraftEndToEnd:
                 }}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -283,7 +283,7 @@ class TestConciergeDraftEndToEnd:
                 return {"tool_use": {"reply": "Let me check and get back to you!", "confidence": 0.5, "citations": [], "needs_human": True}}
 
         def _fake_get_llm(task):
-            return _SlowIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _SlowIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
         monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_GROUNDING_SECONDS", 0.01)
@@ -320,7 +320,7 @@ class TestConciergeDraftEndToEnd:
                 return {"tool_use": {"reply": "This should never be used.", "confidence": 0.95, "citations": [], "needs_human": False}}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _SlowConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _SlowConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
         monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS_DEFAULT", 0.01)
@@ -360,7 +360,7 @@ class TestConciergeDraftEndToEnd:
                 return {"tool_use": {}}  # model declined/malformed -- no "reply" key at all
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _EmptyConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _EmptyConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -403,7 +403,7 @@ class TestConciergeDraftEndToEnd:
                 return {"tool_use": {"reply": "Sure!", "confidence": 0.9, "citations": [], "needs_human": False}}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FakeConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
@@ -438,7 +438,7 @@ class TestConciergeDraftEndToEnd:
                 return {"tool_use": {"reply": "The real answer.", "confidence": 0.9, "citations": [], "needs_human": False}}
 
         def _fake_get_llm(task):
-            return _FakeIntentLLM() if task == "quick_classify" else _FlakyConciergeLLM()
+            return _FakeIntentLLM() if task == "concierge_intent" else _FlakyConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
         monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS_DEFAULT", 0.01)

@@ -106,10 +106,10 @@ class Scripted:
             provider = "scripted"
 
             async def complete(self, **kwargs):
-                if task == "quick_classify":
+                if task == "concierge_intent":
                     outer.classifier_input = kwargs.get("user_message")
                     return {"tool_use": outer.classification}
-                outer.system_prompt = kwargs.get("system_prompt")
+                outer.system_prompt = (kwargs.get("system_prompt") or "") + "\n" + (kwargs.get("user_message") or "")  # rules + data (concierge v21)
                 return {"tool_use": {"reply": "Thanks! The team looks at every collaboration request personally.",
                                      "confidence": 0.9, "citations": [], "needs_human": False}}
         return _LLM()

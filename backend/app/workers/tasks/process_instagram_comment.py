@@ -244,18 +244,27 @@ def process_instagram_comment(self, payload: dict) -> dict:
                 comment_id=comment_id,
             )
         elif text and text.strip() and ai_mode_service.resolve_mode(integration.tenant, conversation) != "off":
-            try:
-                from app.workers.tasks.concierge_draft import concierge_draft
-                concierge_draft.apply_async(
-                    kwargs={
-                        "message_id": message.id,
-                        "conversation_id": conversation.id,
-                        "tenant_id": tenant_id,
-                    },
-                    countdown=2,
-                )
-            except Exception as exc:
-                logger.error("Failed to queue Instagram comment concierge draft: %s", exc)
+            from app.services.ig_keyword_match import is_throwaway_comment
+            if is_throwaway_comment(text, (integration.tenant.brand_config or {}).get("ig_comment_skip_words")):
+                # "nice 😍" / "@friend": nothing to answer, so no intent call and no draft. It stays in the Inbox.
+                message.automation_outcome = "throwaway_comment"
+                db.commit()
+            else:
+                try:
+                    from app.services.concierge_service import DEBOUNCE_SECONDS, mark_pending_draft
+                    from app.workers.tasks.concierge_draft import concierge_draft
+                    # Same burst debounce as DMs: several comments from one person in a few seconds = one draft.
+                    mark_pending_draft(tenant_id, conversation.id, message.id)
+                    concierge_draft.apply_async(
+                        kwargs={
+                            "message_id": message.id,
+                            "conversation_id": conversation.id,
+                            "tenant_id": tenant_id,
+                        },
+                        countdown=DEBOUNCE_SECONDS,
+                    )
+                except Exception as exc:
+                    logger.error("Failed to queue Instagram comment concierge draft: %s", exc)
 
         return {
             "status": "ok",

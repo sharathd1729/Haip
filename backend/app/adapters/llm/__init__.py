@@ -75,6 +75,9 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # provider branch, just a model-string swap.
     "ask_haip_intent": ("nvidia",  "openai/gpt-oss-20b"),
     "quick_classify":  ("nvidia",  "openai/gpt-oss-20b"),
+    # The guest-reply classifier/extractor (concierge_draft._classify_and_extract): quick_classify's model, but it runs
+    # inside the reply's 8 s grounding window, so its bounds below fit that window (quick_classify's 30 s never could).
+    "concierge_intent": ("nvidia", "openai/gpt-oss-20b"),
     "bulk_batch":      ("nvidia",  "openai/gpt-oss-20b"),
     "deep_reason":     ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     "report_gen":      ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
@@ -216,6 +219,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "lead_summary":                60,
     "daily_briefing":              60,
     "quick_classify":              30,
+    "concierge_intent":            4,     # + Gemini Flash-Lite in the rest of concierge_draft.MAX_GROUNDING_SECONDS (8)
     "lead_stage_classify":         45,
     "agent_performance_narrative": 60,
     "agent_leads_feedback":        60,
@@ -230,19 +234,22 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
 }
 
 # A person waits on these in the UI: one NVIDIA attempt, then the fallback, so the wait is not doubled.
-_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup"}
+_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup", "concierge_intent"}
 
 
 # LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.
 _CLAUDE_FAST_TASKS = frozenset({
-    "quick_classify", "bulk_batch", "ask_haip_intent", "concierge_rewrite", "lead_stage_classify",
+    "quick_classify", "concierge_intent", "bulk_batch", "ask_haip_intent", "concierge_rewrite", "lead_stage_classify",
     "marketing_tagging", "marketing_review_reply", "website_copy", "website_change",
 })
 # The guest reply and the rewrite think least: a person is waiting, and chat does well at low effort.
 _CLAUDE_LOW_EFFORT = _CLAUDE_FAST_TASKS | {"concierge_draft"}
 # Claude's bound where the caller's own outer bound is tighter than 60 s, so the fallback still has time to answer
 # (concierge_draft: 60 s outer for provider "claude"; rewrite_draft: 30 s outer).
-_CLAUDE_TIMEOUTS = {"concierge_draft": 30, "concierge_rewrite": 12}
+_CLAUDE_TIMEOUTS = {"concierge_draft": 30, "concierge_rewrite": 12, "concierge_intent": 4}
+# Tasks whose system prompt is the same for every call of a workspace (data in the user message): Claude caches it even
+# when the user message is short. concierge_draft: concierge_reply.jinja v21 (rules / <<<CONCIERGE_CONTEXT>>> / data).
+_CLAUDE_CACHE_SYSTEM_TASKS = frozenset({"concierge_draft"})
 
 
 def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
@@ -260,7 +267,8 @@ def _unmetered_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     from app.adapters.llm.fallback import FallbackAdapter
     timeout = _CLAUDE_TIMEOUTS.get(task) or _GEMINI_FALLBACK_TASKS.get(task) or 60
     claude = ClaudeAdapter(default_model=MODEL_HAIKU if task in _CLAUDE_FAST_TASKS else MODEL_SONNET,
-                           effort="low" if task in _CLAUDE_LOW_EFFORT else "medium", timeout=timeout)
+                           effort="low" if task in _CLAUDE_LOW_EFFORT else "medium", timeout=timeout,
+                           cache_system=task in _CLAUDE_CACHE_SYSTEM_TASKS)
     claude.provider = "claude"
     # One Claude attempt (paid): a failure goes straight to the normal route.
     return FallbackAdapter(primary=claude, secondary=adapter, task=task, primary_timeout=timeout, primary_attempts=1)

@@ -53,7 +53,7 @@ def _reply_llm(reply, confidence=0.9, needs_human=False):
 
 def _run(db, tenant, conv, inbound, reply_adapter):
     def _fake_get_llm(task):
-        return _FakeIntentLLM() if task == "quick_classify" else reply_adapter
+        return _FakeIntentLLM() if task == "concierge_intent" else reply_adapter
     with patch("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm), \
          patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
          patch("app.services.push_service.send_to_tenant"), \

@@ -91,7 +91,7 @@ def test_routing_report_names_the_guest_reply_model_and_never_a_key(client, db, 
     assert body["guest_reply"]["provider"] == "gemini" and body["guest_reply"]["model"] == "gemini-3.6-flash"
     assert body["keys"]["GEMINI_API_KEY"] == "present" and "sk-secret-gemini-value" not in res.text
     assert body["tenant_override"] == "nvidia" and body["override_applied"] is False
-    classify = next(t for t in body["tasks"] if t["task"] == "quick_classify")
+    classify = next(t for t in body["tasks"] if t["task"] == "concierge_intent")
     assert classify["provider"] == "nvidia" and classify["gemini_fallback_active"] is True
     assert client.get("/api/v1/ai/routing", headers=_h(w.mgr)).status_code == 403
 
