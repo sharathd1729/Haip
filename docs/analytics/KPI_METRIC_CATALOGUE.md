@@ -390,6 +390,7 @@ the older blocks stay in the payload for other readers.
 | D-30 | (23 Oct 2026) **By check-in month**: guest enquiries grouped by the month of `inquiries.check_in` (string; unreadable = skipped and counted, never guessed); valid = D-28; won / lost = the closed stage they are in NOW (a lead lost in October for a December trip counts in December); lost reasons = confirmed `outcome_reason`, else the older `lost_reason` mapped, never an unconfirmed AI proposal; booked revenue = booked value (D-24: rental + add-ons) of live bookings by CHECK-IN month, `revenue.read` only. Enquiries with no check-in date are one row, "Date not given yet" (created in the last 90 days or since the window's first month). |
 | D-31 | (4 Nov 2026, Shrii health check: Home said 9 follow-ups, My day's Follow-ups chip 72) **Follow-ups are counted as PEOPLE, from one place**: `work_queue_service.build()["followup_people"]`, deduped like `people_waiting` (guest, else the task itself). `all` = My day's Follow-ups chip and list (everyone with an open follow-up task, any lead, including gone-cold ones); `open_lead_due` = Home's "Follow-ups overdue" card (follow-up on an open valid-stage lead, not gone cold). `counts["followup"]` stays task rows for scripts. **OWNER TO CONFIRM**: should Home's card count the same people as My day (all follow-ups), or keep the narrower "active leads, not cold" scope it says on the card? Until answered the two scopes stay, each labelled. |
 | D-32 | (7 Nov 2026, Interlink & Simplicity Audit #3; Ratha executive dashboard read 3 properties and 7.4% SLA) **Occupancy capacity = real vehicles / properties only.** The "Unassigned" holder (`vehicle_pool.is_placeholder_name`) is overflow, never capacity: left out of the executive occupancy denominator and heatmap (Home's caravans block lists it only while it holds a booking). Bookings on it still count as occupied nights for the business, and the percentage is capped at 100. **The executive "SLA" card measures replies by a PERSON** within `SLA_MINUTES["new_lead"][0]` (15 min), AI replies not counted, and is labelled that way (`labels.sla_compliance_pct`); the metric itself is unchanged. **OWNER TO CHOOSE**: (a) keep it human-only under that label (current), or (b) count an autonomous AI reply as on time (would read close to 100% for Ratha and hide whether a person ever followed up). Until answered, (a). |
+| D-33 | (8 Nov 2026, Ops gap 2) **Review rate and rating = HAIP's own post-stay ask.** Rating rate = stays answered with 1-5 ÷ stays asked (asked = sent), average stars over those answers. **No review gating** (Google policy): every guest who answers gets the same Google review link whatever they rated; a 1-3 also opens a guest ticket. Google reviews cannot be tied to a stay (Google gives a display name only and identity is never matched on names), so "Google reviews per stay asked" is reviews dated in the window ÷ stays asked in the window, labelled as such. |
 
 (The open questions numbered D-22 / D-23 in `OWNER_DASHBOARD_AUDIT.md` were renumbered D-25 / D-26 so the ids stay unique.)
 
@@ -438,6 +439,18 @@ received -> contacted -> proposal -> sold and per-owner speeds: section 16). New
 
 Change detection: rates by two-proportion z-test, counts by a Poisson difference, p < 0.05; fewer than 30 cases (10 events)
 on either side = "too few to judge", never called a change. Rupee impact is an estimate (see findings.py), always labelled.
+
+## 18. Guest reviews after the stay  *(8 Nov 2026, D-33)*
+
+`kpi_metrics.review_request_results(db, tenant, start, end)`; the asks come from `ops_review_request` (Ops, the day after
+check-out). Not shown on a screen yet: Ops today and the owner brief read it later.
+
+| Metric | Definition |
+|---|---|
+| Stays asked | `ops_auto_messages` rows kind `review_request`, status sent, `sent_at` in the window (one per stay, ever). |
+| Rating rate | asked stays whose first answer was a 1-5 rating (`response` "1"-"5") ÷ stays asked; None when nothing was asked. Word answers are counted apart as `feedback`. |
+| Average stars | mean of those ratings; None with no rating. |
+| Google reviews per stay asked | Google reviews synced into `marketing_guest_reviews` (source google) with `reviewed_at` in the window ÷ stays asked. Window-level, NOT traced per stay (D-33). |
 
 ## 13. Decisions needed (none is assumed)
 

@@ -381,3 +381,38 @@ def sla_compliance(db: Session, tenant_id: str, start: datetime, end: datetime, 
         due += 1
         met += on_time
     return round(met / due * 100, 1) if due else None
+
+
+# ── reviews.request_results (D-33) ─────────────────────────────────────────────────────────────────────────────
+
+def review_request_results(db: Session, tenant_id: str, start: Bound, end: Bound) -> dict:
+    """Review rate and rating for asks SENT in [start, end) (ops_review_request, ops_auto_messages kind review_request).
+
+    asked = stays asked; rated = of those, answered with 1-5; feedback = answered in words; rating_rate = rated / asked;
+    average_stars over the rated ones; google_reviews = Google reviews synced with a review date in the window and
+    google_reviews_per_stay_asked = google_reviews / asked. Google reviews are NOT traced to a stay (Google gives a
+    display name only; identity is never matched on names), so that ratio is window-level and may include guests never
+    asked. Every ratio is None when nothing was asked (no "0%" against an empty base)."""
+    from app.models.marketing import MarketingGuestReview
+    from app.models.ops_fleet import OpsAutoMessage
+
+    lo, hi = as_datetime(start), as_datetime(end)
+    answers = [r for (r,) in db.query(OpsAutoMessage.response).filter(
+        OpsAutoMessage.tenant_id == tenant_id, OpsAutoMessage.kind == "review_request",
+        OpsAutoMessage.status == "sent", OpsAutoMessage.sent_at >= lo, OpsAutoMessage.sent_at < hi)]
+    stars = [int(r) for r in answers if r and r.isdigit()]
+    # reviewed_at is Google's ISO string ("2026-11-03T10:15:00Z"); the first 19 characters compare as UTC times.
+    lo_s, hi_s = lo.astimezone(timezone.utc).isoformat()[:19], hi.astimezone(timezone.utc).isoformat()[:19]
+    google = sum(1 for (at,) in db.query(MarketingGuestReview.reviewed_at).filter(
+        MarketingGuestReview.tenant_id == tenant_id, MarketingGuestReview.source == "google")
+        if at and lo_s <= at[:19] < hi_s)
+    asked = len(answers)
+    return {
+        "asked": asked,
+        "rated": len(stars),
+        "feedback": sum(1 for r in answers if r == "feedback"),
+        "rating_rate": round(len(stars) / asked, 3) if asked else None,
+        "average_stars": round(sum(stars) / len(stars), 2) if stars else None,
+        "google_reviews": google,
+        "google_reviews_per_stay_asked": round(google / asked, 3) if asked else None,
+    }

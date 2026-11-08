@@ -197,7 +197,7 @@ def google_finish(db: Session, code: str, state: str, *, http: Optional[httpx.Cl
     _store_google(integ, tok, None)
     first = locations[0]
     integ.config = {**integ.config, "locations": locations, "account": first["account"], "location": first["location"],
-                    "title": first.get("title")}
+                    "title": first.get("title"), "review_url": first.get("review_url")}
     db.add(integ)
     db.flush()
     append_audit(db, tenant_id=ctx["tenant_id"], action="marketing.google_business.connected", actor_user_id=ctx["user_id"],
@@ -211,7 +211,7 @@ def choose_location(db: Session, tenant_id: str, location: str, actor_id: str) -
     if location not in locs:
         raise MarketingError(404, "not_found", "That location is not one this Google account manages.")
     integ.config = {**integ.config, "account": locs[location]["account"], "location": location,
-                    "title": locs[location].get("title")}
+                    "title": locs[location].get("title"), "review_url": locs[location].get("review_url")}
     append_audit(db, tenant_id=tenant_id, action="marketing.google_business.chosen", actor_user_id=actor_id,
                  target_type="integration", target_id=integ.id, payload={"title": locs[location].get("title")})
     return integ.config

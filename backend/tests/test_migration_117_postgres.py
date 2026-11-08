@@ -85,8 +85,8 @@ def test_alembic_head_is_117_and_118_is_not_auto_applied():
     migration; 119 follows 117 directly because number 118 is reserved for the proposed RLS migration.
     """
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["191"]
-    assert script.get_revision("191").down_revision == "190"
+    assert script.get_heads() == ["192"]
+    assert script.get_revision("192").down_revision == "191"
     assert script.get_revision("190").down_revision == "189"
     assert script.get_revision("189").down_revision == "188"
     assert script.get_revision("188").down_revision == "187"

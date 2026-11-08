@@ -384,11 +384,12 @@ def _settings_out(db: Session, tenant_id: str) -> dict:
         t.name: t
         for t in db.query(WATemplate).filter(WATemplate.tenant_id == tenant_id, WATemplate.name.in_(names)).all()
     }
-    from app.services import ops_midstay_check
+    from app.services import ops_midstay_check, ops_review_request
 
     return {
         **cfg,
         "midstay_check_enabled": ops_midstay_check.enabled(db, tenant_id),
+        "review_request_enabled": ops_review_request.enabled(db, tenant_id),
         "sla": {k: list(v) for k, v in cfg["sla"].items()},
         "template_status": {
             n: (rows[n].status.value if hasattr(rows[n].status, "value") else rows[n].status)
