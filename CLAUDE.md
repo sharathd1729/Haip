@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.5 · **Owner**: Sharath D. · **Updated**: 8 Nov 2026 (Alembic head `193`)
+**Version**: 2.5 · **Owner**: Sharath D. · **Updated**: 8 Nov 2026 (Alembic head `199`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -443,10 +443,7 @@ with structlog kwargs (`TypeError` at INFO, how production runs); Phase 0 found 
 - `tenants.voice_platform` (`callerdesk`/`acefone`/`dograh`, default `callerdesk`) — Dograh-specific routing gate, used only to decide
   whether `webhooks_dograh.py` is in play for a tenant. Not read by the regular IVR call-handling path at all.
 
-`voice_platform` determines which *Dograh-parallel* path processes calls:
-- `callerdesk` → existing CallerDesk adapter + `webhooks_callerdesk.py`
-- `acefone` → existing Acefone adapter + `webhooks_acefone.py`
-- `dograh` → new Dograh adapter + `webhooks_dograh.py` → `dograh_call_processor` task
+`voice_platform` picks the *Dograh-parallel* path: `callerdesk` → CallerDesk adapter + `webhooks_callerdesk.py`; `acefone` → Acefone adapter + `webhooks_acefone.py`; `dograh` → Dograh adapter + `webhooks_dograh.py` → `dograh_call_processor` task.
 
 ### Dograh conventions
 - Per-tenant webhook secret stored in `tenants.dograh_webhook_secret_enc` (Fernet-encrypted JSON, key `webhook_secret`)
@@ -494,11 +491,6 @@ Direction: `docs/DESIGN.md` §7, **Greens + terracotta** (22 Oct): green carries
 
 ## PRICING (for reference)
 
-| Tier | Price |
-|---|---|
-| Starter | ₹3,999/mo |
-| Growth | ₹6,999/mo |
-| Scale | ₹9,999/mo |
-| Enterprise | ₹15,000+/mo |
+Starter ₹3,999/mo · Growth ₹6,999/mo · Scale ₹9,999/mo · Enterprise ₹15,000+/mo.
 
 Ratha: Growth tier free 6 months (design partner) · Jade: Growth tier ₹4,999/mo first 3 months
