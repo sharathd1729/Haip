@@ -65,9 +65,9 @@ class Settings(BaseSettings):
 
     # NVIDIA NIM — one key per workload group for rate-limit isolation
     NVIDIA_API_KEY: str = ""          # global fallback (any group missing → uses this)
-    NVIDIA_API_KEY_HEAVY: str = ""    # Ultra 550B: deep_reason, ask_haip_rca, report_gen
+    NVIDIA_API_KEY_HEAVY: str = ""    # Ultra 550B: deep_reason, ask_haip_freeform_sql
     NVIDIA_API_KEY_MID: str = ""      # Nemotron 70B / Super 49B: call_analysis, call_scoring
-    NVIDIA_API_KEY_FAST: str = ""     # Llama 8B: quick_classify, bulk_batch, ask_haip_intent
+    NVIDIA_API_KEY_FAST: str = ""     # gpt-oss-20b: quick_classify and the other small tasks
     NVIDIA_API_KEY_FALLBACK: str = "" # Mistral Medium 3.5: fallback task
     ANTHROPIC_API_KEY: str = ""
     GEMINI_API_KEY: str = ""

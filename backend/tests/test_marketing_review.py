@@ -224,6 +224,23 @@ def test_a_person_sending_for_approval_queues_the_editor_and_approvals_show_coun
     assert row["review"] == {"high": 0, "medium": 1, "reviewed": True}
 
 
+def test_ready_advice_for_the_same_text_is_not_asked_again_on_submit(db, ws, monkeypatch):  # noqa: F811
+    queued = []
+    monkeypatch.setattr("app.workers.tasks.marketing_studio.review_content.delay", lambda *a: queued.append(a))
+    tid = ws["tenant"].id
+    item = svc.create_item(db, tid, kind="post", title="x", actor_id=None, payload={"caption": GOOD})
+    db.commit()
+    review.current(db, ws["tenant"], item).ai_status = "ready"
+    db.commit()
+    svc.add_version(db, tid, item.id, {"caption": GOOD, "design": {"style": "photo"}}, origin="ai", actor_id=None)
+    db.commit()
+    assert review.request_ai(db, ws["tenant"], item).ai_status == "ready" and queued == []   # same text_sha: no LLM call
+    assert review.request_ai(db, ws["tenant"], item, force=True).ai_status == "pending" and len(queued) == 1  # asked again
+    svc.add_version(db, tid, item.id, {"caption": GOOD + " New line."}, origin="human", actor_id=ws["mkt"].id)
+    db.commit()
+    assert review.request_ai(db, ws["tenant"], item).ai_status == "pending" and len(queued) == 2   # new text: reviewed
+
+
 def test_competitors_from_research_are_checked(db, ws):  # noqa: F811
     tid = ws["tenant"].id
     db.add(MarketingCompetitor(tenant_id=tid, handle="wildtrails", display_name="Wild Trails Caravans"))

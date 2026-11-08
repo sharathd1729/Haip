@@ -149,12 +149,16 @@ def fix_brief(idea: str, findings: list[dict], *, weak: Optional[list[str]] = No
     return (f"{idea}\n\nYour previous draft had problems. Write it again without them:\n" + "\n".join(lines))[:1000]
 
 
-def request_ai(db: Session, tenant: Tenant, item: MarketingContent) -> Optional[MarketingReview]:
+def request_ai(db: Session, tenant: Tenant, item: MarketingContent, *, force: bool = False) -> Optional[MarketingReview]:
     """Store the deterministic findings now and queue the AI editor (Celery `marketing_studio.review_content`).
-    Commits. If the queue is down the row says so; the deterministic findings still stand."""
+    Commits. If the queue is down the row says so; the deterministic findings still stand. The editor's advice for this
+    exact text is already ready = no new paid call, unless a person asks again (`force`)."""
     row = current(db, tenant, item)
     if row is None:
         return None
+    if not force and row.ai_status == "ready":
+        db.commit()
+        return row
     row.ai_status, row.ai_error = "pending", None
     db.commit()
     try:

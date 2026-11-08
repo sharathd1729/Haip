@@ -112,6 +112,43 @@ def test_translate_makes_a_draft_a_person_publishes(client, db, wsite):  # noqa:
     assert client.get(f"{BASE}/translate/{job.id}", headers=other_h).status_code == 404
 
 
+def test_a_retried_translation_only_asks_for_the_pages_still_missing(client, db, wsite):  # noqa: F811
+    from app.services.marketing_ai_service import LLMTransientError
+
+    _v2_live(client, db, wsite)
+    spec = _spec()
+    spec["pages"].append({"slug": "/about", "title": "About", "sections": [
+        {"id": "story", "type": "text", "variant": "plain", "slots": {"heading": "Our story", "body": "Two villas."}},
+        {"id": "contact2", "type": "contact", "variant": "split"}]})
+    site = db.query(Site).filter_by(tenant_id=wsite["tenant"].id).one()
+    head, _ = wspec.create_draft(db, site, spec, actor_id=wsite["owner"].id)
+    job = SiteAiJob(tenant_id=site.tenant_id, site_id=site.id, kind="translate", request="hi", status="running",
+                    base_version_id=head.id)
+    db.add(job)
+    db.commit()
+    asked = []
+
+    def fake(task, tenant_id, system, user, tool):
+        import json
+
+        wanted = json.loads(user.split("INPUT: ", 1)[1])
+        asked.append(wanted[0]["key"])
+        if any(w["key"].startswith("page:/about") for w in wanted) and len(asked) == 2:
+            raise LLMTransientError("busy")              # the second page fails once
+        return {"items": [{"key": w["key"], "text": "हिंदी"} for w in wanted]}, {"model": "fake"}, "gemini"
+
+    with patch("app.services.marketing_ai_service._call", side_effect=fake):
+        with pytest.raises(LLMTransientError):
+            website_i18n.run(db, job, site)
+        db.refresh(job)                                  # the finished page was saved (a rollback on SQLite would drop the fixtures)
+        assert job.result["partial"]["pages"] == ["/"]
+        website_i18n.run(db, job, site)
+    assert asked == ["page:/:title", "page:/about:title", "page:/about:title"]   # "/" was translated (and paid) once
+    assert job.status == "ready"
+    hi = db.get(type(head), job.result_version_id).doc["i18n"]["hi"]["sections"]
+    assert {"hero", "story"} <= set(hi)                                          # both pages kept in the draft
+
+
 def test_merge_keeps_english_for_missing_or_too_long():
     loc: dict = {}
     wanted = [

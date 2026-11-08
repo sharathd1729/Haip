@@ -201,3 +201,21 @@ def test_why_we_win_and_lose_report_keeps_confirmed_apart_from_proposed(client, 
     _, concierge = _user(db, tenant.id, UserRole.CONCIERGE)
     assert client.get("/api/v1/reports/outcome-reasons", headers=concierge).status_code == 403
     assert lead_outcome_report.build(db, str(uuid.uuid4()), datetime.now().date(), datetime.now().date())["lost"]["total"] == 0
+
+
+def test_the_nightly_sweep_stops_after_three_failed_proposals(db, tenant_and_user):
+    tenant, owner, g, inq, active, lost, sold = _setup(db, tenant_and_user)
+    _evidence(db, tenant.id, g)
+    inquiry_service.update_stage_by_id(db, tenant_id=tenant.id, inquiry_id=inq.id, new_stage_id=lost.id, actor_user_id=None, actor_role="system")
+    db.commit()
+    calls = []
+
+    def broken(system, user):
+        calls.append(1)
+        raise RuntimeError("provider down")
+    for n in (1, 2, 3):
+        assert [i.id for i, _ in lead_outcome.unconfirmed_closed(db, tenant.id)] == [inq.id]
+        assert lead_outcome.propose(db, tenant.id, inq.id, "lost", complete=broken)["failures"] == n
+        db.commit()
+    assert lead_outcome.unconfirmed_closed(db, tenant.id) == [] and len(calls) == 3      # no 4th paid call
+    assert lead_outcome.request_proposal(db, inq, "lost") is True                        # a person can still ask

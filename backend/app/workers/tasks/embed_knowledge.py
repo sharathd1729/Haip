@@ -22,12 +22,15 @@ log = structlog.get_logger()
 def _ensure_phrasings(db, entry: KnowledgeEntry) -> None:
     """Generate alternate phrasings once per content revision.
 
-    Regenerated only when the embedded text actually changed, so toggling
-    is_active or editing a category never burns a generation call. Failures
-    are non-fatal: an entry without phrasings still works, it just matches
-    fewer wordings.
+    Regenerated only when the question/answer text changed since the stored
+    phrasings were made (``content_hash`` = the text the phrasings and vectors
+    were last made from), so a failed index retry, the sweep, Re-index now,
+    toggling is_active or a person's own phrasing edit never burns a paid
+    generation call. Failures are non-fatal: an entry without phrasings still
+    works, it just matches fewer wordings.
     """
-    if entry.alt_phrasings and not knowledge_service.needs_reembed(entry):
+    current = knowledge_service.content_hash(entry.question, entry.content)
+    if entry.alt_phrasings and entry.content_hash == current:
         return
     try:
         from app.services.phrasing_service import generate_phrasings_sync
@@ -39,6 +42,8 @@ def _ensure_phrasings(db, entry: KnowledgeEntry) -> None:
         return
     entry.alt_phrasings = phrasings
     entry.alt_phrasings_generated_at = datetime.now(timezone.utc)
+    # Safe before indexing succeeds: needs_reembed() still says yes while embedding_status is not "done".
+    entry.content_hash = current
     db.commit()
     log.info("kb_phrasings_generated", entry_id=entry.id, count=len(phrasings))
 

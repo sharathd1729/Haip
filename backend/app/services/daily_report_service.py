@@ -91,6 +91,11 @@ def get_active_insights(db: Session, tenant_id: str, limit: int = 5) -> list[dic
 _MAX_NOTABLE_CALLS = 3
 
 
+# Scorecard numbers that mean the agent DID something that day (overdue follow-ups are state, not activity).
+_ACTIVITY_KEYS = ("leads_handled", "response_count", "followups_completed", "calls_answered", "calls_missed",
+                  "ai_drafts_total", "conversions")
+
+
 def build_agent_block(db: Session, tenant_id: str, agent, target: str) -> Optional[dict]:
     """One agent's slice of a daily report for one IST day: scorecard,
     most notable calls (highest AI score first, so a strong or a rough call
@@ -114,8 +119,10 @@ def build_agent_block(db: Session, tenant_id: str, agent, target: str) -> Option
         .limit(_MAX_NOTABLE_CALLS)
         .all()
     )
-    narrative = agent_analytics_service.generate_agent_narrative(db, tenant_id, agent.id, target, target)
     leads = lead_activity_service.get_agent_lead_cards(db, tenant_id, agent, target)
+    # A quiet day gets no narrative (the same "" a failed call leaves) instead of a paid LLM call about nothing.
+    active = bool(calls or leads or any(scorecard.get(k) for k in _ACTIVITY_KEYS))
+    narrative = agent_analytics_service.generate_agent_narrative(db, tenant_id, agent.id, target, target) if active else ""
     leads_summary_feedback = agent_analytics_service.generate_leads_summary_and_feedback(db, tenant_id, agent.id, leads)
     return {
         "agent_id": agent.id,

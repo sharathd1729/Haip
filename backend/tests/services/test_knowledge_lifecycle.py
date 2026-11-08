@@ -468,3 +468,19 @@ def test_keep_out_of_date_and_reindex_endpoints(db, api):
     with patch("celery.app.task.Task.apply_async") as q:
         assert client.post("/api/v1/knowledge/reindex", headers=h).json() == {"queued": 1}
     assert q.call_args.kwargs["kwargs"]["force"] is True
+
+
+def test_phrasings_are_made_once_per_text_and_again_only_when_the_text_changes(db):
+    from app.workers.tasks import embed_knowledge as task
+    t = _tenant(db)
+    e = _entry(db, t.id, "Do you have towels?", "Yes, fresh towels daily.")
+    gen = MagicMock(return_value=["Towels provided?"])
+    with patch("app.services.phrasing_service.generate_phrasings_sync", gen):
+        task._ensure_phrasings(db, e)
+        e.embedding_status = "failed"                     # indexing failed: the retry / sweep / Re-index must not pay again
+        task._ensure_phrasings(db, e)
+        task._ensure_phrasings(db, e)
+        assert gen.call_count == 1 and ks.needs_reembed(e)    # still queued for indexing
+        e.content = "Yes, fresh towels and bathrobes daily."
+        task._ensure_phrasings(db, e)
+    assert gen.call_count == 2

@@ -48,7 +48,7 @@ def test_flag_on_routes_the_guest_reply_to_claude_with_gemini_as_fallback(claude
 
 
 def test_fast_tasks_use_haiku(claude_on):
-    for task in ("quick_classify", "bulk_batch", "concierge_rewrite"):
+    for task in ("quick_classify", "concierge_rewrite"):
         assert get_llm(task).inner._primary._default_model == MODEL_HAIKU
 
 

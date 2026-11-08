@@ -370,8 +370,8 @@ def test_build_timeline_cap(db):
 # trailing catch-up run at window-close instead of dropping the trigger.
 
 def _fake_cache(monkeypatch, module):
-    """Same in-memory Redis stand-in pattern as test_daily_briefing_service.py
-    and test_concierge_draft_debounce.py -- get_cached/set_cached fail open
+    """Same in-memory Redis stand-in pattern as
+    test_concierge_draft_debounce.py -- get_cached/set_cached fail open
     to None on a real Redis outage, which would make every debounce
     assertion here vacuously pass."""
     store: dict = {}

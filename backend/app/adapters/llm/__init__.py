@@ -14,16 +14,10 @@ Usage:
 Routing rules:
   call_analysis    → nvidia   openai/gpt-oss-20b
   call_scoring     → nvidia   openai/gpt-oss-20b
-  ask_haip_rca     → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
-  ask_haip_intent  → nvidia   openai/gpt-oss-20b
   quick_classify   → nvidia   openai/gpt-oss-20b
-  bulk_batch       → nvidia   openai/gpt-oss-20b
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
-  report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
   concierge_draft  → gemini   gemini-3.6-flash
   lead_stage_classify → nvidia openai/gpt-oss-20b  (lead autopilot)
-  ruflo_domain     → nvidia   openai/gpt-oss-20b
-  ruflo_synthesis  → nvidia   openai/gpt-oss-20b
   fallback         → nvidia   mistralai/mistral-nemotron
                               (also where unknown task keys land)
 
@@ -65,7 +59,6 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # Revisit deepseek-v4-flash/gpt-oss-120b once NIM's congestion clears.
     "call_analysis":   ("nvidia",  "openai/gpt-oss-20b"),
     "call_scoring":    ("nvidia",  "openai/gpt-oss-20b"),
-    "ask_haip_rca":    ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     # meta/llama-3.1-8b-instruct reached NVIDIA NIM end-of-life on
     # 2026-08-26 (confirmed live: HTTP 410 Gone, took out classify.py's
     # quick_classify calls in prod). openai/gpt-oss-20b is a real,
@@ -73,20 +66,15 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # against this exact tool-call shape -- correct classify_intent tool
     # call, no prose fallback, no cold-start lag. Same NVIDIA key, same
     # provider branch, just a model-string swap.
-    "ask_haip_intent": ("nvidia",  "openai/gpt-oss-20b"),
     "quick_classify":  ("nvidia",  "openai/gpt-oss-20b"),
-    "bulk_batch":      ("nvidia",  "openai/gpt-oss-20b"),
     "deep_reason":     ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
-    "report_gen":      ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
-    "ruflo_domain":    ("nvidia",  "openai/gpt-oss-20b"),
-    "ruflo_synthesis": ("nvidia",  "openai/gpt-oss-20b"),
     # Leads360 summary + structured analysis. Split off from concierge_draft
     # (guest-facing tone, now Gemini -- see below) because this is an
     # internal summary that should stay on NVIDIA regardless of what the
     # guest-facing task uses.
     "lead_summary":    ("nvidia",  "openai/gpt-oss-20b"),
     # Ask HAIP free-form analyst: SQL generation needs real reasoning (same
-    # tier as ask_haip_rca/deep_reason), summarizing already-fetched rows
+    # tier as deep_reason), summarizing already-fetched rows
     # into a narrative + chart spec is cheap classification-tier work.
     "ask_haip_freeform_sql":     ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
     "ask_haip_freeform_summary": ("nvidia", "openai/gpt-oss-20b"),
@@ -135,12 +123,6 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # same tier as agent_performance_narrative (internal synthesis over
     # already-fetched structured data, not guest-facing).
     "agent_leads_feedback": ("nvidia", "openai/gpt-oss-20b"),
-    # Today (Worklist) AI Daily Briefing: one short narrative + flags
-    # summarizing patterns across a tenant's *entire* current worklist
-    # snapshot (repeated questions, missed-call time clusters). Internal
-    # synthesis over already-fetched structured rows, same tier as
-    # lead_summary/agent_performance_narrative -- not guest-facing.
-    "daily_briefing": ("nvidia", "openai/gpt-oss-20b"),
     # Lead autopilot (lead_autopilot_ai.py): reads one lead's recent messages + call notes and returns a stage decision
     # (lost | qualified | booked | none) with confidence and evidence quotes. Internal classification over already-fetched
     # rows, structured JSON output -- the gpt-oss-20b tier, never mistral-nemotron (answers tool prompts in prose).
@@ -214,7 +196,6 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "call_analysis":               60,
     "call_scoring":                60,
     "lead_summary":                60,
-    "daily_briefing":              60,
     "quick_classify":              30,
     "lead_stage_classify":         45,
     "agent_performance_narrative": 60,
@@ -235,7 +216,7 @@ _SINGLE_PRIMARY_ATTEMPT = {"analyst_followup"}
 
 # LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.
 _CLAUDE_FAST_TASKS = frozenset({
-    "quick_classify", "bulk_batch", "ask_haip_intent", "concierge_rewrite", "lead_stage_classify",
+    "quick_classify", "concierge_rewrite", "lead_stage_classify",
     "marketing_tagging", "marketing_review_reply", "website_copy", "website_change",
 })
 # The guest reply and the rewrite think least: a person is waiting, and chat does well at low effort.
@@ -270,9 +251,7 @@ def _routed_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     """
     Return the correct LLMAdapter for a given task.
 
-    task values: call_analysis | call_scoring | ask_haip_rca | ask_haip_intent |
-                 quick_classify | bulk_batch | deep_reason | report_gen |
-                 concierge_draft | ruflo_domain | ruflo_synthesis | fallback
+    task values: the keys of _TASK_ROUTES (unknown keys go to "fallback").
 
     tenant_id: when provided, checks tenant.llm_provider_override to allow
                enterprise tenants to pin all AI to one provider.
