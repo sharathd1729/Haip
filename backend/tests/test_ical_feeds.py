@@ -1,7 +1,7 @@
 """iCal calendar links: parsing, export, import reconcile, endpoints, task routing."""
 import os
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -13,6 +13,7 @@ from app.core.encryption import encrypt_credentials  # noqa: E402
 from app.models.base import gen_uuid  # noqa: E402
 from app.models.ical_feed import ICalFeed  # noqa: E402
 from app.models.guest import Guest  # noqa: E402
+from app.services.date_presets import today_ist  # noqa: E402
 from app.models.property import BlockedDate, Property, Stay  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.models.task import Task  # noqa: E402
@@ -22,7 +23,7 @@ IST = ZoneInfo("Asia/Kolkata")
 
 
 def _d(n: int) -> str:
-    return (date.today() + timedelta(days=n)).isoformat()
+    return (today_ist() + timedelta(days=n)).isoformat()
 
 
 def _ics(*events: str) -> str:
@@ -133,7 +134,7 @@ def test_sync_flags_double_booking_once(db, tenant_and_user):
     prop = _prop(db, tid)
     feed = _feed(db, tid, prop.id)
     db.add(Stay(id=gen_uuid(), tenant_id=tid, guest_id=_guest(db, tid), property_id=prop.id,
-                check_in=date.today() + timedelta(days=5), check_out=date.today() + timedelta(days=7), status="confirmed"))
+                check_in=today_ist() + timedelta(days=5), check_out=today_ist() + timedelta(days=7), status="confirmed"))
     db.flush()
     fetch = lambda u: _ics(_ev("a@x", _d(6), _d(9)))  # noqa: E731
     assert svc.sync_feed(db, feed, fetcher=fetch)["conflicts"] == 1
@@ -160,12 +161,12 @@ def test_export_content_and_exclusions(db, tenant_and_user):
     booking = _feed(db, tid, prop.id, "Booking.com", url="https://example.com/b.ics")
     guest = _guest(db, tid)
     db.add_all([
-        Stay(id="s-direct", tenant_id=tid, guest_id=guest, property_id=prop.id, check_in=date.today() + timedelta(days=2),
-             check_out=date.today() + timedelta(days=4), status="confirmed"),
-        Stay(id="s-pms", tenant_id=tid, guest_id=guest, property_id=prop.id, check_in=date.today() + timedelta(days=2),
-             check_out=date.today() + timedelta(days=4), status="confirmed", hostaway_booking_id="h1"),
-        Stay(id="s-cancelled", tenant_id=tid, guest_id=guest, property_id=prop.id, check_in=date.today() + timedelta(days=2),
-             check_out=date.today() + timedelta(days=4), status="cancelled"),
+        Stay(id="s-direct", tenant_id=tid, guest_id=guest, property_id=prop.id, check_in=today_ist() + timedelta(days=2),
+             check_out=today_ist() + timedelta(days=4), status="confirmed"),
+        Stay(id="s-pms", tenant_id=tid, guest_id=guest, property_id=prop.id, check_in=today_ist() + timedelta(days=2),
+             check_out=today_ist() + timedelta(days=4), status="confirmed", hostaway_booking_id="h1"),
+        Stay(id="s-cancelled", tenant_id=tid, guest_id=guest, property_id=prop.id, check_in=today_ist() + timedelta(days=2),
+             check_out=today_ist() + timedelta(days=4), status="cancelled"),
         BlockedDate(tenant_id=tid, property_id=prop.id, blocked_from=_d(10), blocked_to=_d(12), reason="maintenance", is_active=True),
         BlockedDate(tenant_id=tid, property_id=prop.id, blocked_from=_d(20), blocked_to=_d(22), reason="offline_booking",
                     notes=f"ical:{airbnb.id}:u1", is_active=True),
@@ -245,7 +246,7 @@ def test_public_export_serves_ics_and_404s(client, db, tenant_and_user):
     prop = _prop(db, tid)
     feed = _feed(db, tid, prop.id, url=None)
     db.add(Stay(id="s1", tenant_id=tid, guest_id=_guest(db, tid), property_id=prop.id,
-                check_in=date.today() + timedelta(days=2), check_out=date.today() + timedelta(days=4), status="confirmed"))
+                check_in=today_ist() + timedelta(days=2), check_out=today_ist() + timedelta(days=4), status="confirmed"))
     db.commit()
 
     r = client.get(f"/api/v1/ical/{feed.export_token}.ics")        # no auth header
