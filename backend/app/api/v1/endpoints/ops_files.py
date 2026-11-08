@@ -3,7 +3,7 @@
 Villa pack (stays): /people, /check-in, /check-out, /meals..., /deposit, /cleaning/{job}/done live in ops_stays.py; the
 shared steps below (checklist, settle, close, money, report) answer by the file's pack (_flow).
 
-Files       GET /ops/files?state= · GET /ops/files/today · GET /ops/files/{id}/report.pdf · POST /ops/files/sync · GET /ops/files/by-stay/{stay_id} · GET /ops/files/{id}
+Files       GET /ops/files?state= · GET /ops/files/today · GET /ops/files/metrics?days= (owner/manager) · GET /ops/files/{id}/report.pdf · POST /ops/files/sync · GET /ops/files/by-stay/{stay_id} · GET /ops/files/{id}
 Steps       POST /ops/files/{id}/accept | /crew | /dispatch | /return | /settle | /close
 Checklist   PUT /ops/files/{id}/checklist/{key}
 Money       POST /ops/files/{id}/expenses · POST /ops/files/{id}/extras · POST /ops/files/{id}/extras/{extra_id}/approve|remove
@@ -19,12 +19,13 @@ returned here; passport / visa numbers only through the audited reveal.
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
+from app.api.v1.deps import require_roles
 from app.core.database import get_db
 from app.models.ops import StaffProfile
 from app.models.ops_files import OpsExpense, OpsExtra, OpsFile, OpsFileEvent
 from app.models.ops_fleet import OpsAutoMessage
 from app.models.property import Property, Stay
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.ops_fleet import FormCSubmittedIn
 from app.schemas.ops_files import (
     AcceptIn,
@@ -40,6 +41,7 @@ from app.services import (
     ops_fleet_service,
     ops_form_c,
     ops_guest_form,
+    ops_metrics,
     ops_return_check,
     ops_stay_report,
     ops_today_service,
@@ -231,6 +233,16 @@ def today(user: User = Depends(_read), db: Session = Depends(get_db)):
     out = ops_today_service.build(db, user.tenant_id)
     db.commit()  # files opened for new bookings by the built-in sync
     return out
+
+
+@router.get("/metrics", dependencies=[Depends(_read)])
+def metrics(
+    days: int = Query(30, ge=7, le=90),
+    user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """How operations are doing (ops_metrics, D-33 .. D-40): the last ``days`` IST days, overall and per unit."""
+    return ops_metrics.last_days(db, user.tenant_id, days)
 
 
 @router.post("/sync")

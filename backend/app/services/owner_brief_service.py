@@ -11,6 +11,9 @@ the Owner dashboard and My day, so the email and the app never disagree.
   Missed calls    inbound, not answered (call_status_service), on the workspace's CURRENT IVR provider only
   Lost            leads moved to the closed-lost stage in the period, with the most common reason
   To-dos          work_queue_service.build(): the "Call now" lane (lead_priority), callbacks and quiet leads
+  Operations      ops_metrics (D-33 .. D-40), morning brief only, last 7 days, businesses with an ops pack: how fast
+                  issues were acknowledged, stays not ready before check-in, stays without paperwork; a line only when
+                  there is something to judge (and, for the last two, something wrong)
 
 Each count is compared with the average of the 7 days before. The sentences are written from the numbers by rules (no LLM):
 nothing is invented and nothing is paid for. Periods are IST calendar days: the morning brief covers yesterday, the evening one
@@ -30,7 +33,8 @@ from app.models.inquiry import Inquiry
 from app.models.inquiry_360 import InquiryStageLog
 from app.models.pipeline_stage import PipelineStage
 from app.models.tenant import Tenant
-from app.services import call_status_service, kpi_metrics, lead_metrics, work_queue_service
+from app.services import call_status_service, kpi_metrics, lead_metrics, ops_metrics, work_queue_service
+from app.services.ops_pack_catalog import pack_for_business_type
 from app.services.date_presets import IST, ist_range_to_utc
 from app.services.wa_booking_messages import inr
 
@@ -115,6 +119,31 @@ def _sentences(nums: dict, base: dict, period: str, top_source: Optional[str], m
     return out
 
 
+OPS_DAYS = 7
+
+
+def _ops_lines(db: Session, tenant: Tenant, day: date) -> list[str]:
+    """At most three rule-written lines about operations over the last 7 days ending ``day``; none when nothing to say."""
+    if not pack_for_business_type(tenant.business_type):
+        return []
+    m = ops_metrics.build(db, tenant.id, day - timedelta(days=OPS_DAYS - 1), day,
+                          now=datetime.combine(day + timedelta(days=1), datetime.min.time(), tzinfo=IST))
+    out = []
+    ack = m["time_to_acknowledge"]["all"]
+    if ack["count"]:
+        out.append(f"Operations, last {OPS_DAYS} days: {_plural(ack['count'], 'issue')} acknowledged in a median of "
+                   f"{ack['median_min']:.0f} min.")
+    ready = m["ready_on_time"]
+    if ready["judged"] and ready["on_time"] < ready["judged"]:
+        late = ready["judged"] - ready["on_time"]
+        out.append(f"{late} of {_plural(ready['judged'], 'stay')} {'was' if late == 1 else 'were'} not ready before check-in.")
+    paper = m["paperwork_before_arrival"]
+    if paper["judged"] and paper["complete"] < paper["judged"]:
+        out.append(f"{paper['judged'] - paper['complete']} of {_plural(paper['judged'], 'stay')} arrived without the "
+                   "guest form and full payment.")
+    return out[:3]
+
+
 def _todos(queue: dict, app_url: str) -> list[dict]:
     """The best few people to call now (My day's "Call now" lane), then what remains, as counts."""
     items = [i for i in queue["items"] if i.get("kind") != "clash"]
@@ -151,10 +180,11 @@ def build(db: Session, tenant: Tenant, *, kind: str = "morning", app_url: str, n
     queue = work_queue_service.build(db, tenant, None)
     todos = _todos(queue, app_url)
     sentences = _sentences(nums, base, period, top_source, money)
-    activity = nums["leads"] or nums["bookings"] or nums["missed_calls"] or nums["lost"]
+    ops_lines = _ops_lines(db, tenant, day) if kind == "morning" else []
+    activity = nums["leads"] or nums["bookings"] or nums["missed_calls"] or nums["lost"] or ops_lines
     return {
         "kind": kind, "day": day.isoformat(), "day_label": f"{day:%a}, {day.day} {day:%b}", "period": period,
-        "numbers": nums, "baseline": base, "top_source": top_source, "sentences": sentences, "todos": todos,
+        "numbers": nums, "baseline": base, "top_source": top_source, "sentences": sentences, "ops_lines": ops_lines, "todos": todos,
         "worth_sending": bool(activity or todos), "money": money,
         "my_day_url": f"{app_url}/dashboard/my-day", "dashboard_url": f"{app_url}/dashboard",
     }
