@@ -125,6 +125,8 @@ class OpsSettings(Base, TimestampMixin, TenantMixin):
     template_language = Column(String(10), nullable=False, default="en")
     # Mid-stay check (ops_midstay_check): NULL = on once its template is approved; TRUE/FALSE = the owner's choice.
     midstay_check_enabled = Column(Boolean, nullable=True)
+    # Staff assistant (ops_staff_assistant, migration 192): NULL/FALSE = off; TRUE = the owner turned it on.
+    staff_assistant_enabled = Column(Boolean, nullable=True)
 
 
 class OpsItem(Base, TimestampMixin, TenantMixin):

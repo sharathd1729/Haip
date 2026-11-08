@@ -275,6 +275,22 @@ def _handle_staff_message(db, tenant: Tenant, staff, msg: dict, msg_type: str) -
         set_cached(dedup_key, "1", ttl=86400)
     queue_delivery(str(tenant.id), send_ids)
     log.info("wa_staff_message_routed_to_ops", staff_id=staff.id, type=msg_type)
+    if msg_type == "text" and not payload:
+        _queue_staff_question(tenant, staff, db, text, msg.get("id", ""))
+
+
+def _queue_staff_question(tenant: Tenant, staff, db, text: str, message_id: str) -> None:
+    """A staff question ("what is the Wi-Fi password?") is answered by the staff assistant in its own Celery task, only
+    while the owner has it on. Runs after the usual handling, which it never changes; a failure here is only logged."""
+    from app.services import ops_staff_assistant
+    try:
+        if not ops_staff_assistant.is_question(text) or not ops_staff_assistant.enabled(db, str(tenant.id)):
+            return
+        from app.workers.tasks.ops_intake import staff_assistant_answer
+        staff_assistant_answer.delay(str(tenant.id), staff.id, text[:ops_staff_assistant.MAX_QUESTION], message_id)
+        log.info("wa_staff_question_queued", staff_id=staff.id, category=ops_staff_assistant.category(text))
+    except Exception as exc:  # noqa: BLE001 -- never break the staff message flow
+        log.warning("wa_staff_question_failed", tenant_id=tenant.id, error=type(exc).__name__)
 
 
 def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):

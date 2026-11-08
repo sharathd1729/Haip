@@ -351,6 +351,7 @@ celery_app.conf.update(
         "ops.escalation_tick":                           {"queue": "whatsapp"},
         "ops.escalation_tick_tenant":                    {"queue": "whatsapp"},
         "ops.process_staff_photo":                       {"queue": "ai_scoring"},   # vision reads a staff photo
+        "ops.staff_assistant_answer":                    {"queue": "ai_scoring"},   # answers a staff question (LLM)
         "ops.sync_files_all":                            {"queue": "default"},
         "ops.sync_files_tenant":                         {"queue": "default"},
         "ops.auto_messages_all":                         {"queue": "whatsapp"},   # trip messages go out on WhatsApp

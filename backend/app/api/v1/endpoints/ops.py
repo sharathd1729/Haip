@@ -384,11 +384,12 @@ def _settings_out(db: Session, tenant_id: str) -> dict:
         t.name: t
         for t in db.query(WATemplate).filter(WATemplate.tenant_id == tenant_id, WATemplate.name.in_(names)).all()
     }
-    from app.services import ops_midstay_check
+    from app.services import ops_midstay_check, ops_staff_assistant
 
     return {
         **cfg,
         "midstay_check_enabled": ops_midstay_check.enabled(db, tenant_id),
+        "staff_assistant_enabled": ops_staff_assistant.enabled(db, tenant_id),
         "sla": {k: list(v) for k, v in cfg["sla"].items()},
         "template_status": {
             n: (rows[n].status.value if hasattr(rows[n].status, "value") else rows[n].status)
@@ -406,6 +407,8 @@ def get_settings(user: User = Depends(_read), db: Session = Depends(get_db)):
 
 @router.put("/settings")
 def put_settings(body: OpsSettingsPut, user: User = Depends(_manage), db: Session = Depends(get_db)):
+    if body.staff_assistant_enabled is not None and user.role.value != "owner":
+        raise HTTPException(403, "Only the owner can turn the staff assistant on or off.")
     row = esc.get_settings_row(db, user.tenant_id)
     if row is None:
         row = OpsSettings(tenant_id=user.tenant_id)

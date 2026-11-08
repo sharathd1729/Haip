@@ -166,6 +166,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # AI Executive (services/chief/explain.py): two grounded sentences per finding that code already detected. Internal,
     # structured JSON; a sentence with a number not in the finding is dropped and the rule's own text stands on any failure.
     "chief_explain": ("nvidia", "openai/gpt-oss-20b"),
+    # Staff assistant on WhatsApp (ops_staff_assistant.py): a short answer to a staff member's question from THEIR facts only
+    # (their properties, the KB via search_detailed, their own job today). JSON output; a phone number or email not in the
+    # facts is refused in code. Internal (staff, not guests), mid tier with the Gemini fallback below.
+    "staff_assistant": ("nvidia", "openai/gpt-oss-20b"),
     # Marketing Studio: every step runs on Gemini (24 Oct 2026). On gpt-oss-20b the studio's tool calls came back empty
     # (reasoning used the whole output budget; live: brand voice, finish_reason MAX_TOKENS, 0 output tokens), and the
     # owner chose Gemini for these steps. Structured output via one tool; every result is re-validated and reviewed by
@@ -226,11 +230,12 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "analyst_brief":               90,
     "analyst_followup":            40,
     "chief_explain":               45,
+    "staff_assistant":             30,
     "website_content":             90,
 }
 
 # A person waits on these in the UI: one NVIDIA attempt, then the fallback, so the wait is not doubled.
-_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup"}
+_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup", "staff_assistant"}
 
 
 # LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.
