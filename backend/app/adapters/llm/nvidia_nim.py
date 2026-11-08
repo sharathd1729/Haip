@@ -123,7 +123,11 @@ class NvidiaNIMAdapter(LLMAdapter):
             kwargs["tools"] = to_provider_tools(tools, "nvidia")
             kwargs["tool_choice"] = "auto"
 
+        from app.adapters.llm.metered import attempt
+        rec = attempt("nvidia", model)
         resp = await client.chat.completions.create(**kwargs)
+        u = getattr(resp, "usage", None)
+        rec.update(input_tokens=getattr(u, "prompt_tokens", 0) or 0, output_tokens=getattr(u, "completion_tokens", 0) or 0)
         choice = resp.choices[0]
 
         result: dict = {"content": "", "tool_use": None}

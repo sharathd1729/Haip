@@ -92,9 +92,23 @@ def daily_agent_report_all_tenants():
         log.warning("daily_agent_report_skipped_no_email_key")
         return {"agents_queued": 0, "reason": "no_email_key"}
 
+    from app.adapters.llm import batch
+
     db = SessionLocal()
     try:
         tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        if batch.enabled("agent_performance_narrative"):
+            # Claude Message Batches (half price): the emails go out when the batch ends, usually within the hour. The
+            # day is pinned now, so an email sent after midnight still reports the day it was meant for.
+            from datetime import datetime
+
+            from app.services.date_presets import IST
+            from app.workers.tasks.llm_batch import submit
+            day = datetime.now(IST).date().isoformat()
+            for tid in tenant_ids:
+                submit.delay("agent_daily_report", tid, {"day": day})
+            log.info("daily_agent_report_batched", tenants=len(tenant_ids), day=day)
+            return {"batched_tenants": len(tenant_ids)}
         queued = 0
         for tid in tenant_ids:
             for agent in _recipients(db, tid):

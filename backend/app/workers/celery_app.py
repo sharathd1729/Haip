@@ -52,6 +52,7 @@ celery_app = Celery(
         "app.workers.tasks.lead_autopilot",
         # Why a lead was won / lost: the AI's proposal from the lead's evidence (a person confirms)
         "app.workers.tasks.lead_outcome",
+        "app.workers.tasks.llm_batch",
         # Daily lead report email (11:00 IST) + the 10:30 "update your leads" reminder
         "app.workers.tasks.lead_reports",
         # Lead workflows: missed-call / no-answer WhatsApp playbooks + the lead journey sweep
@@ -366,6 +367,8 @@ celery_app.conf.update(
         # Won/lost reason proposals (lead_outcome.py): LLM work, same queue as the autopilot classifier.
         "lead_outcome.propose":                       {"queue": "ai_scoring"},
         "lead_outcome.sweep_all_tenants":             {"queue": "ai_scoring"},
+        "llm_batch.submit":                           {"queue": "ai_scoring"},
+        "llm_batch.poll":                             {"queue": "ai_scoring"},
         # Daily lead report email + reminder (lead_reports.py): same queue as the other report emails.
         "lead_reports.daily_email_tick":              {"queue": "ai_scoring"},
         # Lead workflows (lead_playbooks.py): the playbook steps queue WhatsApp sends, so they share that queue.

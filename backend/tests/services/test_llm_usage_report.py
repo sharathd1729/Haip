@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from app.models.property import Property
 from app.models.tenant import Tenant
 from app.models.usage_event import UsageEvent
-from app.services.llm_usage_report import load, summarise
+from app.services.llm_usage_report import DEFAULT_USD_INR, load, summarise, tenant_totals
 
 _SPEC = importlib.util.spec_from_file_location(
     "llm_usage_report_script", os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "llm_usage_report.py")
@@ -35,14 +35,16 @@ def test_summarise_per_task():
     assert c["cost_usd_per_property_month"] == round(0.004 / 2 * 30 / 7, 6)
     assert c["cost_inr"] == round(0.004 * 84.0, 2)
     assert data["tasks"][1]["fallback_pct"] == 100.0 and data["total"]["calls"] == 6
-    assert "cost_inr" not in summarise(rows, 7, 2)["tasks"][0]  # no rate given: no rupees, no built-in FX
+    assert summarise(rows, 7, 2)["tasks"][0]["cost_inr"] == round(0.004 * DEFAULT_USD_INR, 2)  # default rate
+    assert "cost_inr" not in summarise(rows, 7, 2, usd_inr=None)["tasks"][0]
     assert "concierge_draft" in script.render("rathaa", data)
 
 
 def test_summarise_empty_and_no_properties():
-    assert summarise([], 7, 0) == {"days": 7, "properties": 0, "usd_inr": None, "tasks": [], "total": None}
+    assert summarise([], 7, 0) == {"days": 7, "properties": 0, "usd_inr": DEFAULT_USD_INR, "tasks": [], "kinds": [],
+                                   "total": None}
     assert summarise([_row("x", 1)], 7, 0)["tasks"][0]["cost_usd_per_property_month"] is None
-    assert "no llm_call rows" in script.render("x", summarise([], 7, 0))
+    assert "no usage rows" in script.render("x", summarise([], 7, 0))
 
 
 def test_load_reads_only_this_tenants_recent_llm_call_rows(db, tenant_and_user):
@@ -136,3 +138,40 @@ def test_guest_to_draft_counts_only_drafts_answering_a_guest_message(db, tenant_
     assert reply_latency([]) == {"drafts": 0, "p50_ms": None, "p95_ms": None}
     text = script.render("x", {**summarise([], 7, 0), "guest_to_draft": reply_latency(ms)})
     assert "Guest message to draft stored: 2 drafts, p50 20.0s, p95 90.0s" in text
+
+
+def test_summarise_shows_kinds_batch_and_attempts():
+    rows = [
+        {"kind": "llm_call", "units": 300, "meta": {"task": "outcome_reason", "ok": True, "cost_usd": 0.01, "attempts": 3}},
+        {"kind": "llm_call", "units": 100, "meta": {"task": "outcome_reason", "ok": True, "cost_usd": 0.002, "batch": True}},
+        {"kind": "embedding_call", "units": 50, "meta": {"task": "embed_query", "ok": True, "cost_usd": 0.0}},
+        {"kind": "vision_call", "units": 900, "meta": {"task": "vision_photo", "ok": True, "cost_usd": 0.004}},
+    ]
+    data = summarise(rows, days=30, properties=1, usd_inr=90.0)
+    tasks = {b["task"]: b for b in data["tasks"]}
+    assert tasks["outcome_reason"]["attempts"] == 3 and tasks["outcome_reason (batch)"]["calls"] == 1
+    assert [k["task"] for k in data["kinds"]] == ["llm_call", "embedding_call", "vision_call"]
+    assert data["kinds"][0]["cost_usd"] == 0.012 and data["total"]["cost_inr"] == round(0.016 * 90.0, 2)
+    text = script.render("rathaa", data)
+    assert "outcome_reason (batch)" in text and "vision_call" in text and "Rs 90.0/USD" in text
+
+
+def test_load_reads_new_kinds_and_tenant_totals_stay_per_tenant(db, tenant_and_user):
+    tenant = tenant_and_user["tenant"]
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth", is_active=True)
+    db.add(other)
+    db.flush()
+    db.add_all([
+        UsageEvent(tenant_id=tenant.id, module="knowledge", kind="embedding_call", units=40,
+                   meta={"task": "embed_query", "cost_usd": 0.0}),
+        UsageEvent(tenant_id=tenant.id, module="ops", kind="vision_call", units=800,
+                   meta={"task": "vision_photo", "cost_usd": 0.5}),
+        UsageEvent(tenant_id=other.id, module="leads", kind="llm_call", units=10, meta={"task": "x", "cost_usd": 2.0}),
+    ])
+    db.flush()
+    rows, _ = load(db, tenant.id, days=7, now=datetime.now(UTC) + timedelta(seconds=1))
+    assert sorted(r["kind"] for r in rows) == ["embedding_call", "vision_call"]
+    totals = {t["tenant"]: t for t in tenant_totals(db, 7, usd_inr=80.0, now=datetime.now(UTC) + timedelta(seconds=1))}
+    assert totals[other.slug]["cost_usd"] == 2.0 and totals[other.slug]["cost_inr"] == 160.0
+    assert totals[tenant.slug]["cost_usd"] == 0.5 and totals[tenant.slug]["calls"] == 2
+    assert other.slug in script.render_tenants(list(totals.values()), 7, 80.0)

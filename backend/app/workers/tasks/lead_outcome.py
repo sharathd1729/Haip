@@ -3,7 +3,8 @@
   lead_outcome.propose            one lead, one kind (won | lost). Queued when a person opens the Won / Lost dialog
                                   (POST /leads/{id}/outcome/propose); the dialog polls GET /leads/{id}/outcome.
   lead_outcome.sweep_all_tenants  nightly beat (02:35 IST): leads closed without a reason and without a proposal, at most
-                                  40 per workspace. One transaction per lead, per tenant.
+                                  40 per workspace. One transaction per lead, per tenant. With Claude as the provider
+                                  it goes through Message Batches instead (llm_batch.submit per tenant, half price).
 
 The LLM is only ever called here, in a worker -- never in a request handler. A proposal never sets the reason itself.
 """
@@ -47,6 +48,13 @@ def sweep_all_tenants():
     try:
         tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
         db.commit()
+        from app.adapters.llm import batch
+        if batch.enabled(lead_outcome.TASK_KEY):   # Claude Message Batches, half price (workers/tasks/llm_batch.py)
+            from app.workers.tasks.llm_batch import submit
+            for tenant_id in tenant_ids:
+                submit.delay("lead_outcome_sweep", tenant_id, {})
+            log.info("lead_outcome_sweep_batched", tenants=len(tenant_ids))
+            return {"batched_tenants": len(tenant_ids)}
         for tenant_id in tenant_ids:
             try:
                 set_tenant_context(db, tenant_id)
