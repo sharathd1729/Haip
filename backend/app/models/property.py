@@ -59,7 +59,7 @@ class Property(Base, TimestampMixin, TenantMixin):
     brand_voice = Column(Text, nullable=True)
     faqs = Column(JSON, default=list)
 
-    # Self check-in (Ops 2, migration 191): nobody meets the guest (whole_unit packs). The steps, lock code and key box
+    # Self check-in (Ops 2, migration 192): nobody meets the guest (whole_unit packs). The steps, lock code and key box
     # live ONLY Fernet-encrypted (ops_self_check_in); never logged, shown only to ops.manage roles.
     self_check_in = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     self_check_in_enc = Column(Text, nullable=True)

@@ -68,6 +68,14 @@ def escalation_tick_tenant(tenant_id: str) -> dict:
         set_tenant_context(db, tenant_id)
         send_ids = ops_escalation_service.tick(db, tenant_id)
         db.commit()
+        from app.services import guest_ops_tickets  # guest tickets nobody confirmed in time are closed
+
+        try:
+            guest_ops_tickets.expire_confirmations(db, tenant_id)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 -- the alerts below must still go out
+            db.rollback()
+            log.error("guest_ticket_expire_failed", tenant_id=tenant_id, error=str(exc)[:200])
         delivered = deliver_now(db, tenant_id, send_ids)
         return {"sends": len(send_ids), "delivered": delivered}
     finally:
@@ -76,7 +84,7 @@ def escalation_tick_tenant(tenant_id: str) -> dict:
 
 @shared_task(name="ops.escalation_tick")
 def escalation_tick() -> dict:
-    """Beat, every minute. Only tenants that have an open or acknowledged ops item get a tick."""
+    """Beat, every minute. Only tenants that have an open, acknowledged or confirming ops item get a tick."""
     from app.models.ops import OpsItem
     from app.models.tenant import Tenant
 
@@ -90,7 +98,7 @@ def escalation_tick() -> dict:
                 db.query(OpsItem.id)
                 .filter(
                     OpsItem.tenant_id == tid,
-                    OpsItem.status.in_(("open", "acknowledged")),
+                    OpsItem.status.in_(("open", "acknowledged", "confirming")),
                 )
                 .first()
                 is not None

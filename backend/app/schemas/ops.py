@@ -21,7 +21,8 @@ DUTIES = (
 )
 SEVERITIES = ("low", "normal", "high", "critical")
 ITEM_KINDS = ("incident", "balance_due", "checklist_overdue", "manual")
-ITEM_STATUSES = ("open", "acknowledged", "resolved", "cancelled")
+# "confirming" = a guest ticket staff resolved, waiting for the guest's "Is it fixed?" answer (guest_ops_tickets).
+ITEM_STATUSES = ("open", "acknowledged", "confirming", "resolved", "cancelled")
 OVERRIDE_KINDS = ("leave", "extra", "swap")
 INCIDENT_CATEGORIES = (
     "ac",
@@ -35,6 +36,9 @@ INCIDENT_CATEGORIES = (
     "noise",
     "vehicle",
     "payment",
+    "maintenance",
+    "complaint",
+    "service_request",
     "access",  # lock, code, key box (self check-in segments)
     "pool",
     "gas",

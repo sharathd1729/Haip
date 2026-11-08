@@ -12,14 +12,14 @@ No new table: all three tables already have tenant_id + forced RLS (properties s
 Idempotent (prod also runs create_all, which never adds a column to an existing table): ADD COLUMN IF NOT EXISTS,
 DROP CONSTRAINT IF EXISTS, CREATE UNIQUE INDEX IF NOT EXISTS.
 
-Revision ID: 191
-Revises: 190
+Revision ID: 192
+Revises: 191
 """
 
 from alembic import op
 
-revision = "191"
-down_revision = "190"
+revision = "192"
+down_revision = "191"
 branch_labels = None
 depends_on = None
 

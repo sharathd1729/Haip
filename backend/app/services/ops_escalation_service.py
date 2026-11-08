@@ -33,6 +33,9 @@ log = structlog.get_logger()
 MAX_REPEATS = 3
 DELIVERABLE = ("queued", "sent", "delivered", "read")
 RESOLVE_BREACH_STEP = -1  # sends for a resolve-deadline breach (not part of the ack chain)
+OWNER_COPY_STEP = -2  # a critical guest ticket (safety / legal) also alerts the owners at once (not part of the ack chain)
+# A guest's own problem (chat) or a booking's service request: resolving it asks the guest first (guest_ops_tickets).
+GUEST_SOURCES = ("guest_chat", "service_request")
 STALE_QUEUED = timedelta(minutes=2)
 
 
@@ -151,9 +154,13 @@ def create_item(
     conversation_id: str | None = None,
     service_request_id: str | None = None,
     source: str = "staff",
+    source_ref: str | None = None,
     created_by: str | None = None,
+    dispatch_after: datetime | None = None,
     now: datetime | None = None,
 ) -> tuple[OpsItem, list[str]]:
+    """``dispatch_after`` (future) holds the first alert until then, like quiet hours (a service request due next week);
+    the tick dispatches it. ``source_ref`` is the idempotency key (unique per tenant): the caller checks it first."""
     now = _now(now)
     cfg = effective_settings(db, tenant_id)
     raised_from = None
@@ -176,6 +183,7 @@ def create_item(
         guest_id=guest_id,
         conversation_id=conversation_id,
         service_request_id=service_request_id,
+        source_ref=source_ref,
         created_by=created_by,
         resolve_due_at=now + timedelta(minutes=resolve_minutes),
         current_step=0,
@@ -183,6 +191,9 @@ def create_item(
     db.add(item)
     db.flush()
     held = quiet_until(db, tenant_id, now, cfg["quiet_hours"]) if severity in ("low", "normal") else None
+    later = _aware(dispatch_after)
+    if later is not None and later > now and (held is None or later > held):
+        held = later
     _event(
         db,
         item,
@@ -435,18 +446,21 @@ def resolve(
     now: datetime | None = None,
 ) -> bool:
     now = _now(now)
-    if item.status in ("resolved", "cancelled"):
+    if item.status in ("resolved", "cancelled", "confirming"):
         return False
     if item.status == "open":
         item.acknowledged_at = item.acknowledged_at or now
         item.acknowledged_by_staff_id = item.acknowledged_by_staff_id or staff_id
         item.acknowledged_by_user_id = item.acknowledged_by_user_id or user_id
-    item.status = "resolved"
+    # A guest ticket waits for the guest's "Is it fixed?" answer (guest_ops_tickets closes or reopens it).
+    awaiting = is_guest_ticket(item)
+    item.status = "confirming" if awaiting else "resolved"
     item.resolved_at = now
     item.resolved_by_staff_id = staff_id
     item.resolved_by_user_id = user_id
     item.resolution_note = note
     item.ack_due_at = None
+    detail = {**({"note": note} if note else {}), **({"awaiting_guest": True} if awaiting else {})}
     _event(
         db,
         item,
@@ -454,10 +468,29 @@ def resolve(
         now,
         staff_id=staff_id,
         user_id=user_id,
-        detail={"note": note} if note else None,
+        detail=detail or None,
     )
     db.flush()
     return True
+
+
+def is_guest_ticket(item: OpsItem) -> bool:
+    return item.source in GUEST_SOURCES and bool(item.guest_id)
+
+
+def notify_owners_now(db: Session, item: OpsItem, now: datetime | None = None) -> list[str]:
+    """Alert every owner at once, beside the normal chain (a safety or legal guest ticket). Returns queued send ids."""
+    now = _now(now)
+    cfg = effective_settings(db, item.tenant_id)
+    owners = roster_service.recipients_for_spec(
+        db, item.tenant_id, {"type": "role", "role": "owner"}, item.duty, item.property_id, now
+    )
+    queued = _queue_sends(
+        db, item, OWNER_COPY_STEP, roster_service._dedupe(owners), cfg["templates"]["alert"], cfg["alerts_enabled"]
+    )
+    _event(db, item, "owner_notified", now, detail={"recipients": [r.name for r in owners]})
+    db.flush()
+    return queued
 
 
 def cancel(

@@ -250,3 +250,32 @@ def test_tenant_isolation(db):
     _run(db, t.id)
     assert mid.on_guest_message(db, other.id, stay.guest_id, None, "broken tap", now=DAY2) is None
     assert _row(db, f).response is None and db.query(OpsItem).count() == 0
+
+
+def test_a_problem_reply_goes_through_the_guest_ticket_path_and_the_concierge_joins_it(db):
+    """One ticket path (guest_ops_tickets): source_ref msg:<id>, and the concierge's turn on the same message links to it."""
+    from app.services import guest_ops_tickets
+
+    t, stay, f = _sent_check(db)
+    with patch("app.workers.tasks.ops_escalation.queue_delivery"):
+        assert (
+            mid.on_guest_message(
+                db, t.id, stay.guest_id, "conv-1", "the pump is broken", now=DAY2 + timedelta(hours=1), message_id="m-1"
+            )
+            == "problem"
+        )
+        item = db.query(OpsItem).filter_by(tenant_id=t.id).one()
+        assert item.source_ref == "msg:m-1" and item.severity == "high"
+        turn = guest_ops_tickets.open_for_chat(
+            db,
+            t,
+            None,
+            stay.guest_id,
+            message_id="m-1",
+            burst_text="the pump is broken",
+            details={"stay_issue": "maintenance"},
+            escalation=None,
+            stay=stay,
+        )
+    assert turn is not None and turn.item_id == item.id and turn.created is False
+    assert db.query(OpsItem).filter_by(tenant_id=t.id).count() == 1

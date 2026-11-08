@@ -75,7 +75,7 @@ class OpsFileEvent(Base, TenantMixin):
 
 class OpsChecklistTemplate(Base, TimestampMixin, TenantMixin):
     """A business's own checklist for one pack + kind, seeded from the pack's defaults (ops_pack_seed, never over an
-    edit). property_id NULL = the business's default; a row with a property_id = that property's own copy (migration 191),
+    edit). property_id NULL = the business's default; a row with a property_id = that property's own copy (migration 192),
     used for its jobs instead. items = [{key, label, critical, source (staff | system | manager), photo}]. Editing the
     words never changes jobs already opened."""
 
