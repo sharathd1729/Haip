@@ -23,9 +23,10 @@ POLL_BUDGET = 90
 class PublishError(Exception):
     """`transient`: safe to retry later (timeouts, 429, 5xx, container still in progress)."""
 
-    def __init__(self, message: str, *, transient: bool):
+    def __init__(self, message: str, *, transient: bool, status: int | None = None):
         super().__init__(message)
         self.transient = transient
+        self.status = status                     # the HTTP status when the provider answered (429 = quota)
 
 
 class Publisher:

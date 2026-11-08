@@ -9,6 +9,8 @@ Rule, in one place:
   * ``error``                      -> red    (a check failed or the token was rejected)
   * ``active``                     -> green  (receiving/sending works)
   * ``active`` + polled PMS sync with no successful sync for a while -> yellow / red
+  * ``active`` + Google pull (Business Profile metrics, Search Console) failing -> yellow after one failure, red after
+    three in a row (``config["metrics_pull"]``, written by google_surfaces_sync)
   * ``pending`` / ``disconnected`` -> off    (owner has not connected it or turned it off: not a fault)
 
 Webhook-driven channels (WhatsApp, Instagram, IVR) have no regular poll, so an old ``last_health_at``
@@ -25,11 +27,15 @@ GREEN, YELLOW, RED, OFF = "green", "yellow", "red", "off"
 POLLED_KINDS = frozenset({"hostaway", "retalwise"})
 POLLED_YELLOW_AFTER = timedelta(hours=3)   # the sync runs hourly
 POLLED_RED_AFTER = timedelta(hours=12)
+# Integrations whose scheduled Google pull records failures in config["metrics_pull"] (google_surfaces_sync).
+PULL_KINDS = frozenset({"google_business", "search_console"})
+PULL_RED_FAILURES = 3
 
 LABELS = {
     "whatsapp_meta": "WhatsApp", "whatsapp": "WhatsApp", "instagram": "Instagram",
     "callerdesk": "IVR", "acefone": "IVR (Acefone)", "mcube": "IVR (Mcube)", "vobiz": "IVR (Vobiz)",
     "hostaway": "Hostaway", "retalwise": "RentalWise", "meta_ads": "Meta Ads",
+    "google_business": "Google Business Profile", "search_console": "Google Search Console",
 }
 
 
@@ -66,6 +72,12 @@ def classify(
             return RED
         if left <= WARN_WITHIN_DAYS:
             return YELLOW
+    if kind in PULL_KINDS:
+        failures = pull_failure(config)[0]
+        if failures >= PULL_RED_FAILURES:
+            return RED
+        if failures:
+            return YELLOW
     if kind in POLLED_KINDS:
         last = _parse(last_health_at)
         if last is None:
@@ -76,6 +88,12 @@ def classify(
         if age > POLLED_YELLOW_AFTER:
             return YELLOW
     return GREEN
+
+
+def pull_failure(config: Optional[dict]) -> tuple[int, Optional[str]]:
+    """(failures in a row, the plain-words reason) of a Google pull; (0, None) when it last worked."""
+    st = (config or {}).get("metrics_pull") or {}
+    return int(st.get("failures") or 0), st.get("last_error")
 
 
 def label(kind: str) -> str:

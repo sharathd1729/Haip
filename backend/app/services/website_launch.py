@@ -115,6 +115,9 @@ def build(db: Session, tenant: Tenant, site: Site) -> dict:
         "scores": q["scores"],
         "to_improve": [i["title"] + ": " + i["detail"] for i in q["items"] if not i["ok"]],
     }
+    from app.services import google_metrics
+
+    out["speed_real"] = google_metrics.speed(db, tenant.id)   # Google's PageSpeed, beside HAIP's static check above
     ld = website_seo.jsonld(tenant, doc, data["bound"], assets, host=host, grounded=data["price_mode"] == "grounded")
     out["schema"] = {slug: [x["@type"] for x in items] for slug, items in ld.items()}
     t = website_tracking.settings_out(site)
@@ -140,6 +143,21 @@ def build(db: Session, tenant: Tenant, site: Site) -> dict:
     }
     out["open_items"] = [c["title"] for c in wspec.checks(db, site, doc) if not c["ok"]]
     return out
+
+
+def speed_rows(sp: dict) -> list:
+    if not sp.get("configured") and not sp.get("pages"):
+        return [["Not measured", "PageSpeed is not set up on this HAIP server (PAGESPEED_API_KEY)."]]
+    if not sp.get("pages"):
+        return [["No data", "The first weekly check has not run yet."]]
+    rows = [["Week of", sp["week_of"]]]
+    for p in sp["pages"]:
+        m = p.get("mobile") or {}
+        verdict = (m.get("verdict") or "not enough visitors").replace("_", " ").lower()
+        lab = m.get("lab_score")
+        rows.append([p.get("label") or p["url"], f"Phones: {verdict}{' (whole site)' if m.get('whole_site') else ''}; "
+                     f"lab test {lab if lab is not None else '-'}/100" if p.get("mobile") else "Phones: check failed"])
+    return rows
 
 
 def website_seo_lang(code: str) -> str:
@@ -222,6 +240,8 @@ def render(report: dict, *, brand: str | None = None) -> bytes:
             ]
             + [["To improve", x] for x in report["quality"]["to_improve"]],
         )
+    if report.get("speed_real") is not None:
+        section("Speed for real visitors (Google PageSpeed)", speed_rows(report["speed_real"]))
     if report.get("schema"):
         section("Google structured data", [[k, ", ".join(v)] for k, v in report["schema"].items()])
     if report.get("tracking"):

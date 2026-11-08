@@ -147,14 +147,15 @@ def report(days: int = 30, user: User = Depends(get_current_user), db: Session =
     from app.api.v1.endpoints.website import user_can_see_money
     from app.services.business_data_service import tenant_today
 
+    from app.services import google_metrics
+    from app.services import search_console_connection as gsc
+
     site = _site(db, user)
-    return website_report.build(
-        db,
-        site,
-        today=tenant_today(db, user.tenant_id),
-        days=max(7, min(days, 180)),
-        show_money=user_can_see_money(db, user),
-    )
+    today, days = tenant_today(db, user.tenant_id), max(7, min(days, 180))
+    out = website_report.build(db, site, today=today, days=days, show_money=user_can_see_money(db, user))
+    # Google's own numbers (KPI catalogue section 18): their own period, ending yesterday (Google reports late).
+    out["google"] = google_metrics.summary(db, user.tenant_id, today, days, money=gsc.money_queries(db, user.tenant_id))
+    return out
 
 
 # ─── phase 4: promo codes ─────────────────────────────────────────────────────────────────────────────

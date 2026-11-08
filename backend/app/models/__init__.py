@@ -33,6 +33,7 @@ from app.models.marketing_ads import MarketingAdDraft, MarketingBoostRule, Marke
 from app.models.marketing_partners import MarketingCreator, MarketingCreatorDeal, MarketingOtaCopy
 from app.models.website import (BookingHold, GuestAccessToken, Site, SiteAiJob, SiteDomain, SitePageView, SiteVersion,
                                 WebsiteEvent, WebsitePromoCode)
+from app.models.google_surfaces import GbpDailyMetric, GscDailyTotal, GscSearchRow, PageSpeedRun
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
@@ -98,4 +99,5 @@ __all__ = [
     "OpsEscalationEvent", "OpsAlertSend",
     "OpsFile", "OpsFileEvent", "OpsChecklistTemplate", "OpsJob", "OpsJobItem", "OpsExpense", "OpsExtra",
     "OpsPaper", "OpsDefect", "OpsService", "OpsInventoryItem", "OpsAutoMessage", "OpsGuestForm", "GuestAddonLink", "GuestAddonOrder",
+    "GbpDailyMetric", "GscDailyTotal", "GscSearchRow", "PageSpeedRun",
 ]
