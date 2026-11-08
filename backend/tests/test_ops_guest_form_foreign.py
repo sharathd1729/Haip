@@ -352,9 +352,9 @@ def test_website_hint_raises_form_c_even_without_the_form(db, v, store):
     _welcome(db, v)
     it = db.query(OpsItem).filter_by(tenant_id=v.t.id, category="form_c").one()
     assert "not filled" in it.summary
-    homestay = _tenant(db, "homestay")  # no ops pack: the caller keeps its own reminder task
+    other = _tenant(db, "travel_agency")  # no ops pack: the caller keeps its own reminder task
     assert (
-        website_booking_service._form_c_covers(db, homestay.id, _stay(db, homestay, prop(db, homestay.id, "H")))
+        website_booking_service._form_c_covers(db, other.id, _stay(db, other, prop(db, other.id, "H")))
         is False
     )
 
