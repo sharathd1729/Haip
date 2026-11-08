@@ -159,6 +159,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     "analyst_followup": "analyst-followup-v2",
     # AI Executive (services/chief/explain.py): why a code-detected finding matters + the next step, grounded on its numbers.
     "chief_explain": "chief-explain-v1",
+    # Staff assistant on WhatsApp (ops_staff_assistant): answers a staff question from their own facts only.
+    "staff_assistant": "staff-assistant-v1",
     # Lead workflows follow-up draft (lead_followup_draft.py): one short follow-up a person approves; never a price.
     # v2 (2026-10-22): the owner's follow-up style from the sales playbook is added to the user message when set.
     "lead_followup_draft": "lead-followup-draft-v2",

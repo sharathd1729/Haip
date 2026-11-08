@@ -239,6 +239,7 @@ class OpsSettingsPut(BaseModel):
     templates: dict[str, str] | None = None  # {"alert": "...", "escalation": "..."}
     template_language: str | None = Field(default=None, max_length=10)
     midstay_check_enabled: bool | None = None  # day-2 WhatsApp to the guest (ops_midstay_check)
+    staff_assistant_enabled: bool | None = None  # answers staff questions on WhatsApp (ops_staff_assistant), owner only
 
     @field_validator("sla")
     @classmethod

@@ -152,6 +152,28 @@ def test_chief_explain_routes_to_the_structured_output_tier_with_gemini_fallback
     assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
 
 
+def test_staff_assistant_routes_to_the_mid_tier_with_gemini_fallback_and_honours_the_claude_switch(monkeypatch):
+    """Staff questions on WhatsApp (ops_staff_assistant.py): gpt-oss-20b on NVIDIA, one attempt (a staff member is waiting),
+    then Gemini after 30 s; LLM_FORCE_PROVIDER=claude puts Claude first with this route as the fallback."""
+    from unittest.mock import patch
+
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS, _SINGLE_PRIMARY_ATTEMPT
+    from app.adapters.llm.anthropic_claude import ClaudeAdapter
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+    from app.core.prompt_versions import get_version
+
+    assert _TASK_ROUTES["staff_assistant"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["staff_assistant"] == 30 and "staff_assistant" in _SINGLE_PRIMARY_ATTEMPT
+    assert get_version("staff_assistant") == "staff-assistant-v1"
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("staff_assistant").inner
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
+    with patch("app.core.config.settings.LLM_FORCE_PROVIDER", "claude"),          patch("app.core.config.settings.ANTHROPIC_API_KEY", "sk-ant-test-not-real"), patch("anthropic.AsyncAnthropic"):
+        forced = get_llm("staff_assistant").inner
+        assert isinstance(forced._primary, ClaudeAdapter) and forced._primary_timeout == 30
+
+
 def test_every_marketing_studio_step_runs_on_gemini_with_room_to_think():
     """24 Oct 2026: on gpt-oss the studio's tool calls came back empty (thinking used the whole 3,000-token budget,
     finish_reason MAX_TOKENS, 0 output). Every studio step is on Gemini now, with budgets well above that."""

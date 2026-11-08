@@ -157,6 +157,14 @@ def test_guest_reply_tasks_run_on_their_own_queue(celery_app_instance):
     assert replies == set(_REPLY_TASKS)
 
 
+def test_staff_assistant_task_has_an_exact_route_off_the_replies_queue(celery_app_instance):
+    """Staff questions on WhatsApp (ops_staff_assistant) call an LLM: ai_scoring, never the guest replies queue."""
+    _import_every_task_module()
+    app = celery_app_instance
+    assert "ops.staff_assistant_answer" in app.tasks
+    assert app.conf.task_routes.get("ops.staff_assistant_answer") == {"queue": "ai_scoring"}
+
+
 def test_replies_queue_has_its_own_worker_in_production():
     import pathlib
     import re
