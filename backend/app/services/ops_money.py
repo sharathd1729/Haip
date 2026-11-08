@@ -52,7 +52,9 @@ def event(
 
 
 def details(f: OpsFile) -> CaravanDetails | VillaDetails:
-    return (VillaDetails if f.pack == "villa" else CaravanDetails).model_validate(f.details or {})
+    from app.services.ops_pack_catalog import is_stay
+
+    return (VillaDetails if is_stay(f.pack) else CaravanDetails).model_validate(f.details or {})
 
 
 def save_details(f: OpsFile, d: CaravanDetails | VillaDetails) -> None:

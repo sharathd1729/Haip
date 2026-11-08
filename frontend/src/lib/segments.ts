@@ -3,7 +3,9 @@
 // `segmentFor()`; they never test the business type themselves. Caravan keeps the words and sections it has today.
 import { useBusinessType, type BusinessType } from "@/components/providers/WorkspaceProvider";
 
-export type SegmentKey = "caravan" | "villa" | "homestay" | "hotel" | "property";
+export type SegmentKey = "caravan" | "villa" | "farmhouse" | "rental" | "homestay" | "hotel" | "property";
+/** The ops flow behind a segment (backend ops_pack_catalog.FLOWS): trip, whole_unit or room; null = no ops pack. */
+export type OpsFlow = "trip" | "whole_unit" | "room";
 /** What a booking card can show; each segment lists the ones it carries, in order. */
 export type CardField = "dates" | "nights" | "guests" | "unit" | "route" | "km" | "driver" | "caretaker" | "deposit" | "balance";
 
@@ -29,6 +31,8 @@ export interface Segment {
     bookingDetail: { route: boolean; kmAndDriver: boolean; caretaker: boolean; deposit: boolean };
   };
   card: CardField[];
+  /** Ops screens: the flow, whether it has a fleet (Fleet + Map tabs), whether self check-in is offered per property. */
+  ops: { flow: OpsFlow | null; fleet: boolean; selfCheckIn: boolean };
 }
 
 const words = (one: string, many: string) => ({ one, many, One: one[0].toUpperCase() + one.slice(1), Many: many[0].toUpperCase() + many.slice(1) });
@@ -48,10 +52,11 @@ const STAY_BASE = {
 };
 
 // rentalwise: the old RentalWise sync button stays for the businesses that had it; villa businesses never used it (owner mock-up).
-const stay = (key: SegmentKey, one: string, many: string, example: string, rentalwise = true): Segment => ({
+const stay = (key: SegmentKey, one: string, many: string, example: string, flow: OpsFlow | null, rentalwise = true): Segment => ({
   ...STAY_BASE, key, unit: words(one, many), allUnits: `All ${many}`, whichUnit: `Which ${one}?`,
   notChosen: `Unassigned (${one} not chosen yet)`, syncExample: example,
   sections: { ...STAY_BASE.sections, calendar: { ...STAY_BASE.sections.calendar, rentalwiseSync: rentalwise } },
+  ops: { flow, fleet: false, selfCheckIn: flow === "whole_unit" },
 });
 
 export const SEGMENTS: Record<SegmentKey, Segment> = {
@@ -68,20 +73,44 @@ export const SEGMENTS: Record<SegmentKey, Segment> = {
       bookingDetail: { route: true, kmAndDriver: true, caretaker: false, deposit: true },
     },
     card: ["dates", "guests", "unit", "route", "km", "driver", "balance"],
+    ops: { flow: "trip", fleet: true, selfCheckIn: false },
   },
-  villa: stay("villa", "villa", "villas", "blue dome, blue", false),
-  homestay: stay("homestay", "property", "properties", "garden room, garden"),
-  hotel: stay("hotel", "room", "rooms", "deluxe 101, 101"),
-  property: stay("property", "property", "properties", "garden room, garden"),
+  villa: stay("villa", "villa", "villas", "blue dome, blue", "whole_unit", false),
+  farmhouse: stay("farmhouse", "farmhouse", "farmhouses", "mango barn, barn", "whole_unit", false),
+  rental: stay("rental", "apartment", "apartments", "flat 2b, 2b", "whole_unit"),
+  homestay: stay("homestay", "property", "properties", "garden room, garden", "whole_unit"),
+  hotel: stay("hotel", "room", "rooms", "deluxe 101, 101", "room"),
+  property: stay("property", "property", "properties", "garden room, garden", null),
 };
 
-// shortcut: BusinessType has 4 values today; service apartment, farmhouse, resort and travel agency get their own entry here
-// (and in this map) when the backend sends them. Until then, and while the workspace is loading, a business is a "property".
-const BY_TYPE: Record<BusinessType, SegmentKey> = { caravan: "caravan", villa_resort: "villa", homestay: "homestay", hotel: "hotel" };
+// Every business type the backend offers (ops_pack_catalog.BUSINESS_TYPES) and its experience. "villa" / "caravan_rv" are older
+// stored values. Unknown, or while the workspace is loading, a business is a plain "property" (no ops pack).
+const BY_TYPE: Record<BusinessType, SegmentKey> = {
+  caravan: "caravan", villa_resort: "villa", farmhouse: "farmhouse", vacation_rental: "rental",
+  homestay: "homestay", hotel: "hotel", resort: "hotel", guesthouse: "hotel",
+};
+const OLDER: Record<string, SegmentKey> = { villa: "villa", caravan_rv: "caravan" };
 
-export function segmentFor(type: BusinessType | null | undefined): Segment {
-  return SEGMENTS[(type && BY_TYPE[type]) || "property"];
+/** Sign-up and Settings > Workspace: what each business type is called (same order as the backend). */
+export const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string; emoji: string }[] = [
+  { value: "caravan", label: "Caravans and campervans", emoji: "🚐" },
+  { value: "villa_resort", label: "Villas", emoji: "🏝️" },
+  { value: "farmhouse", label: "Farmhouses", emoji: "🌾" },
+  { value: "vacation_rental", label: "Vacation rentals and apartments", emoji: "🏢" },
+  { value: "homestay", label: "Homestays", emoji: "🏡" },
+  { value: "hotel", label: "Boutique hotels", emoji: "🏨" },
+  { value: "resort", label: "Resorts", emoji: "🌴" },
+  { value: "guesthouse", label: "Guesthouses", emoji: "🛏️" },
+];
+
+export function segmentFor(type: BusinessType | string | null | undefined): Segment {
+  const key = !type ? undefined : Object.hasOwn(BY_TYPE, type) ? BY_TYPE[type as BusinessType] : Object.hasOwn(OLDER, type) ? OLDER[type] : undefined;
+  return SEGMENTS[key || "property"];
 }
+
+/** Business types whose segment runs an ops pack (the nav's Ops item). */
+export const OPS_BUSINESS_TYPES: string[] = [...Object.keys(BY_TYPE), ...Object.keys(OLDER)]
+  .filter(t => segmentFor(t).ops.flow !== null);
 
 export function useSegment(): Segment {
   return segmentFor(useBusinessType());

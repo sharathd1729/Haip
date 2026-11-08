@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useBusinessType } from "@/components/providers/WorkspaceProvider";
+import { useSegment } from "@/lib/segments";
 
 const LINKS = [
   { href: "/dashboard/ops", label: "Today" },
@@ -16,10 +16,10 @@ const VEHICLE_ONLY = ["/dashboard/ops/fleet", "/dashboard/ops/map"];
 
 export function OpsNav() {
   const path = usePathname();
-  const villa = (useBusinessType() ?? "").startsWith("villa");  // Fleet + Map = vehicles: caravan pack only
+  const fleet = useSegment().ops.fleet;  // Fleet + Map = vehicles: trip segments only
   return (
     <nav aria-label="Ops" className="flex gap-2">
-      {LINKS.filter(l => !(villa && VEHICLE_ONLY.includes(l.href))).map(l => {
+      {LINKS.filter(l => fleet || !VEHICLE_ONLY.includes(l.href)).map(l => {
         const on = path === l.href;
         return (
           <Link key={l.href} href={l.href} aria-current={on ? "page" : undefined}

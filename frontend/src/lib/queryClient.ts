@@ -46,7 +46,8 @@ export const queryPersister = typeof window !== "undefined"
 // queries always load fresh; everything else keeps the instant-paint behaviour above.
 export const NEVER_PERSIST = new Set(["business-overview", "dashboard-overview", "work-queue", "impact-since-haip", "portfolio-calendar",
   "ops-today", "ops-file",     // ops: live trip state; a restored snapshot would show a trip as not yet dispatched
-  "chief-home"]);              // AI Executive: live findings; a restored snapshot would show problems already fixed
+  "chief-home",                // AI Executive: live findings; a restored snapshot would show problems already fixed
+  "ops-self-check-in"]);       // a property's lock code and key box: never written to this browser's storage
 
 export function shouldPersistQuery(query: Query): boolean {
   const root = Array.isArray(query.queryKey) ? query.queryKey[0] : undefined;

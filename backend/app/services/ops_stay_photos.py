@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.ops import StaffProfile
 from app.models.ops_files import OpsFile, OpsJobItem
 from app.services import ops_money as money
+from app.services import ops_pack_catalog as packs
 from app.services import ops_photo_intake as intake
 from app.services import ops_return_check
 from app.services import ops_stay_service as stays
@@ -107,7 +108,7 @@ def _files(db: Session, tenant_id: str, staff: StaffProfile) -> list[OpsFile]:
     return [
         f
         for f in db.query(OpsFile).filter(
-            OpsFile.tenant_id == tenant_id, OpsFile.pack == stays.PACK, OpsFile.state.in_(stays.LIVE)
+            OpsFile.tenant_id == tenant_id, OpsFile.pack.in_(packs.STAY_PACKS), OpsFile.state.in_(stays.LIVE)
         )
         if staff.id in money.crew_ids(f)
     ]

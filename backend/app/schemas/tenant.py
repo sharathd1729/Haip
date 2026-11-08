@@ -16,6 +16,7 @@ class TenantOut(BaseModel):
     brand_config: Optional[dict] = {}
     ivr_provider: Optional[str] = None
     whatsapp_phone_number_id: Optional[str] = None
+    business_type: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -30,6 +31,17 @@ class TenantUpdate(BaseModel):
     brand_config: Optional[dict] = None
     config: Optional[dict] = None   # merged into brand_config.onboarding_step etc.
     ivr_provider: Optional[str] = None
+    # The segment (ops_pack_catalog.BUSINESS_TYPES): owner only, switches the ops pack on (update_my_tenant).
+    business_type: Optional[str] = None
+
+    @field_validator("business_type")
+    @classmethod
+    def _known_segment(cls, v: Optional[str]) -> Optional[str]:
+        from app.services.ops_pack_catalog import BUSINESS_TYPES
+
+        if v is not None and v not in BUSINESS_TYPES:
+            raise ValueError(f"business_type must be one of {list(BUSINESS_TYPES)}")
+        return v
 
     @field_validator("timezone")
     @classmethod

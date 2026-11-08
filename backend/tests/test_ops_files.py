@@ -145,7 +145,7 @@ def test_file_is_created_once_with_the_12_point_gate(db, w):
 
 
 def test_no_file_without_a_pack_or_for_a_cancelled_booking(db):
-    t = _tenant(db, "hotel")
+    t = _tenant(db, "travel_agency")  # every hospitality segment has a pack since Ops 2 (a hotel: test_ops_segment_packs)
     p = prop(db, t.id, "Room 1")
     assert trips.ensure_file(db, t.id, _stay(db, t, p)) is None
     t2 = _tenant(db)

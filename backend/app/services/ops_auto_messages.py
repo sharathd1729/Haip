@@ -29,6 +29,7 @@ from app.models.tenant import Tenant
 from app.services import lead_alert_sender
 from app.services import ops_escalation_service as esc
 from app.services import ops_money as money
+from app.services import ops_pack_seed
 from app.services import ops_trip_service as trips
 from app.services.ops_alert_sender import _clean
 from app.services.ops_today_service import _hours_until
@@ -187,9 +188,12 @@ def run_file(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, tz) 
     hours = _hours_until(stay.check_in, stay.check_in_time, now, tz)
     sends: list[str] = []
     d = money.details(f)
-    if f.state in trips.BEFORE_ROAD and 0 < hours <= 72:
+    # The business's timings (ops_settings.pack_config, Ops 2); the caravan pack's defaults are 72 / 24 / 24 / 24.
+    timings = ops_pack_seed.config(db, f.tenant_id, f.pack)["auto_messages"]
+    at = {k: int(timings[k]["hours"]) for k in LABELS}
+    if f.state in trips.BEFORE_ROAD and 0 < hours <= max(at["crew_brief"], at["helper_chase"], at["guest_pretrip"]):
         driver, helper = _crew(db, f)
-        if f.accepted_at and driver and helper:
+        if f.accepted_at and driver and helper and hours <= at["crew_brief"]:
             route = (d.route or "to be confirmed") + (f" (stops: {', '.join(d.stops)})" if d.stops else "")
             first = first_name(stay.guest.name if stay.guest else None)
             requests = (stay.concierge_notes or "").strip() or "none"
@@ -205,7 +209,7 @@ def run_file(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, tz) 
                     db, person, text, "ops_crew_brief_v1", [unit, _pickup(stay), route, first, _party(stay), requests]
                 )
                 _record(db, row, via, why)
-        if 0 < hours <= 24 and helper:
+        if hours <= at["helper_chase"] and helper:
             missing = [
                 i.label.split(",")[0].split(":")[0]
                 for i in trips.readiness_items(db, f)
@@ -221,13 +225,13 @@ def run_file(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, tz) 
                     db, helper, text, "ops_helper_chase_v1", [unit, _pickup(stay), ", ".join(missing)]
                 )
                 _record(db, row, via, why)
-        if 0 < hours <= 24 and driver and (row := _row(db, f, "guest_pretrip", "guest")) is not None:
+        if hours <= at["guest_pretrip"] and driver and (row := _row(db, f, "guest_pretrip", "guest")) is not None:
             via, why = _guest_pretrip(db, f, stay, unit, driver)
             _record(db, row, via, why)
     if f.state == "returned" and f.returned_at is not None:
         back = f.returned_at if f.returned_at.tzinfo else f.returned_at.replace(tzinfo=UTC)
         dep = money.account(db, f)["deposit"]
-        if now - back >= timedelta(hours=24) and dep and dep["status"] == "held":
+        if now - back >= timedelta(hours=at["deposit_nudge"]) and dep and dep["status"] == "held":
             row = _row(db, f, "deposit_nudge", "managers")
             if row is not None:
                 _, ids = esc.create_item(

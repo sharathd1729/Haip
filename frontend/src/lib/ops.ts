@@ -37,6 +37,8 @@ export interface OpsAccount {
 }
 export interface OpsFileFull {
   id: string; pack: string; state: string; step: number; step_name: string; next: string;
+  /** Ops 2: which flow and state machine run this file (stay = villa, rental, homestay and room packs). */
+  flow: "trip" | "whole_unit" | "room"; machine: "trip" | "stay"; unit_word: string;
   stay: {
     id: string; status: string; check_in: string; check_out: string; check_in_time: string | null; check_out_time: string | null;
     adults: number; children: number; guest_name: string; property_id: string; property_name: string | null; concierge_notes: string | null;

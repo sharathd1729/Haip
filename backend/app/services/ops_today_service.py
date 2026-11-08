@@ -150,8 +150,8 @@ def _file_needs(db: Session, f: OpsFile, stay: Stay, unit: str, now: datetime, t
 def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
     now = now or datetime.now(UTC)
     tenant = db.get(Tenant, tenant_id)
-    if tenant is not None and packs.pack_for_business_type(tenant.business_type) == "villa":
-        from app.services import ops_stay_today  # villa rules live apart; same screen shape
+    if tenant is not None and packs.is_stay(packs.pack_for_business_type(tenant.business_type)):
+        from app.services import ops_stay_today  # stay-machine rules live apart; same screen shape
 
         return ops_stay_today.build(db, tenant_id, now=now)
     tz = get_tz(tenant) if tenant else UTC

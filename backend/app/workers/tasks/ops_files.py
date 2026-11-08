@@ -32,11 +32,12 @@ def sync_files_all():
 
 @shared_task(name="ops.sync_files_tenant")
 def sync_files_tenant(tenant_id: str):
-    from app.services import booking_agenda_service, ops_trip_service
+    from app.services import booking_agenda_service, ops_pack_seed, ops_trip_service
 
     with SessionLocal() as db:
         set_tenant_context(db, tenant_id)
         try:
+            ops_pack_seed.seed(db, tenant_id)  # a business that predates its pack gets it here (insert-only)
             out = ops_trip_service.sync_files(db, tenant_id, booking_agenda_service.tenant_today(db, tenant_id))
             db.commit()
         except Exception as exc:

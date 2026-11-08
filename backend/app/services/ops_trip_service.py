@@ -38,25 +38,18 @@ def _conflict(msg: str) -> HTTPException:
 # ── Files ───────────────────────────────────────────────────────────────────
 
 
-def template(db: Session, tenant_id: str, pack: str, kind: str) -> OpsChecklistTemplate:
-    """The business's checklist for pack + kind, created from the pack's defaults the first time."""
-    t = db.query(OpsChecklistTemplate).filter_by(tenant_id=tenant_id, pack=pack, kind=kind).first()
-    if t is None:
-        spec = packs.get(pack)["checklists"][kind]
-        t = OpsChecklistTemplate(
-            tenant_id=tenant_id,
-            pack=pack,
-            kind=kind,
-            name=spec["name"],
-            items=list(spec["items"]),
-        )
-        db.add(t)
-        db.flush()
-    return t
+def template(
+    db: Session, tenant_id: str, pack: str, kind: str, property_id: str | None = None
+) -> OpsChecklistTemplate:
+    """The checklist for pack + kind (the property's own copy, else the business's), from the pack's defaults the first
+    time (ops_pack_seed)."""
+    from app.services import ops_pack_seed
+
+    return ops_pack_seed.template(db, tenant_id, pack, kind, property_id)
 
 
 def _open_job(db: Session, f: OpsFile, kind: str, property_id: str | None) -> OpsJob:
-    t = template(db, f.tenant_id, f.pack, kind)
+    t = template(db, f.tenant_id, f.pack, kind, property_id)
     job = OpsJob(
         tenant_id=f.tenant_id,
         file_id=f.id,
@@ -94,10 +87,12 @@ def ensure_file(db: Session, tenant_id: str, stay: Stay, pack: str | None = None
         pack = packs.pack_for_business_type(tenant.business_type if tenant else None)
     if stay.status not in LIVE_STAY:
         return None
-    if pack == "villa":
+    if pack is None:
+        return None
+    if packs.machine(pack) == "stay":  # villa, vacation rental, homestay, room packs: the stay machine
         from app.services import ops_stay_service
 
-        return ops_stay_service.create_file(db, tenant_id, stay)
+        return ops_stay_service.create_file(db, tenant_id, stay, pack)
     if pack != PACK:
         return None
     r = ops_rates.for_stay(db, stay)

@@ -28,7 +28,7 @@ function today(patch: Partial<OpsToday> = {}): OpsToday {
 
 function file(patch: Partial<OpsFileFull> = {}): OpsFileFull {
   return {
-    id: "f1", pack: "caravan_rv", state: "readiness", step: 2, step_name: "Prepare", next: "Vehicle checklist complete",
+    id: "f1", pack: "caravan_rv", flow: "trip", machine: "trip", unit_word: "vehicle", state: "readiness", step: 2, step_name: "Prepare", next: "Vehicle checklist complete",
     stay: { id: "s1", status: "confirmed", check_in: "2026-10-26", check_out: "2026-10-28", check_in_time: "07:00", check_out_time: null,
             adults: 4, children: 2, guest_name: "Ananya Rao", property_id: "p1", property_name: "Ratha 2", concierge_notes: null },
     stage: { step: 2, step_name: "Prepare", step_names: ["Set up", "Prepare", "Dispatch", "On the road", "Return & bill", "Done"],

@@ -63,7 +63,7 @@ export function TripFile({ id }: { id: string }) {
     mutationFn: async () => {
       try {
         const res = await api.get(`/ops/files/${id}/report.pdf`, { responseType: "blob", timeout: DOWNLOAD_TIMEOUT_MS });
-        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "application/pdf")), `${f?.pack === "villa" ? "stay" : "trip"}-account-${id.slice(0, 8)}.pdf`);
+        return await saveBlob(toBlob(res.data, String(res.headers?.["content-type"] ?? "application/pdf")), `${f?.machine === "stay" ? "stay" : "trip"}-account-${id.slice(0, 8)}.pdf`);
       } catch (e) {
         throw new Error(await downloadErrorMessage(e, "The report could not be made. Please try again."));
       }
@@ -92,7 +92,7 @@ export function TripFile({ id }: { id: string }) {
   }
 
   const write = canWriteOps(role), manage = canManageOps(role);
-  if (f.pack === "villa") {
+  if (f.machine === "stay") {
     return <StayFile f={f} submit={submit} busy={act.isPending} write={write} manage={manage}
       onReport={() => report.mutate()} reportBusy={report.isPending} />;
   }

@@ -1,0 +1,363 @@
+{
+ "_by_type": {
+  "caravan": "caravan_rv",
+  "caravan_rv": "caravan_rv",
+  "villa": "villa",
+  "villa_resort": "villa"
+ },
+ "_cancellable_all": [
+  "handed_over",
+  "crew_assigned",
+  "readiness",
+  "dispatch_ready",
+  "preparing",
+  "ready"
+ ],
+ "caravan_rv": {
+  "cancellable": [
+   "handed_over",
+   "crew_assigned",
+   "readiness",
+   "dispatch_ready"
+  ],
+  "checklists": {
+   "readiness": {
+    "items": [
+     {
+      "critical": true,
+      "key": "tyres",
+      "label": "Tyres, brakes, fluids, lights",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "electrical",
+      "label": "Electrical, sockets, UPS, generator",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "ac",
+      "label": "AC and cooling",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "water",
+      "label": "Water, leak test, shower, hot water, drainage",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "interior",
+      "label": "Interior: glass, curtains, bed, seats",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "safety",
+      "label": "First aid, fire extinguisher, documents onboard",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "licence",
+      "label": "Driver HMV licence valid, briefed",
+      "photo": false,
+      "source": "manager"
+     },
+     {
+      "critical": true,
+      "key": "route",
+      "label": "Route, height, parking, permits checked",
+      "photo": false,
+      "source": "manager"
+     },
+     {
+      "critical": false,
+      "key": "partner",
+      "label": "Partner site reconfirmed",
+      "photo": false,
+      "source": "manager"
+     },
+     {
+      "critical": false,
+      "key": "inventory",
+      "label": "Inventory and add-ons at par",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "payment",
+      "label": "Payment, deposit, agreement signed",
+      "photo": false,
+      "source": "system"
+     },
+     {
+      "critical": true,
+      "key": "guests",
+      "label": "Guest list, pickup, emergency contact",
+      "photo": false,
+      "source": "manager"
+     }
+    ],
+    "name": "Ready to leave"
+   },
+   "return": {
+    "items": [
+     {
+      "critical": false,
+      "key": "tyres",
+      "label": "Tyres, brakes, fluids, lights",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "electrical",
+      "label": "Electrical, sockets, UPS, generator",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "ac",
+      "label": "AC and cooling",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "water",
+      "label": "Water, leak test, shower, hot water, drainage",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "interior",
+      "label": "Interior: glass, curtains, bed, seats",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "safety",
+      "label": "First aid, fire extinguisher, documents onboard",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "inventory",
+      "label": "Inventory and add-ons at par",
+      "photo": true,
+      "source": "staff"
+     }
+    ],
+    "name": "Back from the trip"
+   }
+  },
+  "file_word": "trip",
+  "first_state": "handed_over",
+  "label": "Caravan / RV",
+  "states": {
+   "cancelled": 5,
+   "closed": 5,
+   "crew_assigned": 1,
+   "dispatch_ready": 2,
+   "handed_over": 0,
+   "on_trip": 3,
+   "readiness": 1,
+   "returned": 4
+  },
+  "step_names": [
+   "Set up",
+   "Prepare",
+   "Dispatch",
+   "On the road",
+   "Return & bill",
+   "Done"
+  ],
+  "unit_word": "vehicle"
+ },
+ "villa": {
+  "cancellable": [
+   "preparing",
+   "ready"
+  ],
+  "checklists": {
+   "inspection": {
+    "items": [
+     {
+      "critical": false,
+      "key": "pool",
+      "label": "Pool",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "bedrooms",
+      "label": "Bedrooms",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "ac",
+      "label": "AC and hot water",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "garden",
+      "label": "Garden and outdoor seating",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "kitchen",
+      "label": "Gas and kitchen",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "linen",
+      "label": "Towels and linen counted",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "damage",
+      "label": "Damage or breakage",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "missing",
+      "label": "Missing items (remotes, kitchenware, towels)",
+      "photo": true,
+      "source": "staff"
+     }
+    ],
+    "name": "Check-out inspection"
+   },
+   "readiness": {
+    "items": [
+     {
+      "critical": true,
+      "key": "pool",
+      "label": "Pool cleaned",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "chlorine",
+      "label": "Pool water tested: chlorine and pH",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "bedrooms",
+      "label": "Bedrooms made up",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "ac",
+      "label": "AC and hot water working",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "wifi",
+      "label": "Wi-Fi working",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "garden",
+      "label": "Garden and outdoor seating",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": true,
+      "key": "kitchen",
+      "label": "Gas and kitchen ready",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "welcome",
+      "label": "Welcome kit in place",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "linen",
+      "label": "Towels and linen at par",
+      "photo": true,
+      "source": "staff"
+     },
+     {
+      "critical": false,
+      "key": "payment",
+      "label": "Payment received",
+      "photo": false,
+      "source": "system"
+     },
+     {
+      "critical": false,
+      "key": "guests",
+      "label": "Guest name and party size",
+      "photo": false,
+      "source": "system"
+     }
+    ],
+    "name": "Ready to welcome"
+   }
+  },
+  "file_word": "stay",
+  "first_state": "preparing",
+  "label": "Villa",
+  "states": {
+   "cancelled": 5,
+   "checked_out": 3,
+   "closed": 5,
+   "preparing": 0,
+   "ready": 1,
+   "settling": 4,
+   "staying": 2
+  },
+  "step_names": [
+   "Get ready",
+   "Welcome",
+   "Staying",
+   "Check-out",
+   "Settle",
+   "Done"
+  ],
+  "unit_word": "villa"
+ }
+}

@@ -6,6 +6,7 @@ import { BedDouble, Bath } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
+import { SelfCheckInButton } from "@/components/ops/SelfCheckIn";
 
 interface Property {
   id: string;
@@ -196,6 +197,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
           Added {new Date(p.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
         </p>
       )}
+      <SelfCheckInButton propertyId={p.id} name={p.name} />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { ROUTE_ICONS as I } from "./PageIcon";
 import { OPS_READ_ROLES } from "@/lib/ops";
 import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
+import { OPS_BUSINESS_TYPES } from "@/lib/segments";
 import { useInboxStore } from "@/store/inbox";
 
 export type NavIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
@@ -38,8 +39,8 @@ export const NAV_SECTIONS: NavSection[] = [
   { title: "Today", links: [
     { label: "My day", href: "/dashboard/my-day", icon: I["/dashboard/my-day"], resource: "inbox" },
     { label: "Home", href: "/dashboard", icon: I["/dashboard"], resource: "dashboard" },
-    // Ops module: caravan and villa packs are built (backend ops_pack_catalog); more business types join as packs land.
-    { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan", "villa", "villa_resort"] },
+    // Ops module: every segment with an ops pack (backend ops_pack_catalog; lib/segments.ts says which).
+    { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
     { label: "Vehicle map", href: "/dashboard/ops/map", icon: MapPin, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
   ] },
   { title: "Conversations", links: [
