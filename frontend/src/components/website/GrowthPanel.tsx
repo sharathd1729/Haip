@@ -30,7 +30,7 @@ export function GrowthPanel({ canApprove }: { canApprove: boolean }) {
           <select className={`${inputCls} w-auto`} aria-label="Period" value={days} onChange={e => setDays(Number(e.target.value))}>
             <option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option>
           </select>
-          <Link className={btn} href="/dashboard/marketing/website/google">Google profile</Link>
+          <Link className={btn} href="/dashboard/marketing/sops">Get found on Google</Link>
           {canApprove && <button className={btn} onClick={() => setPromos(true)}>Promo codes</button>}
           {canApprove && <button className={btn} onClick={() => setOpen(true)}>Tracking</button>}
         </div>

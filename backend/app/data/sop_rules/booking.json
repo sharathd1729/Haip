@@ -1,0 +1,29 @@
+[
+  {
+    "key": "ota.booking.headline_max",
+    "platform": "booking",
+    "kind": "text_limit",
+    "value": 100,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the headline field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.booking.description_max",
+    "platform": "booking",
+    "kind": "text_limit",
+    "value": 2000,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the description field (Studio M7, Oct 2026). Not yet checked against the platform."
+  },
+  {
+    "key": "ota.booking.highlights_max",
+    "platform": "booking",
+    "kind": "text_limit",
+    "value": 8,
+    "status": "unverified",
+    "as_of": "2026-11-03",
+    "source_note": "HAIP's OTA copy limit for the number of highlights field (Studio M7, Oct 2026). Not yet checked against the platform."
+  }
+]

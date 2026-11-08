@@ -173,3 +173,18 @@ def test_website_art_director_plans_on_flash_and_polishes_copy_on_flash_lite():
     assert _TASK_ROUTES["website_copy"] == ("gemini", "gemini-3.1-flash-lite")
     assert _TASK_ROUTES["website_change"] == ("gemini", "gemini-3.1-flash-lite")      # small task, low model
     assert MAX_TOKENS["website_plan"] >= 24000 and MAX_TOKENS["website_copy"] >= 4000
+
+
+def test_sop_generate_routes_to_the_structured_output_tier_with_gemini_fallback(monkeypatch):
+    """Get found SOP texts (services/sops/generate.py): gpt-oss-20b on NVIDIA, Gemini fallback (60 s) when a key is set."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+    from app.core.prompt_versions import get_version
+
+    assert _TASK_ROUTES["sop_generate"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["sop_generate"] == 60
+    assert get_version("sop_generate") == "sop-generate-v2"
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("sop_generate").inner
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"
