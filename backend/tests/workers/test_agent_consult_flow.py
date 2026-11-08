@@ -66,7 +66,7 @@ def run_turn(db, t, c, m, *, reply="Happy to help!", intent=None, confidence=0.9
     sent = []
 
     def _get_llm(task):
-        return _Intent(intent or {"intent": "general"}) if task == "quick_classify" else _Reply(reply, confidence)
+        return _Intent(intent or {"intent": "general"}) if task == "concierge_intent" else _Reply(reply, confidence)
     with patch("app.workers.tasks.concierge_draft.get_llm", _get_llm), \
          patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
          patch("app.services.push_service.send_to_tenant") as push, \

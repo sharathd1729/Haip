@@ -33,10 +33,14 @@ PRICES = {
 _THINKING_ROOM = 4000
 _MAX_TOKENS_CEILING = 16000   # non-streaming requests stay well under the SDK's long-request limit
 
-# The system prompt is cached only when the caller keeps its data in the user message (constant system text that
-# repeats across calls). Templated prompts with guest data inside (concierge, wrap-up, judge) send a short instruction
-# as the user message; caching those would only add the 1.25x write charge, never a read.
+# The system prompt is cached when it is constant text that repeats across calls: either the caller keeps its data in
+# the user message (a long user message), or the task's prompt is laid out that way and says so (cache_system, set per
+# task in adapters/llm/__init__.py: concierge_draft's rules are the system prompt, the guest's data the user message,
+# whatever its length). Templated prompts with data inside the system prompt (wrap-up, judge, classify) send a short
+# instruction as the user message; caching those would only add the 1.25x write charge, never a read.
 _CACHE_WHEN_USER_CHARS = 200
+# Sonnet / Haiku 5.5 cache a prefix of 512+ tokens (~4 chars a token); a shorter one is never written, so no marker.
+_MIN_CACHE_SYSTEM_CHARS = 2048
 
 
 class ClaudeNoToolCall(Exception):
@@ -55,12 +59,14 @@ def cost_usd(model: str, usage: dict) -> float:
 
 
 class ClaudeAdapter(LLMAdapter):
-    def __init__(self, default_model: str = MODEL_SONNET, effort: Optional[str] = None, timeout: float = 600.0):
+    def __init__(self, default_model: str = MODEL_SONNET, effort: Optional[str] = None, timeout: float = 600.0,
+                 cache_system: bool = False):
         # Async client: complete() is awaited, and a sync call here would block the event loop.
         # max_retries=1: one quick retry on 429/5xx; anything slower is FallbackAdapter's job.
         self._client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=1, timeout=timeout)
         self._default_model = default_model
         self._effort = effort
+        self._cache_system = cache_system
 
     async def complete(
         self,
@@ -73,7 +79,8 @@ class ClaudeAdapter(LLMAdapter):
     ) -> dict:
         model = model or self._default_model
         system_block = {"type": "text", "text": system_prompt}
-        if len(user_message or "") >= _CACHE_WHEN_USER_CHARS:
+        if len(user_message or "") >= _CACHE_WHEN_USER_CHARS or (
+                getattr(self, "_cache_system", False) and len(system_prompt or "") >= _MIN_CACHE_SYSTEM_CHARS):
             system_block["cache_control"] = {"type": "ephemeral"}
         system = [system_block]
         kwargs = dict(
