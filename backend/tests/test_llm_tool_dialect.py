@@ -12,11 +12,9 @@ import pytest
 
 from app.adapters.llm.tools import ToolSpec, to_openai_tools, to_provider_tools
 from app.workers.tasks.concierge_draft import CONCIERGE_TOOL
-from app.workers.tasks.wrap_up import WRAP_UP_TOOL
-from app.workers.tasks.classify import CLASSIFY_TOOL
-from app.workers.tasks.judge import JUDGE_TOOL
+from app.services.call_analysis import CALL_ANALYSIS_TOOL, RECHECK_TOOL
 
-_ALL_TASK_TOOLS = [CONCIERGE_TOOL, WRAP_UP_TOOL, CLASSIFY_TOOL, JUDGE_TOOL]
+_ALL_TASK_TOOLS = [CONCIERGE_TOOL, CALL_ANALYSIS_TOOL, RECHECK_TOOL]
 
 
 class TestCanonicalShapeConsistency:
@@ -24,7 +22,7 @@ class TestCanonicalShapeConsistency:
     tool constant must be in the same (canonical) shape, not a mix of
     dialects that happens to work only because of today's routing table."""
 
-    @pytest.mark.parametrize("tool", _ALL_TASK_TOOLS, ids=["concierge", "wrap_up", "classify", "judge"])
+    @pytest.mark.parametrize("tool", _ALL_TASK_TOOLS, ids=["concierge", "call_analysis", "recheck"])
     def test_every_task_tool_is_canonical_shape(self, tool):
         assert set(tool.keys()) == {"name", "description", "input_schema"}
         assert isinstance(tool["name"], str) and tool["name"]
@@ -32,7 +30,7 @@ class TestCanonicalShapeConsistency:
         assert tool["input_schema"]["type"] == "object"
         assert "properties" in tool["input_schema"]
 
-    @pytest.mark.parametrize("tool", _ALL_TASK_TOOLS, ids=["concierge", "wrap_up", "classify", "judge"])
+    @pytest.mark.parametrize("tool", _ALL_TASK_TOOLS, ids=["concierge", "call_analysis", "recheck"])
     def test_no_task_tool_still_has_openai_wrapper(self, tool):
         """Regression guard for exactly the bug this ticket fixes."""
         assert "type" not in tool  # not {"type": "function", ...}
@@ -85,14 +83,14 @@ class TestToProviderTools:
         assert to_provider_tools(tools, "gemini") == tools
 
     def test_nvidia_renders_openai_dialect(self):
-        rendered = to_provider_tools([CLASSIFY_TOOL], "nvidia")
+        rendered = to_provider_tools([CALL_ANALYSIS_TOOL], "nvidia")
         assert rendered[0]["type"] == "function"
-        assert rendered[0]["function"]["name"] == "classify_call"
+        assert rendered[0]["function"]["name"] == "analyse_call"
 
     def test_openai_renders_openai_dialect(self):
-        rendered = to_provider_tools([JUDGE_TOOL], "openai")
+        rendered = to_provider_tools([RECHECK_TOOL], "openai")
         assert rendered[0]["type"] == "function"
-        assert rendered[0]["function"]["name"] == "judge_call"
+        assert rendered[0]["function"]["name"] == "recheck_scores"
 
     def test_unknown_provider_raises(self):
         with pytest.raises(ValueError):
@@ -181,9 +179,9 @@ class TestAdapterWiring:
         monkeypatch.setattr(openai_module, "AsyncOpenAI", _FakeAsyncOpenAI)
 
         await adapter.complete(
-            system_prompt="sys", user_message="hi", tools=[CLASSIFY_TOOL],
+            system_prompt="sys", user_message="hi", tools=[CALL_ANALYSIS_TOOL],
         )
 
         assert captured["tools"][0]["type"] == "function"
-        assert captured["tools"][0]["function"]["name"] == "classify_call"
-        assert captured["tools"][0]["function"]["parameters"] == CLASSIFY_TOOL["input_schema"]
+        assert captured["tools"][0]["function"]["name"] == "analyse_call"
+        assert captured["tools"][0]["function"]["parameters"] == CALL_ANALYSIS_TOOL["input_schema"]

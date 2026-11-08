@@ -1,6 +1,6 @@
 """
 Transcription task — uses TranscriptionAdapter (Groq free / Deepgram / Whisper).
-Stores result in separate transcript table. Chains to classify.
+Stores result in separate transcript table. Chains to tasks.analyze_call (one AI read of the call).
 
 Audio source resolution (in priority order):
   1. Local file path  — recording_s3_key is an absolute path on disk
@@ -41,7 +41,7 @@ log = structlog.get_logger()
     name="tasks.transcribe",
 )
 def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
-    from app.workers.tasks.classify import classify
+    from app.workers.tasks.call_analysis import analyze_call
 
     db = SessionLocal()
     try:
@@ -109,11 +109,11 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
 
         log.info("transcribe_done", call_id=call_id, turns=len(turns_dicts), provider=result.provider)
 
-        # Chain: classify → judge → wrap_up (best-effort — fails gracefully if broker is down)
+        # Chain: one AI read of the call (best-effort; call_recovery picks up a dispatch that never ran)
         try:
-            classify.delay(call_id=call_id, tenant_id=tenant_id)
+            analyze_call.delay(call_id=call_id, tenant_id=tenant_id)
         except Exception as chain_exc:
-            log.warning("transcribe_chain_classify_skipped", call_id=call_id, error=str(chain_exc))
+            log.warning("transcribe_chain_analysis_skipped", call_id=call_id, error=str(chain_exc))
 
     except Exception as exc:
         try:

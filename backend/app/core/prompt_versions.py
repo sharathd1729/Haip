@@ -33,13 +33,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # provider-specific dialect to the canonical ToolSpec shape rendered
     # per-provider by adapters/llm/tools.py -- same semantic fields, but the
     # code path producing a stored/logged result is genuinely different now.
-    "call_classify":   "call-classify-v2",      # classify.jinja
-    # v3 (2026-10-18): missed_revenue items say what was missed and quote the evidence; est_value only when a figure
-    # was stated on the call (null otherwise) -- the old free estimate read as fact.
-    "call_judge":      "call-judge-v3",         # judge.jinja
-    # v5 (2026-10-18): actionable output (services/ai_actionable.py) + outcome/decline_reason/decline_quote that the
-    # lead autopilot reads. Stored in calls.ai_insights; summary/next_action/disposition unchanged.
-    "call_wrap_up":    "call-wrap-up-v5",       # wrap_up.jinja
+    # v6 (2026-11-08, AI cost audit): classify (call-classify-v2) + judge (call-judge-v3) + wrap-up (call-wrap-up-v5)
+    # merged into ONE tool call; the rubric/auto-fail rules and the wrap-up/actionable wording are unchanged.
+    # call_scores.analysis_version stores this string (one score row per call per version).
+    "call_analysis":   "call-analysis-v6",      # call_analysis.jinja
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied
@@ -232,7 +229,7 @@ def stamp(prompt_key: str, model: Optional[str] = None, **extra: Any) -> dict[st
     """
     Build the provenance fields for a structured log line or audit payload.
 
-        log.info("call_classified", call_id=call.id, **stamp("call_classify", model))
+        log.info("call_classified", call_id=call.id, **stamp("call_analysis", model))
 
     Keeping this in one helper means every AI call site emits the same field
     names, so results stay filterable by prompt version across all of them.

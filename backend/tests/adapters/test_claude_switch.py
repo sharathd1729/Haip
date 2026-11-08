@@ -91,7 +91,7 @@ async def test_request_shape_is_valid_for_5_5_models(claude_on):
 
 @pytest.mark.asyncio
 async def test_call_analysis_structured_output_parses_on_claude(claude_on):
-    from app.workers.tasks.wrap_up import WRAP_UP_TOOL
+    from app.services.call_analysis import CALL_ANALYSIS_TOOL as WRAP_UP_TOOL
     data = {"summary": "Guest asked about Coorg in May.", "disposition": "hot"}
     claude_on.return_value.messages.create = AsyncMock(return_value=_reply(
         SimpleNamespace(type="thinking", thinking=""), _tool(WRAP_UP_TOOL["name"], data)))
@@ -124,7 +124,7 @@ async def test_claude_error_falls_back_to_the_normal_route(claude_on):
 
 @pytest.mark.asyncio
 async def test_a_reply_without_the_tool_call_falls_back(claude_on):
-    from app.workers.tasks.wrap_up import WRAP_UP_TOOL
+    from app.services.call_analysis import CALL_ANALYSIS_TOOL as WRAP_UP_TOOL
     claude_on.return_value.messages.create = AsyncMock(return_value=_reply(SimpleNamespace(type="text", text="prose")))
     adapter = _with_normal(get_llm("call_analysis"), {"content": "", "tool_use": {"summary": "nvidia"}})
     result = await adapter.complete(system_prompt="sys", user_message="hi", tools=[WRAP_UP_TOOL])

@@ -369,34 +369,18 @@ def process_call_sync(
             detail=f"Transcription is not complete (status: {call.transcription_status}). Cannot score.",
         )
 
-    # ── Steps 2-4: Classify → Judge → Wrap-up ────────────────────────────────
+    # ── Step 2: one AI read of the call (score + wrap-up + details) ─────────
     # Always re-run if AI score is not done (covers failed / pending states).
     if call.ai_score_status == "done":
         steps["scoring"] = "skipped (already done)"
     else:
         try:
-            from app.workers.tasks.classify import classify as classify_task
-            classify_task.apply(kwargs={"call_id": call_id, "tenant_id": tenant_id})
-            steps["classify"] = "done"
+            from app.workers.tasks.call_analysis import analyze_call
+            analyze_call.apply(kwargs={"call_id": call_id, "tenant_id": tenant_id})
+            steps["analysis"] = "done"
         except Exception as exc:
-            log.warning("sync_process_classify_failed", call_id=call_id, error=str(exc))
-            steps["classify"] = f"warning: {exc}"
-
-        try:
-            from app.workers.tasks.judge import judge as judge_task
-            judge_task.apply(kwargs={"call_id": call_id, "tenant_id": tenant_id})
-            steps["judge"] = "done"
-        except Exception as exc:
-            log.warning("sync_process_judge_failed", call_id=call_id, error=str(exc))
-            steps["judge"] = f"warning: {exc}"
-
-        try:
-            from app.workers.tasks.wrap_up import wrap_up as wrap_up_task
-            wrap_up_task.apply(kwargs={"call_id": call_id, "tenant_id": tenant_id})
-            steps["wrap_up"] = "done"
-        except Exception as exc:
-            log.warning("sync_process_wrapup_failed", call_id=call_id, error=str(exc))
-            steps["wrap_up"] = f"warning: {exc}"
+            log.warning("sync_process_analysis_failed", call_id=call_id, error=str(exc))
+            steps["analysis"] = f"warning: {exc}"
 
     db.expire(call)
     db.refresh(call)
@@ -950,8 +934,8 @@ def _serialize_call_detail(call: Call, db) -> dict:
             "confidence":            float(score_row.ai_confidence) if score_row.ai_confidence else 0,
             "criteria":              criteria_out,
             "ai_summary":            call.ai_summary,
-            "agent_strengths":       [],
-            "agent_growth_areas":    [],
+            "agent_strengths":       (call.ai_insights or {}).get("agent_strengths") or [],
+            "agent_growth_areas":    (call.ai_insights or {}).get("agent_growth_areas") or [],
             "next_action":           call.ai_next_action,
             "suggested_disposition": call.ai_disposition.value if call.ai_disposition else None,
         }
@@ -963,8 +947,8 @@ def _serialize_call_detail(call: Call, db) -> dict:
             "confidence": 0.9,
             "criteria": [],
             "ai_summary": call.ai_summary,
-            "agent_strengths": [],
-            "agent_growth_areas": [],
+            "agent_strengths": (call.ai_insights or {}).get("agent_strengths") or [],
+            "agent_growth_areas": (call.ai_insights or {}).get("agent_growth_areas") or [],
             "next_action": call.ai_next_action,
         }
 

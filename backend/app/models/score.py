@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Numeric, Enum as SAEnum
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Numeric, Index, text, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -47,6 +47,9 @@ class CallScore(Base, TimestampMixin, TenantMixin):
     model_used = Column(String(50), nullable=False)
     ai_confidence = Column(Numeric(3, 2), nullable=True)
     processing_time_ms = Column(String, nullable=True)
+    # The prompt version that wrote the row (e.g. "call-analysis-v6"): one row per call per version, so a retry or a
+    # recovery run updates it. NULL on rows written before migration 192 (several per call were possible then).
+    analysis_version = Column(String(40), nullable=True)
 
     # Override
     is_overridden = Column(Boolean, default=False)
@@ -54,6 +57,12 @@ class CallScore(Base, TimestampMixin, TenantMixin):
     override_reason = Column(Text, nullable=True)
     overridden_by = Column(String, ForeignKey("users.id"), nullable=True)
     overridden_at = Column(String, nullable=True)
+
+    __table_args__ = (
+        Index("uq_call_scores_call_version", "tenant_id", "call_id", "analysis_version", unique=True,
+              postgresql_where=text("analysis_version IS NOT NULL"),
+              sqlite_where=text("analysis_version IS NOT NULL")),
+    )
 
     call = relationship("Call", back_populates="scores")
     rubric = relationship("Rubric", back_populates="scores")

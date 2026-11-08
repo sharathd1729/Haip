@@ -20,9 +20,8 @@ celery_app = Celery(
         "app.workers.tasks.whatsapp",
         # New pipeline tasks
         "app.workers.tasks.transcribe",
-        "app.workers.tasks.classify",
-        "app.workers.tasks.judge",
-        "app.workers.tasks.wrap_up",
+        # One AI read per call (tasks.analyze_call) + the old classify/judge/wrap_up names as wrappers
+        "app.workers.tasks.call_analysis",
         "app.workers.tasks.concierge_draft",
         "app.workers.tasks.rewrite_draft",
         "app.workers.tasks.send_whatsapp",
@@ -161,9 +160,6 @@ celery_app.conf.update(
         "whatsapp.*":                               {"queue": "whatsapp"},
         "app.workers.tasks.whatsapp.*":             {"queue": "whatsapp"},
         "app.workers.tasks.transcribe.*":           {"queue": "transcription"},
-        "app.workers.tasks.classify.*":             {"queue": "ai_scoring"},
-        "app.workers.tasks.judge.*":                {"queue": "ai_scoring"},
-        "app.workers.tasks.wrap_up.*":              {"queue": "ai_scoring"},
         "app.workers.tasks.concierge_draft.*":      {"queue": "replies"},
         "app.workers.tasks.rewrite_draft.*":        {"queue": "replies"},
         "app.workers.tasks.send_whatsapp.*":        {"queue": "replies"},
@@ -218,6 +214,7 @@ celery_app.conf.update(
         "tasks.check_automation_timers.run":         {"queue": "whatsapp"},
         "tasks.check_automation_timers.check_tenant": {"queue": "whatsapp"},
         "tasks.classify":                            {"queue": "ai_scoring"},
+        "tasks.analyze_call":                        {"queue": "ai_scoring"},
         "tasks.concierge_draft":                     {"queue": "replies"},
         "tasks.dpdp_purge":                          {"queue": "call_ingest"},
         # Nightly intent tags from the stated occasion (keyword matching, no LLM; owner OK 20 Oct 2026).

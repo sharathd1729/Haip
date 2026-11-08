@@ -211,7 +211,7 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
 # Gemini model (gemini-3.1-flash-lite, cheap, no thinking), not 3.6 Flash. Guest-facing tasks are not listed:
 # concierge_draft is already on Gemini and has its own retry/timeout handling.
 _GEMINI_FALLBACK_TASKS: dict[str, float] = {
-    "call_analysis":               60,
+    "call_analysis":               90,    # the one read per phone call (score + wrap-up + details, call-analysis-v6)
     "call_scoring":                60,
     "lead_summary":                60,
     "daily_briefing":              60,
@@ -219,7 +219,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "lead_stage_classify":         45,
     "agent_performance_narrative": 60,
     "agent_leads_feedback":        60,
-    "deep_reason":                 120,   # judge's low-confidence re-score
+    "deep_reason":                 120,   # borderline call-score re-check (evidence only) + deep analysis
     "assessment_narrative":        60,
     "lead_followup_draft":         40,
     "outcome_reason":              45,
