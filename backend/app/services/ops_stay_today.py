@@ -178,7 +178,8 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
             title[:1].upper() + title[1:],
             it.summary or "",
             f.id if f else None,
-            action="resolve_item",
+            # Form C closes with the "Submitted on the portal" tick on the file page, never with "Mark as sorted"
+            action="open_file" if it.category == "form_c" and f is not None else "resolve_item",
             item_id=it.id,
             key=f"item:{it.id}",
         )

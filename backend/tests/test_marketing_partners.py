@@ -20,6 +20,7 @@ from app.services import marketing_attribution as attribution
 from app.services import marketing_content_service as svc
 from app.services import marketing_creators as creators
 from app.services import marketing_reputation as reputation
+from app.services.date_presets import today_ist
 from tests.test_marketing_studio_content import make_user, ws  # noqa: F401  (fixture)
 
 P = "/api/v1/marketing/studio/partners"
@@ -80,7 +81,7 @@ def test_free_dates_are_open_runs_of_nights(db, ws):  # noqa: F811
 def test_a_creator_stay_runs_end_to_end(client, db, ws):  # noqa: F811
     tid = ws["tenant"].id
     prop = _vehicle(db, tid)
-    d = _deal(client, ws, prop, check_in=date.today() + timedelta(days=20))
+    d = _deal(client, ws, prop, check_in=today_ist() + timedelta(days=20))
     assert d["status"] == "requested" and d["campaign"].startswith("cr-")
     assert client.post(f"{P}/deals/{d['id']}/approve", headers=ws["mkt_h"]).status_code == 403     # needs an approver
     r = client.post(f"{P}/deals/{d['id']}/approve", headers=ws["manager_h"])
@@ -108,7 +109,7 @@ def test_a_creator_stay_runs_end_to_end(client, db, ws):  # noqa: F811
 def test_approval_rules_and_taken_dates(client, db, ws):  # noqa: F811
     tid = ws["tenant"].id
     prop = _vehicle(db, tid)
-    start = date.today() + timedelta(days=30)
+    start = today_ist() + timedelta(days=30)
     mine = _deal(client, ws, prop, check_in=start, by="manager_h")
     r = client.post(f"{P}/deals/{mine['id']}/approve", headers=ws["manager_h"])
     assert r.status_code == 403 and r.json()["detail"]["code"] == "self_approval"
@@ -125,7 +126,7 @@ def test_approval_rules_and_taken_dates(client, db, ws):  # noqa: F811
 def test_bookings_through_the_creators_link_are_credited_and_the_free_stay_is_not_counted(client, db, ws):  # noqa: F811
     tid = ws["tenant"].id
     prop = _vehicle(db, tid)
-    d = _deal(client, ws, prop, check_in=date.today() + timedelta(days=15))
+    d = _deal(client, ws, prop, check_in=today_ist() + timedelta(days=15))
     client.post(f"{P}/deals/{d['id']}/approve", headers=ws["manager_h"])
     client.post(f"{P}/deals/{d['id']}/book", json={"email": "meera@example.com"}, headers=ws["manager_h"])
     g = Guest(id=gen_uuid(), tenant_id=tid, name="Ravi", phone="+919845077777")
@@ -136,10 +137,10 @@ def test_bookings_through_the_creators_link_are_credited_and_the_free_stay_is_no
     db.add(inq)
     db.flush()
     db.add(Stay(id=gen_uuid(), tenant_id=tid, guest_id=g.id, property_id=prop.id, inquiry_id=inq.id,
-                check_in=date.today() + timedelta(days=40), check_out=date.today() + timedelta(days=42),
+                check_in=today_ist() + timedelta(days=40), check_out=today_ist() + timedelta(days=42),
                 status="confirmed", total_amount=Decimal("36000")))
     db.commit()
-    out = attribution.bookings(db, tid, date.today() - timedelta(days=1), date.today())
+    out = attribution.bookings(db, tid, today_ist() - timedelta(days=1), today_ist())
     assert out["total"] == 1 and out["bookings"][0]["credited_title"] == "Creator @coorg.diaries"   # comp stay left out
     res = client.get(f"{P}/deals/{d['id']}/results", headers=ws["owner_h"]).json()
     assert res == {"bookings": 1, "revenue": 36000.0, "cost_inr": 24000, "return_per_rupee": 1.5, "since": res["since"]}

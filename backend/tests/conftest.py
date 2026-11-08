@@ -8,6 +8,13 @@ For CI, DATABASE_URL is set to the testcontainer Postgres service.
 
 import os
 import pytest
+
+# HAIP_FREEZE_AT=<ISO instant> runs the session at that instant (tests/test_midnight_ist.py), started before any test
+# module is imported so module-level "today" constants see it too. Run with TZ=UTC0 to behave like CI's UTC machine.
+if os.environ.get("HAIP_FREEZE_AT"):
+    import time_machine
+    time_machine.travel(os.environ["HAIP_FREEZE_AT"], tick=True).start()
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

@@ -21,6 +21,8 @@ const ROUTE_LABELS: Record<string, string> = {
   files:        "Trip",
   fleet:        "Fleet",
   staff:        "Staff",
+  duty:         "Who is on duty",
+  alerts:       "If nobody answers",
   map:          "Vehicle map",
   portfolio:    "Portfolio",
   calendar:     "Calendar",

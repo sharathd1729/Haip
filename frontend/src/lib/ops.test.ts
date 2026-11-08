@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canManageOps, expiryLevel, nextAction, showUnitCards, stayNextAction, whenLabel, type OpsUnit } from "./ops";
+import { canManageOps, countryName, expiryLevel, nextAction, showUnitCards, stayNextAction, whenLabel, type OpsUnit } from "./ops";
 
 const unit = (n: number): OpsUnit[] => Array.from({ length: n }, (_, i) => ({
   property_id: String(i), name: `Ratha ${i + 1}`, tone: "ok", status: "Free", line: "", problem: null, file_id: null, ready_pct: null,
@@ -57,5 +57,13 @@ describe("stayNextAction (villa pack)", () => {
     expect(stayNextAction("checkout", false)?.kind).toBe("checkout");
     expect(stayNextAction("bal", false)?.kind).toBe("booking");
     expect(stayNextAction("wait", true)).toBeNull();
+  });
+});
+
+describe("countryName", () => {
+  it("names a country from its ISO code and falls back to the code", () => {
+    expect(countryName("GB")).toBe("United Kingdom");
+    expect(countryName("")).toBe("");
+    expect(countryName(null)).toBe("");
   });
 });

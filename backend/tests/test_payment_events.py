@@ -282,9 +282,8 @@ def test_booking_messages_endpoint_forbidden_and_cross_tenant(client, db, tenant
 
 # ── Balance reminders ────────────────────────────────────────────────────────
 
-def test_balance_reminders_off_by_default_then_once_per_instalment(db, tenant_and_user, q):
-    stay = _setup(db, tenant_and_user)
-    tenant = tenant_and_user["tenant"]
+def _due_in_3(db, tenant, stay):
+    """Advance paid, balance due in 3 days: one reminder is owed."""
     today = date.today()
     db.add_all([
         StayInstalment(tenant_id=tenant.id, stay_id=stay.id, label="Advance", amount=8000, due_date=today - timedelta(days=5)),
@@ -292,30 +291,145 @@ def test_balance_reminders_off_by_default_then_once_per_instalment(db, tenant_an
     ])
     db.add(StayPayment(tenant_id=tenant.id, stay_id=stay.id, amount=8000, method="upi", paid_on=today))
     db.commit()
-    made = []
+    return today
 
-    def fake(key_id, key_secret, **kw):
-        made.append(kw["amount_inr"])
-        return {"id": f"plink_{len(made)}", "short_url": f"https://rzp.io/i/R{len(made)}"}
 
-    with patch("app.adapters.payments.razorpay.create_payment_link", side_effect=fake):
-        assert balance_reminder_service.run_for_tenant(db, tenant, today) == {"status": "off"}
-        tenant.brand_config = {**tenant.brand_config, "payments": {"auto_balance_reminder": True}}
-        db.commit()
+class _Rzp:
+    """Stands in for Razorpay: records the amounts of the links made, makes no call."""
+    def __init__(self):
+        self.made = []
+
+    def __call__(self, key_id, key_secret, **kw):
+        self.made.append(kw["amount_inr"])
+        return {"id": f"plink_{uuid.uuid4().hex[:8]}", "short_url": f"https://rzp.io/i/R{len(self.made)}"}
+
+
+def _set_switch(db, tenant, value):
+    tenant.brand_config = {**tenant.brand_config, "payments": {"auto_balance_reminder": value}}
+    db.commit()
+
+
+def test_balance_reminders_on_by_default_when_razorpay_and_template_ready_once_per_instalment(db, tenant_and_user, q):
+    from app.models.ops_files import OpsFile, OpsFileEvent
+    tenant = tenant_and_user["tenant"]
+    stay = _setup(db, tenant_and_user)                       # Razorpay + approved template, switch never chosen
+    f = OpsFile(tenant_id=tenant.id, stay_id=stay.id, pack="caravan_rv", state="handed_over", details={})
+    db.add(f)
+    db.commit()
+    today = _due_in_3(db, tenant, stay)
+    assert "auto_balance_reminder" not in (tenant.brand_config.get("payments") or {})
+    rzp = _Rzp()
+    with patch("app.adapters.payments.razorpay.create_payment_link", side_effect=rzp):
         assert balance_reminder_service.run_for_tenant(db, tenant, today)["sent"] == 1
         assert balance_reminder_service.run_for_tenant(db, tenant, today)["sent"] == 0              # same day re-run
         assert balance_reminder_service.run_for_tenant(db, tenant, today + timedelta(days=1))["sent"] == 0
-    assert made == [12000]                                                                          # one link, for what is left
+    assert rzp.made == [12000]                                                                      # one link, for what is left
     assert q.send.call_count == 1 and q.send.call_args.kwargs["template_name"] == wa_booking_pack.BALANCE_DUE
+    lines = [e.text for e in db.query(OpsFileEvent).filter_by(tenant_id=tenant.id, file_id=f.id).all()]
+    assert len(lines) == 1 and lines[0].startswith("Balance reminder sent") and "12,000" not in lines[0]
 
 
-def test_balance_reminder_task_skips_tenants_that_did_not_opt_in(db, tenant_and_user, q, monkeypatch):
+@pytest.mark.parametrize("approve,razorpay,reason", [(False, True, "template_not_approved"), (True, False, "no_razorpay")])
+def test_default_stays_off_quietly_when_template_or_razorpay_missing(db, tenant_and_user, q, approve, razorpay, reason):
+    tenant = tenant_and_user["tenant"]
+    stay = _setup(db, tenant_and_user, approve=approve, razorpay=razorpay)
+    today = _due_in_3(db, tenant, stay)
+    rzp = _Rzp()
+    with patch("app.adapters.payments.razorpay.create_payment_link", side_effect=rzp), \
+         patch.object(balance_reminder_service.log, "info") as info:
+        assert balance_reminder_service.run_for_tenant(db, tenant, today) == {"status": "off", "reason": reason}
+    assert rzp.made == [] and q.send.call_count == 0
+    assert db.query(Task).filter_by(tenant_id=tenant.id).count() == 0                               # no task spam
+    info.assert_not_called()                                                                        # no per-tenant log line
+    assert balance_reminder_service.state(db, tenant) == {"on": False, "source": "default", "blocker": reason}
+
+
+def test_owner_off_always_wins_and_owner_on_waits_with_a_reason(db, tenant_and_user, q):
+    tenant = tenant_and_user["tenant"]
+    stay = _setup(db, tenant_and_user)
+    today = _due_in_3(db, tenant, stay)
+    _set_switch(db, tenant, False)
+    rzp = _Rzp()
+    with patch("app.adapters.payments.razorpay.create_payment_link", side_effect=rzp):
+        assert balance_reminder_service.run_for_tenant(db, tenant, today) == {"status": "off"}
+    assert rzp.made == [] and q.send.call_count == 0
+    assert balance_reminder_service.state(db, tenant) == {"on": False, "source": "owner", "blocker": None}
+
+    db.query(Integration).filter_by(tenant_id=tenant.id, kind="razorpay").delete()
+    _set_switch(db, tenant, True)
+    assert balance_reminder_service.run_for_tenant(db, tenant, today) == {"status": "no_razorpay"}
+
+
+def test_cancelled_booking_and_deposit_are_never_chased(db, tenant_and_user, q):
+    from app.models.stay_finance import StayDeposit
+    tenant = tenant_and_user["tenant"]
+    stay = _setup(db, tenant_and_user)
+    today = _due_in_3(db, tenant, stay)
+    db.add(StayDeposit(tenant_id=tenant.id, stay_id=stay.id, amount=10000, status="pending"))
+    stay.status = "cancelled"
+    db.commit()
+    rzp = _Rzp()
+    with patch("app.adapters.payments.razorpay.create_payment_link", side_effect=rzp):
+        assert balance_reminder_service.run_for_tenant(db, tenant, today)["sent"] == 0
+        # an approved AI Executive step hands stays over directly: a cancelled one is still skipped
+        assert balance_reminder_service.send_for_stays(db, tenant, [stay], today, date.min, today + timedelta(days=30))["sent"] == 0
+        stay.status = "confirmed"
+        db.commit()
+        balance_reminder_service.run_for_tenant(db, tenant, today)
+    assert rzp.made == [12000]                                  # the balance instalment only, never the deposit
+
+
+def test_balance_reminder_beat_runs_default_tenants_skips_owner_off_and_keeps_tenants_apart(db, tenant_and_user, q, monkeypatch):
+    from app.models.tenant import Tenant
     from app.workers.tasks import invoice_tasks
-    _setup(db, tenant_and_user)
+    tenant = tenant_and_user["tenant"]
+    stay = _setup(db, tenant_and_user)
+    _due_in_3(db, tenant, stay)
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth", is_active=True,
+                   brand_config={"payments": {"auto_balance_reminder": False}})
+    db.add(other)
+    db.commit()
     monkeypatch.setattr(invoice_tasks, "SessionLocal", lambda: db)
-    with patch("app.services.balance_reminder_service.run_for_tenant") as run:
-        assert invoice_tasks.balance_reminders.run() == {}
-    run.assert_not_called()
+    monkeypatch.setattr(db, "close", lambda: None)
+    rzp = _Rzp()
+    with patch("app.adapters.payments.razorpay.create_payment_link", side_effect=rzp):
+        out = invoice_tasks.balance_reminders.run()
+    assert other.id not in out and out[tenant.id]["sent"] == 1           # owner-off workspace never run
+    sent = db.query(Message).filter(Message.idempotency_key.like(f"bk:{stay.id}:bal:%")).all()
+    assert len(sent) == 1 and sent[0].tenant_id == tenant.id
+    assert db.query(StayPaymentLink).filter_by(tenant_id=other.id).count() == 0
+
+
+def test_saving_invoice_details_never_pins_the_default(client, db, tenant_and_user, q):
+    tenant = tenant_and_user["tenant"]
+    _setup(db, tenant_and_user)                                       # ready: the default is on
+    h = _h(tenant_and_user)
+    r = client.get("/api/v1/settings/invoice-profile", headers=h).json()["payments"]
+    assert r == {"auto_balance_reminder": True, "auto_balance_reminder_source": "default", "auto_balance_reminder_blocker": None}
+    client.put("/api/v1/settings/invoice-profile", json={"profile": PROFILE, "payments": {"auto_balance_reminder": True}}, headers=h)
+    db.refresh(tenant)
+    assert "auto_balance_reminder" not in (tenant.brand_config.get("payments") or {})   # repeating the default stores nothing
+    off = client.put("/api/v1/settings/invoice-profile", json={"profile": PROFILE, "payments": {"auto_balance_reminder": False}},
+                     headers=h).json()["payments"]
+    assert off["auto_balance_reminder"] is False and off["auto_balance_reminder_source"] == "owner"
+    db.refresh(tenant)
+    assert tenant.brand_config["payments"]["auto_balance_reminder"] is False
+    # the owner's audited off is kept by the one-off restore
+    assert balance_reminder_service.restore_unchosen_off(db, tenant, apply=True) == "owner_off"
+
+
+def test_restore_unchosen_off_clears_a_false_nobody_chose(db, tenant_and_user, q):
+    tenant = tenant_and_user["tenant"]
+    _setup(db, tenant_and_user)
+    _set_switch(db, tenant, False)                                    # what an old invoice-details save left behind
+    assert balance_reminder_service.restore_unchosen_off(db, tenant, apply=False) == "restored"
+    assert balance_reminder_service.chosen(tenant) is False          # dry run wrote nothing
+    assert balance_reminder_service.restore_unchosen_off(db, tenant, apply=True) == "restored"
+    db.commit()
+    db.refresh(tenant)
+    assert balance_reminder_service.chosen(tenant) is None
+    assert db.query(AuditEvent).filter_by(tenant_id=tenant.id, action="settings.balance_reminder_default_restored").count() == 1
+    assert balance_reminder_service.restore_unchosen_off(db, tenant, apply=True) == "not_false"
 
 
 # ── the team's trip file appears when the booking is paid (it waited for the 06:10 sync) ──────────────────────

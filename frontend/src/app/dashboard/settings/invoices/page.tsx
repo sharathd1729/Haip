@@ -164,7 +164,7 @@ export default function InvoiceSettingsPage() {
             <input type="checkbox" className="mt-0.5 size-5 flex-shrink-0" checked={reminders} onChange={e => setReminders(e.target.checked)} />
             <span>
               Send the guest a payment link on WhatsApp 3 days before each instalment is due, once per instalment.
-              <span className="mt-0.5 block text-xs text-[var(--haip-fg-subtle)]">Needs Razorpay connected and the balance reminder template approved by Meta. Off until you switch it on.</span>
+              <span className="mt-0.5 block text-xs text-[var(--haip-fg-subtle)]">{reminderNote(data.payments)}</span>
             </span>
           </label>
         </CardBody>
@@ -180,4 +180,15 @@ export default function InvoiceSettingsPage() {
       <BookingTemplatesCard />
     </div>
   );
+}
+
+
+function reminderNote(p: InvoiceSettings["payments"]): string {
+  const missing = p.auto_balance_reminder_blocker === "no_razorpay" ? "Razorpay is not connected yet."
+    : p.auto_balance_reminder_blocker === "template_not_approved" ? "The balance reminder template is not approved by Meta yet." : null;
+  if (p.auto_balance_reminder_source === "owner") {
+    return p.auto_balance_reminder ? (missing ? `On, but waiting: ${missing}` : "On.") : "Off: you switched it off.";
+  }
+  return missing ? `Turns on by itself once Razorpay is connected and the template is approved. ${missing}`
+    : "On by default because Razorpay is connected and the template is approved. Untick it to stop.";
 }

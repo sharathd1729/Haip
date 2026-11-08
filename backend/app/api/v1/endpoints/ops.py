@@ -3,7 +3,7 @@
 Staff           GET/POST /ops/staff · PATCH /ops/staff/{id}
 Roster          GET/POST /ops/shifts · DELETE /ops/shifts/{id}
                 GET/POST /ops/shift-overrides · DELETE /ops/shift-overrides/{id}
-                GET /ops/on-duty?duty=&property_id=&at=
+                GET /ops/on-duty?duty=&property_id=&at=&severity= (each chain step with who it reaches now)
 Chains          GET /ops/escalation-chains · PUT /ops/escalation-chains · DELETE /ops/escalation-chains/{id}
 Settings        GET/PUT /ops/settings · POST /ops/templates/install (creates the template pack as drafts to submit to Meta)
 Items           GET /ops/items · POST /ops/items · GET /ops/items/{id}
@@ -33,6 +33,7 @@ from app.models.property import Property, Stay
 from app.models.user import User
 from app.schemas.ops import (
     DEFAULT_CHAIN,
+    SEVERITIES,
     EscalationChainPut,
     OpsAlertSendOut,
     OpsEventOut,
@@ -267,19 +268,28 @@ def on_duty(
     duty: str,
     property_id: str | None = None,
     at: datetime | None = None,
+    severity: str = "normal",
     user: User = Depends(_read),
     db: Session = Depends(get_db),
 ):
-    """Who is on shift now, and who step 1 of the escalation chain would alert (empty = a roster gap)."""
+    """Who is on shift now, who step 1 of the escalation chain would alert (empty = a roster gap), and every step of the
+    chain with who it would reach at that moment (the "If nobody answers" screen reads `steps`; roster_service decides)."""
+    if severity not in SEVERITIES:
+        raise HTTPException(status_code=422, detail=f"severity must be one of {SEVERITIES}")
     _check_property(db, user.tenant_id, property_id)
     staff = roster_service.on_shift(db, user.tenant_id, duty, property_id, at)
-    first, skipped = roster_service.first_step_with_recipients(db, user.tenant_id, duty, property_id, 0, at=at)
+    first, skipped = roster_service.first_step_with_recipients(db, user.tenant_id, duty, property_id, 0, severity, at)
+    steps = [
+        roster_service.recipients_for_step(db, user.tenant_id, duty, property_id, i, severity, at)
+        for i in range(roster_service.chain_length(db, user.tenant_id, duty, property_id))
+    ]
     return {
         "on_shift": [{"id": s.id, "name": s.name} for s in staff],
         "first_alert_step": first.step if first else None,
         "first_alert_recipients": [r.name for r in first.recipients] if first else [],
         "skipped_steps": skipped,
         "roster_gap": not staff,
+        "steps": [{"step": r.step, "spec": r.spec, "recipients": [p.name for p in r.recipients]} for r in steps],
     }
 
 

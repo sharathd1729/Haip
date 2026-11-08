@@ -25,7 +25,13 @@ export interface InvoiceProfile {
   gst_rate: number; invoice_prefix: string; receipt_prefix: string; logo_key: string | null; use_branding_logo: boolean;
 }
 export interface InvoiceSettings {
-  profile: InvoiceProfile; payments: { auto_balance_reminder: boolean }; logo_url: string | null;
+  profile: InvoiceProfile;
+  /** auto_balance_reminder = the switch: the owner's choice (source "owner"), else on once Razorpay + the template are ready. */
+  payments: {
+    auto_balance_reminder: boolean; auto_balance_reminder_source: "owner" | "default";
+    auto_balance_reminder_blocker: "template_not_approved" | "no_razorpay" | null;
+  };
+  logo_url: string | null;
   logo_source: "uploaded" | "branding" | null; missing: string[]; states: Record<string, string>;
 }
 export interface PackTemplate {

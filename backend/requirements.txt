@@ -79,3 +79,4 @@ beautifulsoup4==4.12.3
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0
+time-machine==3.6.0  # freezes the clock for tests/test_midnight_ist.py (IST vs UTC "today"); C-level, no per-module patching
