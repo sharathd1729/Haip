@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { TripSheets, type SheetKind } from "./TripSheets";
+import { AddonsCard } from "./AddonsCard";
 import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
 import { StayFile } from "./StayFile";
 import { TripGps } from "./TripGps";
@@ -239,6 +240,7 @@ export function TripFile({ id }: { id: string }) {
         </CardBody>
       </Card>
 
+      <AddonsCard fileId={f.id} canWrite={write} />
       <GuestFormCard f={f} canWrite={write} canManage={manage} onSent={() => qc.invalidateQueries({ queryKey: ["ops-file", id] })} />
       {(f.state === "returned" || f.state === "closed") && <ReturnCheckCard f={f} />}
 

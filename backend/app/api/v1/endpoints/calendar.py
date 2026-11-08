@@ -167,6 +167,14 @@ def get_calendar(
     # can mark money still due. Same audience as the amounts: revenue.read.
     from app.services import booking_service as bsvc
     fins = bsvc.financials_for(db, tenant_id, [s for sl in stays_by_prop.values() for s in sl]) if can_revenue else {}
+    # Add-ons on each booking (names only, no amounts: the calendar sheet lists what to deliver). One query.
+    from app.models.stay_finance import StayAddOn
+    addon_names: dict[str, list[str]] = {}
+    all_ids = [s.id for sl in stays_by_prop.values() for s in sl]
+    if all_ids:
+        for sid, name, qty in db.query(StayAddOn.stay_id, StayAddOn.name, StayAddOn.quantity).filter(
+                StayAddOn.tenant_id == tenant_id, StayAddOn.stay_id.in_(all_ids)).order_by(StayAddOn.created_at):
+            addon_names.setdefault(sid, []).append(f"{name} x{qty}" if (qty or 1) > 1 else name)
 
     # Best-effort guest enrichment (name + phone), batched across ALL properties
     # at once — failure MUST NOT break response.
@@ -213,6 +221,7 @@ def get_calendar(
                 "adults":       getattr(s, "adults", None) or 1,
                 "total_amount": float(fins[s.id]["total"]) if s.id in fins else None,
                 "paid_amount":  float(fins[s.id]["paid"]) if s.id in fins else None,
+                "addons":       addon_names.get(s.id, []),
                 "channel_source": getattr(s, "channel_source", None) or "direct",
                 # Staff notes (the agent writes which caravan it is: Black / White). Same audience as the guest name and phone above.
                 "notes":        (getattr(s, "internal_notes", None) or "")[:300],

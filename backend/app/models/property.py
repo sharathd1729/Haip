@@ -177,6 +177,10 @@ class PropertyAddOn(Base, TimestampMixin, TenantMixin):
     currency = Column(String(3), default="INR")
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
+    # Guest add-ons page (migration 192): a person OKs it first; early_check_in | late_check_out | extra_night = the
+    # page checks availability before offering it.
+    needs_approval = Column(Boolean, nullable=False, default=False, server_default="false")
+    stay_change = Column(String(20), nullable=True)
 
     property = relationship("Property", back_populates="addons")
 

@@ -38,6 +38,7 @@ from app.api.v1.endpoints import (
     ops_stays,
     ops_fleet,
     ops_guest_form_public,
+    guest_addons,
     ops_gps,
     webhooks_gps,
     targets,
@@ -112,6 +113,8 @@ api_router.include_router(ops_files.router)  # /ops/files/* (one ops file per bo
 api_router.include_router(ops_stays.router)  # /ops/files/* villa-only steps
 api_router.include_router(ops_fleet.router)  # /ops/fleet/* (papers, defects, services, stock)
 api_router.include_router(ops_guest_form_public.router)  # /public/ops/guest-form/{token} (no login)
+api_router.include_router(guest_addons.public_router)  # /public/addons/{token} (no login)
+api_router.include_router(guest_addons.router)  # /ops/files/{id}/addons, /ops/addon-orders/{id}/approve|decline
 api_router.include_router(ops_gps.router)  # /ops/gps/* (trackers, live map, trip track, alerts)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
