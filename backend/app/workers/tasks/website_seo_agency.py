@@ -3,6 +3,7 @@
 import structlog
 from celery import shared_task
 
+from app.adapters.llm.scope import scoped_task
 from app.core.database import SessionLocal
 
 log = structlog.get_logger(__name__)
@@ -28,6 +29,7 @@ def orchestrate():
 
 
 @shared_task(name="website_seo.run_week")
+@scoped_task("website_seo", ref_type="seo_agency")  # meter rows written once, after the run commits
 def run_week(tenant_id: str, trigger: str = "schedule", actor_id=None):
     """Every role once; then the Celery work the roles asked for (guide drafts, review reply drafts), after commit.
     Not retried: a failure is recorded on the run."""

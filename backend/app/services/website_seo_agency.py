@@ -329,7 +329,11 @@ def score(db: Session, tenant: Tenant, today, checker: dict | None) -> dict:
         },
         {"key": "search", "label": "Search trend", "points": round(search), "max": 25, "why": search_why},
     ]
-    return {"total": sum(p["points"] for p in parts), "parts": parts}
+    return {
+        "total": sum(p["points"] for p in parts),
+        "parts": parts,
+        "google": {"times_shown": vis["total"], "change_pct": vis["change_pct"]},
+    }
 
 
 def grow(db: Session, tenant: Tenant, *, show_money: bool, show_ads_money: bool) -> dict:
@@ -398,7 +402,14 @@ def grow(db: Session, tenant: Tenant, *, show_money: bool, show_ads_money: bool)
             }
         )
     site = get_site(db, tenant.id)
-    results: dict = {"days": 28, "website": None, "ads": None, "money_restricted": not show_money}
+    sc = score(db, tenant, today, checker)
+    results: dict = {
+        "days": 28,
+        "website": None,
+        "ads": None,
+        "money_restricted": not show_money,
+        "google": sc.pop("google"),
+    }
     if site is not None:
         rep = website_report.build(db, site, today=today, days=28, show_money=show_money)
         results["website"] = {
@@ -421,7 +432,7 @@ def grow(db: Session, tenant: Tenant, *, show_money: bool, show_ads_money: bool)
             if parent
             else None
         ),
-        "score": score(db, tenant, today, checker),
+        "score": sc,
         "brief": {"text": analyst.get("brief"), "actions": analyst.get("actions") or [], "facts": analyst.get("facts")}
         if analyst
         else None,

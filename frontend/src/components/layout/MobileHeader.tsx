@@ -90,6 +90,7 @@ const PATH_LABELS: Record<string, string> = {
   "/dashboard/marketing/website/edit": "Edit website",
   "/dashboard/marketing/website/launch": "Launch report",
   "/dashboard/marketing/website/builder": "Art director",
+  "/dashboard/marketing/website/grow": "Grow",
 };
 
 function PageTitle() {
