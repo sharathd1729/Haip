@@ -97,18 +97,24 @@ def balance_reminders():
     db = SessionLocal()
     results = {}
     try:
-        tenants = [(t.id, bool(((t.brand_config or {}).get("payments") or {}).get("auto_balance_reminder")))
-                   for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
-        for tenant_id, enabled in tenants:
-            if not enabled:
-                continue
+        # Every tenant that did not switch it OFF: a never-chosen switch is on once Razorpay + the template are ready
+        # (run_for_tenant decides). Default tenants not ready are counted here, not logged one by one.
+        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()
+                      if balance_reminder_service.chosen(t) is not False]
+        not_ready = 0
+        for tenant_id in tenant_ids:
             try:
                 set_tenant_context(db, tenant_id)
                 tenant = db.query(Tenant).filter_by(id=tenant_id).first()
-                results[tenant_id] = balance_reminder_service.run_for_tenant(db, tenant, today)
+                res = balance_reminder_service.run_for_tenant(db, tenant, today)
+                if res.get("reason"):
+                    not_ready += 1
+                else:
+                    results[tenant_id] = res
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
                 log.error("balance_reminders_tenant_failed", tenant_id=tenant_id, error=str(exc))
+        log.info("balance_reminders_beat_done", tenants_run=len(results), default_not_ready=not_ready)
         return results
     finally:
         db.close()

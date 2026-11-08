@@ -77,9 +77,9 @@ def checklist(db: Session, tenant) -> dict:
     link_ok = modes.get("send_payment_link") == "autonomous"
     wa_mode = (getattr(tenant, "wa_ai_mode_default", None) or "shadow").lower()
     ops_pack = ops_pack_catalog.pack_for_business_type(getattr(tenant, "business_type", None))
-    reminders = bool(
-        ((cfg.get("payments") or {}) if isinstance(cfg.get("payments"), dict) else {}).get("auto_balance_reminder")
-    )
+    from app.services import balance_reminder_service  # local: it imports the booking + payment services
+
+    reminders = balance_reminder_service.state(db, tenant)["on"]
     waiting = sum(drafts.get(k, 0) for k in ("package", "destination", "itinerary"))
 
     rows = [
@@ -217,7 +217,8 @@ def checklist(db: Session, tenant) -> dict:
             "Balance reminders",
             "The guest is reminded once per instalment."
             if reminders
-            else "Off: nobody is reminded of the balance automatically.",
+            else "Off: nobody is reminded of the balance automatically. "
+            "It turns on by itself once Razorpay is connected and the reminder template is approved, unless you switched it off.",
             "/dashboard/settings/invoices",
             "Turn on balance reminders",
         ),

@@ -5,7 +5,7 @@ The money test reproduces the real Saleem trip (Aug 2026): 84 h / 1,200 km packa
 """
 
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -22,11 +22,12 @@ from app.models.user import User, UserRole
 from app.schemas.ops_files import AcceptIn, CrewIn, ExpenseIn, ExtraIn
 from app.services import ops_money as money
 from app.services import ops_trip_service as trips
+from app.services.date_presets import today_ist
 from tests.conftest import seed_capabilities
 from tests.ops_helpers import prop, staff, tenant
 from tests.test_increment1_defect_specs import _h, _user
 
-TODAY = date.today()
+TODAY = today_ist()   # the workspace's day (IST), as the product computes it: never the machine clock
 
 
 def _tenant(db, business_type="caravan"):

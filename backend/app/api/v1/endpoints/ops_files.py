@@ -8,9 +8,12 @@ Steps       POST /ops/files/{id}/accept | /crew | /dispatch | /return | /settle 
 Checklist   PUT /ops/files/{id}/checklist/{key}
 Money       POST /ops/files/{id}/expenses · POST /ops/files/{id}/extras · POST /ops/files/{id}/extras/{extra_id}/approve|remove
 Guest form  POST /ops/files/{id}/guest-form/link · POST /ops/files/{id}/guest-form/send (WhatsApp, 24 h window only)
+Form C      GET /ops/files/{id}/guest-form/guests/{n}/form-c (masked) · POST .../form-c/reveal (guests.pii.reveal, audited
+            guest.passport.reveal) · POST .../form-c/submitted (ops.manage; closes the Form C ops item)
 
 ops.write: checklist, accept, crew, return odometer, expenses, asking for an extra. ops.manage: dispatch (always a person's
-tap), approving or removing an extra, settle, close, sync. Guest contact details are never returned here.
+tap), approving or removing an extra, settle, close, sync, ticking Form C submitted. Guest contact details are never
+returned here; passport / visa numbers only through the audited reveal.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -22,6 +25,7 @@ from app.models.ops_files import OpsExpense, OpsExtra, OpsFile, OpsFileEvent
 from app.models.ops_fleet import OpsAutoMessage
 from app.models.property import Property, Stay
 from app.models.user import User
+from app.schemas.ops_fleet import FormCSubmittedIn
 from app.schemas.ops_files import (
     AcceptIn,
     CrewIn,
@@ -34,6 +38,7 @@ from app.schemas.ops_files import (
 from app.services import (
     booking_agenda_service,
     ops_fleet_service,
+    ops_form_c,
     ops_guest_form,
     ops_return_check,
     ops_stay_report,
@@ -44,7 +49,7 @@ from app.services import ops_money as money
 from app.services import ops_pack_catalog as packs
 from app.services import ops_stay_service as stays
 from app.services import ops_trip_service as trips
-from app.services.authz_service import require_capability
+from app.services.authz_service import has_capability, require_capability
 
 router = APIRouter(prefix="/ops/files", tags=["operations"])
 
@@ -350,9 +355,10 @@ def close(file_id: str, user: User = Depends(_manage), db: Session = Depends(get
 @router.post("/{file_id}/guest-form/link")
 def guest_form_link(file_id: str, user: User = Depends(_write), db: Session = Depends(get_db)):
     """The private link for the guest ID form (the same link every time, made on first use)."""
-    form = ops_guest_form.ensure_form(db, _file(db, user, file_id))
+    f = _file(db, user, file_id)
+    form = ops_guest_form.ensure_form(db, f)
     db.commit()
-    return {"url": ops_guest_form.link(form)}
+    return {"url": ops_guest_form.link_for(f, form)}
 
 
 @router.post("/{file_id}/guest-form/send")
@@ -361,6 +367,37 @@ def guest_form_send(file_id: str, user: User = Depends(_write), db: Session = De
     out = ops_guest_form.send_link(db, _file(db, user, file_id), user.id)
     if out["status"] not in ("queued", "duplicate"):
         raise HTTPException(status_code=409, detail=f"Not sent: {out['reason']}. Copy the link and send it yourself.")
+    return out
+
+
+@router.get("/{file_id}/guest-form/guests/{n}/form-c")
+def form_c_sheet(file_id: str, n: int, user: User = Depends(_read), db: Session = Depends(get_db)):
+    """The Form C data of one guest from abroad, in the portal's order. Passport / visa numbers masked."""
+    f = _file(db, user, file_id)
+    return ops_form_c.sheet(db, f, n, can_reveal=has_capability(db, user, "guests.pii.reveal"))
+
+
+@router.post("/{file_id}/guest-form/guests/{n}/form-c/reveal")
+def form_c_reveal(file_id: str, n: int, user: User = Depends(_read), db: Session = Depends(get_db)):
+    """The full passport / visa numbers and the photos (10-minute links). Needs guests.pii.reveal; every call audited."""
+    if not has_capability(db, user, "guests.pii.reveal"):
+        raise HTTPException(status_code=403, detail="Your role cannot see passport and visa numbers.")
+    out = ops_form_c.reveal(db, _file(db, user, file_id), n, user.id)
+    db.commit()
+    return out
+
+
+@router.post("/{file_id}/guest-form/guests/{n}/form-c/submitted")
+def form_c_submitted(
+    file_id: str,
+    n: int,
+    body: FormCSubmittedIn,
+    user: User = Depends(_manage),
+    db: Session = Depends(get_db),
+):
+    """A manager filed this guest's Form C on the government portal (HAIP never does): closes the Form C ops item."""
+    out = ops_form_c.mark_submitted(db, _file(db, user, file_id), n, user.id, body.note)
+    db.commit()
     return out
 
 

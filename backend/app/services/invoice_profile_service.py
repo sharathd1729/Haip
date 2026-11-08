@@ -63,7 +63,16 @@ def logo_bytes(tenant: Tenant) -> Optional[bytes]:
     return None
 
 
-def settings_out(tenant: Tenant) -> dict:
+def payments_out(db: Session, tenant: Tenant) -> dict:
+    """The switch as the owner sees it: their own choice, else the default (on once Razorpay + template are ready)."""
+    from app.services import balance_reminder_service as brs
+
+    st = brs.state(db, tenant)
+    return {"auto_balance_reminder": st["on"], "auto_balance_reminder_source": st["source"],
+            "auto_balance_reminder_blocker": st["blocker"]}
+
+
+def settings_out(db: Session, tenant: Tenant) -> dict:
     profile = get_profile(tenant)
     source = logo_source(tenant, profile)
     url = None
@@ -71,7 +80,7 @@ def settings_out(tenant: Tenant) -> dict:
         url = media_storage.get_presigned_media_url(profile.logo_key, expires_in=900)
     elif source == "branding":
         url = _branding_logo(tenant)
-    return {"profile": profile.model_dump(), "payments": payment_automation(tenant).model_dump(),
+    return {"profile": profile.model_dump(), "payments": payments_out(db, tenant),
             "logo_url": url, "logo_source": source, "missing": profile.missing_for_invoice(), "states": GST_STATES}
 
 
@@ -83,18 +92,23 @@ def save_settings(db: Session, tenant: Tenant, body: InvoiceSettingsIn, actor_id
     profile["logo_key"] = before.get("logo_key")
     cfg["invoice_profile"] = profile
     changes = {k: {"from": before.get(k), "to": v} for k, v in profile.items() if before.get(k) != v}
-    if body.payments is not None:
-        prev = cfg.get("payments") or {}
-        cfg["payments"] = {**prev, **body.payments.model_dump()}
-        if prev.get("auto_balance_reminder", False) != body.payments.auto_balance_reminder:
-            changes["auto_balance_reminder"] = {"from": prev.get("auto_balance_reminder", False),
-                                                "to": body.payments.auto_balance_reminder}
+    wanted = body.payments.auto_balance_reminder if body.payments is not None else None
+    if wanted is not None:
+        from app.services import balance_reminder_service as brs
+
+        prev = cfg.get("payments") if isinstance(cfg.get("payments"), dict) else {}
+        stored = prev.get("auto_balance_reminder")
+        # A save that only repeats the default (never chosen + same as what the default gives now) stores nothing, so
+        # saving the invoice details never pins the switch. Any other value is the owner's choice and is kept.
+        if not (stored is None and wanted == (brs.why_blocked(db, tenant) is None)) and stored != wanted:
+            cfg["payments"] = {**prev, "auto_balance_reminder": wanted}
+            changes["auto_balance_reminder"] = {"from": stored, "to": wanted}
     tenant.brand_config = cfg
     append_audit(db, tenant_id=tenant.id, actor_user_id=actor_id, action="settings.invoice_profile_updated",
                  target_type="tenant", target_id=tenant.id, payload={"changes": changes})
     db.commit()
     db.refresh(tenant)
-    return settings_out(tenant)
+    return settings_out(db, tenant)
 
 
 def reencode_logo(content: bytes, content_type: str) -> bytes:
@@ -137,7 +151,7 @@ def save_logo(db: Session, tenant: Tenant, content: bytes, content_type: str, ac
                  target_type="tenant", target_id=tenant.id, payload={"bytes": len(png), "replaced": bool(old)})
     db.commit()
     db.refresh(tenant)
-    return settings_out(tenant)
+    return settings_out(db, tenant)
 
 
 def remove_logo(db: Session, tenant: Tenant, actor_id: str) -> dict:
@@ -151,4 +165,4 @@ def remove_logo(db: Session, tenant: Tenant, actor_id: str) -> dict:
                      target_type="tenant", target_id=tenant.id, payload={})
         db.commit()
         db.refresh(tenant)
-    return settings_out(tenant)
+    return settings_out(db, tenant)

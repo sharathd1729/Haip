@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
-  AtSign, BadgeCheck, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
+  AtSign, BadgeCheck, BellRing, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CalendarClock, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
   FlaskConical, MapPin, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
@@ -42,6 +42,9 @@ export const NAV_SECTIONS: NavSection[] = [
     // Ops module: every segment with an ops pack (backend ops_pack_catalog; lib/segments.ts says which).
     { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
     { label: "Vehicle map", href: "/dashboard/ops/map", icon: MapPin, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
+    // Roster and alert chain: owner/manager only (ops.manage on the server).
+    { label: "Who is on duty", href: "/dashboard/ops/staff/duty", icon: CalendarClock, resource: "inbox", onlyRoles: ["owner", "manager"], onlyForBusinessTypes: ["caravan", "villa", "villa_resort"] },
+    { label: "If nobody answers", href: "/dashboard/ops/staff/alerts", icon: BellRing, resource: "inbox", onlyRoles: ["owner", "manager"], onlyForBusinessTypes: ["caravan", "villa", "villa_resort"] },
   ] },
   { title: "Conversations", links: [
     { label: "Inbox", href: "/dashboard/inbox", icon: I["/dashboard/inbox"], resource: "inbox" },

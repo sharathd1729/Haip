@@ -293,6 +293,9 @@ def run_tenant(db: Session, tenant_id: str, now: datetime | None = None) -> list
     from app.services import ops_midstay_check
 
     ops_midstay_check.run_tenant(db, tenant_id, now, tz)
+    from app.services import ops_form_c
+
+    ops_form_c.run_tenant(db, tenant_id, now)  # check-in date reached with a guest from abroad: Form C due
     return sends
 
 

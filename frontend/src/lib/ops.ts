@@ -23,6 +23,31 @@ export interface OpsToday {
   units: OpsUnit[]; needs: OpsNeed[]; day: OpsDayEntry[]; counts: Record<string, number>;  // caravan leaving/away/back, villa arriving/staying/leaving
 }
 
+/** One guest on the file's guest form. `foreign` + `form_c` only for a guest who is not an Indian citizen; numbers are
+ *  always masked here (the full ones only through the audited Form C reveal). */
+export interface GuestFormGuest {
+  name: string; age: number | null; id: string; nationality?: string;
+  foreign?: {
+    passport: string | null; passport_expires_on: string | null; visa_type: string | null; visa: string | null;
+    visa_expires_on: string | null; arrived_india_on: string | null; photos: number;
+  };
+  form_c?: { due_at: string | null; submitted_at: string | null };
+}
+
+/** GET /ops/files/{id}/guest-form/guests/{n}/form-c (masked) and POST .../reveal (full, audited). */
+export interface FormCSheet {
+  guest: number; note: string; can_reveal: boolean; revealed: boolean;
+  due_at: string | null; submitted_at: string | null; submitted_note: string | null;
+  fields: { key: string; label: string; value: string | null; hint: string | null; format: "country" | null; masked: boolean }[];
+  photos: { kind: "passport" | "visa"; url: string | null; pdf: boolean }[];
+}
+
+/** A country's English name from its ISO code (browser data; falls back to the code). */
+export function countryName(code: string | null | undefined): string {
+  if (!code) return "";
+  try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code; } catch { return code; }
+}
+
 export interface StageTask { key: string; label: string; done: boolean; hint: string | null }
 export interface ChecklistItem {
   key: string; label: string; critical: boolean; source: "staff" | "system" | "manager"; photo_required: boolean;
@@ -59,7 +84,8 @@ export interface OpsFileFull {
   close_blockers: string[];
   fleet_problems: string[];
   guest_form: {
-    submitted_at: string | null; link: string | null; guests: { name: string; age: number | null; id: string }[];
+    submitted_at: string | null; link: string | null; guests: GuestFormGuest[];
+    file_word?: "trip" | "stay"; from_abroad?: number; guest_from_abroad?: boolean;  // ops gap 5: guests from abroad
     emergency_name?: string; emergency_phone?: string; food?: string; requests?: string; signed_name?: string;
   };
   return_check: { words: string; damage: string[]; items: { key: string; label: string; status: "pending" | "green" | "red"; note: string | null; has_photo: boolean }[] };

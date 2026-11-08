@@ -64,6 +64,8 @@ def _erase_one(db: Session, tenant_id: str, guest_id: str, counts: dict, files: 
     from app.models.lead_attribution import LeadAttribution
     from app.models.lead_autopilot import LeadAutopilotEvent
     from app.models.lead_workflow import LeadJourney, LeadView, PlaybookAction, PlaybookRun
+    from app.models.ops import OpsItem
+    from app.services import ops_guest_form
     from app.models.ops_fleet import OpsGuestForm
     from app.models.property import Stay
     from app.models.sales_action import SalesAction
@@ -136,8 +138,20 @@ def _erase_one(db: Session, tenant_id: str, guest_id: str, counts: dict, files: 
 
     # Bookings and their money lines (issued invoices are tax records: detached from the booking, kept).
     if stay_ids:
-        # The trip's guest ID form (names, ages, ID numbers, emergency contact): ops_guest_forms, migration 180.
+        # The booking's guest ID form (names, ages, ID and passport / visa numbers, emergency contact): ops_guest_forms,
+        # migration 180; its passport / visa photos are files, deleted after the erase commits.
+        for form in db.query(OpsGuestForm).filter(OpsGuestForm.tenant_id == tenant_id,
+                                                  OpsGuestForm.stay_id.in_(stay_ids)).all():
+            files += ops_guest_form.file_keys(form)
         delete(OpsGuestForm, OpsGuestForm.tenant_id == tenant_id, OpsGuestForm.stay_id.in_(stay_ids), name="ops_guest_forms")
+    # Ops items about the person (Form C reminders, mid-stay complaints): kept for the team's counts, detached from the
+    # booking and the guest, the summary (it can quote the guest) cleared. Without this the stay delete hits their FK.
+    gone("ops_items_detached", db.query(OpsItem).filter(
+        OpsItem.tenant_id == tenant_id,
+        or_(OpsItem.guest_id == guest_id, OpsItem.stay_id.in_(stay_ids or ["-"]))).update(
+        {OpsItem.guest_id: None, OpsItem.stay_id: None, OpsItem.conversation_id: None, OpsItem.summary: None},
+        synchronize_session=False))
+    if stay_ids:
         for model in (StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest):
             delete(model, model.tenant_id == tenant_id, model.stay_id.in_(stay_ids), name=model.__tablename__)
         db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.stay_id.in_(stay_ids)).update(

@@ -385,6 +385,9 @@ def dispatch(db: Session, f: OpsFile, start_odometer: int, actor_id: str) -> Ops
         target_id=f.id,
         payload={"stay_id": f.stay_id, "start_odometer": start_odometer},
     )
+    from app.services import ops_form_c
+
+    ops_form_c.sync(db, f)  # the guests have arrived: Form C for anyone from abroad (due in 24 h)
     return f
 
 

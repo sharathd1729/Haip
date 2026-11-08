@@ -46,7 +46,7 @@ def _tenant(db: Session, user: User) -> Tenant:
 
 @router.get("/settings/invoice-profile")
 def get_invoice_profile(current_user: User = Depends(require_roles(*_MANAGE)), db: Session = Depends(get_db)):
-    return ips.settings_out(_tenant(db, current_user))
+    return ips.settings_out(db, _tenant(db, current_user))
 
 
 @router.put("/settings/invoice-profile")

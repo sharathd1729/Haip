@@ -5,6 +5,7 @@
 // TripFile loads the file and hands a villa here; every tap goes through its `submit` (the server checks every rule again).
 import { useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   EXPENSE_LABELS, FOOD_LABELS, rupees, stayNextAction, type ChecklistItem, type Meal, type OpsFileFull,
@@ -12,6 +13,7 @@ import {
 import { Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui/kit";
 import { TripSheets, type SheetKind } from "./TripSheets";
 import { StaySheets, type StaySheetKind } from "./StaySheets";
+import { GuestFormCard } from "./TripCards";
 
 type Submit = (path: string, body?: object, method?: "post" | "put" | "delete") => Promise<boolean>;
 
@@ -63,6 +65,7 @@ function Checklist({ items, disabled, onPick }: { items: ChecklistItem[]; disabl
 export function StayFile({ f, submit, busy, write, manage, onReport, reportBusy }: {
   f: OpsFileFull; submit: Submit; busy: boolean; write: boolean; manage: boolean; onReport: () => void; reportBusy: boolean;
 }) {
+  const qc = useQueryClient();
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [stay, setStay] = useState<StaySheetKind>(null);
   const [item, setItem] = useState<ChecklistItem | null>(null);
@@ -256,6 +259,9 @@ export function StayFile({ f, submit, busy, write, manage, onReport, reportBusy 
           )}
         </CardBody>
       </Card>
+
+      <GuestFormCard f={f} canWrite={write} canManage={manage}
+        onSent={() => qc.invalidateQueries({ queryKey: ["ops-file", f.id] })} />
 
       <Card>
         <CardHeader title="What happened" tone="plain" />

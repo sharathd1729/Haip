@@ -567,7 +567,7 @@ celery_app.conf.beat_schedule = {
         "task": "webhooks.retry_due",
         "schedule": crontab(minute="*"),
     },
-    # Balance reminders (opt-in per tenant: brand_config.payments.auto_balance_reminder). 09:35 IST, clear of :30/:40.
+    # Balance reminders (brand_config.payments.auto_balance_reminder; never chosen = on once Razorpay + template are ready). 09:35 IST.
     "payments-balance-reminders-daily": {
         "task": "payments.balance_reminders",
         "schedule": crontab(hour=9, minute=35),

@@ -322,7 +322,11 @@ def schedules_for(db: Session, tenant_id: str, fins: dict[str, dict]) -> dict[st
         by_stay.setdefault(i.stay_id, []).append(i)
     cancelled = {sid for (sid,) in db.query(Stay.id).filter(Stay.tenant_id == tenant_id, Stay.id.in_(list(by_stay)),
                                                              Stay.status == "cancelled")} if by_stay else set()
-    return {sid: allocate_schedule(rows, fins[sid]["paid"], cancelled=sid in cancelled) for sid, rows in by_stay.items()}
+    # "Overdue" = past due on the WORKSPACE's day (as overdue_clause), never the server's: 00:00-05:30 IST the UTC date lags.
+    from app.services.booking_agenda_service import tenant_today
+    today = tenant_today(db, tenant_id) if by_stay else None
+    return {sid: allocate_schedule(rows, fins[sid]["paid"], today=today, cancelled=sid in cancelled)
+            for sid, rows in by_stay.items()}
 
 
 def shown_deposit(stay_status: Optional[str], deposit: Optional[dict]) -> Optional[dict]:
