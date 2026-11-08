@@ -143,6 +143,16 @@ CATALOG = [
             "Application (not a separate \"Secret\" field there)."
         ),
     },
+    {
+        "provider": "google_data_manager",
+        "name": "Google Ads (bookings)",
+        "description": "Send every booking to Google Ads with its value (Data Manager API), so Google learns which ads bring real stays.",
+        "category": "marketing",
+        "auth_type": "oauth2",
+        "logo": "chart",
+        "popular": False,
+        "notes": "Sign in with Google. HAIP keeps only encrypted access tokens, never a password. Set the conversion ids in Website > Tracking.",
+    },
 ]
 
 

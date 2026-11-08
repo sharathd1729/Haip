@@ -38,7 +38,7 @@ from app.core.encryption import decrypt_credentials, encrypt_credentials
 from app.models.guest import Guest
 from app.models.tenant import Tenant
 from app.models.website import Site, WebsiteEvent
-from app.services import marketing_capi
+from app.services import google_ads_conversions, marketing_capi
 
 log = structlog.get_logger()
 
@@ -65,13 +65,18 @@ def settings_out(site: Site) -> dict:
         "has_capi_token": bool(site.capi_token_enc),
         "has_ga4_api_secret": bool(site.ga4_secret_enc),
         "ga4_server": ga4_on(site),
+        **google_ads_conversions.tracking_settings(site),
     }
 
 
 def public(site: Site) -> dict:
-    """What the guest's browser may know: the two public ids (empty = no banner, nothing loads)."""
+    """What the guest's browser may know: the public ids + Google Ads conversion labels (empty = no banner)."""
     t = site.tracking or {}
-    return {k: t[k] for k in ("pixel_id", "ga4_id") if t.get(k)}
+    out = {k: t[k] for k in ("pixel_id", "ga4_id") if t.get(k)}
+    if t.get("gads_id"):
+        out["gads"] = {"id": t["gads_id"], **{k: t[f"gads_{k}_label"] for k in ("enquiry", "checkout")
+                                              if t.get(f"gads_{k}_label")}}
+    return out
 
 
 def update(db: Session, site: Site, body, *, actor_id: str) -> dict:
@@ -81,6 +86,8 @@ def update(db: Session, site: Site, body, *, actor_id: str) -> dict:
         "ga4_id": body.ga4_id,
         "capi_enabled": body.capi_enabled,
         "capi_test_code": body.capi_test_code,
+        **{k: getattr(body, k) for k in ("gads_id", "gads_enquiry_label", "gads_checkout_label", "gads_customer_id",
+                                         "gads_login_customer_id", "gads_booking_action_id", "gads_upload_enabled")},
     }
     if body.capi_token is not None:
         token = body.capi_token.strip()
@@ -225,6 +232,7 @@ def send_tenant(db: Session, tenant: Tenant, *, writer_factory: Callable | None 
             WebsiteEvent.status.in_(("pending", "failed")),
             WebsiteEvent.tries < MAX_TRIES,
             ~WebsiteEvent.event_id.startswith(GA4_PREFIX),
+            ~WebsiteEvent.event_id.startswith(google_ads_conversions.PREFIX),
         )
         .order_by(WebsiteEvent.created_at.asc())
         .limit(BATCH)
@@ -296,7 +304,8 @@ def recent(db: Session, site: Site, limit: int = 30) -> list[dict]:
     )
     return [
         {
-            "channel": "ga4" if r.event_id.startswith(GA4_PREFIX) else "meta",
+            "channel": "ga4" if r.event_id.startswith(GA4_PREFIX)
+            else "google_ads" if r.event_id.startswith(google_ads_conversions.PREFIX) else "meta",
             "event_name": r.event_name,
             "status": r.status,
             "reason": r.reason,

@@ -3,7 +3,7 @@
 import { type NextRequest } from "next/server";
 import { apiRoot, siteHost } from "@/lib/haip";
 
-const ALLOWED = /^(availability|quote|holds|holds\/[0-9a-f-]{36}|enquiries|manage|manage\/lookup|manage\/pay|views|stays\/[a-z0-9-]{1,80})$/;
+const ALLOWED = /^(availability|quote|holds|holds\/[0-9a-f-]{36}|enquiries|manage|manage\/lookup|manage\/pay|views|wa-click|stays\/[a-z0-9-]{1,80})$/;
 const MAX_BODY = 16 * 1024;
 
 async function forward(req: NextRequest, path: string[]) {

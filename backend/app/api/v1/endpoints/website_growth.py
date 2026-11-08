@@ -5,14 +5,20 @@ Same module + capabilities as endpoints/website.py: read = website.read, setting
 load or what leaves HAIP = website.approve (owner/manager). Errors are {"detail": {"code", "message", "problems"}}.
 """
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, require_module
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import decode_token
 from app.models.user import User
 from app.schemas.website import PromoIn, TrackingIn
+from app.services import google_ads_conversions as gads
 from app.services import website_blog, website_promos, website_report, website_reviews
 from app.services import website_service as svc
 from app.services import website_tracking as track
@@ -53,7 +59,8 @@ def _revalidate(tenant_id: str, site_id: str) -> None:
 @router.get("/tracking")
 def get_tracking(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
     site = _site(db, user)
-    return {**track.settings_out(site), "recent": track.recent(db, site)}
+    return {**track.settings_out(site), "recent": track.recent(db, site),
+            "google_ads": gads.status(db, user.tenant_id)}
 
 
 @router.put("/tracking")
@@ -79,10 +86,60 @@ def put_tracking(
                 "problems": [],
             },
         )
+    if (body.gads_enquiry_label or body.gads_checkout_label) and not body.gads_id:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "gads_id_needed", "message": "Add the Google Ads tag id (AW-...) before the conversion labels.",
+                    "problems": []},
+        )
+    if body.gads_upload_enabled and not (body.gads_customer_id and body.gads_booking_action_id):
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "gads_upload_incomplete",
+                    "message": "Add the Google Ads customer id and the booking conversion action id before switching "
+                               "booking uploads on.", "problems": []},
+        )
     out = track.update(db, site, body, actor_id=user.id)
     db.commit()
     _revalidate(user.tenant_id, site.id)
     return out
+
+
+def _gads_back(status: str, reason: str = "") -> RedirectResponse:
+    q = urlencode({"google_ads": status, **({"reason": reason[:120]} if reason else {})})
+    return RedirectResponse(f"{settings.FRONTEND_URL.rstrip('/')}/dashboard/marketing/website?{q}", status_code=302)
+
+
+@router.get("/google-ads/oauth-start")
+def google_ads_oauth_start(token: str = Query(...), db: Session = Depends(get_db)):
+    """Owner/manager: sign in with Google so HAIP can upload bookings to Google Ads (a browser redirect)."""
+    decoded = decode_token(token)
+    if not decoded or decoded.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Not signed in")
+    user = db.query(User).filter_by(id=decoded.get("sub"), is_active=True).first()
+    role = getattr(getattr(user, "role", None), "value", getattr(user, "role", None))
+    if user is None or role not in ("owner", "manager"):
+        raise HTTPException(status_code=403, detail="Only an owner or manager can connect Google Ads")
+    try:
+        return RedirectResponse(gads.start(user.tenant_id, user.id), status_code=302)
+    except svc.WebsiteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message)
+    except Exception:  # noqa: BLE001 -- no single-use state, no login
+        raise HTTPException(status_code=503, detail="Login is unavailable right now (state store down)")
+
+
+@router.get("/google-ads/oauth-callback")
+def google_ads_oauth_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None),
+                              db: Session = Depends(get_db)):
+    if error or not code or not state:
+        return _gads_back("error", error or "Login was cancelled.")
+    try:
+        gads.finish(db, code, state)
+    except Exception as exc:  # noqa: BLE001 -- the owner sees plain words, never a stack
+        db.rollback()
+        return _gads_back("error", getattr(exc, "message", "The login could not be finished. Try again."))
+    db.commit()
+    return _gads_back("connected")
 
 
 @router.get("/report")

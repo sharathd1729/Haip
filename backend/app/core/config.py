@@ -132,6 +132,10 @@ class Settings(BaseSettings):
     # enabled (Google must approve API access). Each workspace connects its own Google account. Empty = hidden.
     GOOGLE_BUSINESS_CLIENT_ID: str = ""
     GOOGLE_BUSINESS_CLIENT_SECRET: str = ""
+    # Google Ads booking uploads (website growth #5): a Google Cloud OAuth client with the Data Manager API enabled.
+    # Empty = the Google Business client above is used (one Google Cloud project usually holds both); both empty = hidden.
+    GOOGLE_DATA_MANAGER_CLIENT_ID: str = ""
+    GOOGLE_DATA_MANAGER_CLIENT_SECRET: str = ""
     META_INSTAGRAM_ACCESS_TOKEN: str = ""
     META_INSTAGRAM_PAGE_ID: str = ""
     INSTAGRAM_APP_ID: str = ""
