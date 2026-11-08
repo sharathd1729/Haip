@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { openOAuth } from "@/components/marketing/studio/types";
 import { MessageSquare, Phone, AtSign, CheckCircle2, AlertCircle, Loader2, RefreshCw, ExternalLink, Key, X, Check, Clock, Wifi, WifiOff, Zap, Shield, Copy, Info, ChevronDown, ChevronUp, Pencil } from "@/lib/icons";
 import { Plug, Unplug } from "lucide-react";
+import { GoogleConnections } from "@/components/website/GoogleConnections";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1026,6 +1027,7 @@ function IntegrationCard({
 
 export default function IntegrationsPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
   const [connectModal, setConnectModal] = useState<{ provider: string; name: string; authType?: string; notes?: string } | null>(null);
@@ -1213,6 +1215,9 @@ export default function IntegrationsPage() {
 
       {/* Cards grid */}
       <div className="flex-1 overflow-y-auto p-6">
+        {(activeCategory === "all" || activeCategory === "marketing") && (
+          <div className="mb-4 max-w-3xl"><GoogleConnections canManage={["owner", "manager"].includes(String(session?.user?.role || ""))} hideOnError /></div>
+        )}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {[1, 2, 3, 4].map(i => (

@@ -141,6 +141,7 @@ class Settings(BaseSettings):
     APIFY_TOKEN: str = ""                 # collector fallback + Meta Ad Library
     YOUTUBE_API_KEY: str = ""
     GOOGLE_PLACES_API_KEY: str = ""
+    PAGESPEED_API_KEY: str = ""  # PageSpeed Insights (weekly real-visitor + lab speed of the website); empty = not measured
     GOOGLE_ADS_DEVELOPER_TOKEN: str = ""  # Keyword Planner volumes (with the four below)
     GOOGLE_ADS_CLIENT_ID: str = ""
     GOOGLE_ADS_CLIENT_SECRET: str = ""

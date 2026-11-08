@@ -6,7 +6,8 @@
     first. Integration kind "facebook_page".
   * Google: OAuth with the business.manage scope and offline access (GOOGLE_BUSINESS_CLIENT_ID/SECRET); the refresh
     token is stored encrypted, access tokens are refreshed when they are within 5 minutes of expiry. The location is
-    chosen from the account's list. Integration kind "google_business".
+    chosen from the account's list. Integration kind "google_business". The same scope reads the Business Profile
+    Performance API (google_surfaces_sync); disconnecting deletes those metrics.
 OAuth state is single use (Redis, read-and-delete) and remembers who started the login.
 """
 import json
@@ -83,8 +84,12 @@ def disconnect(db: Session, tenant_id: str, kind: str, actor_id: str) -> bool:
     if integ is None:
         return False
     integ.status, integ.credentials_kms_blob = "disconnected", None
+    payload = {}
+    if kind == GOOGLE_KIND:                     # Business Profile metrics came through this connection: they go with it
+        from app.models.google_surfaces import GbpDailyMetric
+        payload["deleted_metrics"] = db.query(GbpDailyMetric).filter_by(tenant_id=tenant_id).delete(synchronize_session=False)
     append_audit(db, tenant_id=tenant_id, action=f"marketing.{kind}.disconnected", actor_user_id=actor_id,
-                 target_type="integration", target_id=integ.id, payload={})
+                 target_type="integration", target_id=integ.id, payload=payload)
     return True
 
 

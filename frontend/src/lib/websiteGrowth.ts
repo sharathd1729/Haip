@@ -1,5 +1,6 @@
 // Website phases 2-6 (backend endpoints/website_growth.py): tracking, results report, and the launch tools.
 import api from "@/lib/api";
+import type { GoogleSummary, Speed } from "@/lib/websiteGoogle";
 
 const WEB = "/websites";
 
@@ -9,7 +10,7 @@ export type TrackingIn = { pixel_id: string | null; ga4_id: string | null; capi_
   capi_test_code: string | null };
 export type ReportRow = { source: string; visits: number; enquiries: number; bookings: number; enquiry_rate: number | null; value?: number };
 export type Report = { days: number; since: string; total: { visits: number; enquiries: number; bookings: number }; rows: ReportRow[];
-  buttons: { code: string; enquiries: number; bookings: number }[]; money_restricted: boolean };
+  buttons: { code: string; enquiries: number; bookings: number }[]; money_restricted: boolean; google?: GoogleSummary };
 
 export type Promo = { id: string; code: string; kind: "percent" | "flat"; value: number; starts_on: string | null; ends_on: string | null;
   min_nights: number; max_uses: number | null; used_count: number; property_ids: string[]; label: string | null; active: boolean };
@@ -29,6 +30,7 @@ export type LaunchReport = {
   domain?: { host: string; kind: string; status: string; https: boolean }[];
   pages?: { title: string; path: string; sections: string[]; languages: string[] }[]; extra_pages?: string[];
   quality?: { scores: { performance: number; accessibility: number; seo: number }; to_improve: string[] };
+  speed_real?: Speed;
   schema?: Record<string, string[]>;
   tracking?: { meta_pixel: boolean; ga4: boolean; conversions_api: boolean; cookie_banner: boolean; last_event_sent_at: string | null };
   booking?: { mode: string; prices_shown: boolean; razorpay_connected: boolean | null; last_booking_at: string | null;

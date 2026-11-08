@@ -111,6 +111,7 @@ celery_app = Celery(
         "app.workers.tasks.marketing_research_tasks",  # studio plan phase 2: research sources, collector, swipe file
         "app.workers.tasks.marketing_ads",
         "app.workers.tasks.website",
+        "app.workers.tasks.google_surfaces",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
@@ -310,6 +311,10 @@ celery_app.conf.update(
         "website.send_events":                       {"queue": "default"},
         "website.blog_draft":                        {"queue": "default"},
         "website.translate":                         {"queue": "default"},
+        "google_surfaces.pull_all":                  {"queue": "default"},
+        "google_surfaces.pull_tenant":               {"queue": "default"},
+        "google_surfaces.pagespeed_all":             {"queue": "default"},
+        "google_surfaces.pagespeed_tenant":          {"queue": "default"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from
@@ -702,6 +707,15 @@ celery_app.conf.beat_schedule = {
     "website-verify-domains": {
         "task": "website.verify_domains",
         "schedule": crontab(minute=17),
+    },
+    # Google surfaces: Business Profile metrics + Search Console daily (07:10 IST), PageSpeed weekly (Mon 05:40 IST).
+    "google-surfaces-pull-daily": {
+        "task": "google_surfaces.pull_all",
+        "schedule": crontab(minute=10, hour=7),
+    },
+    "google-surfaces-pagespeed-weekly": {
+        "task": "google_surfaces.pagespeed_all",
+        "schedule": crontab(minute=40, hour=5, day_of_week=1),
     },
     # Website Conversions API: Lead / InitiateCheckout / Purchase rows (website_tracking) to Meta.
     "website-send-events": {

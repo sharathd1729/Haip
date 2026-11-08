@@ -10,6 +10,7 @@ import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { webError } from "@/lib/website";
 import { growthApi, type Tracking } from "@/lib/websiteGrowth";
+import { GoogleNumbers } from "./GoogleNumbers";
 import { PromoSheet } from "./PromoSheet";
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
@@ -52,6 +53,7 @@ export function GrowthPanel({ canApprove }: { canApprove: boolean }) {
             {r.buttons.length > 0 && <div><p className="text-sm font-semibold">WhatsApp buttons that started chats</p>
               <ul className="text-sm">{r.buttons.map(b => <li key={b.code}>{b.code}: {b.enquiries} chats, {b.bookings} booked</li>)}</ul></div>}
           </>}
+        {r?.google && <div className="border-t border-[var(--haip-border)] pt-3"><GoogleNumbers g={r.google} /></div>}
       </CardBody>
       {canApprove && <TrackingSheet open={open} onClose={() => setOpen(false)} />}
       {canApprove && <PromoSheet open={promos} onClose={() => setPromos(false)} />}

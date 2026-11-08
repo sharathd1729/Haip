@@ -64,6 +64,7 @@ def dashboard_health(
             "last_sync": row.last_health_at if row.last_health_at else None,
             "message": (
                 (row.config or {}).get("last_error") if (row.config or {}).get("last_error") and row.status == "error"
+                else integration_health.pull_failure(row.config)[1] if integration_health.pull_failure(row.config)[0]
                 else _token_message(row) if health in (integration_health.YELLOW, integration_health.RED)
                 else None
             ),

@@ -390,6 +390,10 @@ the older blocks stay in the payload for other readers.
 | D-30 | (23 Oct 2026) **By check-in month**: guest enquiries grouped by the month of `inquiries.check_in` (string; unreadable = skipped and counted, never guessed); valid = D-28; won / lost = the closed stage they are in NOW (a lead lost in October for a December trip counts in December); lost reasons = confirmed `outcome_reason`, else the older `lost_reason` mapped, never an unconfirmed AI proposal; booked revenue = booked value (D-24: rental + add-ons) of live bookings by CHECK-IN month, `revenue.read` only. Enquiries with no check-in date are one row, "Date not given yet" (created in the last 90 days or since the window's first month). |
 | D-31 | (4 Nov 2026, Shrii health check: Home said 9 follow-ups, My day's Follow-ups chip 72) **Follow-ups are counted as PEOPLE, from one place**: `work_queue_service.build()["followup_people"]`, deduped like `people_waiting` (guest, else the task itself). `all` = My day's Follow-ups chip and list (everyone with an open follow-up task, any lead, including gone-cold ones); `open_lead_due` = Home's "Follow-ups overdue" card (follow-up on an open valid-stage lead, not gone cold). `counts["followup"]` stays task rows for scripts. **OWNER TO CONFIRM**: should Home's card count the same people as My day (all follow-ups), or keep the narrower "active leads, not cold" scope it says on the card? Until answered the two scopes stay, each labelled. |
 | D-32 | (7 Nov 2026, Interlink & Simplicity Audit #3; Ratha executive dashboard read 3 properties and 7.4% SLA) **Occupancy capacity = real vehicles / properties only.** The "Unassigned" holder (`vehicle_pool.is_placeholder_name`) is overflow, never capacity: left out of the executive occupancy denominator and heatmap (Home's caravans block lists it only while it holds a booking). Bookings on it still count as occupied nights for the business, and the percentage is capped at 100. **The executive "SLA" card measures replies by a PERSON** within `SLA_MINUTES["new_lead"][0]` (15 min), AI replies not counted, and is labelled that way (`labels.sla_compliance_pct`); the metric itself is unchanged. **OWNER TO CHOOSE**: (a) keep it human-only under that label (current), or (b) count an autonomous AI reply as on time (would read close to 100% for Ratha and hide whether a person ever followed up). Until answered, (a). |
+| D-33 | (8 Nov 2026, website growth #6/#7) **Google visibility = Business Profile impressions + Search Console impressions**, shown apart and as a sum labelled "appearances": one search can show both the profile and the website, so the sum is not people. Search Console uses the date totals (Google drops rare queries from query rows). |
+| D-34 | (8 Nov 2026) **Google actions = profile website clicks + call clicks + direction requests + messaging clicks + search-result clicks.** Each part is shown; none is counted as an enquiry or a lead (those stay `lead_metrics`). |
+| D-35 | (8 Nov 2026) **Money search position = impression-weighted average position** of the owner's picked searches over Search Console query rows. Rows are capped at 1,000 per day, so a day the search fell outside the cap is unknown (left out), never position 0 or 100. |
+| D-36 | (8 Nov 2026, website growth #10) **Speed = Google's real-visitor verdict** (PageSpeed Insights CrUX p75, last 28 days), phones first; when the page has too few visits the whole site's verdict is used and labelled. The lab score and HAIP's static check (`website_quality`) are other numbers, each shown under its own name, never merged. |
 
 (The open questions numbered D-22 / D-23 in `OWNER_DASHBOARD_AUDIT.md` were renumbered D-25 / D-26 so the ids stay unique.)
 
@@ -438,6 +442,22 @@ received -> contacted -> proposal -> sold and per-owner speeds: section 16). New
 
 Change detection: rates by two-proportion z-test, counts by a Poisson difference, p < 0.05; fewer than 30 cases (10 events)
 on either side = "too few to judge", never called a change. Rupee impact is an estimate (see findings.py), always labelled.
+
+## 18. Google surfaces: visibility, actions, money searches, speed  *(8 Nov 2026)*
+
+Owner: `services/google_metrics.py` (the only definition; the website report's `google` block, `GET /websites/google`
+and the launch report read it). Sources, pulled through official APIs only (`google_surfaces_sync`): Business Profile
+Performance API (`gbp_daily_metrics`), Search Console search analytics (`gsc_daily_totals`, `gsc_search_rows`, rows
+capped at 1,000 per day), PageSpeed Insights (`pagespeed_runs`). Period = workspace (IST) days ending **yesterday**
+(Google reports 2-3 days late; `data_through` says how far each source goes); the previous period is the same length
+before it. No row in a period = `None` ("No data", never 0); a change is shown only against a non-zero previous value.
+
+| Metric | Definition | Evidence |
+|---|---|---|
+| `google.visibility` (Seen on Google) | Business Profile impressions (Search + Maps, mobile + desktop: the 4 `BUSINESS_IMPRESSIONS_*` metrics) and Search Console impressions (date totals, not the capped query rows), each shown, plus their sum (D-33) | T |
+| `google.actions` (Google actions) | Business Profile `WEBSITE_CLICKS` + `CALL_CLICKS` + `BUSINESS_DIRECTION_REQUESTS` + `BUSINESS_CONVERSATIONS` (messaging clicks) + Search Console clicks (D-34) | T |
+| `google.money_query_position` | per owner-picked search (max 10, lower-cased exact match): impression-weighted mean position over the stored query rows in the period; previous period the same way; weekly trend for 8 weeks (D-35) | T |
+| `google.speed` | latest measured week, per page (home + top 3 stay pages by website visits), mobile first: CrUX p75 field verdict FAST / AVERAGE / SLOW (page, else whole site, flagged), LCP / INP / CLS p75; lab Lighthouse performance score shown apart (D-36) | T |
 
 ## 13. Decisions needed (none is assumed)
 
