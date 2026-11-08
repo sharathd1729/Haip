@@ -46,6 +46,7 @@ export const queryPersister = typeof window !== "undefined"
 // queries always load fresh; everything else keeps the instant-paint behaviour above.
 export const NEVER_PERSIST = new Set(["business-overview", "dashboard-overview", "work-queue", "impact-since-haip", "portfolio-calendar",
   "ops-today", "ops-file",     // ops: live trip state; a restored snapshot would show a trip as not yet dispatched
+  "ops-form-c",                // Form C data of a guest from abroad: never saved in the browser
   "chief-home"]);              // AI Executive: live findings; a restored snapshot would show problems already fixed
 
 export function shouldPersistQuery(query: Query): boolean {

@@ -1,12 +1,14 @@
 "use client";
 // Phase 2 parts of the trip file: the guest ID form (private link: copy it, or send it on WhatsApp while the guest's 24-hour
-// window is open), the return-vs-handover photo check, and the automatic messages HAIP sent (or could not send).
+// window is open; also on villa stay files; guests from abroad show their Form C status and the Form C data sheet), the return-vs-handover photo check, and the automatic messages HAIP sent (or could not send).
 import { useState } from "react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
-import type { OpsFileFull } from "@/lib/ops";
+import { useSegment } from "@/lib/segments";
+import { countryName, type GuestFormGuest, type OpsFileFull } from "@/lib/ops";
+import { FormCSheet } from "./FormCSheet";
 
 function errorText(e: unknown): string {
   const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
@@ -18,10 +20,24 @@ const MSG_LABEL: Record<string, string> = {
   deposit_nudge: "Deposit refund reminder",
 };
 
-export function GuestFormCard({ f, canWrite, onSent }: { f: OpsFileFull; canWrite: boolean; onSent: () => void }) {
+const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+function FormCPill({ g }: { g: GuestFormGuest }) {
+  const c = g.form_c;
+  if (c?.submitted_at) return <StatusPill tone="success">Form C filed</StatusPill>;
+  if (c?.due_at) return <StatusPill tone={new Date(c.due_at) < new Date() ? "danger" : "warning"}>Form C by {when(c.due_at)}</StatusPill>;
+  return <StatusPill tone="neutral">Form C at arrival</StatusPill>;
+}
+
+export function GuestFormCard({ f, canWrite, canManage = false, onSent }: {
+  f: OpsFileFull; canWrite: boolean; canManage?: boolean; onSent: () => void;
+}) {
   const { toast } = useToast();
+  const seg = useSegment();
   const [busy, setBusy] = useState<"copy" | "send" | null>(null);
+  const [formC, setFormC] = useState<number | null>(null);
   const g = f.guest_form;
+  const word = g.file_word ?? seg.booking.one;
   const copy = async () => {
     setBusy("copy");
     try {
@@ -38,21 +54,37 @@ export function GuestFormCard({ f, canWrite, onSent }: { f: OpsFileFull; canWrit
     finally { setBusy(null); }
   };
   return (
-    <Card>
+    <Card id="ops-guest-form">
       <CardHeader title="Guest details and ID" tone="plain"
-        description={g.submitted_at ? `Filled ${new Date(g.submitted_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
-          : "The guest fills names, ages and ID on a private link"}
+        description={g.submitted_at ? `Filled ${when(g.submitted_at)}${g.from_abroad ? ` · ${g.from_abroad} from abroad (Form C)` : ""}`
+          : `The guest fills names, ages and ID for this ${word} on a private link`}
         actions={<StatusPill tone={g.submitted_at ? "success" : "warning"}>{g.submitted_at ? "Done" : "Not yet"}</StatusPill>} />
       <CardBody className="flex flex-col gap-2 px-4 pb-4">
+        {!g.submitted_at && g.guest_from_abroad && (
+          <p className="text-[14px] text-[var(--haip-fg-muted)]">This booking says the guest is from abroad: the form also asks for passport and visa, for Form C.</p>
+        )}
         {g.guests.map((x, i) => (
-          <p key={i} className="text-[15px]">{x.name}{x.age !== null ? `, ${x.age}` : ""} <span className="text-[13px] text-[var(--haip-fg-subtle)]">· {x.id}</span></p>
+          <div key={i} className="flex flex-col gap-1 border-t border-[var(--haip-border)] pt-2 first:border-t-0 first:pt-0">
+            <p className="text-[15px]">{x.name}{x.age !== null ? `, ${x.age}` : ""}
+              {x.nationality && x.nationality !== "IN" ? <span className="text-[14px] text-[var(--haip-fg-muted)]"> · {countryName(x.nationality)}</span> : null}
+              <span className="text-[13px] text-[var(--haip-fg-subtle)]"> · {x.id}</span></p>
+            {x.foreign && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[13.5px] text-[var(--haip-fg-muted)]">
+                  {x.foreign.visa_type ? `${x.foreign.visa_type}${x.foreign.visa ? ` ${x.foreign.visa}` : ""}` : "No visa"}
+                </span>
+                <FormCPill g={x} />
+                <button type="button" className="haip-btn-secondary min-h-11 px-3 text-[14px]" onClick={() => setFormC(i + 1)}>Form C data</button>
+              </div>
+            )}
+          </div>
         ))}
         {g.submitted_at && (
           <p className="text-[14px] text-[var(--haip-fg-muted)]">
             Emergency: {g.emergency_name} {g.emergency_phone}{g.food ? ` · Food: ${g.food}` : ""}{g.requests ? ` · Requests: ${g.requests}` : ""}
           </p>
         )}
-        {canWrite && f.state !== "closed" && f.state !== "cancelled" && (
+        {canWrite && f.state !== "closed" && f.state !== "cancelled" && !g.submitted_at && (
           <div className="mt-1 flex flex-wrap gap-2">
             <button type="button" className="haip-btn-secondary min-h-12 flex-1" disabled={!!busy} onClick={copy}>
               {busy === "copy" ? "Copying…" : "Copy link"}</button>
@@ -61,6 +93,9 @@ export function GuestFormCard({ f, canWrite, onSent }: { f: OpsFileFull; canWrit
           </div>
         )}
       </CardBody>
+      {formC !== null && (
+        <FormCSheet fileId={f.id} guest={formC} open onOpenChange={o => { if (!o) setFormC(null); }} manage={canManage} onChanged={onSent} />
+      )}
     </Card>
   );
 }

@@ -206,6 +206,19 @@ def upload_ops_paper(tenant_id: str, paper_id: str, content: bytes, content_type
     return s3_key
 
 
+def upload_ops_guest_doc(tenant_id: str, form_id: str, upload_id: str, content: bytes, content_type: str,
+                         extension: str) -> str:
+    """Store a passport or visa photo a guest uploaded on their private guest form (ops_guest_form.add_photo, type and
+    size already checked by ops_fleet_service.check_file). Private like every object here: read back only through
+    get_presigned_media_url, behind the audited reveal. Deleted with the guest (DPDP) or when the guest replaces it."""
+    safe_form = "".join(c for c in form_id if c.isalnum() or c == "-")[:64] or "form"
+    safe_up = "".join(c for c in upload_id if c.isalnum())[:40] or "doc"
+    s3_key = f"{tenant_id}/ops/guest_forms/{safe_form}/{safe_up}.{extension}"
+    _put(s3_key, content, content_type)
+    log.info("ops_guest_doc_stored", tenant_id=tenant_id, form_id=form_id, bytes=len(content))
+    return s3_key
+
+
 def upload_invoice_pdf(tenant_id: str, invoice_id: str, content: bytes) -> str:
     """Store an issued invoice/receipt PDF, return the key. One object per invoice id: re-rendering the same issued
     document overwrites itself, a reissue is a new invoice id and so a new object."""
