@@ -211,8 +211,11 @@ def on_guest_message(
     conversation_id: str | None,
     body: str | None,
     now: datetime | None = None,
+    message_id: str | None = None,
 ) -> str | None:
-    """The guest's answer to a check sent in the last 24 h: "positive" | "problem", or None when it is not one. Commits."""
+    """The guest's answer to a check sent in the last 24 h: "positive" | "problem", or None when it is not one. Commits.
+    A problem opens the guest's ops ticket through guest_ops_tickets.open_for_chat (the one ticket path: same dedup,
+    "Is it fixed?" close, and the concierge's turn on the same message joins it via source_ref msg:<message_id>)."""
     text = (body or "").strip()
     if not text or not guest_id:
         return None
@@ -247,34 +250,30 @@ def on_guest_message(
     ).rowcount
     if not claimed:  # a second message raced this one: only the first answer counts
         return None
-    sends: list[str] = []
     if answer == "positive":
         money.event(db, f, "Mid-stay check: the guest says all is good.", auto=True)
+        db.commit()
     else:
-        unit = db.query(Property.name).filter_by(id=stay.property_id, tenant_id=tenant_id).scalar() or "Stay"
-        _, sends = esc.create_item(
-            db,
-            tenant_id,
-            title=f"{unit}: guest raised a problem mid-stay"[:200],
-            severity="high",
-            duty="ops_manager",
-            kind="incident",
-            category="complaint",
-            source="guest_chat",
-            summary=f"Reply to the mid-stay check: {text[:900]}",
-            property_id=stay.property_id,
-            stay_id=stay.id,
-            guest_id=guest_id,
-            conversation_id=conversation_id,
-            now=now,
-        )
         money.event(
             db, f, "Mid-stay check: the guest reported a problem. An ops item was raised for the manager.", auto=True
         )
-    db.commit()
-    if sends:
-        from app.workers.tasks.ops_escalation import queue_delivery
+        db.commit()  # the answer is recorded even if the ticket fails below (open_for_chat logs and rolls back)
+        from types import SimpleNamespace
 
-        queue_delivery(tenant_id, sends)
+        from app.models.tenant import Tenant
+        from app.services import guest_ops_tickets
+
+        guest_ops_tickets.open_for_chat(
+            db,
+            db.get(Tenant, tenant_id),
+            SimpleNamespace(id=conversation_id),  # open_for_chat only stores the thread id on the ticket
+            guest_id,
+            message_id=message_id or f"midstay:{row.id}",
+            burst_text=f"Reply to the mid-stay check: {text[:900]}",
+            details={"stay_issue": "complaint"},
+            escalation=None,
+            stay=stay,
+            now=now,
+        )
     log.info("ops_midstay_check_answered", tenant_id=tenant_id, file_id=f.id, answer=answer)
     return answer

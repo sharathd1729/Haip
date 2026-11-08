@@ -43,6 +43,14 @@ REASONS: dict[str, str] = {
     "collab_request": "Collaboration / barter request: a person says yes or no",
 }
 
+# What ask-a-manager keeps when the guest is mid-stay and their problem already went to the on-duty person as an ops
+# ticket (guest_ops_tickets): sales and money questions only. A complaint / safety / "get me a person" turn is the ticket.
+SALES_REASONS = frozenset({
+    "quote_refused", "no_rate_for_dates", "b2b_only", "unpublished_data", "policy_unconfirmed", "price_unverified",
+    "price_handoff", "discount_request", "custom_route", "b2b_partner", "over_capacity", "collab_request", "refund",
+    "cancellation", "prompt_injection",
+})
+
 _ESCALATION_CATEGORY = {
     "refund_billing": "refund", "cancellation": "cancellation", "complaint": "complaint", "intent": "complaint",
     "review_threat": "complaint", "legal": "legal", "safety_medical": "safety", "human_request": "wants_human",

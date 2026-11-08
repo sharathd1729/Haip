@@ -572,17 +572,28 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         except Exception as exc:
             log.error("opt_out_detection_failed", error=str(exc))
 
+    # ── Guest ops ticket waiting for "Is it fixed?": YES closes it, NO reopens + escalates (guest_ops_tickets). The
+    # concierge still answers the message as usual. A message that answered a ticket is not also read as the mid-stay
+    # check's answer below (a "no, still broken" would open a second ops item).
+    ticket_answer = None
+    if body and body.strip():
+        from app.services import guest_ops_tickets
+        ticket_answer = guest_ops_tickets.on_guest_message(db, tenant.id, guest_id, body)
+
     # ── Ops: the guest's answer to the day-2 mid-stay check (ops_midstay_check) ──
     # "1" / "all good" = noted on the stay file, no AI reply; anything else = an ops item, and the AI still answers.
-    try:
-        from app.services import ops_midstay_check
-        if ops_midstay_check.on_guest_message(db, tenant.id, guest.id, conversation.id, body) == "positive":
-            message.automation_outcome = "midstay_check_positive"
-            db.commit()
-            return
-    except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
-        db.rollback()
-        log.warning("ops_midstay_check_reply_failed", tenant_id=tenant.id, error=str(exc)[:200])
+    if ticket_answer is None:
+        try:
+            from app.services import ops_midstay_check
+            if ops_midstay_check.on_guest_message(
+                db, tenant.id, guest.id, conversation.id, body, message_id=message.id
+            ) == "positive":
+                message.automation_outcome = "midstay_check_positive"
+                db.commit()
+                return
+        except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
+            db.rollback()
+            log.warning("ops_midstay_check_reply_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
     # ── Lead workflows: "Call me back" on one of our missed-call / no-answer WhatsApps ──
     # A callback task + a short "we'll call you" reply (lead_playbooks.on_callback_tap) instead of an AI answer.

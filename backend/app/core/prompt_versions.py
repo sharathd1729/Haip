@@ -139,7 +139,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v2 (2026-10-13): reads the newest message in the context of the conversation, extracts only what was stated, and also returns
     # destination/occasion/budget, each distinct question, sentiment, urgency and a "booking_status" intent.
     # v3 (2026-10-24): history lines name their author; only [GUEST] lines are the guest's words (never a campaign broadcast).
-    "concierge_intent": "concierge-intent-v3",
+    # v4 (2026-11-08): adds "stay_issue" (maintenance/housekeeping/food/safety/complaint during a live stay -> ops ticket).
+    "concierge_intent": "concierge-intent-v4",
     # HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix
     # rewrite of an existing pending AI draft.
     "concierge_rewrite": "concierge-rewrite-v1",

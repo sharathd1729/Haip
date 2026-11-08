@@ -8,6 +8,7 @@ Chains          GET /ops/escalation-chains · PUT /ops/escalation-chains · DELE
 Settings        GET/PUT /ops/settings · POST /ops/templates/install (creates the template pack as drafts to submit to Meta)
 Items           GET /ops/items · POST /ops/items · GET /ops/items/{id}
                 POST /ops/items/{id}/acknowledge | /resolve | /cancel
+                (resolving a guest ticket = "confirming" + "Is it fixed?" to the guest, guest_ops_tickets)
 
 Alerts are never sent inside a request: the service queues ops_alert_sends and this module hands their ids to Celery after commit.
 """
@@ -576,6 +577,11 @@ def resolve_item(
         payload={"note": body.note},
     )
     db.commit()
+    if item.status == "confirming":  # a guest ticket: "Is it fixed?" to the guest; closed at once when it cannot be asked
+        from app.services import guest_ops_tickets
+
+        guest_ops_tickets.ask_confirmation(db, item)
+        db.refresh(item)
     return item
 
 

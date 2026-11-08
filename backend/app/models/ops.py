@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 
 from app.core.database import Base
@@ -140,7 +141,10 @@ class OpsItem(Base, TimestampMixin, TenantMixin):
     severity = Column(String(10), nullable=False)
     duty = Column(String(30), nullable=False)
     status = Column(String(15), nullable=False, default="open")
-    source = Column(String(20), nullable=False, default="staff")  # staff | guest_chat | system | manager
+    source = Column(String(20), nullable=False, default="staff")  # staff | guest_chat | service_request | system | manager
+    # Idempotency key of what opened it ("msg:<message id>" for a guest's chat, "ssr:<service request id>"): unique per
+    # tenant when set (migration 191), so the same message or request never opens a second ticket.
+    source_ref = Column(String(120), nullable=True)
 
     property_id = Column(String, ForeignKey("properties.id"), nullable=True)
     stay_id = Column(String, ForeignKey("stays.id"), nullable=True)
@@ -167,7 +171,17 @@ class OpsItem(Base, TimestampMixin, TenantMixin):
     resolution_note = Column(Text, nullable=True)
     created_by = Column(String, nullable=True)
 
-    __table_args__ = (Index("ix_ops_items_open", "tenant_id", "status"),)
+    __table_args__ = (
+        Index("ix_ops_items_open", "tenant_id", "status"),
+        Index(
+            "uq_ops_items_source_ref",
+            "tenant_id",
+            "source_ref",
+            unique=True,
+            postgresql_where=text("source_ref IS NOT NULL"),
+            sqlite_where=text("source_ref IS NOT NULL"),
+        ),
+    )
 
 
 class OpsEscalationEvent(Base, TenantMixin):

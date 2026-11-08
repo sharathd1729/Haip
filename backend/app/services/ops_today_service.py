@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.tenant_tz import get_tz
 from app.models.ops import OpsItem
+from app.services.ops_escalation_service import _aware as esc_aware
 from app.models.ops_files import OpsFile
 from app.models.property import Property, Stay
 from app.models.tenant import Tenant
@@ -24,6 +25,8 @@ from app.services import ops_money as money
 from app.services import ops_pack_catalog as packs
 from app.services import ops_trip_service as trips
 from app.services.vehicle_pool import is_placeholder_name
+
+HELD_FOR_LATER = timedelta(hours=24)  # an ops item held longer than this (a later day) is not a need yet
 
 LIVE = trips.BEFORE_ROAD + ("on_trip", "returned")
 _RED_SEVERITY = ("critical", "high")
@@ -194,6 +197,8 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
         .order_by(OpsItem.created_at.desc())
         .limit(50)
     ):
+        if it.dispatched_step is None and it.dispatch_after and esc_aware(it.dispatch_after) > now + HELD_FOR_LATER:
+            continue  # held for a later day (a service request due next week): shows from the day before
         f = by_stay.get(it.stay_id) if it.stay_id else None
         if it.category == "deposit" and f is not None:
             continue  # the deposit reminder sent to the manager: the trip's own "Refund deposit" need already shows it

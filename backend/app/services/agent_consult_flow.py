@@ -74,8 +74,9 @@ def history(db: Session, tenant_id: str, conversation_id: str, now: Optional[dat
 def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, *, message_id: str, ai_mode: str, force: bool,
                burst_text: str, intent: str, details: dict, grounded_facts: list, reply_text: str, model_confidence: float,
                threshold: float, escalation: Optional[dict], price_mode: str, price_leak, ungrounded: Optional[str],
-               model_failed: bool, sales_turn=None, rate_limited: bool = False) -> ConsultTurn:
-    """Evaluate the triggers for this turn. Never raises: a failure here leaves the turn as it was (logged)."""
+               model_failed: bool, sales_turn=None, rate_limited: bool = False, in_stay: bool = False) -> ConsultTurn:
+    """Evaluate the triggers for this turn. Never raises: a failure here leaves the turn as it was (logged).
+    ``in_stay`` = this turn opened / joined an ops ticket for the guest's live stay: only sales reasons stay a consult."""
     turn = ConsultTurn(message_id=message_id, rate_limited=rate_limited, question=(burst_text or "").strip()[:2000])
     try:
         if force or ai_mode != "autonomous" or conversation.is_personal_bridge or not settings_svc.get(tenant)["enabled"]:
@@ -105,6 +106,11 @@ def check_turn(db: Session, tenant, conversation: Conversation, guest, inquiry, 
         # Who may decide what (agent_policy): the owner's mode per action class keeps, drops or adds a reason.
         from app.services import agent_policy
         reasons, policy_hold, notes = agent_policy.apply(tenant, intent, reply_text, verdict.reasons, price_mode=price_mode)
+        if in_stay:
+            dropped = [r for r in reasons if r not in rules.SALES_REASONS]
+            reasons = [r for r in reasons if r in rules.SALES_REASONS]
+            if dropped:
+                verdict.evidence["ops_ticket"] = dropped
         if notes:
             verdict.evidence["policy"] = notes
         if reasons:
