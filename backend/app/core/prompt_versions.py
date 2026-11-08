@@ -144,9 +144,6 @@ PROMPT_VERSIONS: dict[str, str] = {
     # HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix
     # rewrite of an existing pending AI draft.
     "concierge_rewrite": "concierge-rewrite-v1",
-    # Today (Worklist) AI Daily Briefing: cross-worklist pattern summary.
-    # v2 (2026-10-18): adds "actions": up to 3 next best actions, each with lead, owner, channel and deadline.
-    "daily_briefing": "daily-briefing-v2",
     # Lead autopilot AI classifier (lead_autopilot_ai.py): stage decision + lost reason + confidence + evidence refs.
     # v2 (2026-10-24): message lines name their author (message_author) instead of [inbound]/[outbound]; only [guest] lines are
     # the guest's evidence, and silence after a campaign broadcast or an automated message is not a decline.

@@ -124,8 +124,6 @@ celery_app = Celery(
         "app.workers.tasks.invalidate_cache",
         # Module activation / deactivation
         "app.workers.tasks.module_activation",
-        # Today (Worklist) AI Daily Briefing
-        "app.workers.tasks.daily_briefing",
         # Hourly safety net: create any Instagram inquiry the gate fix
         # (commit b72565e) should have created but somehow didn't
         "app.workers.tasks.backfill_missing_inquiries",
@@ -359,7 +357,6 @@ celery_app.conf.update(
         "gps.tick_all":                                  {"queue": "default"},
         "gps.tick_tenant":                               {"queue": "default"},
         "gps.purge_positions":                           {"queue": "default"},
-        "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
         "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
         "lead_autopilot.sweep_all_tenants":           {"queue": "ai_scoring"},
@@ -784,14 +781,6 @@ celery_app.conf.beat_schedule = {
     # Phase 5: Weekly digest — every Monday 08:00 IST
     # Phase 5: Monthly report — 1st of each month 07:00 IST
     # Phase 6: Alert monitoring — every hour
-    # Today (Worklist) AI Daily Briefing — every 30 min. Offset from
-    # automation-timers-30min/sync-wa-templates-30min (same
-    # spread-load-across-the-beat-cycle reasoning as sync-wa-templates-30min).
-    "daily-briefing-30min": {
-        "task": "tasks.daily_briefing.generate",
-        "schedule": crontab(minute="12,42"),
-        "kwargs": {"tenant_id": "__all__"},
-    },
     # Metrics Engine / Goal evaluator / Adaptive dashboard widgets --
     # DEACTIVATED 2026-08-08, dashboard/analytics/intelligence hub being
     # rebuilt from scratch. Task code + underlying tables untouched;

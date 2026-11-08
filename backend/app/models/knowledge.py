@@ -62,7 +62,8 @@ class KnowledgeEntry(Base, TimestampMixin, TenantMixin):
     embedded_at = Column(DateTime(timezone=True), nullable=True)
     # Guards against re-embedding unchanged content on every save (embeddings
     # cost money and rate-limit); set to a hash of question+content at embed
-    # time and compared before re-queueing.
+    # time and compared before re-queueing. Also set when alt_phrasings are generated (embed_knowledge._ensure_phrasings),
+    # so it is the text the stored phrasings/vectors were made from; needs_reembed() still checks embedding_status.
     content_hash = Column(String(64), nullable=True)
     # Consecutive failed indexing attempts (reset on success). The periodic sweep backs off by this number and stops
     # retrying on its own after a few; a person can still force a retry from the settings page.

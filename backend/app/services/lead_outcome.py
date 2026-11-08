@@ -55,6 +55,8 @@ AUTOPILOT_LOST = {"dates": "dates_unavailable", "price": "price", "no_response":
                   "booked_elsewhere": "chose_alternative", "not_suitable": "invalid_lead", "other": "other"}
 PENDING_FOR = timedelta(minutes=3)
 FRESH_FOR = timedelta(hours=6)
+# The nightly sweep stops retrying a lead after this many failed proposals in a row (each one is a paid LLM call).
+MAX_FAILURES = 3
 _MAX_MESSAGES = 60
 _CHAR_BUDGET = 9000
 
@@ -284,6 +286,8 @@ def propose(db: Session, tenant_id: str, inquiry_id: str, kind: str, *, complete
         return None
     now = datetime.now(timezone.utc).isoformat()
     base = {"kind": kind, "at": now, "prompt_version": get_version(PROMPT_KEY)}
+    prev = inquiry.outcome_proposal if isinstance(inquiry.outcome_proposal, dict) else {}
+    failures = (prev.get("failures") or 0) + 1 if prev.get("kind") == kind and prev.get("status") == "failed" else 1
     context, index = build_evidence(db, tenant_id, inquiry)
     if not index:
         inquiry.outcome_proposal = {**base, "status": "no_evidence", "reason": None, "confidence": None, "quotes": []}
@@ -307,13 +311,15 @@ def propose(db: Session, tenant_id: str, inquiry_id: str, kind: str, *, complete
                 loop.close()
     except Exception as exc:  # noqa: BLE001 -- logged; the dialog shows "no proposal", a person still picks
         log.warning("lead_outcome_ai_failed", tenant_id=tenant_id, inquiry_id=inquiry_id, error=str(exc)[:300])
-        inquiry.outcome_proposal = {**base, "status": "failed", "reason": None, "confidence": None, "quotes": []}
+        inquiry.outcome_proposal = {**base, "status": "failed", "reason": None, "confidence": None, "quotes": [],
+                                    "failures": failures}
         flag_modified(inquiry, "outcome_proposal")
         return inquiry.outcome_proposal
     data = parse(result.get("content") or "", kind)
     if data is None:
         log.warning("lead_outcome_ai_unparseable", tenant_id=tenant_id, inquiry_id=inquiry_id)
-        inquiry.outcome_proposal = {**base, "status": "failed", "reason": None, "confidence": None, "quotes": []}
+        inquiry.outcome_proposal = {**base, "status": "failed", "reason": None, "confidence": None, "quotes": [],
+                                    "failures": failures}
     else:
         quotes = valid_quotes(data.get("quotes"), index)
         inquiry.outcome_proposal = {**base, "status": "ready", "reason": data["reason"], "label": CATALOGUE[kind][data["reason"]],
@@ -326,7 +332,8 @@ def propose(db: Session, tenant_id: str, inquiry_id: str, kind: str, *, complete
 
 
 def unconfirmed_closed(db: Session, tenant_id: str, days: int = 60, limit: int = 40) -> list:
-    """Leads in a closed won / lost stage with no reason recorded and no proposal yet (or a stale / failed one)."""
+    """Leads in a closed won / lost stage with no reason recorded and no proposal yet (or a stale one, or a failed one
+    with fewer than MAX_FAILURES failures in a row; opening the dialog still asks again)."""
     from app.models.inquiry import Inquiry
     from app.models.pipeline_stage import PipelineStage
     since = datetime.now(timezone.utc) - timedelta(days=days)
@@ -340,6 +347,8 @@ def unconfirmed_closed(db: Session, tenant_id: str, days: int = 60, limit: int =
         p = inq.outcome_proposal if isinstance(inq.outcome_proposal, dict) else {}
         kind = "won" if stage.is_closed_won else "lost"
         if p.get("kind") == kind and p.get("status") in ("ready", "no_evidence", "pending"):
+            continue
+        if p.get("kind") == kind and p.get("status") == "failed" and (p.get("failures") or 1) >= MAX_FAILURES:
             continue
         out.append((inq, kind))
         if len(out) >= limit:

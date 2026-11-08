@@ -5,7 +5,7 @@ Base URL: https://integrate.api.nvidia.com/v1
 One NVIDIA_API_KEY covers all models: Nemotron, Llama, Mistral, DeepSeek, etc.
 
 Thinking mode: nemotron-3-ultra-550b-a55b supports extended reasoning.
-Pass thinking=True to enable it (used for deep_reason and ask_haip_rca tasks).
+Pass thinking=True to enable it (used for deep_reason).
 """
 
 from __future__ import annotations

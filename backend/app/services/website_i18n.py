@@ -141,11 +141,15 @@ def run(db: Session, job: SiteAiJob, site: Site) -> SiteAiJob:
     system = SYSTEM.format(
         language=LANGUAGES[lang] + (" (Hindi)" if lang == "hi" else ""), script=SCRIPTS.get(lang, "")
     )
-    loc: dict = {}
-    skipped: list[str] = []
+    # Pages finished by an earlier attempt of this job (the task retries when the AI service is busy) are kept, so a
+    # retry pays only for the pages still missing.
+    partial = (job.result or {}).get("partial") or {}
+    loc: dict = copy.deepcopy(partial.get("loc") or {})
+    skipped: list[str] = list(partial.get("skipped") or [])
+    done: list[str] = list(partial.get("pages") or [])
     for n, page in enumerate(head.doc["pages"]):
         wanted = items_for(head.doc, page, first=n == 0)
-        if not wanted:
+        if not wanted or page["slug"] in done:
             continue
         data, raw, provider = _call(
             TASK, site.tenant_id, system, "INPUT: " + json.dumps(wanted, ensure_ascii=False), TOOL
@@ -155,6 +159,9 @@ def run(db: Session, job: SiteAiJob, site: Site) -> SiteAiJob:
         )
         job.model = raw.get("model") or job.model
         skipped += merge(loc, wanted, TranslateOut.model_validate(data))
+        done.append(page["slug"])
+        job.result = {"partial": {"loc": copy.deepcopy(loc), "skipped": list(skipped), "pages": list(done)}}
+        db.commit()     # survives the task's rollback before a retry
     doc = copy.deepcopy(head.doc)
     doc.setdefault("i18n", {})[lang] = loc
     v, problems = wspec.create_draft(

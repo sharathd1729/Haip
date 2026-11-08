@@ -289,4 +289,4 @@ def request_review(item_id: str, user: User = Depends(get_current_user), db: Ses
         item = svc.get_item(db, user.tenant_id, item_id)
     except svc.MarketingError as exc:
         raise _err(exc)
-    return review.as_dict(review.request_ai(db, _tenant(db, user), item))
+    return review.as_dict(review.request_ai(db, _tenant(db, user), item, force=True))   # "Ask the editor again"

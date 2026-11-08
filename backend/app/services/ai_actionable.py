@@ -1,4 +1,4 @@
-"""The actionable block every AI read of a lead returns (call wrap-up v5, lead summary v8, daily briefing v2).
+"""The actionable block every AI read of a lead returns (call wrap-up v5, lead summary v8).
 
 Owner ask (Ratha, Oct 2026): "the AI analysis is not actionable enough". Each analysis now ends in the same shape:
 

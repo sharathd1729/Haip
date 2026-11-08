@@ -30,6 +30,16 @@ def _make_tenant(db):
     db.add(t); db.commit(); return t
 
 
+def _add_call(db, tenant_id, agent_id):
+    db.add(Call(
+        id=str(uuid.uuid4()), tenant_id=tenant_id, agent_id=agent_id,
+        ivr_provider="vobiz", ivr_call_id=str(uuid.uuid4()),
+        direction="outbound", from_number="+919000000001", to_number="+919000000002",
+        created_at=datetime(2026, 8, 24, 10, 0, tzinfo=timezone.utc),
+    ))
+    db.commit()
+
+
 def _make_user(db, tenant_id, role=UserRole.CONCIERGE, name="Agent"):
     u = User(
         id=str(uuid.uuid4()), tenant_id=tenant_id, name=name,
@@ -44,6 +54,7 @@ class TestAgentBreakdown:
         tenant = _make_tenant(db)
         _make_user(db, tenant.id, role=UserRole.OWNER, name="Owner")
         agent = _make_user(db, tenant.id, name="Agent")
+        _add_call(db, tenant.id, agent.id)
         monkeypatch.setattr(
             "app.services.agent_analytics_service.generate_agent_narrative",
             lambda *a, **k: "Handled a steady day of leads.",
@@ -80,8 +91,8 @@ class TestAgentBreakdown:
 
     def test_one_agent_failing_does_not_break_the_rest(self, db, monkeypatch):
         tenant = _make_tenant(db)
-        _make_user(db, tenant.id, name="Agent1")
-        _make_user(db, tenant.id, name="Agent2")
+        for name in ("Agent1", "Agent2"):
+            _add_call(db, tenant.id, _make_user(db, tenant.id, name=name).id)
 
         calls = {"n": 0}
         def _flaky_narrative(*a, **k):
@@ -94,6 +105,15 @@ class TestAgentBreakdown:
         breakdown = daily_report_service.get_agent_breakdown(db, tenant.id, "2026-08-24")
 
         assert len(breakdown) == 1  # the failing agent is skipped, not the whole report
+
+
+    def test_a_quiet_day_makes_no_llm_call(self, db, monkeypatch):
+        tenant = _make_tenant(db)
+        _make_user(db, tenant.id, name="Idle")
+        with patch("app.adapters.llm.get_llm") as get_llm:
+            breakdown = daily_report_service.get_agent_breakdown(db, tenant.id, "2026-08-24")
+        assert get_llm.call_count == 0
+        assert len(breakdown) == 1 and breakdown[0]["narrative"] == "" and breakdown[0]["leads_summary"] is None
 
 
 class TestRenderWithByAgent:

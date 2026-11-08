@@ -1,5 +1,5 @@
-"""Actionable AI output (services/ai_actionable.py) in the three analyses: call wrap-up v5 (calls.ai_insights), lead
-summary v8 (inquiries.ai_analysis) and daily briefing v2. Mocked LLM JSON shaped like real Ratha answers, including
+"""Actionable AI output (services/ai_actionable.py) in the two analyses: call wrap-up v5 (calls.ai_insights), lead
+summary v8 (inquiries.ai_analysis). Mocked LLM JSON shaped like real Ratha answers, including
 malformed output, which must degrade to empty fields -- never a crash, never an invented rupee figure."""
 import json
 import uuid
@@ -11,7 +11,6 @@ from app.core.prompt_versions import get_version
 from app.models.call import Call, CallDirection
 from app.models.tenant import Tenant
 from app.services import ai_actionable as aa
-from app.services.daily_briefing_service import _parse_response
 from app.workers.tasks import generate_ai_summary as gas
 from app.workers.tasks import wrap_up as wrap_up_module
 
@@ -129,18 +128,3 @@ class TestLeadSummaryV8:
         assert '"next_best_action"' in gas.SYSTEM_PROMPT and "__ACTIONABLE__" not in gas.SYSTEM_PROMPT
         assert get_version("leads360_summary") == "leads360-summary-v10"
         assert get_version("call_wrap_up") == "call-wrap-up-v5" and get_version("call_judge") == "call-judge-v3"
-
-
-class TestDailyBriefingV2:
-    def test_actions_are_parsed(self):
-        out = _parse_response(json.dumps({"narrative": "3 guests waiting since morning.", "flags": [],
-                                          "actions": [{"lead": "Priya", "action": "Reply on the Nandi Hills route",
-                                                       "owner": "team", "channel": "whatsapp", "deadline": "within 1 hour"},
-                                                      {"lead": "", "action": "x"}, "junk"]}))
-        assert out["actions"] == [{"lead": "Priya", "action": "Reply on the Nandi Hills route", "owner": "team",
-                                   "channel": "whatsapp", "deadline": "within 1 hour", "why": None}]
-        assert get_version("daily_briefing") == "daily-briefing-v2"
-
-    def test_v1_shaped_answer_still_parses(self):
-        out = _parse_response(json.dumps({"narrative": "All quiet.", "flags": [{"type": "pattern", "text": "x"}]}))
-        assert out["narrative"] == "All quiet." and out["actions"] == []
