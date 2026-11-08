@@ -46,6 +46,7 @@ def describe(model: VisionModel, jpeg: bytes, prompt: str, *, client: httpx.Clie
         raise VisionError(f"Gemini {resp.status_code}: {resp.text[:300]}",
                           transient=resp.status_code == 429 or resp.status_code >= 500)
     data = resp.json()
+    _meter(model, data, mime_type, started)   # billed even when the answer below is refused or unreadable
     if (data.get("promptFeedback") or {}).get("blockReason"):
         raise VisionError("Gemini refused to look at this photo.", transient=False)
     parts = (((data.get("candidates") or [{}])[0].get("content") or {}).get("parts")) or []
@@ -64,3 +65,15 @@ def describe(model: VisionModel, jpeg: bytes, prompt: str, *, client: httpx.Clie
     return answer, {"provider": "gemini", "model": model.key, "secs": secs, "input_tokens": tokens_in,
                     "output_tokens": tokens_out,
                     "est_cost_usd": round((tokens_in * model.price_in + tokens_out * model.price_out) / 1_000_000, 6)}
+
+
+def _meter(model: VisionModel, data: dict, mime_type: str, started: float) -> None:
+    """One usage_events row (kind vision_call); tenant from the current llm_scope (the Celery task's)."""
+    from app.adapters.llm.gemini import cost_usd
+    from app.adapters.llm.metered import record
+    usage = data.get("usageMetadata") or {}
+    tokens_in = usage.get("promptTokenCount") or 0
+    tokens_out = (usage.get("candidatesTokenCount") or 0) + (usage.get("thoughtsTokenCount") or 0)
+    record("vision_call", task="vision_video" if mime_type.startswith("video/") else "vision_photo", provider="gemini",
+           model=model.path, input_units=tokens_in, output_units=tokens_out,
+           cost_usd=cost_usd(model.path, tokens_in, tokens_out), latency_ms=int((time.monotonic() - started) * 1000))

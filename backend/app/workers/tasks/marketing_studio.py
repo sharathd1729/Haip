@@ -6,6 +6,7 @@ first attempt and never retried. One transaction per tenant (audit chain rule).
 """
 import structlog
 from celery import shared_task
+from app.adapters.llm.scope import scoped_task
 
 from app.core.database import SessionLocal
 
@@ -109,6 +110,7 @@ def review_content(self, tenant_id: str, item_id: str):
 
 
 @shared_task(name="marketing_studio.tag_photo", bind=True, max_retries=MAX_RETRIES)
+@scoped_task("marketing_studio", ref_type="media_asset", ref_arg="asset_id")
 def tag_photo(self, tenant_id: str, asset_id: str):
     """Vision tags for one library photo (agency M2). A permanent failure leaves the photo untagged and usable."""
     from app.adapters.vision import VisionError

@@ -29,6 +29,7 @@ real, re-measured score distribution (different from e5-v5's).
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Literal, Sequence
 
 import structlog
@@ -99,6 +100,7 @@ async def embed_texts(texts: Sequence[str], input_type: InputType) -> list[list[
     cleaned = [(t or "").strip()[:_MAX_CHARS] or " " for t in texts]
 
     out: list[list[float]] = []
+    started, tokens = time.monotonic(), 0
     for start in range(0, len(cleaned), _MAX_BATCH):
         batch = cleaned[start:start + _MAX_BATCH]
         try:
@@ -109,7 +111,9 @@ async def embed_texts(texts: Sequence[str], input_type: InputType) -> list[list[
             )
         except Exception as exc:
             log.error("embed_batch_failed", error=str(exc), batch_size=len(batch), input_type=input_type)
+            _meter(input_type, tokens, started, exc)
             raise EmbeddingError(f"Embedding request failed: {exc}") from exc
+        tokens += int(getattr(getattr(resp, "usage", None), "prompt_tokens", 0) or 0)
 
         # The API documents order preservation, but a silent reorder would
         # attach every vector to the wrong entry -- a corruption that is
@@ -124,7 +128,16 @@ async def embed_texts(texts: Sequence[str], input_type: InputType) -> list[list[
                 )
             out.append(vec)
 
+    _meter(input_type, tokens, started, None)
     return out
+
+
+def _meter(input_type: str, tokens: int, started: float, exc: Exception | None) -> None:
+    """One usage_events row (kind embedding_call) per embed_texts() call; tenant from the current llm_scope."""
+    from app.adapters.llm.metered import record
+    record("embedding_call", task=f"embed_{input_type}", provider="nvidia", model=EMBED_MODEL, input_units=tokens,
+           cost_usd=0.0, latency_ms=int((time.monotonic() - started) * 1000), ok=exc is None,
+           error_class=type(exc).__name__ if exc else None)
 
 
 async def embed_one(text: str, input_type: InputType) -> list[float]:

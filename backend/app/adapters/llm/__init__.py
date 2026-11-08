@@ -244,15 +244,22 @@ def _unmetered_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     adapter = _routed_llm(task, tenant_id)
     if settings.LLM_FORCE_PROVIDER.strip().lower() != "claude" or not settings.ANTHROPIC_API_KEY:
         return adapter
-    from app.adapters.llm.anthropic_claude import MODEL_HAIKU, MODEL_SONNET, ClaudeAdapter
+    from app.adapters.llm.anthropic_claude import ClaudeAdapter
     from app.adapters.llm.fallback import FallbackAdapter
-    timeout = _CLAUDE_TIMEOUTS.get(task) or _GEMINI_FALLBACK_TASKS.get(task) or 60
-    claude = ClaudeAdapter(default_model=MODEL_HAIKU if task in _CLAUDE_FAST_TASKS else MODEL_SONNET,
-                           effort="low" if task in _CLAUDE_LOW_EFFORT else "medium", timeout=timeout,
+    model, effort, timeout = claude_route(task)
+    claude = ClaudeAdapter(default_model=model, effort=effort, timeout=timeout,
                            cache_system=task in _CLAUDE_CACHE_SYSTEM_TASKS)
     claude.provider = "claude"
     # One Claude attempt (paid): a failure goes straight to the normal route.
     return FallbackAdapter(primary=claude, secondary=adapter, task=task, primary_timeout=timeout, primary_attempts=1)
+
+
+def claude_route(task: str) -> tuple[str, str, float]:
+    """(model, effort, timeout) for `task` under LLM_FORCE_PROVIDER=claude; also used by the batch path (batch.py)."""
+    from app.adapters.llm.anthropic_claude import MODEL_HAIKU, MODEL_SONNET
+    timeout = _CLAUDE_TIMEOUTS.get(task) or _GEMINI_FALLBACK_TASKS.get(task) or 60
+    return (MODEL_HAIKU if task in _CLAUDE_FAST_TASKS else MODEL_SONNET,
+            "low" if task in _CLAUDE_LOW_EFFORT else "medium", timeout)
 
 
 def _routed_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:

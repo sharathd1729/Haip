@@ -9,6 +9,7 @@ import asyncio
 
 import structlog
 from celery import shared_task
+from app.adapters.llm.scope import scoped_task
 
 from app.core.database import SessionLocal, set_tenant_context
 
@@ -28,6 +29,7 @@ def _fetch(token: str, media_id: str) -> tuple[bytes, str]:
 
 
 @shared_task(name="ops.process_staff_photo", bind=True, max_retries=MAX_RETRIES)
+@scoped_task("ops")
 def process_staff_photo(self, tenant_id: str, staff_id: str, media_id: str, caption: str, message_id: str):
     from app.adapters.vision import VisionError, VisionModelBlocked
     from app.core.cache import get_cached, set_cached

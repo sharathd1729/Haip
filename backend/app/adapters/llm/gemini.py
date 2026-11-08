@@ -46,6 +46,12 @@ PRICES = {
 }
 
 
+def _note_usage(rec: dict, data: dict) -> None:
+    """Tokens of one request into its meter attempt record (adapters/llm/metered.py), so retries are counted too."""
+    usage = data.get("usageMetadata") or {}
+    rec.update(input_tokens=usage.get("promptTokenCount", 0) or 0, output_tokens=_billed_output(usage))
+
+
 def cost_usd(model: Optional[str], input_tokens: int, output_tokens: int, today: Optional[date] = None) -> Optional[float]:
     today = today or datetime.now(timezone.utc).date()
     for until, price_in, price_out in PRICES.get(model or "", []):
@@ -272,6 +278,8 @@ class GeminiAdapter(LLMAdapter):
                 }
             }
 
+        from app.adapters.llm.metered import attempt
+        rec = attempt("gemini", gemini_model)
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(url, json=payload, headers=_auth_headers())
             if resp.status_code != 200:
@@ -281,6 +289,7 @@ class GeminiAdapter(LLMAdapter):
                           tools=[t.get("name") for t in tools or []])
                 resp.raise_for_status()
             data = resp.json()
+        _note_usage(rec, data)
 
         candidates = data.get("candidates", [])
         if not candidates:
@@ -302,6 +311,7 @@ class GeminiAdapter(LLMAdapter):
             retry_url = _build_url(retry_model)
             payload_copy = dict(payload)
             payload_copy["generationConfig"] = {**payload["generationConfig"], "temperature": 0.0}
+            rec2 = attempt("gemini", retry_model)
             async with httpx.AsyncClient(timeout=120) as client2:
                 resp2 = await client2.post(retry_url, json=payload_copy, headers=_auth_headers())
             if resp2.status_code != 200:
@@ -312,6 +322,7 @@ class GeminiAdapter(LLMAdapter):
                             body=resp2.text[:300], model=retry_model)
             if resp2.status_code == 200:
                 data2 = resp2.json()
+                _note_usage(rec2, data2)
                 cands2 = data2.get("candidates", [])
                 retry_finish_reason = cands2[0].get("finishReason") if cands2 else None
                 if retry_finish_reason == "MALFORMED_FUNCTION_CALL":
@@ -419,12 +430,15 @@ class GeminiAdapter(LLMAdapter):
             "contents": [{"role": "user", "parts": [{"text": combined}]}],
             "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.1},
         }
+        from app.adapters.llm.metered import attempt
+        rec = attempt("gemini", gemini_model)
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(url, json=payload, headers=_auth_headers())
             if resp.status_code != 200:
                 log.error("gemini_json_fallback_error", status=resp.status_code, body=resp.text[:300])
                 resp.raise_for_status()
             data = resp.json()
+        _note_usage(rec, data)
 
         candidates = data.get("candidates", [])
         parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
