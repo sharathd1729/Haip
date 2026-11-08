@@ -26,6 +26,7 @@ class Site(Base, TimestampMixin):
     created_by = Column(String, nullable=True)
     tracking = Column(JSON, nullable=True)                          # {pixel_id, ga4_id, capi_enabled, capi_test_code} (183)
     capi_token_enc = Column(Text, nullable=True)                    # Fernet; never returned by any API
+    ga4_secret_enc = Column(Text, nullable=True)                    # GA4 Measurement Protocol secret, Fernet (192)
 
 
 class SiteVersion(Base, TimestampMixin):
@@ -99,6 +100,8 @@ class BookingHold(Base, TimestampMixin):
     payment_url = Column(Text, nullable=True)
     payment_id = Column(String(64), nullable=True)
     error = Column(Text, nullable=True)
+    analytics_consent = Column(Boolean, nullable=True)               # cookie banner accepted at checkout (192)
+    ga_client_id = Column(String(60), nullable=True)                 # GA4 client id from _ga, only with consent
 
 
 class GuestAccessToken(Base, TimestampMixin):
@@ -165,6 +168,7 @@ class WebsiteEvent(Base, TimestampMixin):
     client_user_agent = Column(String(300), nullable=True)
     fbp = Column(String(200), nullable=True)
     fbc = Column(String(200), nullable=True)
+    ga_client_id = Column(String(60), nullable=True)                 # GA4 rows ("ga4:" event ids) only (192)
     status = Column(String(12), nullable=False, default="pending")   # pending | sent | skipped | failed
     reason = Column(String(300), nullable=True)
     tries = Column(Integer, nullable=False, default=0)

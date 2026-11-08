@@ -105,6 +105,10 @@ class _AdIds(_Strict):
     server-side event so Meta can match it to the pixel's (website_tracking)."""
     fbp: Optional[str] = Field(None, max_length=200)
     fbc: Optional[str] = Field(None, max_length=200)
+    # GA4: the visitor's banner choice and the client id from their _ga cookie ("<random>.<seconds>"), both read in
+    # the browser; the server Purchase goes to GA4 only when analytics_consent is true (website_tracking.ga4_purchase).
+    analytics_consent: bool = False
+    ga_client_id: Optional[str] = Field(None, pattern=r"^\d{1,20}\.\d{1,20}$")
 
 
 class HoldIn(_AdIds):
@@ -137,12 +141,13 @@ class ManageLookupIn(_Strict):
 
 
 class TrackingIn(_Strict):
-    """Website › Tracking (owner/manager). capi_token: None = keep the stored one, "" = remove it."""
+    """Website › Tracking (owner/manager). capi_token / ga4_api_secret: None = keep the stored one, "" = remove it."""
     pixel_id: Optional[str] = Field(None, pattern=r"^\d{6,20}$")
     ga4_id: Optional[str] = Field(None, pattern=r"^G-[A-Z0-9]{4,15}$")
     capi_enabled: bool = False
     capi_token: Optional[str] = Field(None, max_length=400)
     capi_test_code: Optional[str] = Field(None, pattern=r"^[A-Z0-9]{3,20}$")
+    ga4_api_secret: Optional[str] = Field(None, max_length=200)   # GA4 Measurement Protocol secret; None keep, "" remove
 
 
 class PromoIn(_Strict):

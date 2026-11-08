@@ -8,7 +8,7 @@
   website.revalidate      after a publish: tell the sites renderer to refresh that site's pages.
   website.blog_draft      a website guide drafted by the AI (website_blog; queue default, transient errors retried 2x).
   website.translate       another language for a v2 site as a new draft (website_i18n; queue default, retries 2x).
-  website.send_events     every 5 min: website Conversions API events to Meta (website_tracking), queue default.
+  website.send_events     every 5 min: website Conversions API events to Meta + GA4 purchases (website_tracking), queue default.
 Every task sets the tenant context before touching tenant rows, and uses one transaction per tenant.
 """
 from html import escape
@@ -273,20 +273,20 @@ def send_manage_link(tenant_id: str, stay_id: str, host: str):
 
 @shared_task(name="website.send_events")
 def send_events():
-    """Every 5 min: website Conversions API events (website_tracking) per tenant, one transaction each."""
+    """Every 5 min: website Conversions API events to Meta + GA4 server purchases (website_tracking) per tenant."""
     from app.models.tenant import Tenant
     from app.services import website_tracking
 
     sent = 0
     for tid in _tenant_ids():
         with SessionLocal() as db:
-            set_tenant_context(db, tid)
-            tenant = db.get(Tenant, tid)
-            try:
-                sent += website_tracking.send_tenant(db, tenant).get("sent", 0)
-            except Exception as exc:  # noqa: BLE001 -- one tenant's failure must not stop the others
-                db.rollback()
-                log.error("website_send_events_failed", tenant_id=tid, error=type(exc).__name__)
+            for send in (website_tracking.send_tenant, website_tracking.send_ga4_tenant):
+                set_tenant_context(db, tid)  # transaction-scoped: set again after the previous channel's commit
+                try:
+                    sent += send(db, db.get(Tenant, tid)).get("sent", 0)
+                except Exception as exc:  # noqa: BLE001 -- one tenant's (or channel's) failure must not stop the others
+                    db.rollback()
+                    log.error("website_send_events_failed", tenant_id=tid, error=type(exc).__name__)
     return sent
 
 
