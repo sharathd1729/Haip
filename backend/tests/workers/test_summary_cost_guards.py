@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
-from sqlalchemy.orm import Session as SASession
 
 from app.models.call import Call, CallDirection
 from app.models.conversation import Conversation, Message, MessageDirection
@@ -19,8 +18,7 @@ from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource
 from app.models.inquiry_360 import InquiryQuote
 from app.models.tenant import Tenant
-from app.workers.tasks import classify as classify_module
-from app.workers.tasks import wrap_up as wrap_up_module
+from app.workers.tasks import call_analysis as call_analysis_module
 from app.workers.tasks.concierge_draft import _persist_stated_details
 from app.workers.tasks.generate_ai_summary import generate_ai_summary
 
@@ -156,28 +154,19 @@ def test_manual_refresh_summarises_a_non_lead(db):
     assert len(_run(db, tid, iid, force=True)) == 1
 
 
-# ── call path: summary after wrap_up, autopilot sees the analysis ────────────────────────────────────────────────────
-def test_classify_no_longer_triggers_the_summary():
-    assert "trigger_summary_refresh(" not in inspect.getsource(classify_module.classify)
+# ── call path: summary after the call analysis, autopilot sees the analysis ───────────────────────────────────────────
+# (classify/wrap_up became one task, tasks.analyze_call, in #156; the summary still runs once the call's own summary and
+# next action are saved.)
+def test_the_old_classify_name_does_not_trigger_the_summary():
+    assert "trigger_summary_refresh(" not in inspect.getsource(call_analysis_module.classify)
 
 
-def test_wrap_up_triggers_the_summary_with_the_call_analysis_saved(db):
+def test_call_analysis_triggers_the_summary_with_the_call_analysis_saved(db):
+    from tests.workers import call_analysis_harness as h
+
     tid, iid, _ = _setup(db)
     inquiry = db.query(Inquiry).filter_by(id=iid).first()
-    call = Call(
-        id=str(uuid.uuid4()),
-        tenant_id=tid,
-        guest_id=inquiry.guest_id,
-        inquiry_id=iid,
-        ivr_provider="vobiz",
-        ivr_call_id=f"c-{uuid.uuid4().hex[:8]}",
-        direction=CallDirection.INBOUND,
-        from_number="+919845663366",
-        to_number="+912271264296",
-        duration_seconds=45,
-    )
-    db.add(call)
-    db.commit()
+    call = h.call(db, tid, guest_id=inquiry.guest_id, inquiry_id=iid)
     seen = {}
 
     def _refresh(db, inquiry_id, tenant_id, source):
@@ -185,25 +174,9 @@ def test_wrap_up_triggers_the_summary_with_the_call_analysis_saved(db):
         seen.update(inquiry_id=inquiry_id, source=source, summary=stored.ai_summary, next_action=stored.ai_next_action)
         return True
 
-    class _LLM:
-        async def complete(self, **kwargs):
-            return {
-                "tool_use": {
-                    "summary": "Guest wants 2 nights in Dec.",
-                    "next_action": "Send the quote",
-                    "suggested_disposition": "interested",
-                },
-                "model": "fake",
-            }
-
-    with (
-        patch.object(wrap_up_module, "get_llm", return_value=_LLM()),
-        patch.object(wrap_up_module, "SessionLocal", return_value=SASession(bind=db.connection())),
-        patch("app.services.push_service.send_to_tenant"),
-        patch("app.services.lead_autopilot_service.queue_evaluation") as autopilot,
-        patch("app.services.leads_service.trigger_summary_refresh", side_effect=_refresh),
-    ):
-        wrap_up_module.wrap_up.run(call_id=call.id, tenant_id=tid)
+    llm = h.ScriptedLLM(h.answer(summary="Guest wants 2 nights in Dec.", next_action="Send the quote"))
+    with patch("app.services.leads_service.trigger_summary_refresh", side_effect=_refresh):
+        fx = h.run(db, tid, call.id, llm)
 
     assert seen == {
         "inquiry_id": iid,
@@ -211,7 +184,7 @@ def test_wrap_up_triggers_the_summary_with_the_call_analysis_saved(db):
         "summary": "Guest wants 2 nights in Dec.",
         "next_action": "Send the quote",
     }
-    autopilot.assert_called_once()
+    assert len(fx.autopilot) == 1
 
 
 def test_autopilot_fingerprint_changes_once_the_call_is_analysed(db):

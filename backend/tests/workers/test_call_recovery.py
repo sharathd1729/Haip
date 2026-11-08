@@ -15,7 +15,7 @@ from app.models.call import Call, CallDirection
 from app.models.tenant import Tenant
 from app.models.transcript import Transcript
 from app.workers.tasks import call_recovery as rec
-from app.workers.tasks.judge import judge
+from tests.workers import call_analysis_harness as h
 
 NOW = datetime.now(timezone.utc)
 
@@ -50,7 +50,8 @@ def _call(db, tid, *, status="pending", hours_ago=5, attempts=0, transcription="
 def _recover(db, tid, limit=100):
     dispatched = []
     with patch.object(rec, "SessionLocal", return_value=SASession(bind=db.connection())), \
-         patch("app.workers.tasks.judge.judge.delay", side_effect=lambda **kw: dispatched.append(kw["call_id"])):
+         patch("app.workers.tasks.call_analysis.analyze_call.delay",
+               side_effect=lambda **kw: dispatched.append(kw["call_id"])):
         rec.recover_stalled_call_scoring.run(tid, limit=limit)
     return dispatched
 
@@ -68,7 +69,15 @@ def test_a_failed_call_is_redispatched_once_it_has_been_quiet(db):
     assert _recover(db, t.id) == [c.id]
 
 
-def test_a_just_failed_call_is_left_alone_while_judges_own_retries_run(db):
+def test_a_call_stuck_processing_is_resumed_once_quiet(db):
+    """A worker killed mid-call left it "processing" forever; the analysis resumes from its kept answer."""
+    t = _tenant(db)
+    c = _call(db, t.id, status="processing", quiet_minutes=120)
+    _call(db, t.id, status="processing", quiet_minutes=2)          # may still be running
+    assert _recover(db, t.id) == [c.id]
+
+
+def test_a_just_failed_call_is_left_alone_while_its_own_retries_run(db):
     t = _tenant(db)
     _call(db, t.id, status="failed", quiet_minutes=2)
     assert _recover(db, t.id) == []
@@ -115,19 +124,17 @@ def test_recovery_is_scheduled_in_beat():
     assert "calls.recover_stalled_scoring_all_tenants" in tasks
 
 
-# ── judge() no longer leaves un-scoreable calls looping ─────────────────────
+# ── the analysis no longer leaves un-scoreable calls looping ────────────────────────────────────────────────
 
-def _run_judge(db, tid, call):
-    with patch("app.workers.tasks.judge.SessionLocal", return_value=SASession(bind=db.connection())):
-        judge.run(call_id=call.id, tenant_id=tid)
-    db.expire_all()
-    return db.query(Call).get(call.id)
+def _run_analysis(db, tid, call, llm=None):
+    h.run(db, tid, call.id, llm or h.ScriptedLLM(h.answer()))
+    return db.get(Call, call.id)
 
 
 def test_a_call_with_no_transcript_row_is_skipped_not_left_pending(db):
     t = _tenant(db)
     c = _call(db, t.id, status="pending")
-    assert _run_judge(db, t.id, c).ai_score_status == "skipped_no_transcript"
+    assert _run_analysis(db, t.id, c).ai_score_status == "skipped_no_transcript"
 
 
 def test_an_empty_transcript_is_skipped(db):
@@ -136,37 +143,17 @@ def test_an_empty_transcript_is_skipped(db):
     db.add(Transcript(id=str(uuid.uuid4()), tenant_id=t.id, call_id=c.id, provider="sarvam", language="en",
                       turns=json.dumps([{"speaker": "unknown", "t0": 0, "t1": 1, "text": "  "}]), raw_text=""))
     db.commit()
-    assert _run_judge(db, t.id, c).ai_score_status == "skipped_no_transcript"
-
-
-def test_judge_counts_its_attempts_and_marks_failure(db):
-    t = _tenant(db)
-    c = _call(db, t.id, status="pending")
-    db.add(Transcript(id=str(uuid.uuid4()), tenant_id=t.id, call_id=c.id, provider="sarvam", language="en",
-                      turns=json.dumps([{"speaker": "agent", "t0": 0, "t1": 2, "text": "Hello, Ratha caravans."}]),
-                      raw_text="Hello"))
-    db.commit()
-
-    class _Boom:
-        async def complete(self, **kw):
-            raise RuntimeError("provider down")
-
-    from celery.exceptions import MaxRetriesExceededError
-    with patch("app.workers.tasks.judge.get_llm", return_value=_Boom()), \
-         patch.object(judge, "retry", side_effect=MaxRetriesExceededError("exhausted")):
-        got = _run_judge(db, t.id, c)           # must not raise
-    assert got.ai_score_status == "failed"
-    assert got.ai_score_attempts == 1
+    assert _run_analysis(db, t.id, c).ai_score_status == "skipped_no_transcript"
 
 
 def test_a_transcriptless_call_is_skipped_once_and_never_redispatched(db):
-    """Register P-1. judge() skips a call with no transcript row; recovery must then leave it alone on every later
-    pass. When the status did not fit the column on PostgreSQL the write failed, the call fell back to "failed" with
-    ai_score_attempts still 0, and recovery re-dispatched it every 30 minutes for 14 days."""
+    """Register P-1. The analysis skips a call with no transcript row; recovery must then leave it alone on every
+    later pass. When the status did not fit the column on PostgreSQL the write failed, the call fell back to "failed"
+    with ai_score_attempts still 0, and recovery re-dispatched it every 30 minutes for 14 days."""
     t = _tenant(db)
     c = _call(db, t.id, status="pending")
 
-    judged = _run_judge(db, t.id, c)
+    judged = _run_analysis(db, t.id, c)
 
     assert judged.ai_score_status == "skipped_no_transcript"
     assert judged.ai_score_attempts == 0          # a skip is not a scoring attempt

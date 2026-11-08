@@ -98,16 +98,8 @@ class TestWorkerTenantContext:
         source = self._get_worker_source("app.workers.tasks.send_whatsapp")
         assert "set_tenant_context" in source
 
-    def test_classify_sets_context(self):
-        source = self._get_worker_source("app.workers.tasks.classify")
-        assert "set_tenant_context" in source
-
-    def test_judge_sets_context(self):
-        source = self._get_worker_source("app.workers.tasks.judge")
-        assert "set_tenant_context" in source
-
-    def test_wrap_up_sets_context(self):
-        source = self._get_worker_source("app.workers.tasks.wrap_up")
+    def test_call_analysis_sets_context(self):
+        source = self._get_worker_source("app.workers.tasks.call_analysis")
         assert "set_tenant_context" in source
 
     def test_dpdp_purge_sets_context(self):
