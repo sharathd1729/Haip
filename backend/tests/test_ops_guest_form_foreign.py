@@ -254,9 +254,9 @@ def test_photo_upload_keeps_the_paper_limits(client, db, v, store):
 
 
 def test_form_c_item_is_due_24_hours_after_check_in(client, db, v, store):
-    _filled(client, db, v)
-    v.stay.check_in = TODAY + timedelta(days=1)  # not arrived yet: nothing raised on submit
+    v.stay.check_in = TODAY + timedelta(days=1)  # not arrived yet (set before submit: after 12:00 today counts)
     db.commit()
+    _filled(client, db, v)
     assert fc.sync(db, v.f) == [] and db.query(OpsItem).filter_by(tenant_id=v.t.id, category="form_c").count() == 0
     v.stay.check_in = TODAY
     _welcome(db, v)
@@ -275,8 +275,10 @@ def test_form_c_item_is_due_24_hours_after_check_in(client, db, v, store):
 
 
 def test_the_check_in_date_arriving_raises_it_hourly(client, db, v, store):
+    v.stay.check_in = TODAY + timedelta(days=1)  # submit before arrival, whatever the clock says
+    db.commit()
     _filled(client, db, v)
-    v.stay.check_in_time = "10:00"
+    v.stay.check_in, v.stay.check_in_time = TODAY, "10:00"
     db.commit()
     from app.core.tenant_tz import get_tz
 
