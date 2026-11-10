@@ -7,7 +7,7 @@ export interface ConversationSummary {
   id: string;
   guest_name: string;
   guest_phone: string;
-  channel: "whatsapp" | "instagram" | "web" | "voice" | "sms";
+  channel: "whatsapp" | "instagram" | "web" | "voice" | "sms" | "facebook";
   last_message: string;
   last_message_at: string;
   unread_count: number;

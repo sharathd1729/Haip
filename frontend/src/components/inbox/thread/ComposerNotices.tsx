@@ -40,7 +40,7 @@ export function ComposerNotices({
               >
                 <Phone size={16} style={{ color: "var(--haip-fg-subtle)" }} />
                 <p className="text-xs font-medium" style={{ color: "var(--haip-fg-subtle)" }}>
-                  No chat channel yet — call log only
+                  {channel === "facebook" ? "A lead form, not a chat. Call them, or start on WhatsApp from the lead." : "No chat channel yet — call log only"}
                 </p>
               </div>
             )}

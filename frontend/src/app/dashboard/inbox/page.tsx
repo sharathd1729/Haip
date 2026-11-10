@@ -397,7 +397,7 @@ function InboxPageInner() {
   // phone call) has no chat send path -- no WhatsApp/Instagram dispatcher
   // exists for it. Show a clear disabled state instead of a composer that
   // would silently fail to send.
-  const isVoiceOnly = detail?.channel === "voice";
+  const isVoiceOnly = detail?.channel === "voice" || detail?.channel === "facebook";   // a lead form has no chat to send into either
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
