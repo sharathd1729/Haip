@@ -28,7 +28,6 @@ const PAGES = [
   { id: "leads",        label: "Leads",              href: "/dashboard/leads",            icon: <FileText size={14} />,         group: "Pages" },
   { id: "guests",       label: "Bookings",           href: "/dashboard/bookings",           icon: <Users size={14} />,            group: "Pages" },
   { id: "properties",   label: "Properties",         href: "/dashboard/properties",       icon: <Building2 size={14} />,        group: "Pages" },
-  { id: "qa",           label: "QA Scores",          href: "/dashboard/qa",               icon: <BarChart2 size={14} />,        group: "Pages" },
   { id: "compliance",   label: "Compliance",         href: "/dashboard/compliance",       icon: <Shield size={14} />,           group: "Pages" },
   { id: "settings",     label: "Settings",           href: "/dashboard/settings",         icon: <Settings size={14} />,         group: "Pages" },
   { id: "integrations", label: "Integrations",       href: "/dashboard/settings/integrations", icon: <Settings size={14} />, group: "Pages" },

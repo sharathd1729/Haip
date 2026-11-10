@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import { TodayStrip, istDay } from "@/components/dashboard/today/TodayStrip";
 import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
 import { KpiTiles } from "@/components/dashboard/home/KpiTiles";
-import { RevenueChart, LeadFunnel, TeamTable, LeadSources, AiNoticed } from "@/components/dashboard/home/Panels";
+import { RevenueChart, LeadFunnel, TeamTable, LeadSources } from "@/components/dashboard/home/Panels";
 import type { OverviewResponse } from "@/components/dashboard/home/types";
 import { useIsPhone } from "@/lib/useIsPhone";
 
@@ -86,12 +86,6 @@ export function OperationsHome() {
     enabled: isOwnerView,
   });
 
-  const dismiss = useMutation({
-    mutationFn: (id: string) => api.post(`/analytics/insights/${id}/dismiss`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard-overview"] }),
-    onError: () => toast({ variant: "error", title: "Couldn't dismiss that insight", description: "Try again." }),
-  });
-
   const agentName = team.find(t => t.id === agentId)?.name;
   const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
   const scope = isOwnerView ? (agentName ? `${agentName}'s numbers` : "Whole team") : "Your numbers";
@@ -144,8 +138,6 @@ export function OperationsHome() {
               {showTeam && <TeamTable agents={data.agents ?? []} rangeLabel={rangeLabel} />}
               <LeadSources sources={data.sources} rangeLabel={rangeLabel} className={showTeam ? undefined : "lg:col-span-5"} />
             </div>
-            {/* Phones leave "What the AI noticed" off (mobile-first plan); desktop unchanged. */}
-            {!phone && <AiNoticed insights={data.top_insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} />}
           </>
         )}
       </div>

@@ -14,7 +14,6 @@ import { PageHeader } from "@/components/ui/page";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
-import { AiNoticed } from "@/components/dashboard/home/Panels";
 import { istDay } from "@/components/dashboard/today/TodayStrip";
 import { PeriodBar, PERIOD_PRESETS, useDashboardPeriod, type PeriodValue } from "../PeriodBar";
 import { Controls, type Filters } from "./Controls";
@@ -22,7 +21,6 @@ import { LeadsRowCards } from "./LeadsRow";
 import { NeedsAttention } from "./NeedsAttention";
 import { AiCallsCard, CaravansCard, TeamCard } from "./OpsRow";
 import { OwnerKpis } from "./OwnerKpis";
-import { SinceHaip } from "./SinceHaip";
 import { ArrivalsCard, TargetCard } from "./TargetAndArrivals";
 import { periodLabel, type BusinessOverview } from "./types";
 import { useIsPhone } from "@/lib/useIsPhone";
@@ -119,11 +117,6 @@ function DesktopCommandCenter() {
   const { data: agents = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["users-lite"], queryFn: () => api.get("/users/lite").then(r => r.data), staleTime: 5 * 60_000,
   });
-  const dismiss = useMutation({
-    mutationFn: (id: string) => api.post(`/analytics/insights/${id}/dismiss`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["business-overview"] }),
-    onError: () => toast({ variant: "error", title: "Couldn't dismiss that insight", description: "Try again." }),
-  });
   const asOf = useMemo(() => (data ? new Date(data.generated_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) : null), [data]);
   const presetLabel = preset === "custom" ? "Custom" : PERIOD_PRESETS.find(p => p.value === preset)?.label ?? "";
   const range = data ? periodLabel(data.period.date_from, data.period.date_to) : "";
@@ -191,8 +184,6 @@ function DesktopCommandCenter() {
               <AiCallsCard data={owner.ai_calls} period={presetLabel} />
             </div>
             <TeamCard team={owner.team} />
-            {tenantWide && <SinceHaip />}
-            {data.insights.length > 0 && <AiNoticed insights={data.insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} />}
             <Definitions data={data} />
           </div>
         )}
