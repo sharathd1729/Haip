@@ -349,6 +349,8 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
 
     rules = _vehicle_rules(db, feed)
     names = vehicle_pool.unit_names(db, feed.tenant_id) if rules else {}
+    # Owner, 10 Nov 2026: in a villa workspace an event that names no villa is ignored, not held on every villa.
+    ignore_unnamed = bool(rules) and not vehicle_pool.units_interchangeable(db, feed.tenant_id)
     # "Hold only this villa": a person's answer for an event that named no unit counts as if the event had named it.
     from app.models.ical_feed import ICalEventAssignment
     assigned = {a.event_key: a.property_id for a in db.query(ICalEventAssignment)
@@ -375,6 +377,8 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
                 if state in booked:
                     booked[state] += 1
                 continue
+            if not hits and ignore_unnamed:
+                continue                             # no villa named: no hold, no "Which villa?" task
             needs_vehicle = not hits
             targets = hits or list(rules)
         else:
@@ -403,6 +407,11 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
             row.is_active = False
             lifted += 1
 
+    if ignore_unnamed:                               # "Which villa?" tasks raised before this rule: nothing to decide now
+        from app.models.task import Task
+        for t in db.query(Task).filter(Task.tenant_id == feed.tenant_id, Task.is_done.is_(False), Task.created_by.is_(None),
+                                       Task.title.like(ical_clash_tasks.WHICH_VEHICLE_PREFIX + "%")).all():
+            t.is_done, t.completed_at = True, now
     cancelled = 0
     if rules:
         cancelled = ical_booking_service.cancel_missing(db, feed, set(seen), today)

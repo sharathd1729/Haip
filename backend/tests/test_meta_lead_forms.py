@@ -395,10 +395,26 @@ def test_a_form_lead_gets_an_inbox_thread_that_is_a_note_not_a_chat(client, db, 
     db.query(Conversation).filter_by(id=conv.id).delete()
     db.commit()
     other = _workspace(db)
-    assert backfill(db, tenant.id, apply=False) == {"form_leads": 2, "threads_made": 1, "already_have_a_thread": 1}
+    assert backfill(db, tenant.id, apply=False) == {"form_leads": 2, "threads_made": 1, "already_have_a_thread": 1, "leads_given_trip_facts": 0}
     assert db.query(Conversation).filter_by(tenant_id=tenant.id, guest_id=rec.guest_id).count() == 0   # dry run
-    assert backfill(db, other["tenant"].id, apply=True) == {"form_leads": 0, "threads_made": 0, "already_have_a_thread": 0}
+    assert backfill(db, other["tenant"].id, apply=True) == {"form_leads": 0, "threads_made": 0, "already_have_a_thread": 0, "leads_given_trip_facts": 0}
     assert backfill(db, tenant.id, apply=True)["threads_made"] == 1
     db.commit()
-    assert backfill(db, tenant.id, apply=True) == {"form_leads": 2, "threads_made": 0, "already_have_a_thread": 2}
+    assert backfill(db, tenant.id, apply=True) == {"form_leads": 2, "threads_made": 0, "already_have_a_thread": 2, "leads_given_trip_facts": 0}
 
+
+def test_trip_facts_come_from_the_forms_own_questions():
+    from datetime import date
+
+    filled = date(2026, 11, 10)
+    jade = {"How many guests are expected for your party?": "10-20_people",
+            "What are your preferred date(s) for booking?": "14 and 15",
+            "What is your budget range for booking a private villa?": "rs._30,000_-_40,000"}
+    assert svc.trip_facts(jade, filled) == {"adults": 20, "check_in": "2026-11-14", "check_out": "2026-11-15", "budget": 40000.0}
+    assert svc.trip_facts({"Preferred dates": "20-22 Dec"}, filled) == {"check_in": "2026-12-20", "check_out": "2026-12-22"}
+    assert svc.trip_facts({"Preferred date": "5 Jan"}, filled) == {"check_in": "2027-01-05", "check_out": "2027-01-06"}
+    assert svc.trip_facts({"Preferred date": "3"}, filled)["check_in"] == "2026-12-03"           # 3 Nov is past: 3 Dec
+    assert svc.trip_facts({"Travel dates": "flexible", "City": "Bangalore 560001"}, filled) == {}
+
+    inq = Inquiry(adults=4)
+    assert svc.apply_trip_facts(inq, jade, filled) == ["check_in", "check_out", "budget"] and inq.adults == 4   # never overwritten
