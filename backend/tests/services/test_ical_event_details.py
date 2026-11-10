@@ -131,3 +131,28 @@ def test_guest_name_from_an_event_has_no_markers():
     assert d["guest_name"] == "Mr.Saksham"
     d = ed.extract("Booking", "Guest Name: *Ms. Ritika / Mr. Rahul*")
     assert d["guest_name"] == "Ritika / Mr. Rahul"   # the leading title still goes, as before
+
+
+JADE = ("Dear Guest,\n\nGuest Name: *Mr. Manjunath*\nContact Number: *+91 98000 22222*\n"
+        "Property Name: *Retreat on the Ridge by Jade*\n\nCheck-in Date:*13th November 2026*\n"
+        "Number of Guests (Pax): *8 pax*\nAdditional Pax:*after 10th person at 2000+ tax*\nProperty Cost: *₹69,836/-*")
+
+
+def test_a_villa_template_gives_the_property_name_and_the_guest_count():
+    out = ed.extract("Ror/Manjunath", JADE)
+    assert out["property_name"] == "Retreat on the Ridge by Jade" and out["guests"] == "*8 pax*"
+    assert "property_name" not in ed.extract("x", "Property Cost: ₹69,836")        # a cost line is not a name
+
+
+def test_the_events_own_property_name_line_picks_the_unit():
+    names = {"ror": "Retreat on the Ridge by Jade", "dia": "Diamond Pavilion by Jade", "dia2": "Diamond Pavilion 2 by Jade"}
+    rules = {"dia": ["diamond"], "ror": []}
+    assert ed.named_property("retreat on the  ridge BY JADE", names) == "ror"
+    assert ed.named_property("Retreat on the Ridge", names) == "ror"                 # brand ending left out
+    assert ed.named_property("Diamond Pavilion", names) == "dia"                     # not "Diamond Pavilion 2"
+    assert ed.named_property("Diamond", names) is None and ed.named_property("", names) is None
+    assert ed.named_property("Pavilion by Jade", {"a": "Pavilion by Jade", "b": "Pavilion by JADE"}) is None   # two fit: no guess
+    details = ed.extract("Diamond offer/Manjunath", JADE)
+    assert ed.event_units("Diamond offer/Manjunath\n" + JADE, details, rules, names) == ["ror"]   # the line beats a keyword
+    assert ed.event_units("Diamond/Asha", {}, rules, names) == ["dia"]                # no line: keywords, as before
+    assert ed.event_units("Asha", {"property_name": "Somewhere else"}, rules, names) == []

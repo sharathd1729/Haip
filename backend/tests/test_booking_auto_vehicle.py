@@ -133,3 +133,41 @@ def test_the_calendar_hides_the_placeholder_row_unless_it_holds_a_real_booking(c
     db.commit()
     rows = client.get(url, headers=_h(tenant_and_user)).json()["properties"]
     assert sorted(r["property_name"] for r in rows) == ["Ratha 1", "Unassigned (legacy bookings -- reassign manually)"]
+
+
+def test_the_placeholder_is_named_for_the_business_and_old_ones_are_renamed(db, tenant_and_user):
+    import importlib.util
+    from pathlib import Path
+
+    from sqlalchemy import text
+
+    from app.services import vehicle_pool
+
+    villa = tenant_and_user["tenant"]
+    villa.business_type = "villa_resort"
+    caravan = Tenant(id=str(uuid.uuid4()), name="Caravans", slug=f"c-{uuid.uuid4().hex[:6]}", plan="growth", business_type="caravan")
+    unknown = Tenant(id=str(uuid.uuid4()), name="Unknown", slug=f"u-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add_all([caravan, unknown])
+    db.commit()
+    old = [_prop(db, t.id, "Unassigned (vehicle not chosen yet)") for t in (villa, caravan)]  # as created before this change
+
+    path = Path(__file__).resolve().parent.parent / "alembic" / "versions" / "201_placeholder_property_name.py"
+    spec = importlib.util.spec_from_file_location("migration_201", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    migration.op = type("Op", (), {"execute": staticmethod(lambda sql: db.execute(text(sql)))})
+    migration.upgrade()
+    migration.upgrade()  # idempotent
+    db.commit()
+    db.expire_all()
+    assert [p.name for p in old] == ["Unassigned (villa not chosen yet)", "Unassigned (vehicle not chosen yet)"]
+    assert vehicle_pool.placeholder_property(db, villa.id).id == old[0].id  # still found: the "Unassigned" prefix is the key
+    migration.downgrade()
+    db.commit()
+    db.expire_all()
+    assert old[0].name == "Unassigned (vehicle not chosen yet)"
+
+    db.delete(old[0])
+    db.commit()
+    assert vehicle_pool.placeholder_property(db, villa.id).name == "Unassigned (villa not chosen yet)"  # a new one
+    assert vehicle_pool.placeholder_property(db, unknown.id).name == "Unassigned (vehicle not chosen yet)"

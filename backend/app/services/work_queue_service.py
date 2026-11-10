@@ -350,7 +350,13 @@ def _new_leads(db: Session, tenant_id: str, scope_user_id: Optional[str], now: d
         since = _aware(g.lead_identified_at)
         preview = previews.get(g.id)
         tries = attempts.get(g.id, 0)
-        detail = f"“{preview}”" if preview else "Shared their number"
+        form = ((inq.custom_fields or {}).get("lead_form") if inq is not None else None) or None
+        if preview:
+            detail = f"“{preview}”"
+        elif form:                                   # a Meta lead form, not a chat: there is nothing in the Inbox
+            detail = f"Filled a lead form: {form['form_name']}" if form.get("form_name") else "Filled a lead form"
+        else:
+            detail = "Shared their number"
         if tries:
             detail = f"Tried {tries}×, no answer · {detail}"
         items.append(QueueItem(

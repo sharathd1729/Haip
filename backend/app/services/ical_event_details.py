@@ -31,7 +31,8 @@ _LABELS = {  # first matching label wins; longest labels first so "total booking
     "return": ("return",),
     "vehicles": ("vehicles", "vehicle"),
     "package": ("package",),
-    "guests": ("guests", "pax"),
+    "guests": ("number of guests", "no of guests", "guests", "pax"),
+    "property_name": ("property name", "villa name"),
     "package_cost": ("package cost", "rate"),
     "gst": ("gst (18%)", "gst"),
     "total": ("total booking amount", "total amount", "total"),
@@ -141,6 +142,8 @@ def extract(summary: str, description: str) -> dict:
         m = _PHONE.search(fields["phone"])
         if m:
             out["phone"] = re.sub(r"[^\d+]", "", m.group(0))
+    if "property_name" in fields:
+        out["property_name"] = clean_name(fields["property_name"])
     for name in ("destination", "package", "guests", "vehicles", "booked_on"):
         if name in fields:
             out[name] = fields[name]
@@ -188,3 +191,31 @@ def match_vehicles(text: str, rules: dict[str, list[str]]) -> list[str]:
                 hits.append(property_id)
                 break
     return hits
+
+
+def _name_key(name: str, with_brand: bool) -> str:
+    """A property name for comparing: case, spaces and punctuation do not count; optionally without a " by <brand>" ending."""
+    name = (name or "").strip()
+    if not with_brand:
+        name = re.sub(r"\s+by\s+\S+$", "", name, flags=re.I)
+    return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+
+def named_property(value: Optional[str], names: dict[str, str]) -> Optional[str]:
+    """The property an event's own "Property Name:" line names, when that is exactly one property's name. The brand ending
+    ("Retreat on the Ridge by Jade") may be missing on either side. None when nothing or more than one property fits."""
+    if not (value or "").strip():
+        return None
+    for with_brand in (True, False):
+        want = _name_key(value, with_brand)
+        ids = [pid for pid, name in names.items() if want and _name_key(name, with_brand) == want]
+        if len(ids) == 1:
+            return ids[0]
+    return None
+
+
+def event_units(text: str, details: dict, rules: dict[str, list[str]], names: dict[str, str]) -> list[str]:
+    """Property ids an event is for. Its own "Property Name:" line wins; without one (or when it fits no property) the
+    keywords typed in Settings decide, as before."""
+    named = named_property(details.get("property_name"), names)
+    return [named] if named else match_vehicles(text, rules)

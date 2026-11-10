@@ -30,6 +30,21 @@ def placeholder_ids(db: Session, tenant_id: str) -> list[str]:
     return [pid for pid, name in rows if is_placeholder_name(name)]
 
 
+def unit_names(db: Session, tenant_id: str) -> dict[str, str]:
+    """{property id: name} of the workspace's real, active properties (never the placeholder)."""
+    rows = db.query(Property.id, Property.name).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True)).all()
+    return {pid: name for pid, name in rows if not is_placeholder_name(name)}
+
+
+def placeholder_name(db: Session, tenant_id: str) -> str:
+    """"Unassigned (villa not chosen yet)" in a villa workspace; the caravan wording when the business type is not known."""
+    from app.models.tenant import Tenant
+    from app.services import ops_pack_catalog
+
+    business_type = db.query(Tenant.business_type).filter(Tenant.id == tenant_id).scalar()
+    return f"Unassigned ({ops_pack_catalog.unit_word_for(business_type) or 'vehicle'} not chosen yet)"
+
+
 def placeholder_property(db: Session, tenant_id: str, prefer_id: Optional[str] = None) -> Property:
     """The tenant's "Unassigned" property (the feed's own if it is one), created on first use."""
     props = [p for p in db.query(Property).filter(Property.tenant_id == tenant_id).all() if is_placeholder_name(p.name)]
@@ -39,7 +54,7 @@ def placeholder_property(db: Session, tenant_id: str, prefer_id: Optional[str] =
                 return p
     if props:
         return sorted(props, key=lambda p: (not p.is_active, p.name))[0]
-    prop = Property(tenant_id=tenant_id, name="Unassigned (vehicle not chosen yet)", slug="unassigned-vehicle-not-chosen",
+    prop = Property(tenant_id=tenant_id, name=placeholder_name(db, tenant_id), slug="unassigned-vehicle-not-chosen",
                     type="caravan", is_active=True)
     db.add(prop)
     db.flush()

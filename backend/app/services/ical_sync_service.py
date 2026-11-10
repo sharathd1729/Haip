@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.core.encryption import decrypt_credentials
 from app.core.url_safety import safe_get
-from app.services import ical_booking_service, ical_clash_tasks, ical_event_details
+from app.services import ical_booking_service, ical_clash_tasks, ical_event_details, vehicle_pool
 
 log = structlog.get_logger()
 
@@ -348,6 +348,7 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
         seen[key] = ev
 
     rules = _vehicle_rules(db, feed)
+    names = vehicle_pool.unit_names(db, feed.tenant_id) if rules else {}
     # "Hold only this villa": a person's answer for an event that named no unit counts as if the event had named it.
     from app.models.ical_feed import ICalEventAssignment
     assigned = {a.event_key: a.property_id for a in db.query(ICalEventAssignment)
@@ -366,7 +367,7 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
         details = ical_event_details.extract(ev.get("summary", ""), ev.get("description", ""))
         start, end, source = ical_event_details.block_window(ev["start"], ev["end"], details)
         if rules:
-            hits = ical_event_details.match_vehicles(ev.get("summary", "") + "\n" + ev.get("description", ""), rules)
+            hits = ical_event_details.event_units(ev.get("summary", "") + "\n" + ev.get("description", ""), details, rules, names)
             if not hits and assigned.get(key) in rules:
                 hits = [assigned[key]]
             state = _book(db, feed, key, ev, details, start, end, source, hits, today)

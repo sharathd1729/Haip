@@ -1,6 +1,7 @@
 """Meta lead-form leads: each submission becomes a lead once, through identity_service, with the ad it came from."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.orm import Session as SASession
@@ -23,6 +24,15 @@ URL = "/api/v1/meta-business/lead-forms"
 PHONE = "+917349012876"
 
 
+def _ago(**kw):
+    """A Meta created_time that long ago (never a fixed date: the work queue only shows the last 14 days)."""
+    return (datetime.now(UTC) - timedelta(**kw)).strftime("%Y-%m-%dT%H:%M:%S+0000")
+
+
+def _utc(value):
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
 def lead(lead_id="L1", phone=PHONE, email="asha@example.com", platform="ig", ad="ad9", extra=True):
     fields = [{"name": "full_name", "values": ["Asha Rao"]}]
     if phone:
@@ -33,7 +43,7 @@ def lead(lead_id="L1", phone=PHONE, email="asha@example.com", platform="ig", ad=
         fields.append({"name": "travel_dates", "values": ["20-22 Dec"]})
     return {
         "id": lead_id,
-        "created_time": "2026-11-10T08:00:00+0000",
+        "created_time": _ago(hours=1),
         "ad_id": ad,
         "adset_id": "as9",
         "campaign_id": "c9" if ad else None,
@@ -283,3 +293,72 @@ def test_beat_task_queues_only_workspaces_with_lead_forms_on(db, tenant_and_user
     assert tasks.sync_all_tenants.run() == {"queued": 1} and queued == [on.id]
     assert tasks.sync_tenant.run(tenant_id=off.id)["status"] == "skipped"
     assert tasks.sync_tenant.run(tenant_id=on.id)["created"] == 1
+
+
+def test_a_lead_is_dated_when_the_form_was_filled_not_when_haip_read_it(db, tenant_and_user, graph):
+    tenant = tenant_and_user["tenant"]
+    _on(db, tenant.id)
+    known, _ = svc_identity().resolve_gid(db, tenant.id, signal_type="phone", value="+917349012878", source="whatsapp")
+    db.commit()
+    known_since = db.query(Guest).filter_by(id=known).one().lead_identified_at
+    old, fresh, again = lead("OLD"), lead("NEW", phone="+917349012877", email=""), lead("KNOWN", phone="+917349012878", email="")
+    old["created_time"], fresh["created_time"], again["created_time"] = _ago(days=40), _ago(minutes=20), _ago(days=30)
+    graph.leads = [old, fresh, again]
+    assert svc.sync(db, tenant.id)["created"] == 3
+
+    def of(leadgen_id):
+        rec = db.query(MetaFormLead).filter_by(tenant_id=tenant.id, leadgen_id=leadgen_id).one()
+        return db.query(Guest).filter_by(id=rec.guest_id).one(), db.query(Inquiry).filter_by(id=rec.inquiry_id).one(), rec
+
+    g_old, i_old, r_old = of("OLD")
+    assert abs(_utc(g_old.lead_identified_at) - _utc(r_old.lead_created_at)) < timedelta(seconds=2)
+    assert abs(_utc(i_old.created_at) - _utc(r_old.lead_created_at)) < timedelta(seconds=2)
+    assert timedelta(days=39) < datetime.now(UTC) - _utc(g_old.first_touch_at) < timedelta(days=41)
+    g_known, i_known, r_known = of("KNOWN")  # a person HAIP already knew keeps their first dates; the new lead gets the form's
+    assert g_known.id == known and g_known.lead_identified_at == known_since
+    assert abs(_utc(i_known.created_at) - _utc(r_known.lead_created_at)) < timedelta(seconds=2)
+
+    items = {i["guest_id"]: i for i in work_queue_service.build(db, tenant, None)["items"] if i["kind"] == "new_lead"}
+    g_new = of("NEW")[0]
+    assert g_old.id not in items  # 40 days old: not a "new lead" in My day
+    assert items[g_new.id]["detail"] == "Filled a lead form: Villa enquiry"  # not "Shared their number": there is no chat
+    assert timedelta(minutes=19) < datetime.now(UTC) - datetime.fromisoformat(items[g_new.id]["since"]) < timedelta(minutes=22)
+
+
+def svc_identity():
+    from app.services import identity_service
+
+    return identity_service
+
+
+def test_repair_script_puts_imported_leads_back_on_the_form_time(db, tenant_and_user, graph, capsys):
+    from scripts.repair_form_lead_times import repair
+
+    tenant = tenant_and_user["tenant"]
+    _on(db, tenant.id)
+    old = lead("OLD")
+    old["created_time"] = _ago(days=40)
+    graph.leads = [old, lead("NEW", phone="+917349012877", email="")]
+    svc.sync(db, tenant.id)
+    recs = {r.leadgen_id: r for r in db.query(MetaFormLead).filter_by(tenant_id=tenant.id).all()}
+    for rec in recs.values():  # what the first version of the import wrote: everything stamped with the import time
+        db.query(Guest).filter_by(id=rec.guest_id).update({"lead_identified_at": rec.created_at, "first_touch_at": rec.created_at})
+        db.query(Inquiry).filter_by(id=rec.inquiry_id).update({"created_at": rec.created_at})
+    db.commit()
+    other = _workspace(db)
+
+    assert repair(db, tenant.id, apply=False) == {"form_leads": 2, "leads_redated": 2, "people_redated": 2}
+    db.expire_all()
+    guest = db.query(Guest).filter_by(id=recs["OLD"].guest_id).one()
+    assert datetime.now(UTC) - _utc(guest.lead_identified_at) < timedelta(minutes=5)  # dry run changed nothing
+    assert repair(db, other["tenant"].id, apply=True) == {"form_leads": 0, "leads_redated": 0, "people_redated": 0}
+    assert repair(db, tenant.id, apply=True)["people_redated"] == 2
+    db.commit()
+    db.expire_all()
+    guest = db.query(Guest).filter_by(id=recs["OLD"].guest_id).one()
+    inquiry = db.query(Inquiry).filter_by(id=recs["OLD"].inquiry_id).one()
+    assert timedelta(days=39) < datetime.now(UTC) - _utc(guest.lead_identified_at) < timedelta(days=41)
+    assert timedelta(days=39) < datetime.now(UTC) - _utc(inquiry.created_at) < timedelta(days=41)
+    assert repair(db, tenant.id, apply=True) == {"form_leads": 2, "leads_redated": 0, "people_redated": 0}  # safe to re-run
+    assert db.query(AuditEvent).filter_by(tenant_id=tenant.id, action="meta_lead_form.times_repaired").count() == 1
+    assert PHONE not in capsys.readouterr().out
