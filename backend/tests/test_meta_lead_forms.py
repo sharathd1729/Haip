@@ -418,3 +418,31 @@ def test_trip_facts_come_from_the_forms_own_questions():
 
     inq = Inquiry(adults=4)
     assert svc.apply_trip_facts(inq, jade, filled) == ["check_in", "check_out", "budget"] and inq.adults == 4   # never overwritten
+
+
+def test_wedding_form_lakhs_years_big_parties_and_the_repair():
+    from datetime import date
+
+    from scripts.backfill_form_lead_threads import _v1_trip_facts, _would_change
+
+    filled = date(2026, 11, 10)
+    wedding = {"What is the estimated guest count?": "< 250", "What is your tentative event date?": "28th Dec 2027",
+               "Which events are you looking to plan with us?": "wedding_ceremony",
+               "What is your approximate budget for the event?": "1.5_lakh_to_2_lakh"}
+    assert svc.trip_facts(wedding, filled) == {"adults": 250, "check_in": "2027-12-28", "check_out": "2027-12-29",
+                                               "occasion": "Wedding ceremony", "budget": 200000.0}
+    assert [max(svc._money(t)) for t in ("1.5-2 lakh", "50k", "rs. 30,000 - 40,000", "1 cr", "2L")] == [
+        200000.0, 50000.0, 40000.0, 10000000.0, 200000.0]
+    assert svc.trip_facts({"Event date": "10 Mar 2025"}, filled)["check_in"] == "2025-03-10"   # a written year is kept
+
+    # what the first version saved for this lead: budget 5, Dec 2026, no guests
+    old = _v1_trip_facts(wedding, filled)
+    assert old == {"check_in": "2026-12-28", "check_out": "2026-12-29", "budget": 5.0}
+    inq = Inquiry(budget=5, check_in="2026-12-28", check_out="2026-12-29", occasion="Reception")
+    assert _would_change(inq, wedding, filled, old)
+    svc.apply_trip_facts(inq, wedding, filled, replace=old)
+    assert (float(inq.budget), inq.check_in, inq.adults, inq.occasion) == (200000.0, "2027-12-28", 250, "Reception")
+    staff = Inquiry(budget=180000, check_in="2027-12-27", check_out="2027-12-29", adults=240, occasion="Wedding")
+    svc.apply_trip_facts(staff, wedding, filled, replace=old)                                   # set by a person: untouched
+    assert (float(staff.budget), staff.check_in, staff.adults) == (180000.0, "2027-12-27", 240)
+    assert not _would_change(staff, wedding, filled, old)
