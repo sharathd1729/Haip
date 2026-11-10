@@ -173,3 +173,16 @@ def test_a_villa_events_payment_lines_times_and_deposit_are_read():
     assert [ed.parse_clock(t) for t in ("1:30 PM", "12am", "14:00", "noon", "25pm")] == ["13:30", "00:00", "14:00", None, None]
     plain = ed.extract("Asha", "Guest Name: Asha\nPackage Cost: Rs 30,000\nTotal Booking Amount: Rs 35,400")
     assert "extras" not in plain and "deposit" not in plain                 # an event with no payment section: as before
+
+
+def test_the_title_names_the_villa_by_a_word_of_its_own_name():
+    names = {"t": "Tranquil by Jade", "h": "Haven by Jade", "m": "Magnolia Villa by Jade", "d": "Diamond Pavilion by Jade",
+             "d2": "Diamond Pavilion 2 by Jade", "n": "735 by Jade"}
+    assert ed.name_words(names)["t"] == ["tranquil"] and "d" not in ed.name_words(names)     # "diamond pavilion" is shared
+    assert ed.event_units("Tranquil/aditi/rajat\nGuest Name: Aditi", {}, {}, names) == ["t"]
+    assert ed.event_units("MAGNOLIA/KAVYA/RAJAT", {}, {}, names) == ["m"]
+    assert ed.event_units("735/Paresh/Shahrukh(2/2)", {}, {}, names) == ["n"]
+    assert ed.event_units("Diamond day out only", {}, {}, names) == []                     # two Diamonds: no guess
+    assert ed.event_units("Asha\nWe loved Haven last year", {}, {}, names) == []           # only the title counts
+    assert ed.event_units("Tranquil + Haven/group", {}, {}, names) == []                    # names two: no guess
+    assert ed.event_units("Tranquil/aditi", {}, {"h": ["tranquil"]}, names) == ["h"]       # a typed keyword still wins

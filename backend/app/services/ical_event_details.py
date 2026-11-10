@@ -226,11 +226,34 @@ def named_property(value: Optional[str], names: dict[str, str]) -> Optional[str]
     return None
 
 
+_NAME_WORD = re.compile(r"[a-z0-9]+")
+_COMMON = {"the", "and", "villa", "villas", "house", "home", "stay", "resort", "cottage", "room", "by", "at", "of", "on"}
+
+
+def name_words(names: dict[str, str]) -> dict[str, list[str]]:
+    """{property id: the words of its name no other property shares}: "Tranquil by Jade" -> ["tranquil"] when every villa
+    ends "by Jade". Words under 3 letters, plain words like "villa" and words two properties share are left out."""
+    words = {pid: set(_NAME_WORD.findall((name or "").lower())) - _COMMON for pid, name in names.items()}
+    out = {}
+    for pid, mine in words.items():
+        others = set().union(*(w for p, w in words.items() if p != pid)) if len(words) > 1 else set()
+        own = sorted(w for w in mine - others if len(w) >= 3)
+        if own:
+            out[pid] = own
+    return out
+
+
 def event_units(text: str, details: dict, rules: dict[str, list[str]], names: dict[str, str]) -> list[str]:
-    """Property ids an event is for. Its own "Property Name:" line wins; without one (or when it fits no property) the
-    keywords typed in Settings decide, as before."""
+    """Property ids an event is for. Its own "Property Name:" line wins; then the keywords typed in Settings; then, when
+    neither names one, a word of a unit's own name in the event's TITLE ("Tranquil/aditi/rajat"), only if exactly one fits."""
     named = named_property(details.get("property_name"), names)
-    return [named] if named else match_vehicles(text, rules)
+    if named:
+        return [named]
+    hits = match_vehicles(text, rules)
+    if hits:
+        return hits
+    by_name = match_vehicles((text or "").split("\n", 1)[0], name_words(names))
+    return by_name if len(by_name) == 1 else []
 
 
 _PAYMENT_HEAD = re.compile(r"payment details", re.I)

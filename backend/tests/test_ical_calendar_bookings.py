@@ -452,3 +452,17 @@ def test_add_ons_and_the_deposit_written_in_the_event_reach_the_booking(db, shar
                                      start=_d(20), end=_d(22)))
     odd = next(s for s in _stays(db, shared["tid"]) if s.id != stay.id)
     assert float(odd.total_amount) == 101952.0 and addons(odd) == []          # lines that do not add up: only the total is used
+
+
+def test_in_a_villa_workspace_an_event_that_names_no_villa_is_ignored(db, shared):
+    vague = _event("v1@g", "Someone/Rajat", "Guest Name: Someone", start=_d(10), end=_d(12))      # not bookable, names none
+    named = _event("w1@g", "Ratha White/Ravi", "Guest Name: Ravi", start=_d(20), end=_d(22))
+    _sync(db, shared["feed"], vague, named)
+    assert _active(db, shared["black"]) == [(_d(10), _d(12))]                                    # caravans: held on both, as before
+    assert _open_tasks(db, shared["tid"], "Which vehicle? ")
+    _villas(db, shared)
+    r = _sync(db, shared["feed"], vague, named)
+    assert r["needs_vehicle"] == 0
+    assert _active(db, shared["black"]) == []                                                    # the old hold is lifted
+    assert _active(db, shared["white"]) == [(_d(20), _d(22))]                                    # a named one still blocks its villa
+    assert _open_tasks(db, shared["tid"], "Which vehicle? ") == []                               # and its task is closed

@@ -1,6 +1,7 @@
 """
 One-off: lead-form leads imported before form leads got an Inbox thread have none. Give each its "Facebook" thread
-(the form's answers as a staff note), exactly as a new form lead gets now.
+(the form's answers as a staff note), exactly as a new form lead gets now, and fill the lead's empty Guests / Dates /
+Budget from the form's answers (never overwriting what is already set).
 
     python scripts/backfill_form_lead_threads.py --tenant-slug jade-hospitainment          # dry run
     python scripts/backfill_form_lead_threads.py --tenant-slug jade-hospitainment --apply
@@ -20,11 +21,11 @@ from app.models.conversation import Conversation  # noqa: E402
 from app.models.inquiry import Inquiry  # noqa: E402
 from app.models.meta_form_lead import MetaFormLead  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
-from app.services.meta_lead_forms_service import open_thread  # noqa: E402
+from app.services.meta_lead_forms_service import apply_trip_facts, open_thread, trip_facts  # noqa: E402
 
 
 def backfill(db, tenant_id: str, apply: bool) -> dict:
-    counts = {"form_leads": 0, "threads_made": 0, "already_have_a_thread": 0}
+    counts = {"form_leads": 0, "threads_made": 0, "already_have_a_thread": 0, "leads_given_trip_facts": 0}
     rows = (
         db.query(MetaFormLead)
         .filter(
@@ -36,6 +37,14 @@ def backfill(db, tenant_id: str, apply: bool) -> dict:
     seen: set[str] = set()
     for rec in rows:
         counts["form_leads"] += 1
+        inq = db.query(Inquiry).filter_by(id=rec.inquiry_id, tenant_id=tenant_id).first()
+        answers = (((inq.custom_fields or {}).get("lead_form") or {}).get("answers") or {}) if inq else {}
+        filled = (rec.lead_created_at or rec.created_at).date()
+        wanted = {k: v for k, v in trip_facts(answers, filled).items() if getattr(inq, k) in (None, "")} if inq else {}
+        if wanted:
+            counts["leads_given_trip_facts"] += 1
+            if apply:
+                apply_trip_facts(inq, answers, filled)
         has = (
             rec.guest_id in seen
             or db.query(Conversation.id).filter_by(tenant_id=tenant_id, guest_id=rec.guest_id).first()

@@ -11,9 +11,10 @@ The settings live in the `meta_business` integration's config under "lead_forms"
 
 from __future__ import annotations
 
+import re
 import time
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import structlog
 from sqlalchemy import func
@@ -93,6 +94,69 @@ def parse_fields(field_data) -> tuple[str, str, str, dict]:
     email = next((got[k] for k in _EMAIL if k in got), "")
     answers = {k.replace("_", " ").strip().capitalize(): v[:500] for k, v in got.items() if k not in _KNOWN}
     return name[:200], phone, email, answers
+
+
+_NUM = re.compile(r"\d[\d,]*")
+_MONTH_WORD = re.compile(r"[a-z]{3,9}", re.I)
+
+
+def _numbers(text: str) -> list[int]:
+    return [int(n.replace(",", "")) for n in _NUM.findall(text or "") if n.replace(",", "")]
+
+
+def _day_dates(text: str, filled: date) -> list[date]:
+    """"14 and 15" / "20-22 Dec" / "5th January" -> dates. Days with no month = the next such day on or after the day the
+    form was filled ("14 and 15" filled on 10 Nov = 14 and 15 Nov). Never a date in the past of the form."""
+    from app.services.ical_event_details import _month
+
+    month = next((m for w in _MONTH_WORD.findall(text or "") if (m := _month(w))), None)
+    out = []
+    for day in [n for n in _numbers(text) if 1 <= n <= 31][:2]:
+        tries = [(filled.year, month), (filled.year + 1, month)] if month else [
+            (filled.year + (filled.month + i - 1) // 12, (filled.month + i - 1) % 12 + 1) for i in range(13)]
+        for year, mon in tries:
+            try:
+                d = date(year, mon, day)
+            except ValueError:
+                continue
+            if d >= filled:
+                out.append(d)
+                break
+    return sorted(set(out))
+
+
+def trip_facts(answers: dict, filled: date) -> dict:
+    """Guests / dates / budget read from the form's own questions, for the lead's fields (the Inbox strip, the lead page).
+    A range keeps its TOP figure ("10-20 people" = 20, "30,000-40,000" = 40,000): enough room and the most they will
+    spend. The exact answer stays in the note. A question it cannot read is left alone."""
+    out: dict = {}
+    for question, raw in (answers or {}).items():
+        q, text = question.lower(), str(raw).replace("_", " ")
+        nums = _numbers(text)
+        if not nums:
+            continue
+        if "budget" in q or "price" in q or "spend" in q:
+            out.setdefault("budget", float(max(nums)))
+        elif any(w in q for w in ("guest", "people", "pax", "party", "persons", "members", "how many")):
+            top = max(n for n in nums if n <= 200) if any(n <= 200 for n in nums) else None
+            if top:
+                out.setdefault("adults", top)
+        elif "date" in q or "when" in q:
+            days = _day_dates(text, filled)
+            if days:
+                out.setdefault("check_in", days[0].isoformat())
+                out.setdefault("check_out", (days[-1] if len(days) > 1 else days[0] + timedelta(days=1)).isoformat())
+    return out
+
+
+def apply_trip_facts(inquiry: Inquiry, answers: dict, filled: date) -> list[str]:
+    """Fill the lead's empty Guests / Dates / Budget from the form. Never overwrites what a person or the chat already set."""
+    done = []
+    for field, value in trip_facts(answers, filled).items():
+        if getattr(inquiry, field) in (None, ""):
+            setattr(inquiry, field, value)
+            done.append(field)
+    return done
 
 
 def _when(value) -> datetime | None:
@@ -223,6 +287,7 @@ def ingest(db: Session, tenant_id: str, raw: dict, form: dict, page_id: str) -> 
                 f'Meta lead form "{rec.form_name}": ' + "; ".join(f"{k}: {v}" for k, v in answers.items())
             )[:2000]
         rec.guest_id, rec.inquiry_id = guest_id, inquiry.id
+        apply_trip_facts(inquiry, answers, (rec.lead_created_at or datetime.now(UTC)).date())
         _use_form_time(db, tenant_id, guest_id, inquiry, rec, new_person)
         open_thread(db, tenant_id, rec, inquiry)
     db.add(rec)
