@@ -101,6 +101,15 @@ export default function CalculatorPage() {
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
   const [city, setCity] = useState("");
+  const [propertyId, setPropertyId] = useState("");          // "" = every property
+  const [searched, setSearched] = useState(false);
+  // The property picker (owner, 10 Nov 2026): search one villa or all of them. The "Unassigned" placeholder is not a property.
+  const { data: properties = [] } = useQuery<{ id: string; name: string; max_adults?: number | null }[]>({
+    queryKey: ["calculator-properties"],
+    queryFn: () => api.get("/properties").then(r => (r.data?.items ?? r.data ?? []) as { id: string; name: string; max_adults?: number | null }[]),
+    select: rows => rows.filter(p => !(p.name || "").toLowerCase().startsWith("unassigned")),
+    staleTime: 300_000,
+  });
 
   // Results
   const [results, setResults] = useState<PropertyResult[]>([]);
@@ -125,14 +134,14 @@ export default function CalculatorPage() {
   // Search mutation
   const searchMutation = useMutation({
     mutationFn: () => api.post("/calculator/search", {
-      checkin, checkout, adults, children, city: city || undefined,
+      checkin, checkout, adults, children, city: city || undefined, property_id: propertyId || undefined,
     }).then(r => r.data),
     onSuccess: (data) => {
       setResults(data);
+      setSearched(true);
       setSelectedProperty(null);
       setSelectedAddons(new Set());
       setQuote(null);
-      if (data.length === 0) toast({ variant: "default", title: "No properties available for these dates" });
     },
     onError: () => toast({ variant: "error", title: "Search failed" }),
   });
@@ -270,6 +279,15 @@ export default function CalculatorPage() {
             </div>
 
             <div>
+              <label htmlFor="calc-property" className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">Property</label>
+              <select id="calc-property" value={propertyId} onChange={e => { setPropertyId(e.target.value); setSearched(false); }}
+                className="w-full px-3 py-2 text-base md:text-sm border border-[var(--haip-border)] rounded-lg bg-[var(--haip-card)] focus:outline-none focus:ring-2 focus:ring-primary">
+                <option value="">All properties</option>
+                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">Location (optional)</label>
               <input value={city} onChange={e => setCity(e.target.value)}
                 placeholder="Goa, Coorg, Manali..."
@@ -285,6 +303,25 @@ export default function CalculatorPage() {
               Search Properties
             </button>
           </div>
+
+          {/* Nothing came back: say why it can happen, instead of an empty panel */}
+          {searched && results.length === 0 && !searchMutation.isPending && (
+            <div role="status" className="m-4 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-surface)] p-3 text-sm text-[var(--haip-fg-2)]">
+              <p className="font-semibold text-[var(--haip-fg)]">
+                {propertyId ? `${properties.find(p => p.id === propertyId)?.name ?? "This property"} can't be quoted for these dates.` : "No property can be quoted for these dates."}
+              </p>
+              <ul className="mt-1.5 list-disc pl-5 space-y-0.5 text-xs">
+                {nights <= 0 && <li>Check-out must be at least one night after check-in.</li>}
+                <li>It is already booked or blocked on these dates (see the Calendar).</li>
+                <li>
+                  More guests than it takes
+                  {propertyId && properties.find(p => p.id === propertyId)?.max_adults != null ? ` (up to ${properties.find(p => p.id === propertyId)?.max_adults} adults)` : ""}.
+                  Change it on Properties.
+                </li>
+                <li>No price is set for it. Add a rate on Properties.</li>
+              </ul>
+            </div>
+          )}
 
           {/* Results */}
           {results.length > 0 && (
