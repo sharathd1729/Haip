@@ -367,7 +367,8 @@ def activity(db: Session, feed, today: date, limit: int = 40) -> dict:
             continue
         seen.add(detail.event_uid)
         d = detail.details or {}
-        hits = ical_event_details.match_vehicles((detail.title or "") + "\n" + (d.get("notes") or ""), rules)
+        hits = ical_event_details.event_units((detail.title or "") + "\n" + (d.get("notes") or ""), d, rules,
+                                              {pid: name for pid, name in names.items() if pid not in holders})
         reasons = missing_reasons(d, detail.dates_source, block.blocked_from, block.blocked_to, hits) or ["not booked yet"]
         skipped.append({"title": detail.title, "from": block.blocked_from, "to": block.blocked_to, "reasons": reasons})
         if len(skipped) >= limit:

@@ -24,6 +24,7 @@ from app.adapters.marketing import meta_business
 from app.adapters.marketing.meta_ads import MetaAdsError
 from app.core.audit import append_audit
 from app.core.database import set_tenant_context
+from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource, InquiryStage
 from app.models.meta_form_lead import MetaFormLead
 from app.services import meta_business_service as biz
@@ -100,6 +101,22 @@ def _when(value) -> datetime | None:
         return None
 
 
+def _use_form_time(db: Session, tenant_id: str, guest_id: str, inquiry: Inquiry, rec: MetaFormLead, new_person: bool) -> None:
+    """The lead's clock starts when the form was filled, not when HAIP read it. An import reads months back: stamped
+    "now", every old lead would show as brand new in My day, count as today's lead and alert the team."""
+    when = rec.lead_created_at
+    if not when or when > datetime.now(UTC):
+        return
+    if rec.status == "created":
+        inquiry.created_at = when
+    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first() if new_person else None
+    if guest is not None:  # only a person this submission created; a known person keeps their first dates
+        if guest.lead_identified_at is not None:
+            guest.lead_identified_at = when
+        if guest.first_touch_at is not None:
+            guest.first_touch_at = when
+
+
 def ingest(db: Session, tenant_id: str, raw: dict, form: dict, page_id: str) -> str:
     """Turn one submission into a lead. Returns created | attached | no_contact | duplicate. Commits."""
     from app.services import identity_service, inquiry_service, phone_identity
@@ -126,7 +143,7 @@ def ingest(db: Session, tenant_id: str, raw: dict, form: dict, page_id: str) -> 
     if phone or email:
         source = InquirySource.META_IG if rec.platform == "ig" else InquirySource.META_FB
         signal, value = ("phone", phone) if phone else ("email", email)
-        guest_id, _ = identity_service.resolve_gid(
+        guest_id, new_person = identity_service.resolve_gid(
             db,
             tenant_id,
             signal_type=signal,
@@ -168,6 +185,7 @@ def ingest(db: Session, tenant_id: str, raw: dict, form: dict, page_id: str) -> 
                 f'Meta lead form "{rec.form_name}": ' + "; ".join(f"{k}: {v}" for k, v in answers.items())
             )[:2000]
         rec.guest_id, rec.inquiry_id = guest_id, inquiry.id
+        _use_form_time(db, tenant_id, guest_id, inquiry, rec, new_person)
     db.add(rec)
     try:
         db.flush()

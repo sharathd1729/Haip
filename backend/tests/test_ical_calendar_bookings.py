@@ -312,3 +312,24 @@ def test_the_advance_of_a_trip_already_under_way_is_dated_no_later_than_its_chec
 def test_with_no_creation_stamp_a_future_trip_advance_is_dated_today(db, shared):
     _sync(db, shared["feed"], _ev())
     assert _paid_on(db, shared) == _d(0)
+
+
+def test_the_property_name_line_books_that_unit_even_without_keywords(db, shared):
+    """Jade, 10 Nov 2026: the event said "Property Name: *Retreat on the Ridge by Jade*" and the booking sat on Unassigned."""
+    ridge = _prop(db, shared["tid"], "Retreat on the Ridge by Jade")                  # not on the link, no keywords
+    by_line = _desc() + "\nProperty Name: *Ratha White*"
+    other = _desc(name="Ravi", phone="+91 98000 33333") + "\nProperty Name: *Retreat on the Ridge*"
+    r = _sync(db, shared["feed"],
+              _event("p1@g", "Asha/black offer", by_line, start=_d(10), end=_d(12)),   # the title says black; the line wins
+              _event("p2@g", "Ror/Ravi", other, start=_d(10), end=_d(12)))
+    assert r["bookings_created"] == 2 and r["needs_vehicle"] == 0
+    stays = {s.guest.name: s for s in _stays(db, shared["tid"])}
+    assert stays["Asha"].property_id == shared["white"].id
+    assert stays["Ravi"].property_id == ridge.id
+
+    parked = stays["Ravi"]                                    # a booking already parked on Unassigned moves on the next sync
+    parked.property_id = shared["placeholder"].id
+    db.commit()
+    _sync(db, shared["feed"], _event("p2@g", "Ror/Ravi", other, start=_d(10), end=_d(12)))
+    db.refresh(parked)
+    assert parked.property_id == ridge.id
