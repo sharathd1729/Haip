@@ -19,6 +19,7 @@ import { PaymentsPanel } from "@/components/bookings/PaymentsPanel";
 import { SchedulePanel } from "@/components/bookings/SchedulePanel";
 import { DepositPanel } from "@/components/bookings/DepositPanel";
 import { ServiceRequestsPanel } from "@/components/bookings/ServiceRequestsPanel";
+import { BookingGuestCards } from "@/components/bookings/BookingGuestCards";
 import { ChangeGuestDialog } from "@/components/bookings/ChangeGuestDialog";
 import { InvoicesMessagesCard } from "@/components/bookings/InvoicesMessagesCard";
 import { CollectSheet, refreshBooking } from "@/components/bookings/CollectSheet";
@@ -418,6 +419,7 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
           <DepositPanel booking={booking} onChange={setBooking} />
           <AddOnsPanel booking={booking} onChange={setBooking} />
           <ServiceRequestsPanel booking={booking} onChange={setBooking} />
+          <BookingGuestCards bookingId={booking.id} />
 
           <Card>
             <CardHeader title="Notes" description="Staff only, never sent to the guest." actions={canEdit && <button onClick={() => setEditing(true)} className="min-h-9 pointer-coarse:min-h-11 text-xs font-semibold text-primary hover:underline">Edit</button>} />
