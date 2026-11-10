@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, DataTable, EmptyState, PageHeader, Stat, StatusPill, Tabs, type Column } from "@/components/ui/kit";
 import { AccountPicker } from "@/components/marketing/AccountPicker";
+import { MetaBusinessCard } from "@/components/marketing/MetaBusinessCard";
 import { BackfillPanel } from "@/components/marketing/BackfillPanel";
 import { CampaignDrawer } from "@/components/marketing/CampaignDrawer";
 import { DailyChart } from "@/components/marketing/DailyChart";
@@ -179,6 +180,7 @@ export default function MarketingPage() {
             )}
           </>
         )}
+        {canChoose && <MetaBusinessCard />}
       </div>
       <CampaignDrawer campaign={selected} rangeLabel={range} onClose={() => setOpen(null)} />
     </div>

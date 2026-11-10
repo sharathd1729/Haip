@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.models.inquiry import Inquiry, InquirySource
 from app.models.lead_attribution import LeadAttribution
+from app.models.meta_form_lead import MetaFormLead
 
 PAID, ORGANIC, UNKNOWN = "paid", "organic", "unknown"
 VALUES = (PAID, ORGANIC, UNKNOWN)
@@ -49,6 +50,10 @@ def classify(db: Session, tenant_id: str, inquiries: Iterable[Inquiry]) -> dict[
         or_(LeadAttribution.inquiry_id.in_(ids), LeadAttribution.guest_id.in_([i.guest_id for i in inqs if i.guest_id]))).all()
     by_inq: dict[str, set] = {}
     by_guest: dict[str, set] = {}
+    # A Meta lead-form submission that names its ad is a paid lead (meta_form_leads; it has no chat to hang a referral on).
+    for (inquiry_id,) in db.query(MetaFormLead.inquiry_id).filter(
+            MetaFormLead.tenant_id == tenant_id, MetaFormLead.inquiry_id.in_(ids), MetaFormLead.ad_id.isnot(None)):
+        by_inq.setdefault(inquiry_id, set()).add(PAID)
     for inquiry_id, guest_id, source_type, ad_id in rows:
         kind = PAID if (source_type == "ad" or (source_type is None and ad_id)) else ORGANIC
         if inquiry_id:
@@ -78,7 +83,9 @@ def filter_sql(db: Session, tenant_id: str, value: str):
         LeadAttribution.tenant_id == tenant_id, LeadAttribution.inquiry_id.is_(None), LeadAttribution.guest_id == Inquiry.guest_id,
         ad_attribution_sql())))
     any_row = exists(select(LeadAttribution.id).where(LeadAttribution.tenant_id == tenant_id, LeadAttribution.inquiry_id == Inquiry.id))
-    paid = or_(ad, ad_guest)
+    form_ad = exists(select(MetaFormLead.id).where(MetaFormLead.tenant_id == tenant_id, MetaFormLead.inquiry_id == Inquiry.id,
+                                                   MetaFormLead.ad_id.isnot(None)))
+    paid = or_(ad, ad_guest, form_ad)
     organic_src = [s for s in InquirySource if s.value in ORGANIC_SOURCES]
     if value == PAID:
         return paid

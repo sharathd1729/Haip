@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.5 · **Owner**: Sharath D. · **Updated**: 8 Nov 2026 (Alembic head `199`)
+**Version**: 2.5 · **Owner**: Sharath D. · **Updated**: 10 Nov 2026 (Alembic head `200`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -222,6 +222,8 @@ Every table must have tenant_id.
   to `graph.facebook.com` including `paging.next`. Integration `kind="meta_ads"`, ad account chosen
   on the Marketing page (`PUT /marketing/ads/account`; the token must have the account assigned to
   its system user in Meta Business Settings or `/accounts` is empty).
+- **Meta Business connection (10 Nov)**: integration kind `meta_business` = ONE System User token per workspace (`meta_business_service`, `endpoints/meta_business.py` `/meta-business` GET, `PUT /token`, `POST /recheck`, `PUT /page`, DELETE; owner/manager; audited `meta_business.*`). The token is checked with Meta before saving (`adapters/marketing/meta_business.inspect_token`: owner name, granted permissions, ad accounts, pages), stored encrypted, never returned; `config.capabilities` says per use (ads / lead_forms / instagram_dm) what is ready or missing. Ads token order (`meta_ads_service.get_token`): meta_business, then `meta_ads`, then WhatsApp (Ratha unchanged). Card: `components/marketing/MetaBusinessCard.tsx` on Marketing. `scripts/copy_meta_token_to_business.py --tenant-slug X [--apply]` copies an `EAA` token left on the Instagram row (Jade) so an Instagram Login reconnect does not lose it. Instagram DMs do NOT use it yet.
+- **Meta lead forms [200]** (`meta_lead_forms_service`, table `meta_form_leads`, unique tenant + leadgen id): POLLING, no webhook. Beat `meta_lead_forms.sync_all_tenants` every 5 min (queue `whatsapp`) reads each ACTIVE form of the chosen page with the page's own token (`/{form}/leads`, `time_created` cursor in `config.lead_forms.since`, 10 min overlap). A submission becomes a lead once: person via `identity_service` (phone, else email; no contact = recorded, no lead), an open lead is reused else `create_lead_for_guest` (source `meta_ig`/`meta_fb` by platform, entry stage + assignment as usual), answers in `custom_fields.lead_form` and, when empty, `special_requests`; audited `meta_lead_form.lead_imported` (no PII). A submission with an `ad_id` is a PAID lead (`lead_paid.classify`/`filter_sql`) and counts under its campaign in `meta_ads_service.summary`; `lead_attribution` is NOT written (it needs a conversation). `PUT /meta-business/lead-forms`, `POST .../import` (last <= 90 days, every form). DPDP erasure keeps the row with links cut (`status=erased`) so an import cannot bring the person back.
 - Tables: `ad_metrics` (daily per ad: spend, impressions, clicks, link/unique clicks, CPC,
   engagements, video views, first replies, chats started, raw `actions` JSON) [115, 116] and
   `ad_entities` (campaign/ad set/ad status, objective, budget, dates, creative, targeting) [116].

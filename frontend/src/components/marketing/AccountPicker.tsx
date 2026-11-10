@@ -32,7 +32,9 @@ export function AccountPicker({ canChoose, hasToken }: { canChoose: boolean; has
   });
 
   if (!hasToken) {
-    return <EmptyState title="Connect WhatsApp first" hint="Meta ads use the same Meta access token as your WhatsApp connection, and none is saved yet. Add it under Settings, Integrations." />;
+    return <EmptyState title="Connect Meta first" hint={canChoose
+      ? "No Meta token is saved yet. Paste your Meta Business token in the card below, then choose the ad account here."
+      : "No Meta token is saved yet. Ask an owner or manager to connect Meta Business on this page."} />;
   }
   if (!canChoose) {
     return <EmptyState title="No ad account chosen yet" hint="Ask an owner or manager to choose which Meta ad account to show here." />;

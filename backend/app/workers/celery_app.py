@@ -102,6 +102,7 @@ celery_app = Celery(
         "app.workers.tasks.check_meta_credentials",
         # Meta ads spend/reach/conversations, nightly
         "app.workers.tasks.sync_meta_ads",
+        "app.workers.tasks.sync_meta_lead_forms",
         # Keeps the Instagram long-lived token from ever reaching expiry
         "app.workers.tasks.refresh_instagram_token",
         # Lead assignment: waiting leads + pass on uncontacted ones
@@ -249,6 +250,8 @@ celery_app.conf.update(
         "meta_ads.sync_all_tenants":                 {"queue": "whatsapp"},
         "meta_ads.sync_tenant":                      {"queue": "whatsapp"},
         "meta_ads.backfill_tenant":                  {"queue": "whatsapp"},
+        "meta_lead_forms.sync_all_tenants":          {"queue": "whatsapp"},
+        "meta_lead_forms.sync_tenant":               {"queue": "whatsapp"},
         "marketing_ads.push":                        {"queue": "whatsapp"},
         "marketing_ads.evaluate_all":                {"queue": "whatsapp"},
         "marketing_ads.evaluate_tenant":             {"queue": "whatsapp"},
@@ -623,6 +626,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="5,35"),
     },
     # 03:00 IST. Meta finalises the previous day overnight; each run re-reads the last 7 days.
+    # Meta lead-form leads: every 5 minutes, only for workspaces that switched lead forms on.
+    "meta-lead-forms-sync": {
+        "task": "meta_lead_forms.sync_all_tenants",
+        "schedule": crontab(minute="*/5"),
+    },
     "meta-ads-sync-daily": {
         "task": "meta_ads.sync_all_tenants",
         "schedule": crontab(hour=21, minute=30),
