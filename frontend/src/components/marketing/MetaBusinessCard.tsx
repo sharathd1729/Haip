@@ -1,5 +1,5 @@
 "use client";
-// The workspace's Meta Business connection: one System User token for ad results, lead forms and (next) Instagram messages.
+// The workspace's Meta Business connection: one System User token for ad results, lead forms and, if the owner chooses, Instagram messages.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -16,12 +16,13 @@ export type MetaBusiness = {
   checked_at: string | null; token_expires_at: string | null;
   lead_forms: { enabled: boolean; forms: { id: string; name: string; status: string }[]; last_run_at: string | null;
     last_error: string | null; imported: number; last_lead_at: string | null };
+  instagram: { mode: "meta_business" | "instagram_login" | null; username: string | null; webhook_subscribed: boolean };
 };
 
-const USES: { key: UseKey; label: string; note?: string }[] = [
+const USES: { key: UseKey; label: string }[] = [
   { key: "ads", label: "Ad spend and results" },
   { key: "lead_forms", label: "Lead forms" },
-  { key: "instagram_dm", label: "Instagram messages", note: "Not used yet. Instagram still connects with Instagram Login." },
+  { key: "instagram_dm", label: "Instagram messages" },
 ];
 const primary = "h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50";
 const quiet = "h-11 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-4 text-sm font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-50";
@@ -33,6 +34,8 @@ export function MetaBusinessCard() {
   const [token, setToken] = useState("");
   const [replacing, setReplacing] = useState(false);
   const [sureRemove, setSureRemove] = useState(false);
+  const [secret, setSecret] = useState("");
+  const [switching, setSwitching] = useState(false);
   const status = useQuery<MetaBusiness>({ queryKey: ["meta-business"], queryFn: () => api.get("/meta-business").then(r => r.data) });
 
   const change = useMutation({
@@ -41,7 +44,7 @@ export function MetaBusinessCard() {
       qc.setQueryData(["meta-business"], data);
       qc.invalidateQueries({ queryKey: ["ads-status"] });
       qc.invalidateQueries({ queryKey: ["ads-accounts"] });
-      setToken(""); setReplacing(false); setSureRemove(false);
+      setToken(""); setReplacing(false); setSureRemove(false); setSecret(""); setSwitching(false);
     },
     onError: e => toast({ variant: "error", title: "That did not work", description: errorText(e, "Try again.") }),
   });
@@ -83,7 +86,6 @@ export function MetaBusinessCard() {
                     <span className="min-w-[10rem] font-semibold text-[var(--haip-fg)]">{u.label}</span>
                     <StatusPill tone={c?.ok ? "success" : "warning"}>{c?.ok ? "Ready" : "Not ready"}</StatusPill>
                     {!c?.ok && c?.missing.length ? <span className="w-full text-xs text-[var(--haip-fg-subtle)]">Missing: {c.missing.join("; ")}</span> : null}
-                    {c?.ok && u.note ? <span className="w-full text-xs text-[var(--haip-fg-subtle)]">{u.note}</span> : null}
                   </li>
                 );
               })}
@@ -119,6 +121,39 @@ export function MetaBusinessCard() {
                       {importOld.isPending ? "Starting…" : "Import the last 90 days"}
                     </button>
                   </>
+                )}
+              </div>
+            )}
+            {s.capabilities?.instagram_dm.ok && (
+              <div className="space-y-2 rounded-lg border border-[var(--haip-border)] p-3">
+                <p className="text-sm font-semibold text-[var(--haip-fg)]">Instagram messages</p>
+                {s.instagram.mode === "meta_business" && (
+                  <p className="text-xs text-[var(--haip-fg-2)]">
+                    Running on this token{s.instagram.username ? ` (@${s.instagram.username})` : ""}.
+                    {!s.instagram.webhook_subscribed && " Meta has not confirmed the page's message subscription. Save the App Secret again to retry."}
+                  </p>
+                )}
+                {s.instagram.mode === "instagram_login" && (
+                  <p className="text-xs text-[var(--haip-fg-2)]">
+                    Connected with Instagram Login{s.instagram.username ? ` (@${s.instagram.username})` : ""}. It keeps working as it is; nothing to do here.
+                  </p>
+                )}
+                {s.instagram.mode === "instagram_login" && !switching && (
+                  <button type="button" className={quiet} onClick={() => setSwitching(true)}>Use this token instead</button>
+                )}
+                {(s.instagram.mode === null || switching || (s.instagram.mode === "meta_business" && !s.instagram.webhook_subscribed)) && (
+                  <form className="space-y-2" onSubmit={e => { e.preventDefault(); const app_secret = secret.trim(); change.mutate(() => api.post("/meta-business/instagram", { app_secret })); }}>
+                    <label className="block text-sm font-semibold text-[var(--haip-fg)]" htmlFor="meta-business-app-secret">App Secret of the Meta app this token belongs to</label>
+                    <input id="meta-business-app-secret" type="password" autoComplete="off" value={secret} onChange={e => setSecret(e.target.value)} className={field} />
+                    <p className="text-xs text-[var(--haip-fg-subtle)]">
+                      Meta for Developers → your app → App settings → Basic. In that app, point the Instagram webhook at HAIP (the callback URL and verify token are in
+                      Settings → Integrations → Instagram). The app must be Live with Advanced Access for instagram_manage_messages, or only people with a role on the app get replies.
+                      The other way to connect is Instagram Login, on the Integrations page.
+                    </p>
+                    <button type="submit" disabled={secret.trim().length < 8 || change.isPending} className={primary}>
+                      {change.isPending ? "Asking Meta…" : "Use this token for Instagram messages"}
+                    </button>
+                  </form>
                 )}
               </div>
             )}

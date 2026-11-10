@@ -5,6 +5,7 @@
   POST   /meta-business/recheck  ask Meta again what the saved token can see
   PUT    /meta-business/page     choose the Facebook page
   DELETE /meta-business          remove the token
+  POST   /meta-business/instagram  run Instagram messages on this token (the other way is Instagram Login)
   PUT    /meta-business/lead-forms         switch lead-form leads on or off
   POST   /meta-business/lead-forms/import  bring in the leads of the last N days (background)
 
@@ -136,6 +137,34 @@ def import_lead_forms(body: ImportIn, current_user: User = _Manager, db: Session
     except Exception as exc:  # noqa: BLE001  the broker is down
         raise HTTPException(status_code=503, detail="Could not start the import. Try again in a minute.") from exc
     return _done(db, current_user, "meta_business.lead_forms_import_started", {"days": body.days})
+
+
+class InstagramIn(BaseModel):
+    app_secret: str = Field(min_length=8, max_length=200)
+
+
+@router.post("/instagram")
+def use_for_instagram(body: InstagramIn, current_user: User = _Manager, db: Session = Depends(get_db)):
+    """Instagram DMs and comments through the linked Facebook page's token. Instagram Login stays available."""
+    try:
+        ig = svc.use_for_instagram(db, current_user.tenant_id, body.app_secret)
+    except svc.SwitchRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (svc.NotConnected, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except MetaAdsError as exc:
+        raise _meta_error(exc) from exc
+    cfg = ig.config or {}
+    return _done(
+        db,
+        current_user,
+        "instagram.connected",
+        {
+            "mode": "meta_business",
+            "instagram_business_account_id": cfg.get("instagram_business_account_id"),
+            "webhook_subscribed": bool(cfg.get("webhook_subscribed")),
+        },
+    )
 
 
 @router.delete("")

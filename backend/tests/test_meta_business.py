@@ -192,6 +192,7 @@ def test_wrong_role_and_other_workspace_see_nothing(client, db, tenant_and_user,
             "imported": 0,
             "last_lead_at": None,
         },
+        "instagram": {"mode": None, "username": None, "webhook_subscribed": False},
     }
     assert client.delete(URL, headers=_h(stranger)).status_code == 404
     assert svc.get_token(db, tenant_and_user["tenant"].id) == TOKEN

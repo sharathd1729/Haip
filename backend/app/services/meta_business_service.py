@@ -17,6 +17,10 @@ from app.services import meta_token_expiry
 KIND = "meta_business"
 
 
+class SwitchRefused(Exception):
+    """Instagram already has chats on the other connection type."""
+
+
 class NotConnected(Exception):
     """No Meta Business token is saved for this workspace."""
 
@@ -119,6 +123,7 @@ def status(db: Session, tenant_id: str) -> dict:
 
     return {
         "lead_forms": meta_lead_forms_service.status_block(db, tenant_id, cfg if connected else {}),
+        "instagram": instagram_block(db, tenant_id),
         "connected": connected,
         "token_name": cfg.get("token_name") if connected else None,
         "capabilities": cfg.get("capabilities") if connected else None,
@@ -128,3 +133,104 @@ def status(db: Session, tenant_id: str) -> dict:
         "checked_at": cfg.get("checked_at") if connected else None,
         "token_expires_at": cfg.get("token_expires_at") if connected else None,
     }
+
+
+# ── Instagram messages on this token (the other way is Instagram Login) ──────
+
+
+def _instagram_row(db: Session, tenant_id: str) -> Integration | None:
+    return db.query(Integration).filter_by(tenant_id=tenant_id, kind="instagram").first()
+
+
+def _instagram_mode(row: Integration | None) -> str | None:
+    """meta_business | instagram_login | None (nothing that can work is connected)."""
+    if not row or row.status == "disconnected" or not row.credentials_kms_blob:
+        return None
+    if (row.config or {}).get("auth_mode") == "meta_business":
+        return "meta_business"
+    try:
+        token = decrypt_credentials(row.credentials_kms_blob).get("access_token", "") or ""
+    except Exception:
+        token = ""
+    return "instagram_login" if token.startswith("IG") else None
+
+
+def instagram_chats_exist(db: Session, tenant_id: str) -> bool:
+    from app.models.conversation import ChannelType, Conversation
+
+    return db.query(Conversation.id).filter_by(tenant_id=tenant_id, channel=ChannelType.INSTAGRAM).first() is not None
+
+
+def instagram_block(db: Session, tenant_id: str) -> dict:
+    row = _instagram_row(db, tenant_id)
+    mode = _instagram_mode(row)
+    cfg = (row.config if row else None) or {}
+    return {
+        "mode": mode,
+        "username": cfg.get("username") if mode else None,
+        "webhook_subscribed": bool(cfg.get("webhook_subscribed")) if mode else False,
+    }
+
+
+def use_for_instagram(db: Session, tenant_id: str, app_secret: str) -> Integration:
+    """Run the workspace's Instagram messages on this connection: the linked page's own token on graph.facebook.com,
+    saved on the Instagram integration so every sender and check keeps reading one place.
+    Raises NotConnected, SwitchRefused, ValueError (plain words) or MetaAdsError."""
+    from app.adapters.instagram import meta_graph
+
+    token = get_token(db, tenant_id)
+    row = get_row(db, tenant_id)
+    if not token or not row:
+        raise NotConnected("No Meta Business token is saved for this workspace.")
+    cfg = row.config or {}
+    cap = (cfg.get("capabilities") or {}).get("instagram_dm") or {}
+    if not cap.get("ok"):
+        raise ValueError(
+            "This token cannot run Instagram messages: " + "; ".join(cap.get("missing") or ["unknown reason"]) + "."
+        )
+    page = next((p for p in cfg.get("pages", []) if p["id"] == cfg.get("page_id")), None)
+    if not page or not page.get("instagram_id"):
+        raise ValueError("The chosen Facebook page has no Instagram account linked to it.")
+    ig = _instagram_row(db, tenant_id)
+    if _instagram_mode(ig) == "instagram_login" and instagram_chats_exist(db, tenant_id):
+        raise SwitchRefused(
+            "This workspace already has Instagram chats through Instagram Login. Meta's two connection types do not "
+            "share ids, so switching could split each guest in two. Keep Instagram Login, or ask HAIP to migrate the chats first."
+        )
+    page_access = meta_business.page_token(token, page["id"])
+    if not page_access:
+        raise ValueError("The token can no longer see the chosen Facebook page. Use Check again.")
+    subscribed, error = meta_graph.subscribe_page(page_access, page["id"])
+    if ig is None:
+        ig = Integration(tenant_id=tenant_id, kind="instagram", config={}, installed_at=_now_iso())
+        db.add(ig)
+    old: dict = {}
+    if ig.credentials_kms_blob:
+        try:
+            old = decrypt_credentials(ig.credentials_kms_blob)
+        except Exception:
+            old = {}
+    ig.credentials_kms_blob = encrypt_credentials(
+        {
+            **old,
+            "access_token": page_access,
+            "app_secret": app_secret.strip(),
+            "instagram_business_account_id": page["instagram_id"],
+        }
+    )
+    keep = {
+        k: v for k, v in (ig.config or {}).items() if k not in ("token_expires_at", "token_refreshed_at", "permissions")
+    }
+    ig.config = {
+        **keep,
+        "auth_mode": "meta_business",
+        "instagram_business_account_id": page["instagram_id"],
+        "username": page.get("instagram_username") or "",
+        "page_id": page["id"],
+        "webhook_subscribed": subscribed,
+        "webhook_subscribe_error": error or None,
+        "webhook_subscribed_at": _now_iso() if subscribed else None,
+    }
+    ig.status = "active"
+    db.flush()
+    return ig

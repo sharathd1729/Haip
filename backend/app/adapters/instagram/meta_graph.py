@@ -13,6 +13,31 @@ import httpx
 logger = logging.getLogger(__name__)
 
 GRAPH_BASE = "https://graph.instagram.com/v20.0"
+# Instagram on the Meta Business (System User) connection: the same calls on Facebook's host, with the linked page's token.
+FB_GRAPH_BASE = "https://graph.facebook.com/v20.0"
+
+
+def base_for(access_token: str) -> str:
+    """A Facebook token (EAA...) only works on graph.facebook.com, an Instagram Login token only on graph.instagram.com."""
+    return FB_GRAPH_BASE if (access_token or "").startswith("EAA") else GRAPH_BASE
+
+
+def subscribe_page(page_access_token: str, page_id: str) -> tuple[bool, str]:
+    """Meta Business mode: switch on the linked Facebook page's subscription, without which Meta delivers no Instagram
+    message webhooks for it. Returns (ok, error text); never raises."""
+    try:
+        resp = httpx.post(
+            f"{FB_GRAPH_BASE}/{page_id}/subscribed_apps",
+            data={"subscribed_fields": "messages,messaging_postbacks"},
+            headers={"Authorization": f"Bearer {page_access_token}"},
+            timeout=15,
+        )
+        body = resp.json() if resp.content else {}
+    except Exception as exc:  # noqa: BLE001
+        return False, type(exc).__name__
+    if resp.status_code == 200 and body.get("success") is True:
+        return True, ""
+    return False, str((body.get("error") or {}).get("message") or body or resp.status_code)[:200]
 
 # SSRF protection for inbound attachment media_url values (T0.2). Unlike
 # Dograh's fixed hostnames, Meta's CDN serves media from many dynamically
@@ -75,9 +100,12 @@ class InstagramGraphAdapter:
     def __init__(self, access_token: str, ig_account_id: str):
         self._token = access_token
         self._account_id = ig_account_id
+        self._base = base_for(access_token)
+        # Messages hang off the Instagram account with an Instagram Login token, off the page ("me") with a page token.
+        self._inbox = "me" if self._base == FB_GRAPH_BASE else ig_account_id
 
     def _post(self, path: str, payload: dict) -> dict:
-        url = f"{GRAPH_BASE}/{path.lstrip('/')}"
+        url = f"{self._base}/{path.lstrip('/')}"
         resp = httpx.post(
             url,
             json=payload,
@@ -92,7 +120,7 @@ class InstagramGraphAdapter:
         return resp.json()
 
     def _get(self, path: str, params: dict | None = None) -> dict:
-        url = f"{GRAPH_BASE}/{path.lstrip('/')}"
+        url = f"{self._base}/{path.lstrip('/')}"
         p = {"access_token": self._token, **(params or {})}
         resp = httpx.get(url, params=p, timeout=15)
         try:
@@ -106,7 +134,7 @@ class InstagramGraphAdapter:
 
     def send_text(self, recipient_id: str, text: str) -> dict:
         """Send a plain-text DM to a user by their Instagram-scoped user ID."""
-        result = self._post(f"/{self._account_id}/messages", {
+        result = self._post(f"/{self._inbox}/messages", {
             "recipient": {"id": recipient_id},
             "message": {"text": text},
             "messaging_type": "RESPONSE",
@@ -115,7 +143,7 @@ class InstagramGraphAdapter:
 
     def send_quick_replies(self, recipient_id: str, text: str, quick_replies: list[dict]) -> dict:
         """Send a message with quick reply buttons."""
-        return self._post(f"/{self._account_id}/messages", {
+        return self._post(f"/{self._inbox}/messages", {
             "recipient": {"id": recipient_id},
             "message": {
                 "text": text,
@@ -130,7 +158,7 @@ class InstagramGraphAdapter:
         commented is rejected by Meta as "outside of allowed window" -- the
         comment itself is what opens this one reply. Meta allows one private
         reply per comment, within 7 days of it."""
-        return self._post(f"/{self._account_id}/messages", {
+        return self._post(f"/{self._inbox}/messages", {
             "recipient": {"comment_id": comment_id},
             "message": {"text": text},
         })
@@ -141,13 +169,13 @@ class InstagramGraphAdapter:
 
     def mark_seen(self, sender_id: str) -> dict:
         """Send 'seen' receipt to a user."""
-        return self._post(f"/{self._account_id}/messages", {
+        return self._post(f"/{self._inbox}/messages", {
             "recipient": {"id": sender_id},
             "sender_action": "mark_seen",
         })
 
     def typing_on(self, sender_id: str) -> dict:
-        return self._post(f"/{self._account_id}/messages", {
+        return self._post(f"/{self._inbox}/messages", {
             "recipient": {"id": sender_id},
             "sender_action": "typing_on",
         })

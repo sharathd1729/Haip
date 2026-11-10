@@ -16,6 +16,7 @@ import { MetaBusinessCard, type MetaBusiness } from "./MetaBusinessCard";
 const OFF: MetaBusiness = {
   connected: false, token_name: null, capabilities: null, pages: [], page: null, checked_at: null, token_expires_at: null,
   lead_forms: { enabled: false, forms: [], last_run_at: null, last_error: null, imported: 0, last_lead_at: null },
+  instagram: { mode: null, username: null, webhook_subscribed: false },
 };
 const ok = { ok: true, missing: [] };
 const ON: MetaBusiness = {
@@ -64,5 +65,29 @@ describe("MetaBusinessCard", () => {
     renderIt();
     await screen.findByText("Missing: permission leads_retrieval");
     expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByLabelText(/App Secret/)).toBeNull();               // Instagram is not ready on this token either
+  });
+
+  it("runs Instagram messages on the token once the App Secret is given", async () => {
+    const ready = { ...ON, capabilities: { ...ON.capabilities!, instagram_dm: ok } };
+    get.mockResolvedValue({ data: ready });
+    post.mockResolvedValue({ data: { ...ready, instagram: { mode: "meta_business", username: "demovillas", webhook_subscribed: true } } });
+    renderIt();
+    const input = await screen.findByLabelText(/App Secret/);
+    await userEvent.type(input, " demo-app-secret ");
+    await userEvent.click(screen.getByRole("button", { name: "Use this token for Instagram messages" }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/meta-business/instagram", { app_secret: "demo-app-secret" }));
+    await screen.findByText(/Running on this token \(@demovillas\)/);
+    expect(screen.queryByLabelText(/App Secret/)).toBeNull();
+  });
+
+  it("leaves a working Instagram Login connection alone unless the owner asks to switch", async () => {
+    get.mockResolvedValue({ data: { ...ON, capabilities: { ...ON.capabilities!, instagram_dm: ok },
+      instagram: { mode: "instagram_login", username: "demovillas", webhook_subscribed: false } } });
+    renderIt();
+    await screen.findByText(/Connected with Instagram Login \(@demovillas\)/);
+    expect(screen.queryByLabelText(/App Secret/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Use this token instead" }));
+    expect(screen.getByLabelText(/App Secret/)).toBeTruthy();
   });
 });
