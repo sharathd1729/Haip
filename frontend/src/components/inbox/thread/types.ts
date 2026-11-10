@@ -104,6 +104,7 @@ export const CHANNEL_FILTERS = [
   { value: "whatsapp",  label: "WhatsApp" },
   { value: "instagram", label: "Instagram" },
   { value: "voice",     label: "Call" },
+  { value: "facebook",  label: "Facebook" },
   { value: "webchat",   label: "Web" },
   // Personal/Business-app WhatsApp bridge (whatsmeow, unofficial) -- kept
   // out of "WhatsApp"/"All" for now (product decision) since it shares

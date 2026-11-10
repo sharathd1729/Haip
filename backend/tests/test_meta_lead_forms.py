@@ -362,3 +362,43 @@ def test_repair_script_puts_imported_leads_back_on_the_form_time(db, tenant_and_
     assert repair(db, tenant.id, apply=True) == {"form_leads": 2, "leads_redated": 0, "people_redated": 0}  # safe to re-run
     assert db.query(AuditEvent).filter_by(tenant_id=tenant.id, action="meta_lead_form.times_repaired").count() == 1
     assert PHONE not in capsys.readouterr().out
+
+
+def test_a_form_lead_gets_an_inbox_thread_that_is_a_note_not_a_chat(client, db, tenant_and_user, graph):
+    from app.models.conversation import ChannelType, Conversation, Message
+    from scripts.backfill_form_lead_threads import backfill
+
+    tenant = tenant_and_user["tenant"]
+    _on(db, tenant.id)
+    known, _ = svc_identity().resolve_gid(db, tenant.id, signal_type="phone", value="+917349012878", source="whatsapp")
+    db.add(Conversation(tenant_id=tenant.id, guest_id=known, channel=ChannelType.WHATSAPP, is_open=True))
+    db.commit()
+    graph.leads = [lead("NEW", platform="fb"), lead("KNOWN", phone="+917349012878", email="")]
+    svc.sync(db, tenant.id)
+
+    rec = db.query(MetaFormLead).filter_by(tenant_id=tenant.id, leadgen_id="NEW").one()
+    conv = db.query(Conversation).filter_by(tenant_id=tenant.id, guest_id=rec.guest_id).one()
+    note = db.query(Message).filter_by(conversation_id=conv.id).one()
+    assert (conv.channel, conv.ai_mode, conv.inquiry_id) == (ChannelType.FACEBOOK, "off", rec.inquiry_id)
+    assert note.is_internal and note.body == 'Filled the lead form "Villa enquiry" on Facebook.\nTravel dates: 20-22 Dec'
+    assert db.query(Conversation).filter_by(tenant_id=tenant.id, guest_id=known).count() == 1   # a known person keeps their thread
+
+    rows = client.get("/api/v1/conversations", params={"channel": "facebook"}, headers=_h(tenant_and_user)).json()
+    rows = rows["items"] if isinstance(rows, dict) else rows
+    assert [(r["channel"], r["last_message"], r["is_waiting_reply"]) for r in rows] == [
+        ("facebook", note.body, False)
+    ]
+    items = work_queue_service.build(db, tenant, None)["items"]
+    assert [i["kind"] for i in items if i.get("guest_id") == rec.guest_id] == ["new_lead"]     # not "waiting for a reply"
+
+    db.query(Message).filter_by(conversation_id=conv.id).delete()                              # as imported before this change
+    db.query(Conversation).filter_by(id=conv.id).delete()
+    db.commit()
+    other = _workspace(db)
+    assert backfill(db, tenant.id, apply=False) == {"form_leads": 2, "threads_made": 1, "already_have_a_thread": 1}
+    assert db.query(Conversation).filter_by(tenant_id=tenant.id, guest_id=rec.guest_id).count() == 0   # dry run
+    assert backfill(db, other["tenant"].id, apply=True) == {"form_leads": 0, "threads_made": 0, "already_have_a_thread": 0}
+    assert backfill(db, tenant.id, apply=True)["threads_made"] == 1
+    db.commit()
+    assert backfill(db, tenant.id, apply=True) == {"form_leads": 2, "threads_made": 0, "already_have_a_thread": 2}
+

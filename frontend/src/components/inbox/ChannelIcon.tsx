@@ -5,7 +5,7 @@
  * Uses explicit Tailwind light + dark: classes for theme safety.
  * All icons: 14px, inline with text, gap-1.
  */
-import { MessageSquare, Globe, Building2, Users } from "@/lib/icons";
+import { MessageSquare, Globe, Building2, Users, ClipboardList } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 // ─── Real brand marks (Simple Icons' verified SVG paths, not redrawn) ────────
@@ -56,6 +56,9 @@ const CONFIGS: Record<string, ChannelConfig> = {
   meta_ig:      { icon: <InstagramIcon size={13} />, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950" },
   instagram:    { icon: <InstagramIcon size={13} />, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950" },
 
+  // Meta lead form (a thread in the Inbox under "Facebook"; not a chat)
+  facebook:     { icon: <ClipboardList size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
+
   // Phone — filled solid, blue
   inbound_call:  { icon: <CallIcon size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
   outbound_call: { icon: <CallIcon size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
@@ -94,7 +97,7 @@ const FALLBACK: ChannelConfig = {
 // text (e.g. "voice" showing where an agent expects "Call").
 const LABELS: Record<string, string> = {
   wa_direct: "WhatsApp", whatsapp: "WhatsApp", click_to_wa: "WhatsApp",
-  meta_ig: "Instagram", instagram: "Instagram",
+  meta_ig: "Instagram", instagram: "Instagram", facebook: "Facebook",
   inbound_call: "Call", outbound_call: "Call", call: "Call", voice: "Call", phone: "Call", organic_call: "Organic call",
   ota_airbnb: "Airbnb", airbnb: "Airbnb",
   ota_mmt: "MakeMyTrip", ota_booking: "Booking.com", ota_vrbo: "Vrbo", ota_goibibo: "Goibibo",

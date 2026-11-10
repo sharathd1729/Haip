@@ -19,6 +19,9 @@ class ChannelType(str, enum.Enum):
     # Column is plain VARCHAR(30) at the DB level (migration 001), not a
     # native Postgres enum, so no migration is needed to add this.
     INTERNAL = "internal"
+    # A Meta lead form (Facebook / Instagram ad form): a thread so the lead is in the Inbox. Not a chat: it only ever
+    # holds the form's answers as a staff note (meta_lead_forms_service.open_thread). Plain VARCHAR, no migration.
+    FACEBOOK = "facebook"
 
 
 class MessageDirection(str, enum.Enum):

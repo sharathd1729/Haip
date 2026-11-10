@@ -24,6 +24,7 @@ from app.adapters.marketing import meta_business
 from app.adapters.marketing.meta_ads import MetaAdsError
 from app.core.audit import append_audit
 from app.core.database import set_tenant_context
+from app.models.conversation import ChannelType, Conversation, Message, MessageDirection
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource, InquiryStage
 from app.models.meta_form_lead import MetaFormLead
@@ -117,6 +118,43 @@ def _use_form_time(db: Session, tenant_id: str, guest_id: str, inquiry: Inquiry,
             guest.first_touch_at = when
 
 
+def open_thread(db: Session, tenant_id: str, rec: MetaFormLead, inquiry: Inquiry) -> bool:
+    """Put the lead in the Inbox (owner, 10 Nov 2026): one "Facebook" thread holding the form's answers. A form is not a
+    chat, so the answers are a STAFF NOTE: the AI never replies to it and it is never "waiting for a reply". A person who
+    already has a thread on any channel keeps that one. True when a thread was made."""
+    if db.query(Conversation.id).filter_by(tenant_id=tenant_id, guest_id=rec.guest_id).first():
+        return False
+    when = rec.lead_created_at or datetime.now(UTC)
+    conv = Conversation(
+        tenant_id=tenant_id,
+        guest_id=rec.guest_id,
+        inquiry_id=inquiry.id,
+        channel=ChannelType.FACEBOOK,
+        is_open=True,
+        ai_mode="off",
+        source="lead_form",
+        last_message_at=when.isoformat(),
+    )
+    db.add(conv)
+    db.flush()
+    answers = ((inquiry.custom_fields or {}).get("lead_form") or {}).get("answers") or {}
+    where = "Instagram" if rec.platform == "ig" else "Facebook"
+    note = Message(
+        tenant_id=tenant_id,
+        conversation_id=conv.id,
+        direction=MessageDirection.OUTBOUND,
+        channel=ChannelType.FACEBOOK,
+        body=(f'Filled the lead form "{rec.form_name}" on {where}.' + "".join(f"\n{k}: {v}" for k, v in answers.items()))[:4000],
+        is_internal=True,
+        sender_name="Meta lead form",
+        sender_kind="system",
+    )
+    db.add(note)
+    db.flush()
+    note.created_at = when
+    return True
+
+
 def ingest(db: Session, tenant_id: str, raw: dict, form: dict, page_id: str) -> str:
     """Turn one submission into a lead. Returns created | attached | no_contact | duplicate. Commits."""
     from app.services import identity_service, inquiry_service, phone_identity
@@ -186,6 +224,7 @@ def ingest(db: Session, tenant_id: str, raw: dict, form: dict, page_id: str) -> 
             )[:2000]
         rec.guest_id, rec.inquiry_id = guest_id, inquiry.id
         _use_form_time(db, tenant_id, guest_id, inquiry, rec, new_person)
+        open_thread(db, tenant_id, rec, inquiry)
     db.add(rec)
     try:
         db.flush()
