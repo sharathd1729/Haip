@@ -48,6 +48,7 @@ from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.task import Task
 from app.models.sales_action import SalesAction
 from app.models.lead_attribution import LeadAttribution
+from app.models.meta_form_lead import MetaFormLead
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
 from app.models.lead_autopilot import LeadAutopilotEvent
 from app.models.lead_workflow import LeadJourney, LeadView, PlaybookAction, PlaybookRun
@@ -91,6 +92,7 @@ __all__ = [
     "Capability", "RoleCapability",
     "AIDraftOutcome", "Task", "SalesAction",
     "LeadAttribution",
+    "MetaFormLead",
     "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
     "LeadAutopilotEvent",
     "PlatformLead", "RoiBenchmarkVersion",

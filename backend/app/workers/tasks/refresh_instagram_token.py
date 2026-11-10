@@ -75,6 +75,8 @@ def refresh_tenant_token(tenant_id: str) -> dict:
         access_token = creds.get("access_token", "")
         if not access_token:
             return {"tenant_id": tenant_id, "status": "no_token"}
+        if access_token.startswith("EAA"):   # Meta Business mode: a page token, which Instagram's refresh does not apply to
+            return {"tenant_id": tenant_id, "status": "not_applicable"}
 
         config = dict(integ.config or {})
 

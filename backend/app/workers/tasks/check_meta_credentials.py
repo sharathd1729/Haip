@@ -18,6 +18,8 @@ per (tenant, channel) via the existing cache helpers so a persistently
 dead token doesn't spam an inbox on every run.
 """
 import httpx
+
+from app.adapters.instagram.meta_graph import base_for as _ig_base
 import structlog
 from celery import shared_task
 
@@ -95,7 +97,7 @@ def _check_instagram(db, tenant_id: str):
 
     try:
         resp = httpx.get(
-            f"https://graph.instagram.com/v20.0/{ig_account_id}",
+            f"{_ig_base(access_token)}/{ig_account_id}",   # Facebook's host for a Meta Business page token
             params={"fields": "id", "access_token": access_token},
             timeout=10,
         )
@@ -279,8 +281,8 @@ def _check_instagram_dm_access(db, tenant_id: str):
 
     try:
         resp = httpx.get(
-            f"{_IG_GRAPH}/me/conversations",
-            params={"limit": 1, "access_token": token},
+            "https://graph.facebook.com/v21.0/me/conversations" if token.startswith("EAA") else f"{_IG_GRAPH}/me/conversations",
+            params={"limit": 1, "access_token": token, **({"platform": "instagram"} if token.startswith("EAA") else {})},
             timeout=10,
         )
     except Exception as exc:

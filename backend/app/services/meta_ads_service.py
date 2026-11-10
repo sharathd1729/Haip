@@ -1,8 +1,8 @@
 """Meta ads data for a workspace: which ad account, a daily sync, a backfill of history, and the summary that
 joins Meta's numbers to what HAIP sees after the click (leads, bookings, revenue).
 
-The access token is the one the workspace already has. A `meta_ads` integration may carry its own token;
-without one we reuse the WhatsApp System User token, which for Ratha holds `ads_read`.
+The access token is the one the workspace already has: the Meta Business connection's (`meta_business_service`),
+else a token on the `meta_ads` integration, else the WhatsApp System User token, which for Ratha holds `ads_read`.
 """
 from __future__ import annotations
 
@@ -60,7 +60,11 @@ def _token_from(integ: Optional[Integration]) -> str:
 
 
 def get_token(db: Session, tenant_id: str) -> tuple[str, str]:
-    """(token, source). A token saved on the meta_ads integration wins; otherwise the WhatsApp one."""
+    """(token, source). The Meta Business connection wins, then a token on the meta_ads integration, then WhatsApp's."""
+    from app.services import meta_business_service
+    business = meta_business_service.get_token(db, tenant_id)
+    if business:
+        return business, "meta_business"
     own = _token_from(get_row(db, tenant_id))
     if own:
         return own, "meta_ads"
@@ -346,6 +350,15 @@ def summary(db: Session, tenant_id: str, days: int = 30) -> dict:
             inq_by[cid].add(inquiry_id)
             if a.ad_id:
                 ad_inq[a.ad_id].add(inquiry_id)
+
+    # Lead-form leads: the ad is on the form submission itself (meta_form_leads), not on a chat referral.
+    from sqlalchemy import func
+    from app.models.meta_form_lead import MetaFormLead
+    for inquiry_id, ad_id, campaign_id in db.query(MetaFormLead.inquiry_id, MetaFormLead.ad_id, MetaFormLead.campaign_id).filter(
+            MetaFormLead.tenant_id == tenant_id, MetaFormLead.inquiry_id.isnot(None), MetaFormLead.ad_id.isnot(None),
+            func.coalesce(MetaFormLead.lead_created_at, MetaFormLead.created_at) >= since_dt):
+        inq_by[campaign_id or ad_to_campaign.get(ad_id, "") or UNMATCHED].add(inquiry_id)
+        ad_inq[ad_id].add(inquiry_id)
 
     all_inq = {i for s in inq_by.values() for i in s}
     stays_by_inq = defaultdict(lambda: {"bookings": 0, "revenue": Decimal(0)})

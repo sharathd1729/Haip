@@ -19,6 +19,7 @@ from app.models.integration import Integration
 from app.models.tenant import Tenant
 from app.workers.tasks.meta_quality_poll import MetaQualitySnapshot   # module level so create_all sees the inline table
 from app.core.audit import append_audit
+from app.adapters.instagram.meta_graph import base_for as _ig_base
 from app.services import integration_health, webhook_verify_service
 from app.schemas.integration import IntegrationOut, IntegrationConnectRequest, IntegrationHealthResponse
 
@@ -449,6 +450,13 @@ def connect_instagram_manual(
         ig_username = data.get("username", "")
 
     row = _upsert_integration(db, current_user.tenant_id, "instagram")
+    if (row.config or {}).get("auth_mode") == "meta_business" and not access_token:
+        # Instagram runs on the Meta Business token here: this form only replaces the App Secret, the connection stays.
+        kept = decrypt_credentials(row.credentials_kms_blob) if row.credentials_kms_blob else {}
+        row.credentials_kms_blob = encrypt_credentials({**kept, "app_secret": app_secret})
+        db.commit()
+        return {"status": "connected", "instagram_business_account_id": row.config.get("instagram_business_account_id"),
+                "username": row.config.get("username", "")}
     row.credentials_kms_blob = encrypt_credentials({
         "access_token": access_token,
         "app_secret": app_secret,
@@ -548,6 +556,13 @@ def instagram_oauth_callback(
     tenant_id = decoded["tenant_id"]
 
     row = db.query(Integration).filter_by(tenant_id=tenant_id, kind="instagram").first()
+    if row and (row.config or {}).get("auth_mode") == "meta_business":
+        from app.services import meta_business_service
+        if meta_business_service.instagram_chats_exist(db, tenant_id):
+            return HTMLResponse(
+                "<h3>Instagram here runs on the Meta Business token and already has chats.</h3>"
+                "<p>Meta's two connection types do not share ids, so switching could split each guest in two. "
+                "Ask HAIP to migrate the chats first.</p>", status_code=409)
     existing_creds = decrypt_credentials(row.credentials_kms_blob) if row and row.credentials_kms_blob else {}
     app_secret = existing_creds.get("app_secret", "")
     if not app_secret:
@@ -1242,7 +1257,7 @@ def test_integration(
                 # connection and write status="error" -- switching off inbound
                 # DMs for a healthy integration.
                 resp = httpx.get(
-                    f"https://graph.instagram.com/v20.0/{ig_account_id}",
+                    f"{_ig_base(access_token)}/{ig_account_id}",   # Facebook's host for a Meta Business page token
                     params={"fields": "id", "access_token": access_token},
                     timeout=8,
                 )

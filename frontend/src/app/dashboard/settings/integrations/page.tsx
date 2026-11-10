@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -938,7 +939,13 @@ function IntegrationCard({
               config, App Secret included. Confirmed live on Ratha: four
               reconnect attempts, every one a pasted token, inbound and
               outbound both dead for days. Offer the real flow here. */}
-          {item.provider === "instagram" && igOAuthUrl && (
+          {item.provider === "instagram" && integration?.config?.auth_mode === "meta_business" && (
+            <p className="text-[10px] text-[var(--haip-fg-subtle)]">
+              Messages run on the Meta Business token. Manage it on{" "}
+              <Link href="/dashboard/marketing" className="underline hover:text-[var(--haip-fg-muted)]">Marketing</Link>.
+            </p>
+          )}
+          {item.provider === "instagram" && igOAuthUrl && integration?.config?.auth_mode !== "meta_business" && (
             <button type="button"
               onClick={() => openOAuth(igOAuthUrl, true)}
               className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
@@ -989,6 +996,10 @@ function IntegrationCard({
               <button onClick={() => onConnect(item.provider)} className="underline hover:text-[var(--haip-fg-muted)]">
                 save credentials manually
               </button>.
+            </p>
+            <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center">
+              Have a Meta Business (System User) token instead? Connect it on{" "}
+              <Link href="/dashboard/marketing" className="underline hover:text-[var(--haip-fg-muted)]">Marketing</Link>.
             </p>
           </>
         ) : (

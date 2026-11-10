@@ -105,6 +105,12 @@ def _erase_one(db: Session, tenant_id: str, guest_id: str, counts: dict, files: 
     delete(Task, Task.tenant_id == tenant_id,
            or_(Task.guest_id == guest_id, Task.inquiry_id.in_(inq_ids or ["-"]), Task.conversation_id.in_(conv_ids or ["-"])),
            name="tasks")
+    # Meta form leads: keep the row (ids only) so an import cannot bring the erased person back; cut its links.
+    from app.models.meta_form_lead import MetaFormLead
+    db.query(MetaFormLead).filter(
+        MetaFormLead.tenant_id == tenant_id,
+        or_(MetaFormLead.guest_id == guest_id, MetaFormLead.inquiry_id.in_(inq_ids or ["-"])),
+    ).update({"guest_id": None, "inquiry_id": None, "status": "erased"}, synchronize_session=False)
     delete(LeadAttribution, LeadAttribution.tenant_id == tenant_id,
            or_(LeadAttribution.guest_id == guest_id, LeadAttribution.conversation_id.in_(conv_ids or ["-"]),
                LeadAttribution.inquiry_id.in_(inq_ids or ["-"])), name="lead_attribution")
