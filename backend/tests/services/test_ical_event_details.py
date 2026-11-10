@@ -156,3 +156,20 @@ def test_the_events_own_property_name_line_picks_the_unit():
     assert ed.event_units("Diamond offer/Manjunath\n" + JADE, details, rules, names) == ["ror"]   # the line beats a keyword
     assert ed.event_units("Diamond/Asha", {}, rules, names) == ["dia"]                # no line: keywords, as before
     assert ed.event_units("Asha", {"property_name": "Somewhere else"}, rules, names) == []
+
+
+JADE_PAY = (JADE + "\nCheck-in Time:*1pm*\nCheck-out Time:*11am*\n____________________\n💳 Payment Details\n\n"
+            "Breakfast:8,496/-\nProperty:93,456/-\nTotal Booking Amount: *₹1,01,952/-including taxes*\n\n"
+            "Advance Paid: *₹50,000/-*\n\nBalance Payable: *₹51,962/- ( balance at Check-in along with food cost)*\n"
+            "____________________\n🎁 Your Stay Includes\n• Bonfire Experience\nLate fee: 500\n____________________\n"
+            "⚠️ Important Information\n• A refundable ₹10,000 security deposit will be collected at check-in")
+
+
+def test_a_villa_events_payment_lines_times_and_deposit_are_read():
+    out = ed.extract("Tranquil/Asha", JADE_PAY)
+    assert out["extras"] == [{"name": "Breakfast", "amount": 8496.0}]      # not Property, not the total, not a later section
+    assert out["amounts"]["total"] == 101952.0 and out["amounts"]["advance"] == 50000.0
+    assert (out["check_in_time"], out["check_out_time"], out["deposit"]) == ("13:00", "11:00", 10000.0)
+    assert [ed.parse_clock(t) for t in ("1:30 PM", "12am", "14:00", "noon", "25pm")] == ["13:30", "00:00", "14:00", None, None]
+    plain = ed.extract("Asha", "Guest Name: Asha\nPackage Cost: Rs 30,000\nTotal Booking Amount: Rs 35,400")
+    assert "extras" not in plain and "deposit" not in plain                 # an event with no payment section: as before

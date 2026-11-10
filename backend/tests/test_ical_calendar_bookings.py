@@ -406,3 +406,49 @@ def test_my_day_says_which_villa_in_a_villa_workspace(db, shared):
     assert titles() == [f"Which villa? Tranquil/aditi ({_d(10)} to {_d(12)})"]
     assert ical_clash_tasks.display_title("Not enough vehicles from Google on 2030-01-01", "property") == "Not enough properties from Google on 2030-01-01"
     assert _open_tasks(db, shared["tid"], "Which vehicle? ")                          # the stored title is the task's identity
+
+
+def _pay(breakfast="8,496", total="1,01,952", prop="93,456"):
+    lines = ["Guest Name: *Mr. Asha*", "Contact Number: *+91 98000 11111*", "Check-in Time:*1pm*", "Check-out Time:*11am*",
+             "____________________", "Payment Details", ""]
+    if breakfast:
+        lines.append(f"Breakfast:{breakfast}/-")
+    lines += [f"Property:{prop}/-", f"Total Booking Amount: *₹{total}/-including taxes*", "", "Advance Paid: *₹50,000/-*",
+              "____________________", "Important Information", "A refundable ₹10,000 security deposit will be collected at check-in"]
+    return "\n".join(lines)
+
+
+def test_add_ons_and_the_deposit_written_in_the_event_reach_the_booking(db, shared):
+    from app.models.stay_finance import StayAddOn, StayDeposit
+
+    def addons(stay):
+        return sorted((a.name, float(a.unit_price), a.notes) for a in db.query(StayAddOn).filter_by(stay_id=stay.id).all())
+
+    _sync(db, shared["feed"], _event("j1@g", "Tranquil/Asha", _pay(), start=_d(10), end=_d(12)))
+    (stay,) = _stays(db, shared["tid"])
+    assert float(stay.total_amount) == 93456.0 and addons(stay) == [("Breakfast", 8496.0, ibs.CAL_MARK)]
+    money = bsvc.financials_for(db, shared["tid"], [stay])[stay.id]
+    assert (money["addons_total"], money["total"]) == (8496.0, 101952.0)      # the guest owes what the event says, not more
+    assert float(stay.total_amount) + 8496.0 == 101952.0
+    assert (stay.check_in_time, stay.check_out_time) == ("13:00", "11:00")
+    dep = db.query(StayDeposit).filter_by(stay_id=stay.id).one()
+    assert (float(dep.amount), dep.status) == (10000.0, "pending")
+    assert db.query(StayPayment).filter_by(stay_id=stay.id).one().amount == 50000
+
+    db.add(StayAddOn(tenant_id=shared["tid"], stay_id=stay.id, name="Cake", quantity=1, unit_price=900))   # added by staff
+    dep.status = "held"
+    db.commit()
+    _sync(db, shared["feed"], _event("j1@g", "Tranquil/Asha", _pay(breakfast="9,000", total="1,02,456"), start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert float(stay.total_amount) == 93456.0
+    assert addons(stay) == [("Breakfast", 9000.0, ibs.CAL_MARK), ("Cake", 900.0, None)]
+    assert db.query(StayDeposit).filter_by(stay_id=stay.id).one().status == "held"     # the deposit is the team's after that
+
+    _sync(db, shared["feed"], _event("j1@g", "Tranquil/Asha", _pay(breakfast="", total="93,456"), start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert addons(stay) == [("Cake", 900.0, None)] and float(stay.total_amount) == 93456.0   # the event dropped breakfast
+
+    _sync(db, shared["feed"], _event("j2@g", "Haven/Ravi", _pay(breakfast="2,00,000").replace("98000 11111", "98000 33333"),
+                                     start=_d(20), end=_d(22)))
+    odd = next(s for s in _stays(db, shared["tid"]) if s.id != stay.id)
+    assert float(odd.total_amount) == 101952.0 and addons(odd) == []          # lines that do not add up: only the total is used

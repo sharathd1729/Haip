@@ -29,7 +29,7 @@ from app.models.ical_feed import ICalEventBooking, ICalFeedVehicle
 from app.models.inquiry import Inquiry
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay
-from app.models.stay_finance import StayPayment
+from app.models.stay_finance import StayAddOn, StayDeposit, StayPayment
 from app.models.task import Task
 from app.services import booking_service as bsvc
 from app.services import vehicle_pool
@@ -41,6 +41,7 @@ SOURCE = "google_calendar"
 ASSIGN_PREFIX = "Assign a vehicle:"
 ASSIGN_ANY = "Assign a "                      # "Assign a vehicle:" / "Assign a villa:" ... whatever the unit is called
 AUTO_NOTE = "From Google Calendar: "
+CAL_MARK = "From Google Calendar"            # notes on the add-ons and the deposit the calendar wrote: only those are synced
 LEAD_PREFIX = "Which lead is this booking from?"
 LOCK_FIELDS = ("check_in", "check_out", "total_amount", "adults", "children")
 _LEAD_WINDOW = timedelta(days=180)          # a lead older than this is not assumed to be the source of a booking
@@ -81,8 +82,36 @@ def candidate(details: dict, source: str, ev_start: str, ev_end: str, hits: list
         return None
     amounts = details.get("amounts") or {}
     adults, children = head_count(details.get("guests"))
-    return {"name": details["guest_name"], "phone": details["phone"], "total": float(amounts["total"]),
-            "advance": float(amounts.get("advance") or 0), "adults": adults, "children": children}
+    total = float(amounts["total"])
+    extras = [e for e in (details.get("extras") or []) if e.get("amount", 0) > 0]
+    if sum(e["amount"] for e in extras) >= total:          # does not add up: keep the one figure we trust, the total
+        extras = []
+    # What the guest owes stays the event's total: the stay is the total less its add-ons (owed = stay + add-ons).
+    return {"name": details["guest_name"], "phone": details["phone"], "total": round(total - sum(e["amount"] for e in extras), 2),
+            "advance": float(amounts.get("advance") or 0), "adults": adults, "children": children, "extras": extras,
+            "deposit": details.get("deposit"), "check_in_time": details.get("check_in_time"),
+            "check_out_time": details.get("check_out_time")}
+
+
+def _sync_extras(db: Session, stay: Stay, cand: dict) -> bool:
+    """Add-ons and the security deposit written in the event. Only rows the calendar itself wrote (notes = CAL_MARK) are
+    changed or removed; anything staff added stays. The deposit is added once as pending and then left to the team."""
+    mine = {a.name: a for a in db.query(StayAddOn).filter_by(tenant_id=stay.tenant_id, stay_id=stay.id, notes=CAL_MARK).all()}
+    changed = False
+    for e in cand["extras"]:
+        row = mine.pop(e["name"], None)
+        if row is None:
+            db.add(StayAddOn(tenant_id=stay.tenant_id, stay_id=stay.id, name=e["name"], quantity=1, unit_price=e["amount"], notes=CAL_MARK))
+            changed = True
+        elif float(row.unit_price) != e["amount"] or row.quantity != 1:
+            row.unit_price, row.quantity, changed = e["amount"], 1, True
+    for row in mine.values():
+        db.delete(row)
+        changed = True
+    if cand["deposit"] and not db.query(StayDeposit.id).filter_by(tenant_id=stay.tenant_id, stay_id=stay.id).first():
+        db.add(StayDeposit(tenant_id=stay.tenant_id, stay_id=stay.id, amount=cand["deposit"], status="pending", notes=CAL_MARK))
+        changed = True
+    return changed
 
 
 def _assign_title(name: str, start: str, end: str, unit: str = "vehicle") -> str:
@@ -260,9 +289,11 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
         stay = Stay(tenant_id=feed.tenant_id, guest_id=guest_id, property_id=target, check_in=check_in, check_out=check_out,
                     adults=cand["adults"], children=cand["children"], status="confirmed", total_amount=cand["total"],
                     currency="INR", special_requests=[], channel_source=SOURCE,
+                    check_in_time=cand["check_in_time"], check_out_time=cand["check_out_time"],
                     internal_notes=_auto_note(ev))
         db.add(stay)
         db.flush()
+        _sync_extras(db, stay, cand)
         link = ICalEventBooking(tenant_id=feed.tenant_id, feed_id=feed.id, event_key=key[:300], stay_id=stay.id)
         db.add(link)
         _advance(db, link, stay, cand["advance"], today, ev.get("created"))
@@ -292,6 +323,7 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
     changed = False
     wanted = {"check_in": check_in, "check_out": check_out, "total_amount": cand["total"],
               "adults": cand["adults"], "children": cand["children"]}
+    wanted.update({k: cand[k] for k in ("check_in_time", "check_out_time") if cand[k]})   # a time the event gives; never blanked
     moved_dates = (stay.check_in, stay.check_out) != (check_in, check_out)
     for field, value in wanted.items():
         current = getattr(stay, field)
@@ -305,6 +337,7 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
     if moved_dates and bsvc.find_conflicts(db, feed.tenant_id, stay.property_id, check_in, check_out, exclude_stay_id=stay.id):
         _task(db, feed.tenant_id, f"Dates changed in Google overlap another booking ({start} to {end})"[:255], stay, check_in)
     _advance(db, link, stay, cand["advance"], today, ev.get("created"))
+    changed = _sync_extras(db, stay, cand) or changed
     if changed:
         append_audit(db, tenant_id=feed.tenant_id, action="booking.updated_from_calendar", target_type="booking", target_id=stay.id,
                      payload={"feed_id": feed.id, "check_in": start, "check_out": end})
