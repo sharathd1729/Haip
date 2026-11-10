@@ -4,12 +4,14 @@
 // who shared a number in an Instagram DM and was then called shows both.
 import { cn } from "@/lib/utils";
 import type { GuestChannel } from "@/store/inbox";
+import { ClipboardList } from "@/lib/icons";
 import { CallIcon, InstagramIcon, WhatsAppIcon } from "./ChannelIcon";
 
 const META: Record<GuestChannel, { label: string; bg: string; Glyph: typeof CallIcon }> = {
   instagram: { label: "Instagram", bg: "#D62976", Glyph: InstagramIcon },
   whatsapp:  { label: "WhatsApp",  bg: "#25D366", Glyph: WhatsAppIcon },
   call:      { label: "Call",      bg: "#2563EB", Glyph: CallIcon },
+  lead_form: { label: "Lead form",  bg: "#1877F2", Glyph: ClipboardList },
 };
 
 /** Maps a conversation/message channel value to a badge key. */
@@ -18,6 +20,7 @@ export function toGuestChannel(channel?: string | null): GuestChannel | null {
   if (channel === "instagram" || channel === "meta_ig") return "instagram";
   if (channel === "whatsapp" || channel === "wa_direct" || channel === "click_to_wa") return "whatsapp";
   if (channel === "voice" || channel === "call" || channel.endsWith("_call")) return "call";
+  if (channel === "lead_form" || channel === "facebook") return "lead_form";
   return null;
 }
 

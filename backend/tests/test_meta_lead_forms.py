@@ -321,7 +321,7 @@ def test_a_lead_is_dated_when_the_form_was_filled_not_when_haip_read_it(db, tena
     items = {i["guest_id"]: i for i in work_queue_service.build(db, tenant, None)["items"] if i["kind"] == "new_lead"}
     g_new = of("NEW")[0]
     assert g_old.id not in items  # 40 days old: not a "new lead" in My day
-    assert items[g_new.id]["detail"] == "Filled a lead form: Villa enquiry"  # not "Shared their number": there is no chat
+    assert items[g_new.id]["detail"] == "Filled a lead form: Villa enquiry" and items[g_new.id]["channels"] == ["lead_form"]  # not "Shared their number": there is no chat
     assert timedelta(minutes=19) < datetime.now(UTC) - datetime.fromisoformat(items[g_new.id]["since"]) < timedelta(minutes=22)
 
 

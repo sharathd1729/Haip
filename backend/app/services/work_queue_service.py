@@ -302,6 +302,8 @@ def _facts(inq: Optional[Inquiry]) -> list[str]:
 
 
 def _channel_of(guest: Guest, inq: Optional[Inquiry]) -> list[str]:
+    if inq is not None and (inq.custom_fields or {}).get("lead_form"):
+        return ["lead_form"]                     # a Meta ad form, not a DM: it has no chat (Inbox "Facebook" thread)
     ch = guest.first_touch_channel or guest.lead_identified_via
     if ch and ch != "other":
         return [ch]

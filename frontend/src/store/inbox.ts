@@ -37,7 +37,7 @@ export interface ConversationSummary {
   ai_enabled?: boolean;
 }
 
-export type GuestChannel = "instagram" | "whatsapp" | "call";
+export type GuestChannel = "instagram" | "whatsapp" | "call" | "lead_form";
 
 interface InboxState {
   conversations: ConversationSummary[];
