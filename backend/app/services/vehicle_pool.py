@@ -36,13 +36,31 @@ def unit_names(db: Session, tenant_id: str) -> dict[str, str]:
     return {pid: name for pid, name in rows if not is_placeholder_name(name)}
 
 
-def placeholder_name(db: Session, tenant_id: str) -> str:
-    """"Unassigned (villa not chosen yet)" in a villa workspace; the caravan wording when the business type is not known."""
+def _business_type(db: Session, tenant_id: str) -> Optional[str]:
     from app.models.tenant import Tenant
+
+    return db.query(Tenant.business_type).filter(Tenant.id == tenant_id).scalar()
+
+
+def unit_word(db: Session, tenant_id: str) -> str:
+    """What this workspace calls one unit: "villa", "room", ... and "vehicle" when the business type is not known."""
     from app.services import ops_pack_catalog
 
-    business_type = db.query(Tenant.business_type).filter(Tenant.id == tenant_id).scalar()
-    return f"Unassigned ({ops_pack_catalog.unit_word_for(business_type) or 'vehicle'} not chosen yet)"
+    return ops_pack_catalog.unit_word_for(_business_type(db, tenant_id)) or "vehicle"
+
+
+def units_interchangeable(db: Session, tenant_id: str) -> bool:
+    """Caravans of one fleet stand in for each other, so a booking with no vehicle takes the first free one. A villa, a room
+    or a home does not: the guest booked THAT one. Unknown business type = the caravan rule, as before."""
+    from app.services import ops_pack_catalog
+
+    pack = ops_pack_catalog.pack_for_business_type(_business_type(db, tenant_id))
+    return pack is None or pack in ops_pack_catalog.TRIP_PACKS
+
+
+def placeholder_name(db: Session, tenant_id: str) -> str:
+    """"Unassigned (villa not chosen yet)" in a villa workspace; the caravan wording when the business type is not known."""
+    return f"Unassigned ({unit_word(db, tenant_id)} not chosen yet)"
 
 
 def placeholder_property(db: Session, tenant_id: str, prefer_id: Optional[str] = None) -> Property:

@@ -33,6 +33,8 @@ _LABELS = {  # first matching label wins; longest labels first so "total booking
     "package": ("package",),
     "guests": ("number of guests", "no of guests", "guests", "pax"),
     "property_name": ("property name", "villa name"),
+    "check_in_time": ("checkin time", "check in time"),
+    "check_out_time": ("checkout time", "check out time"),
     "package_cost": ("package cost", "rate"),
     "gst": ("gst (18%)", "gst"),
     "total": ("total booking amount", "total amount", "total"),
@@ -144,6 +146,16 @@ def extract(summary: str, description: str) -> dict:
             out["phone"] = re.sub(r"[^\d+]", "", m.group(0))
     if "property_name" in fields:
         out["property_name"] = clean_name(fields["property_name"])
+    for name in ("check_in_time", "check_out_time"):
+        clock = parse_clock(fields.get(name))
+        if clock:
+            out[name] = clock
+    extras = payment_extras(desc)
+    if extras:
+        out["extras"] = extras
+    m = _DEPOSIT.search(desc)
+    if m:
+        out["deposit"] = float(m.group(1).replace(",", ""))
     for name in ("destination", "package", "guests", "vehicles", "booked_on"):
         if name in fields:
             out[name] = fields[name]
@@ -219,3 +231,51 @@ def event_units(text: str, details: dict, rules: dict[str, list[str]], names: di
     keywords typed in Settings decide, as before."""
     named = named_property(details.get("property_name"), names)
     return [named] if named else match_vehicles(text, rules)
+
+
+_PAYMENT_HEAD = re.compile(r"payment details", re.I)
+_RULE = re.compile(r"^[\s_\-=—–]{5,}$")
+_NUMBER = re.compile(r"([0-9][0-9,]*(?:\.[0-9]+)?)")
+_STAY_WORDS = ("property", "stay", "villa", "room", "tariff", "accommodation", "package", "rate")
+_DEPOSIT = re.compile(r"(?:₹|rs\.?|inr)\s*([0-9][0-9,]*)[^\n.]{0,40}?security deposit", re.I)
+_CLOCK = re.compile(r"(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?", re.I)
+
+
+def parse_clock(text: Optional[str]) -> Optional[str]:
+    """"1pm" -> "13:00", "11am" -> "11:00", "1:30 PM" -> "13:30", "14:00" -> "14:00". None when it is not a time."""
+    m = _CLOCK.search(text or "")
+    if not m:
+        return None
+    hour, minute, half = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+    if half == "pm" and hour < 12:
+        hour += 12
+    if half == "am" and hour == 12:
+        hour = 0
+    return f"{hour:02d}:{minute:02d}" if hour < 24 and minute < 60 else None
+
+
+def payment_extras(desc: str) -> list[dict]:
+    """The priced lines of a "Payment Details" section that are NOT the stay itself, e.g. "Breakfast:8,496/-" ->
+    [{"name": "Breakfast", "amount": 8496.0}]. The stay's own line ("Property", "Property Cost") and the total, advance,
+    balance and tax lines are left out. Empty when the event has no such section (Ratha's events have none)."""
+    out, inside = [], False
+    for raw in desc.split("\n"):
+        line = raw.strip()
+        if _PAYMENT_HEAD.search(line) and ":" not in line:
+            inside = True
+            continue
+        if not inside:
+            continue
+        if _RULE.match(line):
+            break
+        head, sep, value = line.partition(":")
+        key = _clean_key(head)
+        if not sep or not key or key.startswith(_STAY_WORDS):
+            continue
+        if any(key == label or key.startswith(label + " ") for label, _name in _ORDERED):
+            continue                                   # total / advance / balance / gst: read elsewhere
+        m = _NUMBER.search(value)
+        amount = float(m.group(1).replace(",", "")) if m else 0
+        if amount > 0:
+            out.append({"name": clean_name(head)[:120], "amount": amount})
+    return out

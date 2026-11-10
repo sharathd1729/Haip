@@ -197,6 +197,8 @@ def calendar_items(db: Session, tenant_id: str, scope_user_id: Optional[str], no
     if not rows:
         return []
     props = {p.id: p.name for p in db.query(Property.id, Property.name).filter(Property.tenant_id == tenant_id).all()}
+    from app.services import vehicle_pool
+    unit = vehicle_pool.unit_word(db, tenant_id)
     items = []
     for t in rows:
         info = ical_clash_tasks.describe(t.title, props)
@@ -213,8 +215,8 @@ def calendar_items(db: Session, tenant_id: str, scope_user_id: Optional[str], no
         is_clash = t.title.startswith(ical_clash_tasks.CLASH_PREFIX)
         items.append(wq.QueueItem(
             kind="clash",
-            title=t.title,
-            detail="Two bookings hold the same dates on this vehicle" if is_clash else "The calendar needs a person to decide",
+            title=ical_clash_tasks.display_title(t.title, unit),
+            detail=f"Two bookings hold the same dates on this {unit}" if is_clash else "The calendar needs a person to decide",
             action="Open",
             href=href,
             inquiry_id=t.inquiry_id,

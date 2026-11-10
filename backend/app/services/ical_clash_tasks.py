@@ -46,6 +46,18 @@ def clash_title(property_name: str, feed_name: str, start: str, end: str) -> str
     return f"{CLASH_PREFIX}{property_name}: {feed_name} {start} to {end}"[:255]
 
 
+def display_title(title: str, unit: str) -> str:
+    """A calendar task's title in the workspace's own word ("Which villa? ..."). Only for showing: the stored title keeps
+    "vehicle", because the title is the task's identity (dedupe, closing, "Hold only this unit")."""
+    if not unit or unit == "vehicle":
+        return title
+    many = unit[:-1] + "ies" if unit.endswith("y") else unit + "s"
+    for old, new in ((WHICH_VEHICLE_PREFIX, f"Which {unit}? "), (OVER_CAPACITY_PREFIX, f"Not enough {many} from ")):
+        if (title or "").startswith(old):
+            return new + title[len(old):]
+    return title
+
+
 def is_calendar_task(task) -> bool:
     """Raised by the calendar sync, not by a person."""
     return task.created_by is None and (task.title or "").startswith(CALENDAR_TASK_PREFIXES)

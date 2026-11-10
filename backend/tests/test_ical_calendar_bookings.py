@@ -333,3 +333,122 @@ def test_the_property_name_line_books_that_unit_even_without_keywords(db, shared
     _sync(db, shared["feed"], _event("p2@g", "Ror/Ravi", other, start=_d(10), end=_d(12)))
     db.refresh(parked)
     assert parked.property_id == ridge.id
+
+
+def _villas(db, shared):
+    shared["tu"]["tenant"].business_type = "villa_resort"
+    db.commit()
+
+
+def test_a_villa_is_never_picked_for_the_guest(db, shared):
+    """Caravans stand in for each other; a villa does not. No villa named, or the named one taken: it waits on Unassigned."""
+    _villas(db, shared)
+    r = _sync(db, shared["feed"], _ev())                                             # names no villa
+    assert r["bookings_created"] == 1
+    (stay,) = _stays(db, shared["tid"])
+    assert stay.property_id == shared["placeholder"].id                              # not "the first free one"
+    assert [t.title for t in _open_tasks(db, shared["tid"], ibs.ASSIGN_ANY)] == [f"Assign a villa: Asha ({_d(10)} to {_d(12)})"]
+
+    taken = _desc(name="Ravi", phone="+91 98000 33333") + "\nProperty Name: *Ratha White*"
+    db.add(Stay(tenant_id=shared["tid"], guest_id=stay.guest_id, property_id=shared["white"].id, check_in=stay.check_in,
+                check_out=stay.check_out, status="confirmed", total_amount=1, currency="INR"))
+    db.commit()
+    _sync(db, shared["feed"], _ev(), _event("t2@g", "Ravi", taken, start=_d(10), end=_d(12)))
+    ravi = next(s for s in _stays(db, shared["tid"]) if s.guest.name == "Ravi")
+    assert ravi.property_id == shared["placeholder"].id                              # white is taken: not moved to black
+
+
+def test_a_hold_from_an_event_that_names_no_villa_does_not_block_a_named_villa(db, shared):
+    vague = _event("v1@g", "Someone/Rajat", "Guest Name: Someone", start=_d(10), end=_d(12))     # no phone: stays a block on both
+    named = _event("n1@g", "Asha", _desc() + "\nProperty Name: *Ratha White*", start=_d(10), end=_d(12))
+    _sync(db, shared["feed"], vague)
+    _sync(db, shared["feed"], vague, named)                                          # caravan rule: white is "held", nothing free
+    (stay,) = _stays(db, shared["tid"])
+    assert stay.property_id == shared["placeholder"].id
+    _villas(db, shared)
+    _sync(db, shared["feed"], vague, named)
+    db.refresh(stay)
+    assert stay.property_id == shared["white"].id                                    # the event names its villa: it goes there
+    assert _open_tasks(db, shared["tid"], "Double booking") == []                     # and that is not reported as a clash
+
+
+def test_the_events_text_is_kept_in_staff_notes_and_names_lose_their_markers(db, shared):
+    text = _desc() + "\nExtra Beds: Yes\nBreakfast:8,496/-"
+    _sync(db, shared["feed"], _event("b1@g", "Ror/Asha/Rajat", text, start=_d(10), end=_d(12)))
+    (stay,) = _stays(db, shared["tid"])
+    assert stay.internal_notes.startswith("From Google Calendar: Ror/Asha/Rajat\n\nGuest Name: Asha")
+    assert "Extra Beds: Yes" in stay.internal_notes and "Breakfast:8,496/-" in stay.internal_notes
+
+    stay.internal_notes = "From Google Calendar: Ror/Asha/Rajat"                     # as written before this change
+    stay.guest.name = "*Mr. Asha*"
+    db.commit()
+    _sync(db, shared["feed"], _event("b1@g", "Ror/Asha/Rajat", text, start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert "Extra Beds: Yes" in stay.internal_notes and stay.guest.name == "Mr. Asha"
+
+    stay.internal_notes = "Guest wants the corner room"                              # staff wrote their own: never replaced
+    db.commit()
+    _sync(db, shared["feed"], _event("b1@g", "Ror/Asha/Rajat", text, start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert stay.internal_notes == "Guest wants the corner room"
+
+
+def test_my_day_says_which_villa_in_a_villa_workspace(db, shared):
+    from datetime import date, datetime, timezone
+
+    from app.services import ical_clash_tasks, work_queue_signals
+
+    _sync(db, shared["feed"], _event("v1@g", "Tranquil/aditi", "Guest Name: Aditi", start=_d(10), end=_d(12)))
+    now = datetime.now(timezone.utc)
+    titles = lambda: [i.title for i in work_queue_signals.calendar_items(db, shared["tid"], None, now, date.today())]  # noqa: E731
+    assert titles() == [f"Which vehicle? Tranquil/aditi ({_d(10)} to {_d(12)})"]      # caravan workspace: as before
+    _villas(db, shared)
+    assert titles() == [f"Which villa? Tranquil/aditi ({_d(10)} to {_d(12)})"]
+    assert ical_clash_tasks.display_title("Not enough vehicles from Google on 2030-01-01", "property") == "Not enough properties from Google on 2030-01-01"
+    assert _open_tasks(db, shared["tid"], "Which vehicle? ")                          # the stored title is the task's identity
+
+
+def _pay(breakfast="8,496", total="1,01,952", prop="93,456"):
+    lines = ["Guest Name: *Mr. Asha*", "Contact Number: *+91 98000 11111*", "Check-in Time:*1pm*", "Check-out Time:*11am*",
+             "____________________", "Payment Details", ""]
+    if breakfast:
+        lines.append(f"Breakfast:{breakfast}/-")
+    lines += [f"Property:{prop}/-", f"Total Booking Amount: *₹{total}/-including taxes*", "", "Advance Paid: *₹50,000/-*",
+              "____________________", "Important Information", "A refundable ₹10,000 security deposit will be collected at check-in"]
+    return "\n".join(lines)
+
+
+def test_add_ons_and_the_deposit_written_in_the_event_reach_the_booking(db, shared):
+    from app.models.stay_finance import StayAddOn, StayDeposit
+
+    def addons(stay):
+        return sorted((a.name, float(a.unit_price), a.notes) for a in db.query(StayAddOn).filter_by(stay_id=stay.id).all())
+
+    _sync(db, shared["feed"], _event("j1@g", "Tranquil/Asha", _pay(), start=_d(10), end=_d(12)))
+    (stay,) = _stays(db, shared["tid"])
+    assert float(stay.total_amount) == 93456.0 and addons(stay) == [("Breakfast", 8496.0, ibs.CAL_MARK)]
+    money = bsvc.financials_for(db, shared["tid"], [stay])[stay.id]
+    assert (money["addons_total"], money["total"]) == (8496.0, 101952.0)      # the guest owes what the event says, not more
+    assert float(stay.total_amount) + 8496.0 == 101952.0
+    assert (stay.check_in_time, stay.check_out_time) == ("13:00", "11:00")
+    dep = db.query(StayDeposit).filter_by(stay_id=stay.id).one()
+    assert (float(dep.amount), dep.status) == (10000.0, "pending")
+    assert db.query(StayPayment).filter_by(stay_id=stay.id).one().amount == 50000
+
+    db.add(StayAddOn(tenant_id=shared["tid"], stay_id=stay.id, name="Cake", quantity=1, unit_price=900))   # added by staff
+    dep.status = "held"
+    db.commit()
+    _sync(db, shared["feed"], _event("j1@g", "Tranquil/Asha", _pay(breakfast="9,000", total="1,02,456"), start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert float(stay.total_amount) == 93456.0
+    assert addons(stay) == [("Breakfast", 9000.0, ibs.CAL_MARK), ("Cake", 900.0, None)]
+    assert db.query(StayDeposit).filter_by(stay_id=stay.id).one().status == "held"     # the deposit is the team's after that
+
+    _sync(db, shared["feed"], _event("j1@g", "Tranquil/Asha", _pay(breakfast="", total="93,456"), start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert addons(stay) == [("Cake", 900.0, None)] and float(stay.total_amount) == 93456.0   # the event dropped breakfast
+
+    _sync(db, shared["feed"], _event("j2@g", "Haven/Ravi", _pay(breakfast="2,00,000").replace("98000 11111", "98000 33333"),
+                                     start=_d(20), end=_d(22)))
+    odd = next(s for s in _stays(db, shared["tid"]) if s.id != stay.id)
+    assert float(odd.total_amount) == 101952.0 and addons(odd) == []          # lines that do not add up: only the total is used
