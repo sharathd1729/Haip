@@ -333,3 +333,76 @@ def test_the_property_name_line_books_that_unit_even_without_keywords(db, shared
     _sync(db, shared["feed"], _event("p2@g", "Ror/Ravi", other, start=_d(10), end=_d(12)))
     db.refresh(parked)
     assert parked.property_id == ridge.id
+
+
+def _villas(db, shared):
+    shared["tu"]["tenant"].business_type = "villa_resort"
+    db.commit()
+
+
+def test_a_villa_is_never_picked_for_the_guest(db, shared):
+    """Caravans stand in for each other; a villa does not. No villa named, or the named one taken: it waits on Unassigned."""
+    _villas(db, shared)
+    r = _sync(db, shared["feed"], _ev())                                             # names no villa
+    assert r["bookings_created"] == 1
+    (stay,) = _stays(db, shared["tid"])
+    assert stay.property_id == shared["placeholder"].id                              # not "the first free one"
+    assert [t.title for t in _open_tasks(db, shared["tid"], ibs.ASSIGN_ANY)] == [f"Assign a villa: Asha ({_d(10)} to {_d(12)})"]
+
+    taken = _desc(name="Ravi", phone="+91 98000 33333") + "\nProperty Name: *Ratha White*"
+    db.add(Stay(tenant_id=shared["tid"], guest_id=stay.guest_id, property_id=shared["white"].id, check_in=stay.check_in,
+                check_out=stay.check_out, status="confirmed", total_amount=1, currency="INR"))
+    db.commit()
+    _sync(db, shared["feed"], _ev(), _event("t2@g", "Ravi", taken, start=_d(10), end=_d(12)))
+    ravi = next(s for s in _stays(db, shared["tid"]) if s.guest.name == "Ravi")
+    assert ravi.property_id == shared["placeholder"].id                              # white is taken: not moved to black
+
+
+def test_a_hold_from_an_event_that_names_no_villa_does_not_block_a_named_villa(db, shared):
+    vague = _event("v1@g", "Someone/Rajat", "Guest Name: Someone", start=_d(10), end=_d(12))     # no phone: stays a block on both
+    named = _event("n1@g", "Asha", _desc() + "\nProperty Name: *Ratha White*", start=_d(10), end=_d(12))
+    _sync(db, shared["feed"], vague)
+    _sync(db, shared["feed"], vague, named)                                          # caravan rule: white is "held", nothing free
+    (stay,) = _stays(db, shared["tid"])
+    assert stay.property_id == shared["placeholder"].id
+    _villas(db, shared)
+    _sync(db, shared["feed"], vague, named)
+    db.refresh(stay)
+    assert stay.property_id == shared["white"].id                                    # the event names its villa: it goes there
+    assert _open_tasks(db, shared["tid"], "Double booking") == []                     # and that is not reported as a clash
+
+
+def test_the_events_text_is_kept_in_staff_notes_and_names_lose_their_markers(db, shared):
+    text = _desc() + "\nExtra Beds: Yes\nBreakfast:8,496/-"
+    _sync(db, shared["feed"], _event("b1@g", "Ror/Asha/Rajat", text, start=_d(10), end=_d(12)))
+    (stay,) = _stays(db, shared["tid"])
+    assert stay.internal_notes.startswith("From Google Calendar: Ror/Asha/Rajat\n\nGuest Name: Asha")
+    assert "Extra Beds: Yes" in stay.internal_notes and "Breakfast:8,496/-" in stay.internal_notes
+
+    stay.internal_notes = "From Google Calendar: Ror/Asha/Rajat"                     # as written before this change
+    stay.guest.name = "*Mr. Asha*"
+    db.commit()
+    _sync(db, shared["feed"], _event("b1@g", "Ror/Asha/Rajat", text, start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert "Extra Beds: Yes" in stay.internal_notes and stay.guest.name == "Mr. Asha"
+
+    stay.internal_notes = "Guest wants the corner room"                              # staff wrote their own: never replaced
+    db.commit()
+    _sync(db, shared["feed"], _event("b1@g", "Ror/Asha/Rajat", text, start=_d(10), end=_d(12)))
+    db.refresh(stay)
+    assert stay.internal_notes == "Guest wants the corner room"
+
+
+def test_my_day_says_which_villa_in_a_villa_workspace(db, shared):
+    from datetime import date, datetime, timezone
+
+    from app.services import ical_clash_tasks, work_queue_signals
+
+    _sync(db, shared["feed"], _event("v1@g", "Tranquil/aditi", "Guest Name: Aditi", start=_d(10), end=_d(12)))
+    now = datetime.now(timezone.utc)
+    titles = lambda: [i.title for i in work_queue_signals.calendar_items(db, shared["tid"], None, now, date.today())]  # noqa: E731
+    assert titles() == [f"Which vehicle? Tranquil/aditi ({_d(10)} to {_d(12)})"]      # caravan workspace: as before
+    _villas(db, shared)
+    assert titles() == [f"Which villa? Tranquil/aditi ({_d(10)} to {_d(12)})"]
+    assert ical_clash_tasks.display_title("Not enough vehicles from Google on 2030-01-01", "property") == "Not enough properties from Google on 2030-01-01"
+    assert _open_tasks(db, shared["tid"], "Which vehicle? ")                          # the stored title is the task's identity

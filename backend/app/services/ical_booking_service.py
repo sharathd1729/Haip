@@ -39,6 +39,8 @@ log = structlog.get_logger()
 
 SOURCE = "google_calendar"
 ASSIGN_PREFIX = "Assign a vehicle:"
+ASSIGN_ANY = "Assign a "                      # "Assign a vehicle:" / "Assign a villa:" ... whatever the unit is called
+AUTO_NOTE = "From Google Calendar: "
 LEAD_PREFIX = "Which lead is this booking from?"
 LOCK_FIELDS = ("check_in", "check_out", "total_amount", "adults", "children")
 _LEAD_WINDOW = timedelta(days=180)          # a lead older than this is not assumed to be the source of a booking
@@ -83,8 +85,17 @@ def candidate(details: dict, source: str, ev_start: str, ev_end: str, hits: list
             "advance": float(amounts.get("advance") or 0), "adults": adults, "children": children}
 
 
-def _assign_title(name: str, start: str, end: str) -> str:
-    return f"{ASSIGN_PREFIX} {name} ({start} to {end})"[:255]
+def _assign_title(name: str, start: str, end: str, unit: str = "vehicle") -> str:
+    return f"Assign a {unit}: {name} ({start} to {end})"[:255]
+
+
+def _auto_note(ev: dict) -> str:
+    """Staff notes for a calendar booking: the event's title and its whole text, so nothing written there is lost even
+    where HAIP does not read a line (extra beds, meals, what the stay includes)."""
+    from app.services.ical_event_details import unescape
+
+    text = unescape(ev.get("description") or "").strip()[:4000]
+    return f"{AUTO_NOTE}{(ev.get('summary') or '')[:200]}" + (f"\n\n{text}" if text else "")
 
 
 def _task(db: Session, tenant_id: str, title: str, stay: Stay, due: date) -> None:
@@ -191,11 +202,32 @@ def _existing_booking(db: Session, tenant_id: str, guest_id: str, start: date, e
     return None
 
 
+def _without_vague_holds(db: Session, tenant_id: str, found: list[dict]) -> list[dict]:
+    """Conflicts that really are on this unit. An event that named NO unit holds every unit until someone says which; that
+    hold must not stop a booking whose own event names its unit (149 such holds kept every named villa "taken", Jade Nov 2026)."""
+    from app.models.ical_feed import ICalEventDetail
+
+    blocks = [c["id"] for c in found if c.get("type") == "block"]
+    if not blocks:
+        return found
+    vague = {r[0] for r in db.query(ICalEventDetail.blocked_date_id).filter(
+        ICalEventDetail.tenant_id == tenant_id, ICalEventDetail.blocked_date_id.in_(blocks),
+        ICalEventDetail.needs_vehicle.is_(True)).all()}
+    return [c for c in found if c.get("id") not in vague]
+
+
 def _choose_vehicle(db: Session, feed, hits: list[str], check_in: date, check_out: date, exclude_stay_id: Optional[str] = None):
     """(property id or None, the event's own vehicle was taken, the Property chosen instead). The vehicle the event names when it
     is free, else the first free vehicle of the shared calendar; None when every vehicle is taken."""
-    if hits and not bsvc.find_conflicts(db, feed.tenant_id, hits[0], check_in, check_out, exclude_stay_id=exclude_stay_id):
-        return hits[0], False, None
+    swap = vehicle_pool.units_interchangeable(db, feed.tenant_id)
+    if hits:
+        found = bsvc.find_conflicts(db, feed.tenant_id, hits[0], check_in, check_out, exclude_stay_id=exclude_stay_id)
+        if not swap:
+            found = _without_vague_holds(db, feed.tenant_id, found)
+        if not found:
+            return hits[0], False, None
+    if not swap:                                   # a villa is never swapped for another: it waits on "Unassigned" for a person
+        return None, bool(hits), None
     ids = [r[0] for r in db.query(ICalFeedVehicle.property_id).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).all()]
     free = bsvc.pick_free_property(db, feed.tenant_id, check_in, check_out, candidate_ids=ids, exclude_stay_id=exclude_stay_id) if ids else None
     return (free.id if free else None), bool(hits), free
@@ -228,7 +260,7 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
         stay = Stay(tenant_id=feed.tenant_id, guest_id=guest_id, property_id=target, check_in=check_in, check_out=check_out,
                     adults=cand["adults"], children=cand["children"], status="confirmed", total_amount=cand["total"],
                     currency="INR", special_requests=[], channel_source=SOURCE,
-                    internal_notes=f"From Google Calendar: {(ev.get('summary') or '')[:200]}")
+                    internal_notes=_auto_note(ev))
         db.add(stay)
         db.flush()
         link = ICalEventBooking(tenant_id=feed.tenant_id, feed_id=feed.id, event_key=key[:300], stay_id=stay.id)
@@ -238,7 +270,7 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
         append_audit(db, tenant_id=feed.tenant_id, action="booking.created_from_calendar", target_type="booking", target_id=stay.id,
                      payload={"feed_id": feed.id, "property_id": target, "check_in": start, "check_out": end, "inquiry_id": lead_id})
         if holder is not None and check_out >= today:
-            _task(db, feed.tenant_id, _assign_title(cand["name"], start, end), stay, check_in)
+            _task(db, feed.tenant_id, _assign_title(cand["name"], start, end, vehicle_pool.unit_word(db, feed.tenant_id)), stay, check_in)
         elif taken and free is not None and check_out >= today:
             _task(db, feed.tenant_id, f"Vehicle changed: {cand['name']} asked for a vehicle that is not free, booked on {free.name} ({start} to {end})"[:255], stay, check_in)
         return "created"
@@ -246,8 +278,14 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
     stay = db.query(Stay).filter_by(id=link.stay_id, tenant_id=feed.tenant_id).first()
     if stay is None:                                           # erased or deleted on purpose: never bring it back
         return "unchanged"
+    if (stay.internal_notes or "") == f"{AUTO_NOTE}{(ev.get('summary') or '')[:200]}":
+        stay.internal_notes = _auto_note(ev)                   # the old title-only note, untouched by staff: add the event's text
+    if stay.guest is not None and stay.guest.name:             # "*Mr. Manjunath*": bold markers typed in the calendar
+        from app.services.ical_event_details import clean_name
+        if clean_name(stay.guest.name) != stay.guest.name:
+            stay.guest.name = clean_name(stay.guest.name)
     if stay.property_id not in vehicle_pool.placeholder_ids(db, feed.tenant_id):
-        _close_tasks(db, stay, ASSIGN_PREFIX)
+        _close_tasks(db, stay, ASSIGN_ANY)
     if stay.status != "confirmed" or cand is None or link.locked:
         return "unchanged"
 
@@ -288,7 +326,7 @@ def cancel_missing(db: Session, feed, present_keys: set[str], today: date) -> in
                   stay, stay.check_in)
             continue
         stay.status = "cancelled"
-        _close_tasks(db, stay, ASSIGN_PREFIX)
+        _close_tasks(db, stay, ASSIGN_ANY)
         append_audit(db, tenant_id=feed.tenant_id, action="booking.cancelled_from_calendar", target_type="booking",
                      target_id=stay.id, payload={"feed_id": feed.id})
         cancelled += 1
