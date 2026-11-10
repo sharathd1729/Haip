@@ -257,6 +257,9 @@ def event_units(text: str, details: dict, rules: dict[str, list[str]], names: di
 
 
 _PAYMENT_HEAD = re.compile(r"payment details", re.I)
+_LABEL_COLON = re.compile(r"(?<!\d):|:(?!\d)")
+_PRICE = re.compile(r"[\s*]*(?:₹|rs\.?|inr)?\s*(\d[\d,]*(?:\.\d+)?)", re.I)
+_BULLETS = "•·-*–—▪●"
 _RULE = re.compile(r"^[\s_\-=—–]{5,}$")
 _NUMBER = re.compile(r"([0-9][0-9,]*(?:\.[0-9]+)?)")
 _STAY_WORDS = ("property", "stay", "villa", "room", "tariff", "accommodation", "package", "rate")
@@ -291,13 +294,18 @@ def payment_extras(desc: str) -> list[dict]:
             continue
         if _RULE.match(line):
             break
-        head, sep, value = line.partition(":")
+        if not line:
+            continue
+        sep = _LABEL_COLON.search(line)                # a colon that is not inside a time ("10:30 PM")
+        if line[0] in _BULLETS or not sep:
+            break                                      # a rule / inclusion bullet or a new heading: the priced lines are over
+        head, value = line[: sep.start()], line[sep.end():]
         key = _clean_key(head)
-        if not sep or not key or key.startswith(_STAY_WORDS):
+        if not key or key.startswith(_STAY_WORDS):
             continue
         if any(key == label or key.startswith(label + " ") for label, _name in _ORDERED):
             continue                                   # total / advance / balance / gst: read elsewhere
-        m = _NUMBER.search(value)
+        m = _PRICE.match(value)
         amount = float(m.group(1).replace(",", "")) if m else 0
         if amount > 0:
             out.append({"name": clean_name(head)[:120], "amount": amount})

@@ -13,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { CalendarClashes } from "@/components/dashboard/today/CalendarClashes";
 import { ConsultsPanel } from "@/components/consults/ConsultsPanel";
-import { CallChecks, type CallChecksData } from "@/components/myday/CallChecks";
 import {
   BottomSheet, ChipRow, CompactRow, EmptyState, RowAction, RowList, RowSection, RowTag, Tabs,
 } from "@/components/ui/kit";
@@ -34,7 +33,7 @@ export interface MyDayItem {
 interface Queue {
   counts: Record<Kind, number>; people: number; people_waiting?: number; items: MyDayItem[]; scope: "mine" | "team";
   followup_people?: { all: number; open_lead_due: number };   // follow-ups as people, not task rows (D-31)
-  call_checks?: CallChecksData;   // "Was the AI right?" nudge, not people
+
 }
 
 const CHIPS: { value: string; label: string; kind?: Kind }[] = [
@@ -180,7 +179,6 @@ export function PhoneMyDay() {
             })}
           </>
         )}
-        <div className="mt-4"><CallChecks data={data?.call_checks} /></div>
       </div>
 
       <BottomSheet open={filters} onOpenChange={setFilters} title="More filters" description="Pick one kind of work to see only that.">

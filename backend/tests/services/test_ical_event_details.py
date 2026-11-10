@@ -186,3 +186,11 @@ def test_the_title_names_the_villa_by_a_word_of_its_own_name():
     assert ed.event_units("Asha\nWe loved Haven last year", {}, {}, names) == []           # only the title counts
     assert ed.event_units("Tranquil + Haven/group", {}, {}, names) == []                    # names two: no guess
     assert ed.event_units("Tranquil/aditi", {}, {"h": ["tranquil"]}, names) == ["h"]       # a typed keyword still wins
+
+
+def test_rules_and_times_after_the_payment_lines_are_not_add_ons():
+    desc = ("💳 Payment Details\n\nBreakfast:8,496/-\nBreaking Cost: ₹5,664\nProperty:93,456/-\n"
+            "Total Booking Amount: *₹1,07,616/-*\n• Please follow government sound regulations. Loud music is not permitted after 10:30 PM\n"
+            "Check-out by: 11:00 AM\n🎁 Your Stay Includes\nBonfire: 1 night")
+    assert ed.payment_extras(desc) == [{"name": "Breakfast", "amount": 8496.0}, {"name": "Breaking Cost", "amount": 5664.0}]
+    assert ed.payment_extras("Payment Details\nNote: pay 30% now\nBreakfast: 500") == [{"name": "Breakfast", "amount": 500.0}]   # not a price: skipped

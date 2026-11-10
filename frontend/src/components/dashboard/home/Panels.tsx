@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { cn } from "@/lib/utils";
 import { ChannelBadge } from "@/components/inbox/ChannelBadges";
 import type { GuestChannel } from "@/store/inbox";
-import { formatRupees, formatSeconds, type AgentRow, type Insight, type OverviewResponse, type Series } from "./types";
+import { formatRupees, formatSeconds, type AgentRow, type OverviewResponse, type Series } from "./types";
 
 function Panel({ title, meta, children, className }: { title: string; meta?: string; children: React.ReactNode; className?: string }) {
   return (
@@ -207,48 +207,5 @@ export function LeadSources({ sources, rangeLabel, className }: { sources: Overv
         </div>
       )}
     </Panel>
-  );
-}
-
-// ── What the AI noticed ───────────────────────────────────────────────────────
-
-const SEVERITY: Record<string, { label: string; dot: string; text: string }> = {
-  critical: { label: "Act now", dot: "bg-red-600", text: "text-red-700" },
-  high: { label: "Act now", dot: "bg-red-600", text: "text-red-700" },
-  medium: { label: "Worth a look", dot: "bg-amber-600", text: "text-amber-700" },
-  low: { label: "Good to know", dot: "bg-primary", text: "text-primary" },
-  info: { label: "Good to know", dot: "bg-gray-500", text: "text-[var(--haip-fg-muted)]" },
-};
-
-export function AiNoticed({ insights, onDismiss, dismissing }: { insights: Insight[]; onDismiss: (id: string) => void; dismissing?: string | null }) {
-  if (insights.length === 0) return null;
-  return (
-    <section>
-      <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3">
-        <h2 className="text-base font-bold" style={{ color: "var(--haip-fg)" }}>What the AI noticed</h2>
-        <span className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>Right now, across all open leads. Not limited to the date range above.</span>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {insights.slice(0, 3).map(i => {
-          const sev = SEVERITY[i.severity] ?? SEVERITY.info;
-          return (
-            <article key={i.id} className="haip-card p-4 flex flex-col gap-1.5">
-              <span className={cn("flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider", sev.text)}>
-                <span className={cn("w-2 h-2 rounded-full", sev.dot)} />{sev.label}
-              </span>
-              <h3 className="text-sm font-bold" style={{ color: "var(--haip-fg)" }}>{i.title}</h3>
-              <p className="text-[13px] leading-relaxed line-clamp-3" style={{ color: "var(--haip-fg-muted)" }}>{i.body}</p>
-              <div className="flex items-center gap-4 mt-auto pt-2 text-xs font-semibold">
-                {i.cta_href && i.cta_label && <Link href={i.cta_href} className="text-primary hover:underline">{i.cta_label}</Link>}
-                <button type="button" onClick={() => onDismiss(i.id)} disabled={dismissing === i.id}
-                  className="hover:underline disabled:opacity-50" style={{ color: "var(--haip-fg-subtle)" }}>
-                  Dismiss
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
   );
 }

@@ -9,8 +9,8 @@ import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
-  AtSign, BadgeCheck, BellRing, Bot, BookmarkIcon, Building, Building2, Calculator, Calendar, CalendarClock, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
-  FlaskConical, ListChecks, MapPin, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, Star, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
+  AtSign, BadgeCheck, BellRing, Bot, BookmarkIcon, BookOpen, Building, Building2, Calculator, Calendar, CalendarClock, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
+  FlaskConical, ListChecks, MapPin, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
@@ -40,10 +40,12 @@ export const NAV_SECTIONS: NavSection[] = [
   { title: "Today", links: [
     { label: "My day", href: "/dashboard/my-day", icon: I["/dashboard/my-day"], resource: "inbox" },
     { label: "Home", href: "/dashboard", icon: I["/dashboard"], resource: "dashboard" },
-    // Ops module: every segment with an ops pack (backend ops_pack_catalog; lib/segments.ts says which).
+  ] },
+  // Ops module: every segment with an ops pack (backend ops_pack_catalog; lib/segments.ts says which). Roster and alert
+  // chain: owner/manager only (ops.manage on the server). Its own section (owner, 10 Nov 2026), not mixed into "Today".
+  { title: "Operations", links: [
     { label: "Ops", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
     { label: "Vehicle map", href: "/dashboard/ops/map", icon: MapPin, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
-    // Roster and alert chain: owner/manager only (ops.manage on the server).
     { label: "Who is on duty", href: "/dashboard/ops/staff/duty", icon: CalendarClock, resource: "inbox", onlyRoles: ["owner", "manager"], onlyForBusinessTypes: ["caravan", "villa", "villa_resort"] },
     { label: "If nobody answers", href: "/dashboard/ops/staff/alerts", icon: BellRing, resource: "inbox", onlyRoles: ["owner", "manager"], onlyForBusinessTypes: ["caravan", "villa", "villa_resort"] },
   ] },
@@ -51,8 +53,6 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Inbox", href: "/dashboard/inbox", icon: I["/dashboard/inbox"], resource: "inbox" },
     { label: "Calls", href: "/dashboard/calls", icon: I["/dashboard/calls"], resource: "calls" },
     { label: "My WhatsApp", href: "/dashboard/settings/whatsapp-personal", icon: MessageCircle, resource: "whatsapp_personal" },
-    { label: "AI Concierge", href: "/dashboard/inbox?ch=ai", icon: Bot, resource: "inbox", hideForBusinessTypes: ["caravan"] },
-    { label: "Channel manager", href: "/dashboard/inbox/channel-manager", icon: Building2, resource: "inbox", hideForBusinessTypes: ["caravan"] },
   ] },
   { title: "Sales", links: [
     { label: "Leads", href: "/dashboard/leads", icon: I["/dashboard/leads"], resource: "guests" },
@@ -61,6 +61,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests", onlyRoles: REVENUE_READ_ROLES },
     { label: "Properties", href: "/dashboard/properties", icon: Building, resource: "properties", hideForBusinessTypes: ["caravan"] },
     { label: "Rate calculator", href: "/dashboard/calculator", icon: Calculator, resource: "properties", hideForBusinessTypes: ["caravan"] },
+    { label: "Channel manager", href: "/dashboard/inbox/channel-manager", icon: Building2, resource: "inbox", hideForBusinessTypes: ["caravan"] },
     { label: "Quotes", href: "/dashboard/quotes", icon: Calculator, resource: "guests", onlyRoles: QUOTE_WRITE_ROLES, onlyForBusinessTypes: ["caravan"] },
   ] },
   { title: "Messaging", links: [
@@ -73,25 +74,32 @@ export const NAV_SECTIONS: NavSection[] = [
   ] },
   { title: "Insights", links: [
     { label: "Reports", href: "/dashboard/reports", icon: I["/dashboard/reports"], resource: "reports" },
-    { label: "Impact", href: "/dashboard/impact", icon: TrendingUp, resource: "analytics", onlyRoles: ["owner", "manager"] },
-    { label: "AI Executive", href: "/dashboard/analyst", icon: Sparkles, resource: "analytics", onlyRoles: ["owner", "manager"] },
     { label: "Instagram insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
     { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "Website", href: "/dashboard/marketing/website", icon: Globe, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "Get found", href: "/dashboard/marketing/sops", icon: ListChecks, resource: "inbox", onlyRoles: SOPS_READ_ROLES },
-    { label: "QA & scores", href: "/dashboard/qa", icon: Star, resource: "qa" },
     { label: "Compliance", href: "/dashboard/compliance", icon: Shield, resource: "compliance" },
   ] },
+  // Every AI page in one place (owner, 10 Nov 2026): how the AI replies and sells, what it knows, what it learnt.
+  { title: "AI", links: [
+    { label: "AI Concierge & sales agent", href: "/dashboard/settings?tab=ai", icon: Bot, resource: "settings" },
+    { label: "AI conversations", href: "/dashboard/inbox?ch=ai", icon: Sparkles, resource: "inbox", hideForBusinessTypes: ["caravan"] },
+    { label: "Knowledge & business data", href: "/dashboard/settings/knowledge", icon: BookOpen, resource: "settings" },
+    { label: "AI learning", href: "/dashboard/settings/learning", icon: FlaskConical, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "Lead autopilot", href: "/dashboard/settings/lead-autopilot", icon: Bot, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "AI Executive", href: "/dashboard/analyst", icon: Sparkles, resource: "analytics", onlyRoles: ["owner", "manager"] },
+  ] },
+  // Everything that decides what happens to a lead, together (owner, 10 Nov 2026).
+  { title: "Lead setup", links: [
+    { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
+    { label: "Lead rules", href: "/dashboard/settings/lead-rules", icon: BadgeCheck, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "Lead workflows", href: "/dashboard/workflows", icon: Workflow, resource: "settings", onlyRoles: ["owner", "manager"] },
+  ] },
   { title: "Workspace", links: [
-    { label: "Automations", href: "/dashboard/automations", icon: Zap, resource: "settings" },
     { label: "Settings", href: "/dashboard/settings", icon: I["/dashboard/settings"], resource: "settings" },
     { label: "Integrations", href: "/dashboard/settings/integrations", icon: Link2, resource: "integrations" },
     { label: "Team", href: "/dashboard/settings/team", icon: UsersRound, resource: "users" },
-    { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
-    { label: "Lead autopilot", href: "/dashboard/settings/lead-autopilot", icon: Bot, resource: "settings", onlyRoles: ["owner", "manager"] },
-    { label: "Lead rules", href: "/dashboard/settings/lead-rules", icon: BadgeCheck, resource: "settings", onlyRoles: ["owner", "manager"] },
-    { label: "Lead workflows", href: "/dashboard/workflows", icon: Workflow, resource: "settings", onlyRoles: ["owner", "manager"] },
-    { label: "AI learning", href: "/dashboard/settings/learning", icon: FlaskConical, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "Automations", href: "/dashboard/automations", icon: Zap, resource: "settings" },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },

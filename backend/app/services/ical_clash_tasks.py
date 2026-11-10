@@ -54,7 +54,7 @@ def display_title(title: str, unit: str) -> str:
     many = unit[:-1] + "ies" if unit.endswith("y") else unit + "s"
     for old, new in ((WHICH_VEHICLE_PREFIX, f"Which {unit}? "), (OVER_CAPACITY_PREFIX, f"Not enough {many} from ")):
         if (title or "").startswith(old):
-            return new + title[len(old):]
+            return (new + title[len(old):]).replace(" free vehicles", f" free {many}")
     return title
 
 

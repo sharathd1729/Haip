@@ -27,6 +27,10 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; desc: string }[] = 
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("workspace");
+  useEffect(() => {      // after mount: the first render must match the server's
+    const want = new URLSearchParams(window.location.search).get("tab");
+    if (want && TABS.some(t => t.id === want)) setTab(want as Tab);
+  }, []);
   const router = useRouter();
   const { data: session } = useSession();
   const isOwner = session?.user?.role === "owner";

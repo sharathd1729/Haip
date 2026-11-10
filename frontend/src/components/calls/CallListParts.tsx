@@ -114,7 +114,7 @@ export function SummaryTiles({
   {
   label: "Avg QA score", value: s?.avg_qa_score != null ? String(Math.round(s.avg_qa_score)) : "–",
   note: s?.avg_qa_change != null ? `${s.avg_qa_change >= 0 ? "▲" : "▼"} ${Math.abs(s.avg_qa_change)} vs previous` : "",
-  tone: "text-violet-700", dot: "bg-violet-600", href: "/dashboard/qa",
+  tone: "text-violet-700", dot: "bg-violet-600",
   },
   ];
   return (

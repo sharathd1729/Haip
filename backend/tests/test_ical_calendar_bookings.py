@@ -405,6 +405,8 @@ def test_my_day_says_which_villa_in_a_villa_workspace(db, shared):
     _villas(db, shared)
     assert titles() == [f"Which villa? Tranquil/aditi ({_d(10)} to {_d(12)})"]
     assert ical_clash_tasks.display_title("Not enough vehicles from Google on 2030-01-01", "property") == "Not enough properties from Google on 2030-01-01"
+    assert ical_clash_tasks.display_title("Not enough vehicles from 2026-11-09: more bookings than free vehicles", "villa") == (
+        "Not enough villas from 2026-11-09: more bookings than free villas")
     assert _open_tasks(db, shared["tid"], "Which vehicle? ")                          # the stored title is the task's identity
 
 
