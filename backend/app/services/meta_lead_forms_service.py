@@ -98,62 +98,87 @@ def parse_fields(field_data) -> tuple[str, str, str, dict]:
 
 _NUM = re.compile(r"\d[\d,]*")
 _MONTH_WORD = re.compile(r"[a-z]{3,9}", re.I)
+_YEAR = re.compile(r"\b(20[2-9]\d)\b")
+_MONEY = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(lakhs?|lacs?|lac|l|k|thousand|crores?|cr)?(?![a-z])", re.I)
+_UNIT = {"l": 1e5, "lac": 1e5, "lacs": 1e5, "lakh": 1e5, "lakhs": 1e5, "k": 1e3, "thousand": 1e3, "cr": 1e7, "crore": 1e7,
+         "crores": 1e7}
+MAX_GUESTS = 2000                                   # a wedding form says "< 250"; anything bigger is not a head count
 
 
 def _numbers(text: str) -> list[int]:
     return [int(n.replace(",", "")) for n in _NUM.findall(text or "") if n.replace(",", "")]
 
 
+def _money(text: str) -> list[float]:
+    """Rupee amounts: "1.5 lakh to 2 lakh" -> [150000, 200000], "1.5-2 lakh" -> both in lakh, "30,000 - 40,000" as written."""
+    found = [(float(n.replace(",", "")), (u or "").lower()) for n, u in _MONEY.findall(text or "") if n.replace(",", "")]
+    out, unit = [], ""
+    for amount, u in reversed(found):               # a number with no unit takes the unit written after it
+        unit = u or unit
+        out.append(amount * _UNIT.get(unit, 1))
+    return out
+
+
 def _day_dates(text: str, filled: date) -> list[date]:
-    """"14 and 15" / "20-22 Dec" / "5th January" -> dates. Days with no month = the next such day on or after the day the
-    form was filled ("14 and 15" filled on 10 Nov = 14 and 15 Nov). Never a date in the past of the form."""
+    """"14 and 15" / "20-22 Dec" / "5th January" / "28th Dec 2027" -> dates. A year written wins. Days with no month = the
+    next such day on or after the day the form was filled ("14 and 15" filled on 10 Nov = 14 and 15 Nov)."""
     from app.services.ical_event_details import _month
 
     month = next((m for w in _MONTH_WORD.findall(text or "") if (m := _month(w))), None)
+    year = _YEAR.search(text or "")
     out = []
     for day in [n for n in _numbers(text) if 1 <= n <= 31][:2]:
-        tries = [(filled.year, month), (filled.year + 1, month)] if month else [
-            (filled.year + (filled.month + i - 1) // 12, (filled.month + i - 1) % 12 + 1) for i in range(13)]
-        for year, mon in tries:
+        if month and year:
+            tries = [(int(year.group(1)), month)]
+        elif month:
+            tries = [(filled.year, month), (filled.year + 1, month)]
+        else:
+            tries = [(filled.year + (filled.month + i - 1) // 12, (filled.month + i - 1) % 12 + 1) for i in range(13)]
+        for y, mon in tries:
             try:
-                d = date(year, mon, day)
+                d = date(y, mon, day)
             except ValueError:
                 continue
-            if d >= filled:
+            if d >= filled or (month and year):
                 out.append(d)
                 break
     return sorted(set(out))
 
 
 def trip_facts(answers: dict, filled: date) -> dict:
-    """Guests / dates / budget read from the form's own questions, for the lead's fields (the Inbox strip, the lead page).
-    A range keeps its TOP figure ("10-20 people" = 20, "30,000-40,000" = 40,000): enough room and the most they will
-    spend. The exact answer stays in the note. A question it cannot read is left alone."""
+    """Guests / dates / budget / occasion read from the form's own questions, for the lead's fields (the Inbox strip, the
+    lead page). A range keeps its TOP figure ("10-20 people" = 20, "1.5 lakh to 2 lakh" = 2,00,000): enough room and the
+    most they will spend. The exact answer stays in the note. A question it cannot read is left alone."""
     out: dict = {}
     for question, raw in (answers or {}).items():
-        q, text = question.lower(), str(raw).replace("_", " ")
-        nums = _numbers(text)
-        if not nums:
-            continue
+        q, text = question.lower(), str(raw).replace("_", " ").strip()
         if "budget" in q or "price" in q or "spend" in q:
-            out.setdefault("budget", float(max(nums)))
-        elif any(w in q for w in ("guest", "people", "pax", "party", "persons", "members", "how many")):
-            top = max(n for n in nums if n <= 200) if any(n <= 200 for n in nums) else None
-            if top:
-                out.setdefault("adults", top)
+            amounts = _money(text)
+            if amounts:
+                out.setdefault("budget", float(max(amounts)))
+        elif any(w in q for w in ("guest", "people", "pax", "party", "persons", "members", "headcount", "how many")):
+            counts = [n for n in _numbers(text) if 0 < n <= MAX_GUESTS]
+            if counts:
+                out.setdefault("adults", max(counts))
         elif "date" in q or "when" in q:
             days = _day_dates(text, filled)
             if days:
                 out.setdefault("check_in", days[0].isoformat())
                 out.setdefault("check_out", (days[-1] if len(days) > 1 else days[0] + timedelta(days=1)).isoformat())
+        elif ("event" in q or "occasion" in q) and text and not _numbers(text):
+            out.setdefault("occasion", text[:100].capitalize())
     return out
 
 
-def apply_trip_facts(inquiry: Inquiry, answers: dict, filled: date) -> list[str]:
-    """Fill the lead's empty Guests / Dates / Budget from the form. Never overwrites what a person or the chat already set."""
+def apply_trip_facts(inquiry: Inquiry, answers: dict, filled: date, replace: dict | None = None) -> list[str]:
+    """Fill the lead's empty Guests / Dates / Budget / Occasion from the form. Never overwrites what a person or the chat
+    set; ``replace`` = {field: value} that may be overwritten because the form itself wrote it (a repair of a misread)."""
     done = []
     for field, value in trip_facts(answers, filled).items():
-        if getattr(inquiry, field) in (None, ""):
+        current = getattr(inquiry, field)
+        if field == "budget" and current is not None:
+            current = float(current)
+        if current in (None, "") or (replace and field in replace and replace[field] == current and current != value):
             setattr(inquiry, field, value)
             done.append(field)
     return done
