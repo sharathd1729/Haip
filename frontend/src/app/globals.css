@@ -561,6 +561,8 @@
   --haip-cal-vehicle-1: #C9E7DB; --haip-cal-vehicle-2: #E6F1EC; --haip-cal-vehicle-fg: #0F2A20;
   /* Calendar occupancy bar: the lighter part = nights held by a Google Calendar event that names its unit. */
   --haip-cal-held: #A9D8C4;
+  /* Bookings from an outside channel (Airbnb, Booking.com, ...): one deep green; the bar's short tag says which. */
+  --haip-cal-channel: #0E4A36;
 
   /* Sign-in brand panel: always forest in both themes, with a light terracotta accent that passes AA on it. */
   --haip-brand-panel:  #0E4A36;
@@ -583,6 +585,7 @@
   --haip-cal-due-bg: rgba(217,120,90,0.26); --haip-cal-due-edge: #D9785A; --haip-cal-due-fg: #F3B9A2;
   --haip-cal-vehicle-1: #24453A; --haip-cal-vehicle-2: #3A4430; --haip-cal-vehicle-fg: #E6F2EA;
   --haip-cal-held: #5E7C70;
+  --haip-cal-channel: #4E8F7A;
   --haip-status-success-bg: rgba(142,182,155,0.16); --haip-status-success-fg: #A9D9B8; --haip-status-success-border: rgba(142,182,155,0.34);
   --haip-status-warning-bg: rgba(232,196,96,0.13);  --haip-status-warning-fg: #EBCB72; --haip-status-warning-border: rgba(232,196,96,0.30);
   --haip-status-danger-bg:  rgba(240,140,128,0.13); --haip-status-danger-fg:  #F5A99F; --haip-status-danger-border:  rgba(240,140,128,0.30);

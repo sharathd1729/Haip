@@ -59,16 +59,16 @@ interface ChConfig {
 }
 
 const CH: Record<string, ChConfig> = {
-  airbnb:         { bg:"bg-rose-500",    text:"text-white", border:"border-rose-600",    dot:"bg-rose-400",    label:"Airbnb",       short:"ABB" },
-  "booking.com":  { bg:"bg-blue-600",    text:"text-white", border:"border-blue-700",    dot:"bg-blue-500",    label:"Booking.com",  short:"BDC" },
+  airbnb:         { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]",    label:"Airbnb",       short:"ABB" },
+  "booking.com":  { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]",    label:"Booking.com",  short:"BDC" },
   direct:         { bg:"bg-[var(--haip-cal-direct)]", text:"text-white", border:"border-[var(--haip-cal-direct)]", dot:"bg-[var(--haip-cal-direct)]", label:"Direct",       short:"DIR" },
-  makemytrip:     { bg:"bg-orange-500",  text:"text-white", border:"border-orange-600",  dot:"bg-orange-400",  label:"MMT",          short:"MMT" },
-  vrbo:           { bg:"bg-purple-500",  text:"text-white", border:"border-purple-600",  dot:"bg-purple-400",  label:"VRBO",         short:"VBO" },
-  expedia:        { bg:"bg-yellow-500",  text:"text-white", border:"border-yellow-600",  dot:"bg-yellow-400",  label:"Expedia",      short:"EXP" },
-  hostaway:       { bg:"bg-violet-500",  text:"text-white", border:"border-violet-600",  dot:"bg-violet-400",  label:"Hostaway",     short:"HA"  },
-  retalwise:      { bg:"bg-indigo-500",  text:"text-white", border:"border-indigo-600",  dot:"bg-indigo-400",  label:"RentalWise",   short:"RW"  },
+  makemytrip:     { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]",  label:"MMT",          short:"MMT" },
+  vrbo:           { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]",  label:"VRBO",         short:"VBO" },
+  expedia:        { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]",  label:"Expedia",      short:"EXP" },
+  hostaway:       { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]",  label:"Hostaway",     short:"HA"  },
+  retalwise:      { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]",  label:"RentalWise",   short:"RW"  },
 };
-const CH_DEFAULT: ChConfig = { bg:"bg-gray-500", text:"text-white", border:"border-gray-600", dot:"bg-[var(--haip-border-strong)]", label:"Other",       short:"OTH" };
+const CH_DEFAULT: ChConfig = { bg:"bg-[var(--haip-cal-channel)]", text:"text-white", border:"border-[var(--haip-cal-channel)]", dot:"bg-[var(--haip-cal-channel)]", label:"Other",       short:"OTH" };
 const CH_BLOCKED: ChConfig = { bg:"bg-[var(--haip-cal-block)]", text:"text-[var(--haip-cal-block-fg)]", border:"border-[var(--haip-border-strong)]", dot:"bg-[var(--haip-cal-block)]", label:"Blocked", short:"BLK" };
 const CH_MAINT:   ChConfig = { bg:"bg-[var(--haip-cal-maint)]",  text:"text-white",  border:"border-[var(--haip-cal-maint)]",  dot:"bg-[var(--haip-cal-maint)]",  label:"Maint.",  short:"MNT" };
 
@@ -79,16 +79,16 @@ function chConfig(src?: string | null): ChConfig {
 
 // Availability cell colours
 const AVAIL_BG: Record<string, string> = {
-  free:            "bg-emerald-100",
-  available:       "bg-emerald-100",
-  confirmed:       "bg-slate-200",
-  checked_in:      "bg-slate-300",
-  quoted:          "bg-amber-100",
-  inquiry:         "bg-sky-100",
+  free:            "bg-[var(--haip-status-success-bg)]",
+  available:       "bg-[var(--haip-status-success-bg)]",
+  confirmed:       "bg-[var(--haip-cal-block)]",
+  checked_in:      "bg-[var(--haip-cal-held)]",
+  quoted:          "bg-[var(--haip-accent-light)]",
+  inquiry:         "bg-[var(--haip-status-info-bg)]",
   blocked:         "bg-[var(--haip-border-strong)]",
-  maintenance:     "bg-red-400",
+  maintenance:     "bg-[var(--haip-cal-maint)]",
   owner_use:       "bg-[var(--haip-border-strong)]",
-  offline_booking: "bg-slate-300",
+  offline_booking: "bg-[var(--haip-cal-held)]",
   other:           "bg-[var(--haip-border)]",
 };
 const AVAIL_LABEL: Record<string, string> = {
@@ -100,12 +100,12 @@ const AVAIL_LABEL: Record<string, string> = {
 
 // Revenue heatmap gradient
 function revenueBg(rate: number | undefined, maxRate: number): string {
-  if (!rate || maxRate <= 0) return "bg-white";
+  if (!rate || maxRate <= 0) return "bg-[var(--haip-card)]";
   const pct = Math.min(1, rate / maxRate);
-  if (pct > 0.75) return "bg-emerald-200";
-  if (pct > 0.50) return "bg-emerald-100";
-  if (pct > 0.25) return "bg-emerald-50";
-  return "bg-white";
+  if (pct > 0.75) return "bg-[var(--haip-status-success-border)]";
+  if (pct > 0.50) return "bg-[var(--haip-status-success-bg)]";
+  if (pct > 0.25) return "bg-[var(--haip-band-bg)]";
+  return "bg-[var(--haip-card)]";
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ const HoverCard = memo(function HoverCard({
               {cc.label} · {stay.adults} guest{stay.adults !== 1 ? "s" : ""}
             </p>
           </div>
-          <span className={cn("text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/25 ml-2", cc.text)}>
+          <span className={cn("text-[11.5px] font-bold px-2 py-0.5 rounded-full bg-white/25 ml-2", cc.text)}>
             {cc.short}
           </span>
         </div>
@@ -269,16 +269,16 @@ const HoverCard = memo(function HoverCard({
         {/* Dates */}
         <div className="flex items-center justify-between pt-1.5 border-t border-[var(--haip-border)]">
           <div>
-            <p className="text-[9px] text-[var(--haip-fg-subtle)] uppercase tracking-wide">Check-in</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">Check-in</p>
             <p className="font-semibold text-[var(--haip-fg)]">{stay.check_in}</p>
           </div>
           <span className="text-[var(--haip-fg-subtle)]/70 text-base">→</span>
           <div className="text-right">
-            <p className="text-[9px] text-[var(--haip-fg-subtle)] uppercase tracking-wide">Check-out</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">Check-out</p>
             <p className="font-semibold text-[var(--haip-fg)]">{stay.check_out}</p>
           </div>
         </div>
-        <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center -mt-1">
+        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] text-center -mt-1">
           {nights} night{nights !== 1 ? "s" : ""}
         </p>
 
@@ -307,11 +307,11 @@ const HoverCard = memo(function HoverCard({
         {/* Status badge */}
         <div className="pt-0.5">
           <span className={cn(
-            "text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize",
+            "text-[11.5px] px-2 py-0.5 rounded-full font-semibold capitalize",
             ["confirmed","checked_in"].includes(stay.status)
-              ? "bg-green-100 text-green-700"
+              ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]"
               : stay.status === "quoted"
-              ? "bg-amber-100 text-amber-700"
+              ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]"
               : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]",
           )}>
             {stay.status.replace("_", " ")}
@@ -509,13 +509,13 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                   key={day}
                   className={cn(
                     "flex-shrink-0 h-full border-r border-[var(--haip-border)]/60 flex flex-col items-center justify-center gap-0.5",
-                    isBooked ? revenueBg(rate, maxRate) : "bg-white",
+                    isBooked ? revenueBg(rate, maxRate) : "bg-[var(--haip-card)]",
                     todayDy && "ring-1 ring-inset ring-primary",
                   )}
                   style={{ width: DAY_W }}
                 >
                   {rate && isBooked && (
-                    <span className="text-[9px] font-bold text-emerald-700 tabular-nums leading-none">
+                    <span className="text-[9px] font-bold text-[var(--haip-status-success-fg)] tabular-nums leading-none">
                       {rate >= 1_000 ? `${(rate / 1000).toFixed(0)}k` : String(Math.round(rate))}
                     </span>
                   )}
@@ -676,19 +676,13 @@ const CalendarHeader = memo(function CalendarHeader({
 // ── Legend ─────────────────────────────────────────────────────────────────────
 
 // Channel colours are shown only for channels that have a booking in view (a villa business with no OTA sees none).
-const OTA_LEGEND_ITEMS = [
-  { key: "airbnb",      dot: "bg-rose-500",    label: "Airbnb" },
-  { key: "booking.com", dot: "bg-blue-600",    label: "Booking.com" },
-  { key: "vrbo",        dot: "bg-purple-500",  label: "VRBO" },
-  { key: "makemytrip",  dot: "bg-orange-500",  label: "MMT" },
-  { key: "retalwise",   dot: "bg-indigo-500",  label: "RentalWise" },
-];
+const OTA_KEYS = Object.keys(CH).filter(k => k !== "direct");
 
 function buildLegend(seg: Segment, channels: Set<string>) {
   return [
     { dot: "bg-[var(--haip-cal-direct)]", label: "Direct booking" },
     { dot: "bg-[var(--haip-cal-due-bg)] shadow-[inset_3px_0_0_var(--haip-cal-due-edge)]", label: "Money due" },
-    ...OTA_LEGEND_ITEMS.filter(i => channels.has(i.key)),
+    ...(OTA_KEYS.some(k => channels.has(k)) ? [{ dot: "bg-[var(--haip-cal-channel)]", label: "Other channel (tag on the bar)" }] : []),
     { dot: "bg-[var(--haip-cal-block)]", label: "From Google Calendar or blocked" },
     { dot: "bg-[var(--haip-cal-maint)]", label: "Maintenance" },
     { dot: WAITING_STRIPE, label: `${seg.whichUnit} (held on every ${seg.unit.one})` },
@@ -1003,12 +997,12 @@ export default function PortfolioCalendarPage() {
           {seg.sections.calendar.rentalwiseSync && (
             <>
               {syncMutation.isSuccess && (
-                <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-xl">
+                <span className="flex items-center gap-1 text-xs text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)] px-2 py-1 rounded-xl">
                   <CheckCircle2 size={11} /> Synced
                 </span>
               )}
               {syncMutation.isError && (
-                <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-xl">
+                <span className="flex items-center gap-1 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] px-2 py-1 rounded-xl">
                   <AlertCircle size={11} /> Failed
                 </span>
               )}
@@ -1017,7 +1011,7 @@ export default function PortfolioCalendarPage() {
                 disabled={syncMutation.isPending}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors",
-                  syncMutation.isPending ? "bg-indigo-100 text-indigo-400 cursor-not-allowed" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100",
+                  syncMutation.isPending ? "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)] cursor-not-allowed" : "bg-[var(--haip-chip-bg)] text-[var(--haip-chip-fg)] hover:bg-[var(--haip-btn-secondary-hover)]",
                 )}
               >
                 <CloudDownload size={12} className={syncMutation.isPending ? "animate-pulse" : ""} />
@@ -1050,7 +1044,7 @@ export default function PortfolioCalendarPage() {
             </div>
           ))}
           {!isPhone && (
-            <span className="text-[10px] text-[var(--haip-fg-subtle)] ml-auto tabular-nums">
+            <span className="text-[11.5px] text-[var(--haip-fg-subtle)] ml-auto tabular-nums">
               A {seg.booking.one} runs from the afternoon of {seg.start} to the morning of {seg.end} · {rows.length} {rows.length === 1 ? seg.unit.one : seg.unit.many}
             </span>
           )}
@@ -1061,7 +1055,7 @@ export default function PortfolioCalendarPage() {
       {isError ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-sm font-semibold text-red-500">Failed to load calendar</p>
+            <p className="text-sm font-semibold text-[var(--haip-status-danger-fg)]">Failed to load calendar</p>
             <button onClick={() => refetch()} className="mt-2 text-sm text-primary hover:underline">Try again</button>
           </div>
         </div>
