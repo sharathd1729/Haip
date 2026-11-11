@@ -60,7 +60,7 @@ export function AddOnsPanel({ booking, onChange }: { booking: BookingDetail; onC
             <button
               aria-label={`Remove ${a.name}`}
               onClick={() => run.mutate(() => api.delete(`${base}/${a.id}`))}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50"
+              className="size-9 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"
             >
               <Trash2 size={13} />
             </button>
@@ -100,7 +100,7 @@ export function AddOnsPanel({ booking, onChange }: { booking: BookingDetail; onC
               <input className={input} placeholder="e.g. Birthday cake" value={custom.name} onChange={e => setCustom(c => ({ ...c, name: e.target.value }))} aria-label="Item name" />
               <input className={input} placeholder="Price" inputMode="decimal" value={custom.price} onChange={e => setCustom(c => ({ ...c, price: e.target.value.replace(/[^0-9.]/g, "") }))} aria-label="Price" />
               <input className={input} placeholder="Qty" inputMode="numeric" value={custom.qty} onChange={e => setCustom(c => ({ ...c, qty: e.target.value.replace(/\D/g, "") }))} aria-label="Quantity" />
-              <button onClick={addCustom} disabled={run.isPending} className="text-xs font-semibold bg-gray-900 text-white px-3 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50">Add</button>
+              <button onClick={addCustom} disabled={run.isPending} className="haip-btn-primary md:!min-h-9 !px-3 text-xs">Add</button>
             </div>
           </div>
         </div>

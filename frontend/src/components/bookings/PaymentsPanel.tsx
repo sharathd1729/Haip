@@ -61,13 +61,13 @@ export function PaymentsPanel({ booking, onChange, onCollect }: {
           <div className="flex justify-between"><dt className="text-[var(--haip-fg-subtle)]">Stay</dt><dd className="tabular-nums">{formatINR(f.stay_charge)}</dd></div>
           <div className="flex justify-between"><dt className="text-[var(--haip-fg-subtle)]">Add-ons</dt><dd className="tabular-nums">{formatINR(f.addons_total)}</dd></div>
           <div className="flex justify-between font-semibold border-t border-[var(--haip-border)] pt-1.5"><dt>Total</dt><dd className="tabular-nums">{formatINR(f.total)}</dd></div>
-          <div className="flex justify-between text-emerald-700"><dt>Received</dt><dd className="tabular-nums">{formatINR(f.paid)}</dd></div>
-          <div className={cn("flex justify-between font-semibold", f.outstanding > 0 ? "text-red-600" : "text-[var(--haip-fg-subtle)]")}>
+          <div className="flex justify-between text-[var(--haip-status-success-fg)]"><dt>Received</dt><dd className="tabular-nums">{formatINR(f.paid)}</dd></div>
+          <div className={cn("flex justify-between font-semibold", f.outstanding > 0 ? "text-[var(--haip-accent-ink)]" : "text-[var(--haip-fg-subtle)]")}>
             <dt>Still due</dt><dd className="tabular-nums">{formatINR(f.outstanding)}</dd>
           </div>
         </dl>
         <div className="h-1.5 rounded-full bg-[var(--haip-status-neutral-bg)] overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Share of total received">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
         </div>
 
         {booking.payments.length > 0 && (
@@ -80,14 +80,14 @@ export function PaymentsPanel({ booking, onChange, onCollect }: {
                   </p>
                   <p className="text-xs text-[var(--haip-fg-subtle)] truncate">{fmtDate(p.paid_on)}{p.reference ? ` · ${p.reference}` : ""}</p>
                 </div>
-                <span className={cn("tabular-nums font-semibold", p.kind === "refund" ? "text-red-600" : "text-[var(--haip-fg)]")}>
+                <span className={cn("tabular-nums font-semibold", p.kind === "refund" ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg)]")}>
                   {p.kind === "refund" ? "-" : ""}{formatINR(p.amount)}
                 </span>
                 {!p.via_gateway && (
                   <button
                     aria-label="Remove this entry"
                     onClick={() => { if (confirm("Remove this entry? It will be noted in the activity log.")) remove.mutate(p.id); }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)]/70 hover:text-red-500 hover:bg-red-50"
+                    className="size-9 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)]/70 hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -129,7 +129,7 @@ export function PaymentsPanel({ booking, onChange, onCollect }: {
               <button
                 onClick={() => save.mutate()}
                 disabled={!(Number(form.amount) > 0) || save.isPending}
-                className="flex-1 py-2 bg-primary hover:bg-primary disabled:opacity-40 text-white font-semibold rounded-lg text-xs"
+                className="haip-btn-primary flex-1 md:!min-h-9 text-xs"
               >
                 {save.isPending ? "Saving..." : form.kind === "refund" ? "Record refund" : "Record payment"}
               </button>
@@ -139,19 +139,19 @@ export function PaymentsPanel({ booking, onChange, onCollect }: {
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setForm({ kind: "payment", amount: f.outstanding > 0 ? String(f.outstanding) : "", method: "upi", reference: "", paid_on: today })}
-              className="text-xs font-semibold bg-primary text-white px-3 py-2 rounded-lg hover:bg-primary"
+              className="haip-btn-primary md:!min-h-9 !px-3 text-xs"
             >
               Record payment
             </button>
             {f.paid > 0 && (
               <button onClick={() => setForm({ kind: "refund", amount: "", method: "upi", reference: "", paid_on: today })}
-                className="text-xs font-semibold border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-3 py-2 rounded-lg hover:bg-[var(--haip-surface)]">
+                className="haip-btn-secondary md:!min-h-9 !px-3 text-xs">
                 Record refund
               </button>
             )}
             {f.outstanding > 0 && onCollect && booking.status !== "cancelled" && (
               <button onClick={onCollect}
-                className="min-h-9 pointer-coarse:min-h-11 text-xs font-semibold border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-3 py-2 rounded-lg hover:bg-[var(--haip-surface)]">
+                className="haip-btn-secondary md:!min-h-9 !px-3 text-xs">
                 Collect {formatINR(f.outstanding)}
               </button>
             )}

@@ -50,7 +50,7 @@ export function ServiceRequestsPanel({ booking, onChange }: { booking: BookingDe
               </p>
             </div>
             <button aria-label={`Remove ${r.title}`} onClick={() => run.mutate(() => api.delete(`${base}/${r.id}`))}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)]/70 hover:text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>
+              className="size-9 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)]/70 hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"><Trash2 size={13} /></button>
           </div>
         ))}
 
@@ -69,7 +69,7 @@ export function ServiceRequestsPanel({ booking, onChange }: { booking: BookingDe
             </select>
             <input className={input} type="date" aria-label="Due date" value={due} onChange={e => setDue(e.target.value)} />
             <button onClick={() => add(title)} disabled={!title.trim() || run.isPending}
-              className="text-xs font-semibold bg-gray-900 text-white px-3 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-40">Add</button>
+              className="haip-btn-primary md:!min-h-9 !px-3 text-xs">Add</button>
           </div>
         </div>
       </div>
