@@ -108,13 +108,13 @@ export function SummaryTiles({
 }: { s?: CallsSummary; rangeLabel: string; onPick: (tab: Tab) => void }) {
   const tiles: { label: string; value: string; note: string; tone: string; dot: string; tab?: Tab; href?: string }[] = [
   { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-[var(--haip-fg)] ", dot: "bg-[var(--haip-border-strong)]", tab: "all" },
-  { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: !s ? "" : s.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-[var(--haip-status-danger-fg)]", dot: "bg-red-600", tab: "callback" },
+  { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: !s ? "" : s.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-[var(--haip-status-danger-fg)]", dot: "bg-[var(--haip-status-danger-fg)]", tab: "callback" },
   { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: s ? "of incoming" : "", tone: "text-[var(--haip-status-success-fg)]", dot: "bg-[var(--haip-status-success-fg)]", tab: "incoming" },
   { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: s ? "answered calls" : "", tone: "text-primary", dot: "bg-primary", tab: "incoming" },
   {
   label: "Avg QA score", value: s?.avg_qa_score != null ? String(Math.round(s.avg_qa_score)) : "–",
   note: s?.avg_qa_change != null ? `${s.avg_qa_change >= 0 ? "▲" : "▼"} ${Math.abs(s.avg_qa_change)} vs previous` : "",
-  tone: "text-violet-700", dot: "bg-violet-600",
+  tone: "text-primary", dot: "bg-primary",
   },
   ];
   return (

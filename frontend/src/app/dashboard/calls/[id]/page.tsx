@@ -87,10 +87,10 @@ interface CallDetail {
 // Real CallDisposition values (backend models/call.py). The previous list
 // offered pending / qualified / spam, which the wrap-up endpoint rejects.
 const DISPOSITION_OPTIONS = [
-  { value: "booked",  label: "Booked",  color: "bg-violet-100 text-violet-700" },
-  { value: "hot",  label: "Hot lead",  color: "bg-rose-100 text-rose-700" },
+  { value: "booked",  label: "Booked",  color: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]" },
+  { value: "hot",  label: "Hot lead",  color: "bg-[var(--haip-accent-light)] text-[var(--haip-accent-ink)]" },
   { value: "quoted",  label: "Quoted",  color: "bg-primary/15 text-primary" },
-  { value: "callback",  label: "Callback",  color: "bg-amber-100 text-[var(--haip-status-warning-fg)]" },
+  { value: "callback",  label: "Callback",  color: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]" },
   { value: "lost",  label: "Lost",  color: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]" },
   { value: "no_answer", label: "No answer",  color: "bg-[var(--haip-surface)] text-[var(--haip-fg-2)]" },
   { value: "voicemail", label: "Voicemail",  color: "bg-[var(--haip-surface)] text-[var(--haip-fg-2)]" },
@@ -419,11 +419,11 @@ export default function CallDetailPage() {
   className={cn(
  "flex-shrink-0 mt-2 w-5 h-5 flex items-center justify-center rounded transition-colors",
   isBookmarked
-  ? "text-amber-400"
-  : "text-transparent group-hover/turn:text-[var(--haip-fg-subtle)] hover:!text-amber-400"
+  ? "text-primary"
+  : "text-transparent group-hover/turn:text-[var(--haip-fg-subtle)] hover:!text-primary"
   )}
   >
-  <Star size={13} className={isBookmarked ? "fill-amber-400" : ""} />
+  <Star size={13} className={isBookmarked ? "fill-primary" : ""} />
   </button>
   <div className="flex-1 min-w-0">
   <TranscriptTurn
@@ -463,7 +463,7 @@ export default function CallDetailPage() {
   : "text-transparent group-hover/turn:text-[var(--haip-fg-subtle)] hover:!text-[var(--haip-status-info-fg)]"
   )}
   >
-  <MessageSquare size={13} className={hasNote ? "fill-blue-100" : ""} />
+  <MessageSquare size={13} className={hasNote ? "fill-[var(--haip-status-info-bg)]" : ""} />
   </button>
   </div>
 
@@ -546,7 +546,7 @@ export default function CallDetailPage() {
   </>
   ) : call.transcription_status === "queued" ? (
   <>
-  <Clock size={20} className="text-amber-300 mx-auto mb-2" />
+  <Clock size={20} className="text-[var(--haip-fg-subtle)] mx-auto mb-2" />
   <p className="text-sm text-[var(--haip-fg-subtle)]">Waiting for processing — click "Process now" above</p>
   </>
   ) : (
@@ -603,7 +603,7 @@ export default function CallDetailPage() {
   <div className="px-3 pb-2">
   <div className="h-1.5 bg-[var(--haip-surface)] rounded-full overflow-hidden mb-1">
   <div
-  className={cn("h-full rounded-full", pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-amber-400" : "bg-red-400")}
+  className={cn("h-full rounded-full", pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-[var(--haip-accent)]" : "bg-[var(--haip-status-danger-fg)]")}
   style={{ width: `${pct}%` }}
   />
   </div>
@@ -663,7 +663,7 @@ export default function CallDetailPage() {
   <ul className="space-y-1">
   {call.score.agent_growth_areas.slice(0, 3).map((s, i) => (
   <li key={i} className="text-xs text-[var(--haip-fg-2)] flex items-start gap-1.5">
-  <AlertCircle size={11} className="text-amber-400 mt-0.5 flex-shrink-0" /> {s}
+  <AlertCircle size={11} className="text-[var(--haip-accent-ink)] mt-0.5 flex-shrink-0" /> {s}
   </li>
   ))}
   </ul>
@@ -779,7 +779,7 @@ export default function CallDetailPage() {
   <div className="space-y-3">
   <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)] px-1">Insights</h2>
   {call.score?.missed_revenue && call.score.missed_revenue > 0 && (
-  <div className="p-3 bg-[var(--haip-status-danger-bg)] border border-red-100 rounded-xl">
+  <div className="p-3 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl">
   <p className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-0.5">Potential missed revenue</p>
   <p className="text-base font-bold text-[var(--haip-status-danger-fg)]">
   ₹{call.score.missed_revenue.toLocaleString("en-IN")}
@@ -794,7 +794,7 @@ export default function CallDetailPage() {
   {bookmarks.size > 0 && call.transcript?.turns && (
   <div className="haip-card p-5">
   <div className="flex items-center gap-2 mb-3">
-  <Star size={14} className="text-amber-400 fill-amber-400" />
+  <Star size={14} className="fill-primary text-primary" />
   <h3 className="text-sm font-semibold text-[var(--haip-fg)]">
   Bookmarked moments
   <span className="ml-1.5 text-xs font-normal text-[var(--haip-fg-subtle)]">({bookmarks.size})</span>
@@ -818,7 +818,7 @@ export default function CallDetailPage() {
   audio.currentTime = turn.t0;
   audio.play().catch(() => {});
   }}
-  className="w-full text-left px-3 py-2 rounded-xl bg-[var(--haip-status-warning-bg)] border border-amber-100 hover:bg-amber-100 transition-colors group"
+  className="w-full text-left px-3 py-2 rounded-xl bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] hover:bg-[var(--haip-accent-line)] transition-colors group"
   >
   <div className="flex items-center justify-between mb-0.5">
   <span className="text-[10px] font-mono font-semibold text-[var(--haip-status-warning-fg)]">{timeStr}</span>
@@ -846,19 +846,19 @@ export default function CallDetailPage() {
 // ── Layer 2: Intent & Outcome Panel ──────────────────────────────────────────
 
 const OCCASION_LABELS: Record<string, { label: string; color: string; emoji: string }> = {
-  honeymoon:  { label: "Honeymoon",  color: "bg-pink-500/10 text-pink-400 border-pink-500/20",  emoji: "💑" },
-  anniversary: { label: "Anniversary", color: "bg-rose-500/10 text-rose-400 border-rose-500/20",  emoji: "🥂" },
-  birthday:  { label: "Birthday",  color: "bg-amber-500/10 text-amber-400 border-amber-500/20", emoji: "🎂" },
-  corporate:  { label: "Corporate",  color: "bg-blue-500/10 text-[var(--haip-status-info-fg)] border-blue-500/20",  emoji: "💼" },
+  honeymoon:  { label: "Honeymoon",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "💑" },
+  anniversary: { label: "Anniversary", color: "bg-primary/10 text-primary border-primary/20",  emoji: "🥂" },
+  birthday:  { label: "Birthday",  color: "bg-primary/10 text-primary border-primary/20", emoji: "🎂" },
+  corporate:  { label: "Corporate",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "💼" },
   family:  { label: "Family",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "👨‍👩‍👧" },
-  solo:  { label: "Solo",  color: "bg-purple-500/10 text-purple-400 border-purple-500/20", emoji: "🧘" },
-  wedding:  { label: "Wedding",  color: "bg-pink-500/10 text-pink-400 border-pink-500/20",  emoji: "💒" },
+  solo:  { label: "Solo",  color: "bg-primary/10 text-primary border-primary/20", emoji: "🧘" },
+  wedding:  { label: "Wedding",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "💒" },
   other:  { label: "Other",  color: "bg-muted text-muted-foreground border-border",  emoji: "✈️" },
 };
 
 const DECISION_STAGE_LABELS: Record<string, { label: string; color: string }> = {
   first_inquiry:  { label: "First inquiry",  color: "text-[var(--haip-status-info-fg)]" },
-  comparing:  { label: "Comparing options", color: "text-amber-400" },
+  comparing:  { label: "Comparing options", color: "text-[var(--haip-accent-ink)]" },
   ready_to_book:  { label: "Ready to book",  color: "text-primary" },
 };
 
@@ -924,7 +924,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <p className={cn(
  "text-sm font-bold",
   layer2.conversion_probability >= 70 ? "text-primary"
-  : layer2.conversion_probability >= 40 ? "text-amber-400"
+  : layer2.conversion_probability >= 40 ? "text-primary"
   : "text-[var(--haip-status-danger-fg)]"
   )}>
   {layer2.conversion_probability >= 70 ? "High chance" :
@@ -977,12 +977,12 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   {/* Competitor mentioned */}
   {layer2.competitor_mentioned && (
   <div className="flex items-start gap-2.5 py-2 border-t border-border">
-  <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+  <AlertTriangle size={13} className="text-[var(--haip-accent-ink)] flex-shrink-0 mt-0.5" />
   <div className="flex-1">
   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
   Competitor mentioned
   </p>
-  <p className="text-sm font-semibold text-amber-400 mt-0.5">
+  <p className="text-sm font-semibold text-[var(--haip-accent-ink)] mt-0.5">
   {layer2.competitor_mentioned}
   </p>
   </div>

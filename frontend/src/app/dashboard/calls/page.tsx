@@ -327,7 +327,7 @@ export default function CallsPage() {
   ))
   ) : isError ? (
   <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
-  <AlertCircle size={26} className="text-rose-500" />
+  <AlertCircle size={26} className="text-[var(--haip-status-danger-fg)]" />
   <p className="font-semibold" style={{ color: "var(--haip-fg)" }}>Couldn&apos;t load calls</p>
   <p className="text-xs max-w-sm" style={{ color: "var(--haip-fg-subtle)" }}>
   {(error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Try refreshing the page."}

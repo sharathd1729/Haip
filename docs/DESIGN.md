@@ -126,7 +126,9 @@ Chosen by the owner from mock-ups (Home, parts sheet, My day, Leads). Applied th
 - A tenant's own stage colour shows as a dot beside the name, never as the text or fill of a chip.
 - Inbox: `--ibx-*` now point at the theme (no gradient, glow or second green); unread counts are coral; every channel badge (`ChannelIcon`) is the same green chip, told apart by icon and label; nothing is set below 11.5px.
 - Warnings are coral too (`--haip-status-warning-*`, `--haip-banner-warn-*`; `--haip-amber` is deep coral #A23A1C so it reads as text and under white text). Red stays for real errors and delete.
-- Not yet moved: the Calls palette (`--clx-*`) and chart series (`--viz-*`).
+- Calls: `--clx-*` point at the theme (no navy, teal or blue); booked = green, hot lead = coral, every occasion chip is the same green.
+- Calendar: every outside channel is one deep green (`--haip-cal-channel`), told apart by the tag on the bar.
+- Not yet moved: chart series (`--viz-*`).
 
 ### Palette (tokens in `globals.css`; never hex in components)
 Green carries almost all colour; ONE warm accent, terracotta, used sparingly. No pink, coral, bright yellow or orange as theme colours.

@@ -214,7 +214,7 @@ export function CallDetailPanel({
   <div key={c.criterion} className="flex items-center gap-2 text-xs">
   <span className="w-36 truncate" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>{humanize(c.criterion)}</span>
   <span className="flex-1 h-1.5 rounded-full bg-[var(--haip-border-strong)]  overflow-hidden">
-  <span className={cn("block h-full rounded-full", pct >= 0.85 ? "bg-[var(--haip-status-success-fg)]" : pct >= 0.6 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${pct * 100}%` }} />
+  <span className={cn("block h-full rounded-full", pct >= 0.85 ? "bg-[var(--haip-status-success-fg)]" : pct >= 0.6 ? "bg-[var(--haip-accent)]" : "bg-[var(--haip-status-danger-fg)]")} style={{ width: `${pct * 100}%` }} />
   </span>
   <span className="tabular-nums w-8 text-right" style={{ color: "var(--haip-fg-subtle)" }}>{c.score}/{c.max_score}</span>
   </div>
