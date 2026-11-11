@@ -73,13 +73,13 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 };
 
 const GRADIENT_MAP: Record<string, string> = {
-  calls: "from-blue-500 to-blue-600",
+  calls: "from-primary to-primary",
   inquiries: "from-primary to-[var(--haip-primary-hover)]",
-  guests: "from-violet-500 to-violet-600",
-  qa_scores: "from-amber-500 to-amber-600",
-  revenue: "from-green-500 to-green-600",
-  whatsapp: "from-emerald-500 to-emerald-600",
-  team: "from-indigo-500 to-indigo-600",
+  guests: "from-primary to-primary",
+  qa_scores: "from-[var(--haip-amber)] to-[var(--haip-amber)]",
+  revenue: "from-primary to-primary",
+  whatsapp: "from-primary to-primary",
+  team: "from-primary to-primary",
 };
 
 const DATE_HINT: Record<string, string> = {
@@ -93,7 +93,7 @@ function catalogToReportDef(entry: CatalogEntry): ReportDef {
     name: entry.name,
     description: entry.description,
     icon: ICON_MAP[entry.icon] ?? <FileText size={22} />,
-    gradient: GRADIENT_MAP[entry.id] ?? "from-gray-500 to-gray-600",
+    gradient: GRADIENT_MAP[entry.id] ?? "from-[var(--haip-fg-subtle)] to-[var(--haip-fg-2)]",
     fields: entry.fields,
     filters: entry.filters ?? [],
   };
@@ -381,11 +381,11 @@ export default function ReportsPage() {
                 ))}
               </div>
               {previewMutation.isError && step !== 3 && (
-                <div className="flex items-start gap-2 mt-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                <div className="flex items-start gap-2 mt-3 px-4 py-3 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl text-sm text-[var(--haip-status-danger-fg)]">
                   <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-medium">Couldn&apos;t load that report.</p>
-                    <p className="text-xs text-red-600/80 mt-0.5">{extractErrorMessage(previewMutation.error)}</p>
+                    <p className="text-xs text-[var(--haip-status-danger-fg)]/80 mt-0.5">{extractErrorMessage(previewMutation.error)}</p>
                   </div>
                 </div>
               )}
@@ -405,15 +405,15 @@ export default function ReportsPage() {
                 <Loader2 size={14} className="animate-spin" /> Loading report types…
               </div>
             ) : catalogIsError ? (
-              <div className="flex items-start gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+              <div className="flex items-start gap-3 px-4 py-3.5 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl text-sm text-[var(--haip-status-danger-fg)]">
                 <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-medium">Couldn&apos;t load report types.</p>
-                  <p className="text-xs text-red-600/80 mt-0.5">{extractErrorMessage(catalogError)}</p>
+                  <p className="text-xs text-[var(--haip-status-danger-fg)]/80 mt-0.5">{extractErrorMessage(catalogError)}</p>
                 </div>
                 <button
                   onClick={() => refetchCatalog()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors flex-shrink-0"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[var(--haip-status-danger-border)] text-[var(--haip-status-danger-fg)] rounded-lg text-xs font-semibold hover:bg-[var(--haip-status-danger-bg)] transition-colors flex-shrink-0"
                 >
                   <RefreshCw size={12} /> Retry
                 </button>
@@ -569,11 +569,11 @@ export default function ReportsPage() {
                 </button>
 
                 {previewMutation.isError && (
-                  <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  <div className="flex items-start gap-2 px-4 py-3 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl text-sm text-[var(--haip-status-danger-fg)]">
                     <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-medium">Couldn&apos;t load preview.</p>
-                      <p className="text-xs text-red-600/80 mt-0.5">
+                      <p className="text-xs text-[var(--haip-status-danger-fg)]/80 mt-0.5">
                         {extractErrorMessage(previewMutation.error)}
                       </p>
                     </div>
@@ -610,7 +610,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("xlsx")}
                     disabled={downloadMutation.isPending || preview.length === 0}
-                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-green-600 text-white rounded-xl text-xs font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors disabled:opacity-50"
                   >
                     {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />}
                     Excel
@@ -634,7 +634,7 @@ export default function ReportsPage() {
               </div>
 
               {overCap && (
-                <div className="flex items-start gap-2 mx-5 mt-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                <div className="flex items-start gap-2 mx-5 mt-4 px-4 py-3 bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl text-sm text-[var(--haip-status-warning-fg)]">
                   <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                   <p>
                     More than {MAX_DOWNLOAD_ROWS.toLocaleString("en-IN")} rows match. A download stops at {MAX_DOWNLOAD_ROWS.toLocaleString("en-IN")} — narrow the dates or add a filter to get the rest.
@@ -643,11 +643,11 @@ export default function ReportsPage() {
               )}
 
               {downloadMutation.isError && (
-                <div className="flex items-start gap-2 mx-5 mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                <div className="flex items-start gap-2 mx-5 mt-4 px-4 py-3 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl text-sm text-[var(--haip-status-danger-fg)]">
                   <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-medium">Download failed.</p>
-                    <p className="text-xs text-red-600/80 mt-0.5">{(downloadMutation.error as Error | null)?.message}</p>
+                    <p className="text-xs text-[var(--haip-status-danger-fg)]/80 mt-0.5">{(downloadMutation.error as Error | null)?.message}</p>
                   </div>
                 </div>
               )}
@@ -669,7 +669,7 @@ export default function ReportsPage() {
                     <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs md:grid-cols-4">
                       {previewCols.slice(1).filter(c => row[c] != null && row[c] !== "").map(c => (
                         <div key={c} className="min-w-0">
-                          <dt className="text-[10px] uppercase tracking-wide text-[var(--haip-fg-subtle)]">{selectedReport?.fields.find(f => f.key === c)?.label ?? c}</dt>
+                          <dt className="text-[11.5px] uppercase tracking-wide text-[var(--haip-fg-subtle)]">{selectedReport?.fields.find(f => f.key === c)?.label ?? c}</dt>
                           <dd className="text-[var(--haip-fg-2)] break-words">{String(row[c] ?? "—")}</dd>
                         </div>
                       ))}

@@ -83,7 +83,7 @@ export function SavedReplyMenu({ query, context, onSelect, onClose, anchorRef }:
   return (
     <div className="absolute bottom-full left-0 mb-1 w-80 haip-card shadow-xl overflow-hidden z-50">
       <div className="px-3 py-2 border-b border-[var(--haip-border)]">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)]">Saved replies</span>
+        <span className="text-[11.5px] font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)]">Saved replies</span>
       </div>
       <div className="max-h-56 overflow-y-auto">
         {results.map((r, i) => (
@@ -101,7 +101,7 @@ export function SavedReplyMenu({ query, context, onSelect, onClose, anchorRef }:
         ))}
       </div>
       <div className="px-3 py-1.5 border-t border-[var(--haip-border)] bg-[var(--haip-surface)]">
-        <span className="text-[10px] text-[var(--haip-fg-subtle)]">↑↓ navigate · Enter to insert · Esc to close</span>
+        <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">↑↓ navigate · Enter to insert · Esc to close</span>
       </div>
     </div>
   );

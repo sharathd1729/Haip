@@ -11,7 +11,7 @@ import {
 const INPUT = "w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 export function Counter({ value, max }: { value: number; max: number }) {
-  return <span className={cn("text-[10px] tabular-nums", value > max ? "text-red-500 font-semibold" : "text-[var(--haip-fg-subtle)]")}>{value}/{max}</span>;
+  return <span className={cn("text-[11.5px] tabular-nums", value > max ? "text-[var(--haip-status-danger-fg)] font-semibold" : "text-[var(--haip-fg-subtle)]")}>{value}/{max}</span>;
 }
 
 type Patch = (fn: (f: TemplateForm) => TemplateForm) => void;
@@ -84,11 +84,11 @@ export function HeaderField({ form, patch }: { form: TemplateForm; patch: Patch 
             <span className="absolute right-3 top-1/2 -translate-y-1/2"><Counter value={form.headerText.length} max={LIMITS.header} /></span>
           </div>
           {headerVars.length > 0 && (
-            <div className="mt-2 p-2.5 bg-amber-50 border border-amber-100 rounded-xl">
-              <p className="text-[10px] font-semibold text-amber-800 mb-1.5">Example for {`{{1}}`} <span className="font-normal text-amber-600">— Meta needs this to review it</span></p>
+            <div className="mt-2 p-2.5 bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl">
+              <p className="text-[11.5px] font-semibold text-[var(--haip-status-warning-fg)] mb-1.5">Example for {`{{1}}`} <span className="font-normal text-[var(--haip-status-warning-fg)]">— Meta needs this to review it</span></p>
               <input value={form.headerExample} onChange={e => patch(f => ({ ...f, headerExample: e.target.value }))}
                 placeholder="e.g. Ratha Retreats"
-                className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-400/30" />
+                className="w-full px-2.5 py-1.5 border border-[var(--haip-status-warning-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--haip-accent)]/30" />
             </div>
           )}
         </>
@@ -106,7 +106,7 @@ export function HeaderField({ form, patch }: { form: TemplateForm; patch: Patch 
               )}
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-[var(--haip-fg)] truncate">{form.media.fileName}</p>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)]">Sent to Meta as the review sample.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">Sent to Meta as the review sample.</p>
               </div>
               <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex items-center gap-1.5 text-xs text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] hover:bg-[var(--haip-primary-tint)] px-2.5 py-1.5 rounded-lg disabled:opacity-50">
@@ -118,11 +118,11 @@ export function HeaderField({ form, patch }: { form: TemplateForm; patch: Patch 
               className="w-full flex flex-col items-center justify-center gap-1.5 py-6 border-2 border-dashed border-[var(--haip-border)] rounded-xl text-[var(--haip-fg-subtle)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)] transition-colors disabled:opacity-60">
               {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
               <span className="text-xs font-medium">{uploading ? "Uploading…" : `Upload ${mediaKind === "document" ? "a PDF" : `an ${mediaKind === "image" ? "image" : "video"}`}`}</span>
-              <span className="text-[10px] text-[var(--haip-fg-subtle)]">{MEDIA_ACCEPT[mediaKind].hint}</span>
+              <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{MEDIA_ACCEPT[mediaKind].hint}</span>
             </button>
           )}
           {uploadError && (
-            <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-red-600"><AlertCircle size={12} className="mt-0.5 flex-shrink-0" />{uploadError}</p>
+            <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-[var(--haip-status-danger-fg)]"><AlertCircle size={12} className="mt-0.5 flex-shrink-0" />{uploadError}</p>
           )}
         </div>
       )}
@@ -159,7 +159,7 @@ export function BodyField({ form, patch }: { form: TemplateForm; patch: Patch })
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-xs font-semibold text-[var(--haip-fg-2)]">Body <span className="text-red-500">*</span></label>
+        <label className="text-xs font-semibold text-[var(--haip-fg-2)]">Body <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
         <Counter value={form.body.length} max={LIMITS.body} />
       </div>
       <div className="border border-[var(--haip-border)] rounded-xl focus-within:ring-2 focus-within:ring-primary/30">
@@ -174,16 +174,16 @@ export function BodyField({ form, patch }: { form: TemplateForm; patch: Patch })
           placeholder={"Hi {{1}},\n\nYour booking at {{2}} is confirmed for {{3}}.\n\nLooking forward to welcoming you!"}
           className="w-full px-3 py-2.5 text-sm resize-y rounded-b-xl focus:outline-none" />
       </div>
-      <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Formatting: *bold*  _italic_  ~strike~. Variables are numbered {`{{1}}, {{2}}…`} and filled in per guest when you send.</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Formatting: *bold*  _italic_  ~strike~. Variables are numbered {`{{1}}, {{2}}…`} and filled in per guest when you send.</p>
       {vars.length > 0 && (
-        <div className="mt-2 p-2.5 bg-amber-50 border border-amber-100 rounded-xl space-y-2">
-          <p className="text-[10px] font-semibold text-amber-800">Example values <span className="font-normal text-amber-600">— Meta rejects variables with no example</span></p>
+        <div className="mt-2 p-2.5 bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl space-y-2">
+          <p className="text-[11.5px] font-semibold text-[var(--haip-status-warning-fg)]">Example values <span className="font-normal text-[var(--haip-status-warning-fg)]">— Meta rejects variables with no example</span></p>
           {vars.map(i => (
             <div key={i} className="flex items-center gap-2">
-              <span className="text-xs font-mono text-amber-700 w-10 flex-shrink-0">{`{{${i}}}`}</span>
+              <span className="text-xs font-mono text-[var(--haip-status-warning-fg)] w-10 flex-shrink-0">{`{{${i}}}`}</span>
               <input value={form.bodyExamples[i] ?? ""} onChange={e => patch(f => ({ ...f, bodyExamples: { ...f.bodyExamples, [i]: e.target.value } }))}
                 placeholder={`Example for {{${i}}}`}
-                className="flex-1 px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-400/30" />
+                className="flex-1 px-2.5 py-1.5 border border-[var(--haip-status-warning-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--haip-accent)]/30" />
             </div>
           ))}
         </div>
@@ -210,7 +210,7 @@ export function ButtonsField({ form, patch }: { form: TemplateForm; patch: Patch
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <label className="text-xs font-semibold text-[var(--haip-fg-2)]">Buttons <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
-        <span className="text-[10px] text-[var(--haip-fg-subtle)] tabular-nums">{form.buttons.length}/{LIMITS.buttons}</span>
+        <span className="text-[11.5px] text-[var(--haip-fg-subtle)] tabular-nums">{form.buttons.length}/{LIMITS.buttons}</span>
       </div>
 
       {form.buttons.length > 0 && (
@@ -218,13 +218,13 @@ export function ButtonsField({ form, patch }: { form: TemplateForm; patch: Patch
           {form.buttons.map(b => (
             <div key={b.id} className="border border-[var(--haip-border)] rounded-xl p-2.5">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold text-primary bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-full px-2 py-0.5 flex-shrink-0">{BUTTON_LABEL[b.type]}</span>
+                <span className="text-[11.5px] font-semibold text-primary bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-full px-2 py-0.5 flex-shrink-0">{BUTTON_LABEL[b.type]}</span>
                 <input value={b.text} maxLength={LIMITS.buttonText + 10} onChange={e => update(b.id, { text: e.target.value })}
                   placeholder="Button label" aria-label="Button label"
                   className="flex-1 min-w-0 px-2.5 py-1.5 border border-[var(--haip-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 <Counter value={b.text.length} max={LIMITS.buttonText} />
                 <button type="button" aria-label="Remove button" onClick={() => patch(f => ({ ...f, buttons: f.buttons.filter(x => x.id !== b.id) }))}
-                  className="text-[var(--haip-fg-subtle)] hover:text-red-500 p-1 rounded-lg hover:bg-red-50"><Trash2 size={13} /></button>
+                  className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] p-1 rounded-lg hover:bg-[var(--haip-status-danger-bg)]"><Trash2 size={13} /></button>
               </div>
               {b.type === "URL" && (
                 <input value={b.url} onChange={e => update(b.id, { url: e.target.value })} placeholder="https://ratha.example/book" aria-label="Link"
@@ -247,7 +247,7 @@ export function ButtonsField({ form, patch }: { form: TemplateForm; patch: Patch
           </button>
         ))}
       </div>
-      <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1.5">Up to {LIMITS.urlButtons} website buttons and {LIMITS.phoneButtons} call button. Quick replies are shown first.</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1.5">Up to {LIMITS.urlButtons} website buttons and {LIMITS.phoneButtons} call button. Quick replies are shown first.</p>
     </div>
   );
 }

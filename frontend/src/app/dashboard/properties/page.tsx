@@ -39,7 +39,7 @@ const SOURCE_COLOR: Record<string, { bg: string; text: string }> = {
   rentalwise: { bg: "var(--haip-primary-tint)", text: "var(--primary)" },
   airbnb:     { bg: "rgba(255,90,95,0.12)",  text: "#e11d48" },
   booking:    { bg: "rgba(0,99,191,0.12)",   text: "#0057a8" },
-  manual:     { bg: "rgba(148,163,184,0.12)", text: "#64748b" },
+  manual:     { bg: "rgba(148,163,184,0.12)", text: "var(--haip-fg-subtle)" },
 };
 
 function sourceStyle(s?: string) {
@@ -128,7 +128,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
       <div className="flex items-center gap-2 flex-wrap">
         {/* type badge */}
         <span
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium capitalize"
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11.5px] font-medium capitalize"
           style={{ background: "var(--haip-primary-tint)", color: "var(--primary)" }}
         >
           {typeKey}
@@ -137,7 +137,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
         {/* source badge */}
         {p.channel_source && (
           <span
-            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium capitalize"
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-[11.5px] font-medium capitalize"
             style={{ background: sc.bg, color: sc.text }}
           >
             {p.channel_source}
@@ -146,13 +146,13 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
 
         {/* active/inactive */}
         {active ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium"
             style={{ background: "var(--haip-primary-tint)", color: "var(--primary)" }}>
             <CheckCircle2 size={9} /> Active
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
-            style={{ background: "rgba(248,113,113,0.10)", color: "#dc2626" }}>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium"
+            style={{ background: "rgba(248,113,113,0.10)", color: "var(--haip-status-danger-fg)" }}>
             <AlertCircle size={9} /> Inactive
           </span>
         )}
@@ -193,7 +193,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
 
       {/* added date */}
       {p.created_at && (
-        <p className="text-[10.5px] -mt-1" style={{ color: "rgba(100,116,139,0.6)" }}>
+        <p className="text-[11.5px] -mt-1" style={{ color: "rgba(100,116,139,0.6)" }}>
           Added {new Date(p.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
         </p>
       )}
@@ -278,21 +278,21 @@ export default function PropertiesPage() {
         className="flex-shrink-0 px-6 py-5"
         style={{
           background: "#FFFFFF",
-          borderBottom: "1px solid #E5E7EB",
+          borderBottom: "1px solid var(--haip-border)",
         }}
       >
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1
               className="text-[22px] font-bold leading-tight"
-              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+              style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
             >
               {NounPlural}
             </h1>
-            <p className="text-[13px] mt-0.5" style={{ color: "#6B7280" }}>
+            <p className="text-[13px] mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
               {isLoading ? "Loading…" : `${properties.length} ${properties.length === 1 ? noun : nounPlural}`}
               {!isLoading && inactiveCount > 0 && (
-                <span style={{ color: "#EF4444" }}> · {inactiveCount} inactive</span>
+                <span style={{ color: "var(--haip-status-danger-fg)" }}> · {inactiveCount} inactive</span>
               )}
             </p>
           </div>
@@ -313,15 +313,15 @@ export default function PropertiesPage() {
         {!isLoading && properties.length > 0 && (
           <div className="flex items-center gap-6 mt-4">
             <div>
-              <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Total</p>
+              <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Total</p>
               <p className="text-[22px] font-bold leading-none mt-0.5"
-                style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
+                style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
                 {properties.length}
               </p>
             </div>
-            <div className="w-px h-8" style={{ background: "#E5E7EB" }} />
+            <div className="w-px h-8" style={{ background: "var(--haip-border)" }} />
             <div>
-              <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Active</p>
+              <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Active</p>
               <p className="text-[22px] font-bold leading-none mt-0.5"
                 style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--primary)" }}>
                 {activeCount}
@@ -329,11 +329,11 @@ export default function PropertiesPage() {
             </div>
             {inactiveCount > 0 && (
               <>
-                <div className="w-px h-8" style={{ background: "#E5E7EB" }} />
+                <div className="w-px h-8" style={{ background: "var(--haip-border)" }} />
                 <div>
-                  <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Inactive</p>
+                  <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Inactive</p>
                   <p className="text-[22px] font-bold leading-none mt-0.5"
-                    style={{ fontFamily: "var(--font-display), sans-serif", color: "#EF4444" }}>
+                    style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-status-danger-fg)" }}>
                     {inactiveCount}
                   </p>
                 </div>
@@ -392,20 +392,20 @@ export default function PropertiesPage() {
             {/* modal header */}
             <div
               className="flex items-center justify-between px-6 py-4"
-              style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}
+              style={{ background: "var(--haip-surface)", borderBottom: "1px solid var(--haip-border)" }}
             >
               <h3
                 className="font-bold text-[15px]"
-                style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+                style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
               >
                 {editing ? `Edit ${noun}` : `Add ${noun}`}
               </h3>
               <button
                 onClick={() => { setShowForm(false); setEditing(null); }}
                 className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-                style={{ color: "#9CA3AF" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#374151"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#9CA3AF"; }}
+                style={{ color: "var(--haip-fg-subtle)" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-2)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-subtle)"; }}
               >
                 <X size={15} />
               </button>
@@ -504,7 +504,7 @@ export default function PropertiesPage() {
         <div
           className="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all"
           style={{
-            background: toastMsg.type === "success" ? "var(--primary)" : "#dc2626",
+            background: toastMsg.type === "success" ? "var(--primary)" : "var(--haip-status-danger-fg)",
             color: "#fff",
           }}
         >

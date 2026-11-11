@@ -91,17 +91,17 @@ function timeAgo(iso: string): string {
 
 function StatusBadge({ status }: { status: AutomationRun["status"] }) {
   if (status === "success") return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-[var(--haip-primary-tint)] text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)]">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-[var(--haip-primary-tint)] text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)]">
       <CheckCircle2 size={9} /> Success
     </span>
   );
   if (status === "failed") return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-red-50 text-red-600 border border-red-100">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border border-[var(--haip-status-danger-border)]">
       <XCircle size={9} /> Failed
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border border-[var(--haip-border)]">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border border-[var(--haip-border)]">
       <PauseCircle size={9} /> Skipped
     </span>
   );
@@ -159,7 +159,7 @@ function ChipInput({
 function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
   return (
     <div className={cn("fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border max-w-sm",
-      type === "success" ? "bg-primary text-white border-primary" : "bg-red-600 text-white border-red-700")}>
+      type === "success" ? "bg-primary text-white border-primary" : "bg-[var(--haip-status-danger-fg)] text-white border-[var(--haip-status-danger-fg)]")}>
       <span className="flex-1">{msg}</span>
       <button onClick={onClose}><X size={13} className="opacity-70" /></button>
     </div>
@@ -252,7 +252,7 @@ function RuleModal({ initial, onClose, onSaved }: {
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
           {/* Name */}
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Rule name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Rule name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="e.g. Follow-up after 2h silence"
               className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
@@ -268,7 +268,7 @@ function RuleModal({ initial, onClose, onSaved }: {
 
           {/* Trigger selector */}
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Trigger <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Trigger <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <div className="grid grid-cols-1 gap-1.5">
               {TRIGGERS.map(t => (
                 <button key={t.value} type="button" onClick={() => setForm(f => ({ ...f, trigger: t.value, trigger_config: {} }))}
@@ -278,7 +278,7 @@ function RuleModal({ initial, onClose, onSaved }: {
                       : "border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)]")}>
                   <span className={cn("flex-shrink-0", form.trigger === t.value ? "text-primary" : "text-[var(--haip-fg-subtle)]")}>{t.icon}</span>
                   <span className="font-medium flex-1">{t.label}</span>
-                  <span className="text-[10px] text-[var(--haip-fg-subtle)] hidden sm:block">{t.hint}</span>
+                  <span className="text-[11.5px] text-[var(--haip-fg-subtle)] hidden sm:block">{t.hint}</span>
                 </button>
               ))}
             </div>
@@ -286,17 +286,17 @@ function RuleModal({ initial, onClose, onSaved }: {
 
           {/* T2.4: keyword rule config — shown for both Instagram triggers */}
           {(form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received") && (
-            <div className="border border-pink-100 bg-pink-50 rounded-xl p-4 space-y-4">
+            <div className="border border-[var(--haip-status-info-border)] bg-[var(--haip-status-info-bg)] rounded-xl p-4 space-y-4">
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5 flex items-center gap-1">
-                  <Tag size={12} /> Keywords <span className="text-red-500">*</span>
+                  <Tag size={12} /> Keywords <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <ChipInput
                   values={form.trigger_config.keywords ?? []}
                   onChange={vals => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, keywords: vals } }))}
                   placeholder="price, rate, availability — press Enter to add"
                 />
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Matches whole words, case-insensitive. Unlimited keywords.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Matches whole words, case-insensitive. Unlimited keywords.</p>
               </div>
 
               <div>
@@ -305,9 +305,9 @@ function RuleModal({ initial, onClose, onSaved }: {
                   values={form.trigger_config.exclude_keywords ?? []}
                   onChange={vals => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, exclude_keywords: vals } }))}
                   placeholder="cancel — press Enter to add"
-                  chipClassName="bg-red-50 text-red-700 border border-red-200"
+                  chipClassName="bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border border-[var(--haip-status-danger-border)]"
                 />
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">If any of these appear, the rule never fires — even if a keyword above also matched.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">If any of these appear, the rule never fires — even if a keyword above also matched.</p>
               </div>
 
               {form.trigger === "ig_comment_received" && (
@@ -339,7 +339,7 @@ function RuleModal({ initial, onClose, onSaved }: {
 
           {/* Action selector */}
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Then do <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Then do <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <select value={form.action}
               onChange={e => setForm(f => ({ ...f, action: e.target.value, action_config: {} }))}
               className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
@@ -355,10 +355,10 @@ function RuleModal({ initial, onClose, onSaved }: {
 
           {/* Action config fields */}
           {form.action === "send_whatsapp_template" && (
-            <div className="border border-amber-100 bg-amber-50 rounded-xl p-4">
-              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Template to send <span className="text-red-500">*</span></label>
+            <div className="border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] rounded-xl p-4">
+              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Template to send <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
               {approvedTemplates.length === 0 ? (
-                <p className="text-xs text-amber-700">No approved templates. <a href="/dashboard/messaging/templates" className="underline font-medium">Create one first.</a></p>
+                <p className="text-xs text-[var(--haip-status-warning-fg)]">No approved templates. <a href="/dashboard/messaging/templates" className="underline font-medium">Create one first.</a></p>
               ) : (
                 <select value={form.action_config.template_id ?? ""}
                   onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, template_id: e.target.value } }))}
@@ -371,7 +371,7 @@ function RuleModal({ initial, onClose, onSaved }: {
           )}
 
           {form.action === "notify_team" && (
-            <div className="border border-blue-100 bg-blue-50 rounded-xl p-4 space-y-3">
+            <div className="border border-[var(--haip-status-info-border)] bg-[var(--haip-status-info-bg)] rounded-xl p-4 space-y-3">
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Notify number (WhatsApp)</label>
                 <input value={form.action_config.to ?? ""}
@@ -390,7 +390,7 @@ function RuleModal({ initial, onClose, onSaved }: {
           )}
 
           {form.action === "tag_guest" && (
-            <div className="border border-purple-100 bg-purple-50 rounded-xl p-4">
+            <div className="border border-[var(--haip-status-info-border)] bg-[var(--haip-status-info-bg)] rounded-xl p-4">
               <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Tags to apply (comma-separated)</label>
               <input value={(form.action_config.tags ?? []).join(", ")}
                 onChange={e => setForm(f => ({
@@ -402,9 +402,9 @@ function RuleModal({ initial, onClose, onSaved }: {
           )}
 
           {form.action === "send_instagram_quick_reply" && (
-            <div className="border border-pink-100 bg-pink-50 rounded-xl p-4 space-y-3">
+            <div className="border border-[var(--haip-status-info-border)] bg-[var(--haip-status-info-bg)] rounded-xl p-4 space-y-3">
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Reply message <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Reply message <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <textarea
                   value={form.action_config.message ?? ""}
                   onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, message: e.target.value } }))}
@@ -412,7 +412,7 @@ function RuleModal({ initial, onClose, onSaved }: {
                   rows={3}
                   className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
                 />
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Sent as a private DM — deterministic, no AI involved.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Sent as a private DM — deterministic, no AI involved.</p>
               </div>
 
               {form.trigger === "ig_comment_received" && (
@@ -426,14 +426,14 @@ function RuleModal({ initial, onClose, onSaved }: {
                     placeholder="Check your DMs! 📥 — press Enter to add"
                     chipClassName="bg-white text-[var(--haip-fg-2)] border border-[var(--haip-border)]"
                   />
-                  <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Posted publicly as a reply to the comment. Falls back to a default if left empty.</p>
+                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Posted publicly as a reply to the comment. Falls back to a default if left empty.</p>
                 </div>
               )}
             </div>
           )}
 
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2 border border-red-200">
+            <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2 border border-[var(--haip-status-danger-border)]">
               <AlertCircle size={12} /> {error}
             </div>
           )}
@@ -477,7 +477,7 @@ function RunDetail({ run, onClose }: { run: AutomationRun; onClose: () => void }
               { label: "Rule ID", value: run.automation_id.slice(0, 8) + "…" },
             ].map(f => (
               <div key={f.label} className="bg-[var(--haip-surface)] rounded-xl p-3">
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-0.5">{f.label}</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-0.5">{f.label}</p>
                 <p className="text-xs font-mono font-medium text-[var(--haip-fg-2)]">{f.value}</p>
               </div>
             ))}
@@ -494,8 +494,8 @@ function RunDetail({ run, onClose }: { run: AutomationRun; onClose: () => void }
           {/* Error trace */}
           {run.error && (
             <div>
-              <p className="text-xs font-semibold text-red-600 mb-1.5">Error</p>
-              <pre className="bg-red-50 border border-red-100 rounded-xl p-3 text-[11px] text-red-700 overflow-x-auto whitespace-pre-wrap">{run.error}</pre>
+              <p className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-1.5">Error</p>
+              <pre className="bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl p-3 text-[11px] text-[var(--haip-status-danger-fg)] overflow-x-auto whitespace-pre-wrap">{run.error}</pre>
             </div>
           )}
 
@@ -599,7 +599,7 @@ export default function AutomationsPage() {
                 <div className="w-px h-8 bg-[var(--haip-border)]" />
                 <div>
                   <p className="text-[11px] text-[var(--haip-fg-subtle)]">Failed</p>
-                  <p className="text-[22px] font-bold text-red-500">{failedCount}</p>
+                  <p className="text-[22px] font-bold text-[var(--haip-status-danger-fg)]">{failedCount}</p>
                 </div>
               </>
             )}
@@ -659,11 +659,11 @@ export default function AutomationsPage() {
                           )}
                           {/* trigger → action */}
                           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-[var(--haip-primary-tint)] text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)]">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-[var(--haip-primary-tint)] text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)]">
                               {trigger.icon} {trigger.label}
                             </span>
                             <ChevronRight size={10} className="text-[var(--haip-fg-subtle)]" />
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border border-[var(--haip-status-warning-border)]">
                               {action.label}
                             </span>
                           </div>
@@ -681,7 +681,7 @@ export default function AutomationsPage() {
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => { if (confirm(`Delete "${rule.name}"?`)) deleteMutation.mutate(rule.id); }}
-                          className="p-1.5 rounded-lg text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50 transition-colors">
+                          className="p-1.5 rounded-lg text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)] transition-colors">
                           <Trash2 size={14} />
                         </button>
                         <button onClick={() => toggleMutation.mutate(rule)} disabled={toggleMutation.isPending}
@@ -722,7 +722,7 @@ export default function AutomationsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-medium text-[var(--haip-fg)] truncate">{run.automation_name || "Automation"}</p>
                         {run.detail && <p className="text-[11px] text-[var(--haip-fg-subtle)] truncate mt-0.5">{run.detail}</p>}
-                        <p className="text-[10.5px] text-[var(--haip-fg-subtle)]/70 mt-0.5">{timeAgo(run.ran_at)}</p>
+                        <p className="text-[11.5px] text-[var(--haip-fg-subtle)]/70 mt-0.5">{timeAgo(run.ran_at)}</p>
                       </div>
                       <StatusBadge status={run.status} />
                     </button>

@@ -20,7 +20,7 @@ export function ValidityBadge({ validity }: { validity?: LeadValidity | null }) 
   const title = validity.status === "invalid" && validity.reasons.length ? validity.reasons.join(", ") : validity.notes.join(", ") || undefined;
   return (
     <span title={title}
-      className={cn("whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-semibold",
+      className={cn("whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[11.5px] font-semibold",
         validity.status === "valid"
           ? "border-[var(--haip-status-success-border)] bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]"
           : "border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]")}>

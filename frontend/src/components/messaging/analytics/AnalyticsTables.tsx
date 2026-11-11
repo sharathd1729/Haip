@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 import { fmt, pct, type CampaignRow, type TemplateRow } from "./analyticsTypes";
 
 const STATUS: Record<string, string> = {
-  draft: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]", scheduled: "bg-blue-50 text-blue-700 border-blue-200",
-  running: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]", completed: "bg-green-50 text-green-700 border-green-200",
-  paused: "bg-amber-50 text-amber-700 border-amber-200", deleted: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]",
+  draft: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]", scheduled: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
+  running: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]", completed: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]",
+  paused: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]", deleted: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]",
 };
 
 // A rate with a slim meter behind it, so a column of rates can be compared at a glance.
@@ -26,7 +26,7 @@ function Failed({ count, rate }: { count: number; rate: number | null }) {
   return (
     <span className={cn("tabular-nums inline-flex items-center gap-1", high ? "text-[var(--viz-fail)] font-medium" : "text-[var(--viz-ink-2)]")}>
       {high && <AlertCircle size={12} aria-label="High failure rate" />}
-      {fmt(count)} <span className="text-[10px]">({pct(rate)})</span>
+      {fmt(count)} <span className="text-[11.5px]">({pct(rate)})</span>
     </span>
   );
 }
@@ -49,8 +49,8 @@ export function CampaignTable({ rows, onOpen }: { rows: CampaignRow[]; onOpen: (
               <td className="px-3 py-2.5">
                 <button type="button" onClick={() => onOpen(c)} className="font-semibold text-[var(--viz-ink)] hover:text-primary text-left">{c.name}</button>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full border capitalize", STATUS[c.status] ?? STATUS.draft)}>{c.status}</span>
-                  {c.created_at && <span className="text-[10px] text-[var(--viz-ink-3)]">{new Date(c.created_at).toLocaleDateString([], { day: "numeric", month: "short" })}</span>}
+                  <span className={cn("text-[11.5px] font-semibold px-1.5 py-0.5 rounded-full border capitalize", STATUS[c.status] ?? STATUS.draft)}>{c.status}</span>
+                  {c.created_at && <span className="text-[11.5px] text-[var(--viz-ink-3)]">{new Date(c.created_at).toLocaleDateString([], { day: "numeric", month: "short" })}</span>}
                 </div>
               </td>
               <td className="px-3 py-2.5 font-mono text-[11px] text-[var(--viz-ink-2)]">{c.template_name ?? "—"}</td>

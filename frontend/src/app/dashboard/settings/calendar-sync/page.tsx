@@ -166,7 +166,7 @@ export default function CalendarSyncPage() {
               <div key={f.id} className="bg-white border border-[var(--haip-border)] rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-[var(--haip-fg)]">{f.name}</p>
-                  {!f.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">Paused</span>}
+                  {!f.is_active && <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">Paused</span>}
                   <div className="ml-auto flex items-center gap-1">
                     {f.has_import && (
                       <button
@@ -195,7 +195,7 @@ export default function CalendarSyncPage() {
                     <button
                       onClick={() => { if (confirm(`Remove ${f.name}? Dates it blocked in HAIP will be freed.`)) deleteMutation.mutate(f.id); }}
                       aria-label={`Remove ${f.name}`}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -206,8 +206,8 @@ export default function CalendarSyncPage() {
                   <p className="text-[var(--haip-fg-subtle)] font-medium mb-1">Their calendar into HAIP</p>
                   {f.has_import ? (
                     <div className="flex items-center gap-2 flex-wrap">
-                      {f.last_status === "ok" && <CheckCircle2 size={13} className="text-green-600" />}
-                      {f.last_status === "error" && <AlertCircle size={13} className="text-red-500" />}
+                      {f.last_status === "ok" && <CheckCircle2 size={13} className="text-[var(--haip-status-success-fg)]" />}
+                      {f.last_status === "error" && <AlertCircle size={13} className="text-[var(--haip-status-danger-fg)]" />}
                       <span className="text-[var(--haip-fg-muted)]">Reading {f.import_hint}</span>
                       <span className="text-[var(--haip-fg-subtle)]">· last read {ago(f.last_synced_at)}</span>
                       {f.last_status === "ok" && <span className="text-[var(--haip-fg-subtle)]">· {f.last_event_count ?? 0} reservations</span>}
@@ -215,7 +215,7 @@ export default function CalendarSyncPage() {
                   ) : (
                     <p className="text-[var(--haip-fg-subtle)]">No link added. Edit this entry to paste the calendar link from {f.name}.</p>
                   )}
-                  {f.last_status === "error" && f.last_error && <p className="text-red-600 mt-1">{f.last_error}</p>}
+                  {f.last_status === "error" && f.last_error && <p className="text-[var(--haip-status-danger-fg)] mt-1">{f.last_error}</p>}
                   {f.vehicles.length > 0 && (
                     <p className="text-[var(--haip-fg-subtle)] mt-1">
                       Shared calendar: {f.vehicles.map(v => `${v.property_name ?? unit.one} (${v.keywords.join(", ")})`).join(" · ")}
@@ -229,12 +229,12 @@ export default function CalendarSyncPage() {
                   )}
                   {f.vehicles.length > 0 && <div className="mt-1.5"><CalendarActivity feedId={f.id} /></div>}
                   {f.needs_vehicle > 0 && (
-                    <p className="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5">
+                    <p className="text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-lg px-2 py-1 mt-1.5">
                       {f.needs_vehicle} event{f.needs_vehicle > 1 ? "s are" : " is"} missing details for a booking (name, phone or total) and name no {unit.one}. Every {unit.one} is held until you complete {f.needs_vehicle > 1 ? "them" : "it"} in Google Calendar.
                     </p>
                   )}
                   {f.last_conflicts > 0 && (
-                    <p className="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5">
+                    <p className="text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-lg px-2 py-1 mt-1.5">
                       {f.last_conflicts} reservation{f.last_conflicts > 1 ? "s" : ""} here overlap{f.last_conflicts > 1 ? "" : "s"} a HAIP booking. A task was added to My Day.
                     </p>
                   )}

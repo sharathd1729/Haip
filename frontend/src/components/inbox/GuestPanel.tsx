@@ -229,7 +229,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
           const channels = detail.guest_channels?.length ? detail.guest_channels : own ? [own] : [];
           return channels.length > 0 ? (
             <div className="mt-3">
-              <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+              <p className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
                 Talked on
               </p>
               <TalkedOn channels={channels} size={16} />
@@ -279,44 +279,44 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
               if (!hasAny) return null;
               return (
                 <div className="haip-card p-3.5 space-y-2" style={{ background: "var(--muted)" }}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                  <p className="text-[11.5px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
                     <FileText size={11} />
                     Trip Details
                   </p>
                   <div className="grid grid-cols-2 gap-2 text-[11px]">
                     {guestCountLabel && (
                       <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Users size={9} />Guests</span>
+                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Users size={11} />Guests</span>
                         <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{guestCountLabel}</span>
                       </div>
                     )}
                     {datesLabel && (
                       <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Calendar size={9} />Dates</span>
+                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Calendar size={11} />Dates</span>
                         <span className="font-bold tabular-nums" style={{ color: "var(--haip-fg)" }}>{datesLabel}</span>
                       </div>
                     )}
                     {routeLabel && (
                       <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MapPin size={9} />Property / Route</span>
+                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><MapPin size={11} />Property / Route</span>
                         <span className="font-bold truncate block" style={{ color: "var(--haip-fg)" }}>{routeLabel}</span>
                       </div>
                     )}
                     {budgetLabel && (
                       <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Wallet size={9} />Budget</span>
+                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Wallet size={11} />Budget</span>
                         <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{budgetLabel}</span>
                       </div>
                     )}
                     {leadOwnerStage?.occasion && (
                       <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Heart size={9} />Occasion</span>
+                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Heart size={11} />Occasion</span>
                         <span className="font-bold capitalize" style={{ color: "var(--haip-fg)" }}>{leadOwnerStage.occasion}</span>
                       </div>
                     )}
                     {specialRequests?.value != null && specialRequests.value !== "" && (
                       <div className="col-span-2 p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MessageSquare size={9} />Special Requests</span>
+                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><MessageSquare size={11} />Special Requests</span>
                         <span className="font-medium" style={{ color: "var(--haip-fg)" }}>{String(specialRequests.value)}</span>
                       </div>
                     )}
@@ -331,7 +331,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 {guest!.tags!.slice(0, 4).map(tag => (
                   <span
                     key={tag}
-                    className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
+                    className="px-2 py-0.5 rounded-full text-[11.5px] font-medium capitalize"
                     style={{
                       background: "color-mix(in srgb, var(--primary) 10%, transparent)",
                       color: "var(--primary)",
@@ -352,7 +352,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 </span>
               </div>
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
+                className="px-2 py-0.5 rounded-full text-[11.5px] font-medium capitalize"
                 style={{
                   background: detail.status === "open"
                     ? "color-mix(in srgb, var(--primary) 10%, transparent)"
@@ -374,7 +374,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 className="haip-card p-3 space-y-2 text-[11px]"
                 style={{ background: "var(--muted)" }}
               >
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
+                <p className="text-[11.5px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
                   Guest Overview
                 </p>
                 <div className="flex items-center justify-between">
@@ -401,8 +401,8 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                         {phone}
                       </button>
                     ) : (
-                      <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-amber, #d97706)" }}>
-                        <Phone size={11} style={{ color: "var(--haip-amber, #d97706)" }} />
+                      <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-amber, var(--haip-accent-ink))" }}>
+                        <Phone size={11} style={{ color: "var(--haip-amber, var(--haip-accent-ink))" }} />
                         Not on file
                       </span>
                     );
@@ -440,7 +440,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                         <button
                           onClick={() => assignLead.mutate(currentUserId)}
                           disabled={assignLead.isPending}
-                          className="text-[10px] font-medium rounded-md px-1.5 py-0.5 border disabled:opacity-60"
+                          className="text-[11.5px] font-medium rounded-md px-1.5 py-0.5 border disabled:opacity-60"
                           style={{ borderColor: "var(--haip-border)", color: "var(--primary)" }}
                         >
                           Assign to me
@@ -487,7 +487,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 className="haip-card p-3.5 space-y-2"
                 style={{ background: "color-mix(in srgb, var(--primary) 5%, transparent)" }}
               >
-                <p className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                <p className="text-[11.5px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
                   <Sparkles size={12} style={{ color: "var(--primary)" }} />
                   AI Conversation Summary
                 </p>
@@ -528,7 +528,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
             {/* Recent stays */}
             {(guest?.recent_stays ?? []).length > 0 && (
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "var(--haip-fg-subtle)" }}>
+                <p className="text-[11.5px] font-medium uppercase tracking-wider mb-2" style={{ color: "var(--haip-fg-subtle)" }}>
                   Recent stays
                 </p>
                 <div className="space-y-2">
@@ -540,7 +540,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                           {s.property_name || "Property"}
                         </p>
                         {s.check_in && (
-                          <p className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
+                          <p className="text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>
                             {new Date(s.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                             {s.check_out && ` → ${new Date(s.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
                           </p>
@@ -559,7 +559,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{ background: guest.consent_status === "granted" ? "var(--haip-green)" : "var(--haip-amber)" }}
                 />
-                <span className="text-[10px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>
+                <span className="text-[11.5px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>
                   Consent {guest.consent_status}
                 </span>
               </div>

@@ -182,7 +182,7 @@ export function CallDetailPanel({
 
   {(call.ai_summary || call.ai_next_action) && (
   <section className="rounded-xl bg-primary/10  p-4">
-  <h3 className="text-[10px] font-bold uppercase tracking-wider text-primary ">What happened</h3>
+  <h3 className="text-[11.5px] font-bold uppercase tracking-wider text-primary ">What happened</h3>
   {/* Phones: the summary on one line with "more" (mobile-first plan); desktop keeps the full paragraph. */}
   {call.ai_summary && (phone ? <OneLineSummary text={call.ai_summary} className="mt-1.5 text-[var(--haip-fg)]" />
     : <p className="text-sm mt-1.5 leading-relaxed" style={{ color: "var(--haip-fg)" }}>{call.ai_summary}</p>)}
@@ -201,7 +201,7 @@ export function CallDetailPanel({
 
   {score != null && (
   <section>
-  <h3 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>QA score</h3>
+  <h3 className="text-[11.5px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>QA score</h3>
   <div className="flex items-start gap-4 mt-2">
   <span className={cn("w-14 h-14 rounded-full flex items-center justify-center text-xl font-extrabold flex-shrink-0",
   score >= 85 ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]" : score >= 70 ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]")}>
@@ -214,7 +214,7 @@ export function CallDetailPanel({
   <div key={c.criterion} className="flex items-center gap-2 text-xs">
   <span className="w-36 truncate" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>{humanize(c.criterion)}</span>
   <span className="flex-1 h-1.5 rounded-full bg-[var(--haip-border-strong)]  overflow-hidden">
-  <span className={cn("block h-full rounded-full", pct >= 0.85 ? "bg-[var(--haip-status-success-fg)]" : pct >= 0.6 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${pct * 100}%` }} />
+  <span className={cn("block h-full rounded-full", pct >= 0.85 ? "bg-[var(--haip-status-success-fg)]" : pct >= 0.6 ? "bg-[var(--haip-accent)]" : "bg-[var(--haip-status-danger-fg)]")} style={{ width: `${pct * 100}%` }} />
   </span>
   <span className="tabular-nums w-8 text-right" style={{ color: "var(--haip-fg-subtle)" }}>{c.score}/{c.max_score}</span>
   </div>
@@ -231,7 +231,7 @@ export function CallDetailPanel({
   {call.transcript?.turns?.length ? (
   <section>
   <div className="flex items-center justify-between">
-  <h3 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>Transcript</h3>
+  <h3 className="text-[11.5px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>Transcript</h3>
   <Link href={`/dashboard/calls/${call.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
   Full page <ExternalLink size={11} />
   </Link>
@@ -260,7 +260,7 @@ export function CallDetailPanel({
   {call && (
   <div className="px-5 py-3 flex-shrink-0 space-y-2" style={{ borderTop: "1px solid var(--haip-border)" }}>
   <div className="flex items-center justify-between gap-2">
-  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>Wrap-up</p>
+  <p className="text-[11.5px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>Wrap-up</p>
   {/* Price the trip from the call without leaving it (missed call with no lead: phone-only prefill). */}
   <SendQuoteButton variant="primary" args={{ callId: call.id, inquiryId: call.inquiry_id ?? null, phone: call.inquiry_id ? null : call.guest_phone ?? null,
     from: "call", name: call.guest_name || null }} />

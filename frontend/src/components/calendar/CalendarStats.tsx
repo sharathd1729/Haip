@@ -47,7 +47,7 @@ export function CalendarStats({ stats, from, lastDay, seg, due, onWaiting }: {
         <span className="text-[12px] text-[var(--haip-accent-ink)]">Money still due · {seg.booking.many} shown</span>
         {due ? (
           <>
-            <b className={cn(big, due.amount > 0 && "text-[var(--haip-accent)]")}>{due.amount > 0 ? inr(due.amount) : "Nothing due"}</b>
+            <b className={cn(big, due.amount > 0 && "text-[var(--haip-accent-ink)]")}>{due.amount > 0 ? inr(due.amount) : "Nothing due"}</b>
             <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{due.stays} {due.stays === 1 ? seg.booking.one : seg.booking.many}</span>
           </>
         ) : <b className={big}>Hidden</b>}

@@ -87,10 +87,10 @@ interface CallDetail {
 // Real CallDisposition values (backend models/call.py). The previous list
 // offered pending / qualified / spam, which the wrap-up endpoint rejects.
 const DISPOSITION_OPTIONS = [
-  { value: "booked",  label: "Booked",  color: "bg-violet-100 text-violet-700" },
-  { value: "hot",  label: "Hot lead",  color: "bg-rose-100 text-rose-700" },
+  { value: "booked",  label: "Booked",  color: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]" },
+  { value: "hot",  label: "Hot lead",  color: "bg-[var(--haip-accent-light)] text-[var(--haip-accent-ink)]" },
   { value: "quoted",  label: "Quoted",  color: "bg-primary/15 text-primary" },
-  { value: "callback",  label: "Callback",  color: "bg-amber-100 text-[var(--haip-status-warning-fg)]" },
+  { value: "callback",  label: "Callback",  color: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]" },
   { value: "lost",  label: "Lost",  color: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]" },
   { value: "no_answer", label: "No answer",  color: "bg-[var(--haip-surface)] text-[var(--haip-fg-2)]" },
   { value: "voicemail", label: "Voicemail",  color: "bg-[var(--haip-surface)] text-[var(--haip-fg-2)]" },
@@ -419,11 +419,11 @@ export default function CallDetailPage() {
   className={cn(
  "flex-shrink-0 mt-2 w-5 h-5 flex items-center justify-center rounded transition-colors",
   isBookmarked
-  ? "text-amber-400"
-  : "text-transparent group-hover/turn:text-[var(--haip-fg-subtle)] hover:!text-amber-400"
+  ? "text-primary"
+  : "text-transparent group-hover/turn:text-[var(--haip-fg-subtle)] hover:!text-primary"
   )}
   >
-  <Star size={13} className={isBookmarked ? "fill-amber-400" : ""} />
+  <Star size={13} className={isBookmarked ? "fill-primary" : ""} />
   </button>
   <div className="flex-1 min-w-0">
   <TranscriptTurn
@@ -463,7 +463,7 @@ export default function CallDetailPage() {
   : "text-transparent group-hover/turn:text-[var(--haip-fg-subtle)] hover:!text-[var(--haip-status-info-fg)]"
   )}
   >
-  <MessageSquare size={13} className={hasNote ? "fill-blue-100" : ""} />
+  <MessageSquare size={13} className={hasNote ? "fill-[var(--haip-status-info-bg)]" : ""} />
   </button>
   </div>
 
@@ -477,7 +477,7 @@ export default function CallDetailPage() {
   setEditingNote(idx);
   setNoteInput(coachingNotes[idx] ?? "");
   }}
-  className="text-[var(--haip-status-info-fg)] hover:text-[var(--haip-status-info-fg)] text-[10px]">edit</button>
+  className="text-[var(--haip-status-info-fg)] hover:text-[var(--haip-status-info-fg)] text-[11.5px]">edit</button>
   <button
   onClick={() => setCoachingNotes(prev => { const n = { ...prev }; delete n[idx]; return n; })}
   className="text-[var(--haip-status-info-fg)] hover:text-[var(--haip-status-danger-fg)] transition-colors"
@@ -496,7 +496,7 @@ export default function CallDetailPage() {
   onChange={e => setNoteInput(e.target.value)}
   placeholder="Add a coaching note for this turn…"
   rows={2}
-  className="w-full text-xs px-3 py-2 border border-[var(--haip-status-info-border)] rounded-xl bg-[var(--haip-status-info-bg)] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+  className="w-full text-xs px-3 py-2 border border-[var(--haip-status-info-border)] rounded-xl bg-[var(--haip-status-info-bg)] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--haip-status-info-border)] resize-none"
   onKeyDown={e => {
   if (e.key === "Enter" && !e.shiftKey) {
   e.preventDefault();
@@ -546,7 +546,7 @@ export default function CallDetailPage() {
   </>
   ) : call.transcription_status === "queued" ? (
   <>
-  <Clock size={20} className="text-amber-300 mx-auto mb-2" />
+  <Clock size={20} className="text-[var(--haip-fg-subtle)] mx-auto mb-2" />
   <p className="text-sm text-[var(--haip-fg-subtle)]">Waiting for processing — click "Process now" above</p>
   </>
   ) : (
@@ -603,7 +603,7 @@ export default function CallDetailPage() {
   <div className="px-3 pb-2">
   <div className="h-1.5 bg-[var(--haip-surface)] rounded-full overflow-hidden mb-1">
   <div
-  className={cn("h-full rounded-full", pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-amber-400" : "bg-red-400")}
+  className={cn("h-full rounded-full", pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-[var(--haip-accent)]" : "bg-[var(--haip-status-danger-fg)]")}
   style={{ width: `${pct}%` }}
   />
   </div>
@@ -647,7 +647,7 @@ export default function CallDetailPage() {
   <div className="mt-4 pt-4 border-t border-[var(--haip-border)] grid grid-cols-2 gap-3">
   {call.score.agent_strengths?.length ? (
   <div>
-  <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1.5">Strengths</p>
+  <p className="text-[11.5px] font-bold uppercase tracking-wider text-primary mb-1.5">Strengths</p>
   <ul className="space-y-1">
   {call.score.agent_strengths.slice(0, 3).map((s, i) => (
   <li key={i} className="text-xs text-[var(--haip-fg-2)] flex items-start gap-1.5">
@@ -659,11 +659,11 @@ export default function CallDetailPage() {
   ) : null}
   {call.score.agent_growth_areas?.length ? (
   <div>
-  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--haip-status-warning-fg)] mb-1.5">Improve</p>
+  <p className="text-[11.5px] font-bold uppercase tracking-wider text-[var(--haip-status-warning-fg)] mb-1.5">Improve</p>
   <ul className="space-y-1">
   {call.score.agent_growth_areas.slice(0, 3).map((s, i) => (
   <li key={i} className="text-xs text-[var(--haip-fg-2)] flex items-start gap-1.5">
-  <AlertCircle size={11} className="text-amber-400 mt-0.5 flex-shrink-0" /> {s}
+  <AlertCircle size={11} className="text-[var(--haip-accent-ink)] mt-0.5 flex-shrink-0" /> {s}
   </li>
   ))}
   </ul>
@@ -779,7 +779,7 @@ export default function CallDetailPage() {
   <div className="space-y-3">
   <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)] px-1">Insights</h2>
   {call.score?.missed_revenue && call.score.missed_revenue > 0 && (
-  <div className="p-3 bg-[var(--haip-status-danger-bg)] border border-red-100 rounded-xl">
+  <div className="p-3 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl">
   <p className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-0.5">Potential missed revenue</p>
   <p className="text-base font-bold text-[var(--haip-status-danger-fg)]">
   ₹{call.score.missed_revenue.toLocaleString("en-IN")}
@@ -794,7 +794,7 @@ export default function CallDetailPage() {
   {bookmarks.size > 0 && call.transcript?.turns && (
   <div className="haip-card p-5">
   <div className="flex items-center gap-2 mb-3">
-  <Star size={14} className="text-amber-400 fill-amber-400" />
+  <Star size={14} className="fill-primary text-primary" />
   <h3 className="text-sm font-semibold text-[var(--haip-fg)]">
   Bookmarked moments
   <span className="ml-1.5 text-xs font-normal text-[var(--haip-fg-subtle)]">({bookmarks.size})</span>
@@ -818,11 +818,11 @@ export default function CallDetailPage() {
   audio.currentTime = turn.t0;
   audio.play().catch(() => {});
   }}
-  className="w-full text-left px-3 py-2 rounded-xl bg-[var(--haip-status-warning-bg)] border border-amber-100 hover:bg-amber-100 transition-colors group"
+  className="w-full text-left px-3 py-2 rounded-xl bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] hover:bg-[var(--haip-accent-line)] transition-colors group"
   >
   <div className="flex items-center justify-between mb-0.5">
-  <span className="text-[10px] font-mono font-semibold text-[var(--haip-status-warning-fg)]">{timeStr}</span>
-  <span className="text-[10px] text-[var(--haip-status-warning-fg)] capitalize">{turn.speaker}</span>
+  <span className="text-[11.5px] font-mono font-semibold text-[var(--haip-status-warning-fg)]">{timeStr}</span>
+  <span className="text-[11.5px] text-[var(--haip-status-warning-fg)] capitalize">{turn.speaker}</span>
   </div>
   <p className="text-xs text-[var(--haip-fg-2)] line-clamp-2">{turn.text}</p>
   </button>
@@ -846,19 +846,19 @@ export default function CallDetailPage() {
 // ── Layer 2: Intent & Outcome Panel ──────────────────────────────────────────
 
 const OCCASION_LABELS: Record<string, { label: string; color: string; emoji: string }> = {
-  honeymoon:  { label: "Honeymoon",  color: "bg-pink-500/10 text-pink-400 border-pink-500/20",  emoji: "💑" },
-  anniversary: { label: "Anniversary", color: "bg-rose-500/10 text-rose-400 border-rose-500/20",  emoji: "🥂" },
-  birthday:  { label: "Birthday",  color: "bg-amber-500/10 text-amber-400 border-amber-500/20", emoji: "🎂" },
-  corporate:  { label: "Corporate",  color: "bg-blue-500/10 text-[var(--haip-status-info-fg)] border-blue-500/20",  emoji: "💼" },
+  honeymoon:  { label: "Honeymoon",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "💑" },
+  anniversary: { label: "Anniversary", color: "bg-primary/10 text-primary border-primary/20",  emoji: "🥂" },
+  birthday:  { label: "Birthday",  color: "bg-primary/10 text-primary border-primary/20", emoji: "🎂" },
+  corporate:  { label: "Corporate",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "💼" },
   family:  { label: "Family",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "👨‍👩‍👧" },
-  solo:  { label: "Solo",  color: "bg-purple-500/10 text-purple-400 border-purple-500/20", emoji: "🧘" },
-  wedding:  { label: "Wedding",  color: "bg-pink-500/10 text-pink-400 border-pink-500/20",  emoji: "💒" },
+  solo:  { label: "Solo",  color: "bg-primary/10 text-primary border-primary/20", emoji: "🧘" },
+  wedding:  { label: "Wedding",  color: "bg-primary/10 text-primary border-primary/20",  emoji: "💒" },
   other:  { label: "Other",  color: "bg-muted text-muted-foreground border-border",  emoji: "✈️" },
 };
 
 const DECISION_STAGE_LABELS: Record<string, { label: string; color: string }> = {
   first_inquiry:  { label: "First inquiry",  color: "text-[var(--haip-status-info-fg)]" },
-  comparing:  { label: "Comparing options", color: "text-amber-400" },
+  comparing:  { label: "Comparing options", color: "text-[var(--haip-accent-ink)]" },
   ready_to_book:  { label: "Ready to book",  color: "text-primary" },
 };
 
@@ -906,7 +906,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <Layers size={14} className="text-primary" />
   </div>
   <h2 className="text-sm font-semibold text-foreground">Intent & Outcome</h2>
-  <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full">
+  <span className="ml-auto text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full">
   Layer 2 AI
   </span>
   </div>
@@ -918,13 +918,13 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-center gap-3 flex-1">
   <ConversionRing probability={layer2.conversion_probability} />
   <div>
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
   Conversion probability
   </p>
   <p className={cn(
  "text-sm font-bold",
   layer2.conversion_probability >= 70 ? "text-primary"
-  : layer2.conversion_probability >= 40 ? "text-amber-400"
+  : layer2.conversion_probability >= 40 ? "text-primary"
   : "text-[var(--haip-status-danger-fg)]"
   )}>
   {layer2.conversion_probability >= 70 ? "High chance" :
@@ -949,7 +949,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-center gap-2.5 py-2 border-t border-border">
   <Target size={13} className="text-muted-foreground flex-shrink-0" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Decision stage
   </p>
   <p className={cn("text-sm font-semibold mt-0.5", decisionStage.color)}>
@@ -964,7 +964,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-start gap-2.5 py-2 border-t border-border">
   <TrendingUp size={13} className="text-muted-foreground flex-shrink-0 mt-0.5" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Budget signal
   </p>
   <p className="text-sm text-foreground mt-0.5 italic">
@@ -977,12 +977,12 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   {/* Competitor mentioned */}
   {layer2.competitor_mentioned && (
   <div className="flex items-start gap-2.5 py-2 border-t border-border">
-  <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+  <AlertTriangle size={13} className="text-[var(--haip-accent-ink)] flex-shrink-0 mt-0.5" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Competitor mentioned
   </p>
-  <p className="text-sm font-semibold text-amber-400 mt-0.5">
+  <p className="text-sm font-semibold text-[var(--haip-accent-ink)] mt-0.5">
   {layer2.competitor_mentioned}
   </p>
   </div>
@@ -994,7 +994,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-start gap-2.5 py-2 border-t border-border">
   <AlertCircle size={13} className="text-[var(--haip-status-danger-fg)] flex-shrink-0 mt-0.5" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Lost reason
   </p>
   <p className="text-sm font-semibold text-[var(--haip-status-danger-fg)] mt-0.5">
@@ -1009,13 +1009,13 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-center gap-2.5 py-2 border-t border-border">
   <Globe size={13} className="text-muted-foreground flex-shrink-0" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Language
   </p>
   <p className="text-sm text-foreground mt-0.5">
   {layer2.detected_language.toUpperCase()}
   {layer2.is_code_mixed && (
-  <span className="ml-2 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+  <span className="ml-2 text-[11.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
   code-mixed
   </span>
   )}

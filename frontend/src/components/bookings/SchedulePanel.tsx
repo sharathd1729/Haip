@@ -10,10 +10,10 @@ import { errorMessage, fmtDate, type BookingDetail } from "@/lib/bookings";
 const input = "w-full text-sm border border-[var(--haip-border)] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary";
 
 const STATUS: Record<string, { label: string; cls: string }> = {
-  paid:    { label: "Paid",     cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
-  partial: { label: "Part paid", cls: "bg-amber-50 text-amber-800 border-amber-100" },
+  paid:    { label: "Paid",     cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+  partial: { label: "Part paid", cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]" },
   due:     { label: "Upcoming", cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]" },
-  overdue: { label: "Overdue",  cls: "bg-red-50 text-red-700 border-red-100" },
+  overdue: { label: "Overdue",  cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
   cancelled: { label: "Not owed", cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]" },   // booking cancelled
 };
 
@@ -66,8 +66,8 @@ export function SchedulePanel({ booking, onChange }: { booking: BookingDetail; o
             <p className="text-sm text-[var(--haip-fg-subtle)]">No instalments planned. Add due dates so overdue balances show in the bookings list.</p>
             {total > 0 && (
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => preset(30)} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">30% now, rest 7 days before</button>
-                <button onClick={() => preset(50)} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">50 / 50</button>
+                <button onClick={() => preset(30)} className="haip-btn-secondary md:!min-h-9 !px-3 text-xs">30% now, rest 7 days before</button>
+                <button onClick={() => preset(50)} className="haip-btn-secondary md:!min-h-9 !px-3 text-xs">50 / 50</button>
               </div>
             )}
           </div>
@@ -93,19 +93,19 @@ export function SchedulePanel({ booking, onChange }: { booking: BookingDetail; o
                   onChange={e => setRows(rs => rs && rs.map((x, j) => j === i ? { ...x, amount: e.target.value.replace(/[^0-9.]/g, "") } : x))} />
                 <input className={input} type="date" aria-label="Due date" value={r.due_date} onChange={e => setRows(rs => rs && rs.map((x, j) => j === i ? { ...x, due_date: e.target.value } : x))} />
                 <button aria-label="Remove instalment" onClick={() => setRows(rs => rs && rs.filter((_, j) => j !== i))}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>
+                  className="size-9 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"><Trash2 size={13} /></button>
               </div>
             ))}
             <div className="flex items-center justify-between text-xs">
               <button onClick={() => setRows(rs => rs && [...rs, { label: "", amount: "", due_date: today }])} className="flex items-center gap-1 font-semibold text-primary"><Plus size={12} /> Add instalment</button>
-              <span className={cn("tabular-nums", planned > total + 0.005 ? "text-red-600" : "text-[var(--haip-fg-subtle)]")}>
+              <span className={cn("tabular-nums", planned > total + 0.005 ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]")}>
                 {formatINR(planned)} of {formatINR(total)} planned
               </span>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setRows(null)} className="flex-1 py-2 border border-[var(--haip-border)] rounded-lg text-xs text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]">Cancel</button>
               <button onClick={() => save.mutate(rows)} disabled={(!valid && rows.length > 0) || save.isPending}
-                className="flex-1 py-2 bg-primary hover:bg-primary disabled:opacity-40 text-white font-semibold rounded-lg text-xs">
+                className="haip-btn-primary flex-1 md:!min-h-9 text-xs">
                 {save.isPending ? "Saving..." : "Save schedule"}
               </button>
             </div>

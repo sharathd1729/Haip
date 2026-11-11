@@ -92,12 +92,12 @@ export default function DevelopersPage() {
             </>
           )}
         </div>
-        <pre className="text-[11px] leading-relaxed bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto">{`curl ${base}/bookings \\
+        <pre className="text-[11px] leading-relaxed bg-[var(--haip-brand-panel)] text-[var(--haip-fg-subtle)] rounded-lg p-3 overflow-x-auto">{`curl ${base}/bookings \\
   -H "Authorization: Bearer YOUR_API_KEY"`}</pre>
       </div>
 
       {fresh && (
-        <div className="haip-card p-4 space-y-3 border-amber-200">
+        <div className="haip-card p-4 space-y-3 border-[var(--haip-status-warning-border)]">
           <p className="text-sm font-semibold text-[var(--haip-fg)]">Copy your key now, it won&apos;t be shown again</p>
           <div className="flex gap-2">
             <input readOnly value={fresh.key} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 text-xs font-mono bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2.5 py-2" />
@@ -130,7 +130,7 @@ export default function DevelopersPage() {
                     <button
                       aria-label={`Revoke ${k.name}`}
                       onClick={() => { if (confirm(`Revoke "${k.name}"? Anything using it stops working immediately.`)) revoke.mutate(k.id); }}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"
                     >
                       <Trash2 size={14} />
                     </button>

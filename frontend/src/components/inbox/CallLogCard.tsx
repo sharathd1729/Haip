@@ -49,16 +49,16 @@ export function CallLogCard({ call }: { call: CallTimelineItem }) {
 
   return (
     <div className="my-2 max-w-2xl mx-auto w-full">
-      <div className="p-3.5 rounded-2xl border bg-white shadow-sm" style={{ borderColor: "var(--haip-border, #e5e7eb)" }}>
+      <div className="p-3.5 rounded-2xl border bg-white shadow-sm" style={{ borderColor: "var(--haip-border, var(--haip-border))" }}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 flex-shrink-0">
+            <div className="p-1.5 rounded-lg bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] flex-shrink-0">
               <Phone size={14} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--haip-fg)]">
 Call · {call.direction}
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                <span className="text-[11.5px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border border-[var(--haip-status-info-border)]">
                   Sarvam AI
                 </span>
               </div>
@@ -66,7 +66,7 @@ Call · {call.direction}
             </div>
           </div>
           {call.conversion_probability != null && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 flex-shrink-0">
+            <span className="flex items-center gap-1 text-[11.5px] font-bold text-[var(--haip-status-success-fg)] flex-shrink-0">
               <TrendingUp size={11} /> {call.conversion_probability}%
             </span>
           )}

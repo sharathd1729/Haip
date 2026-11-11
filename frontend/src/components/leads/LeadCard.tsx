@@ -105,7 +105,7 @@ export function ResponseTimeBadge({ seconds, status }: { seconds?: number | null
     : { bg: "rgba(244,63,94,0.12)", fg: "#e11d48" };
   return (
     <span
-      className="rounded-full px-1.5 py-0.5 text-[11px] sm:text-[9px] font-semibold whitespace-nowrap"
+      className="rounded-full px-1.5 py-0.5 text-[11px] sm:text-[11.5px] font-semibold whitespace-nowrap"
       style={{ background: tone.bg, color: tone.fg }}
       title={waiting ? "Guest is waiting for a reply" : "Time to first reply"}
     >
@@ -119,7 +119,7 @@ export function AutopilotBadge({ move }: { move?: AutopilotMoveBadge | null }) {
   if (!move) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[var(--haip-primary-tint)] px-1.5 py-0.5 text-[11px] font-semibold text-primary sm:text-[9px]"
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[var(--haip-primary-tint)] px-1.5 py-0.5 text-[11px] font-semibold text-primary sm:text-[11.5px]"
       title={`Moved to ${move.to_stage_label ?? "this stage"} by autopilot: ${move.reason}`}
     >
       <Bot size={9} />
@@ -132,7 +132,7 @@ export function NeedsFollowupBadge({ reason }: { reason?: string | null }) {
   if (!reason) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] sm:text-[9px] font-semibold whitespace-nowrap"
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] sm:text-[11.5px] font-semibold whitespace-nowrap"
       style={{ background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)", color: "var(--haip-amber)" }}
       title={`AI replied automatically -- needs your follow-up: ${reason}`}
     >
@@ -199,7 +199,7 @@ function AgentAvatar({ name, photoUrl }: { name: string; photoUrl?: string | nul
 function Pill({ label }: { label: string }) {
   return (
     <span
-      className="rounded-full px-2 py-0.5 text-[11px] sm:text-[10px] font-medium capitalize"
+      className="rounded-full px-2 py-0.5 text-[11px] sm:text-[11.5px] font-medium capitalize"
       style={{
         background: "var(--muted)",
         color: "var(--haip-fg-muted)",
@@ -250,19 +250,15 @@ function StageSelect({ lead }: { lead: LeadCard }) {
         value={current?.id ?? ""}
         disabled={saving}
         onChange={e => handleChange(e.target.value)}
-        className="appearance-none max-w-[10.5rem] truncate text-xs sm:text-[10px] font-medium rounded-full pl-3 pr-7 min-h-11 sm:min-h-0 py-1 cursor-pointer disabled:opacity-50"
-        style={{
-          background: current?.color ? `color-mix(in srgb, ${current.color} 15%, transparent)` : "var(--muted)",
-          color: current?.color ?? "var(--haip-fg-subtle)",
-          border: "none",
-        }}
+        aria-label="Stage"
+        className="max-w-[10.5rem] cursor-pointer appearance-none truncate rounded-full border border-[var(--haip-btn-secondary-border)] bg-[var(--haip-card)] py-1 pl-3 pr-7 text-xs font-medium text-[var(--accent-foreground)] disabled:opacity-50 max-sm:min-h-11"
       >
         {!current && <option value="" disabled>Stage…</option>}
         {stages.map(s => (
           <option key={s.id} value={s.id}>{s.label}</option>
         ))}
       </select>
-      <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: current?.color ?? "var(--haip-fg-subtle)" }} />
+      <ChevronDown size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
     </div>
   );
 }
@@ -304,7 +300,7 @@ function AssignToMeButton({ lead }: { lead: LeadCard }) {
     <button
       onClick={handleAssign}
       disabled={saving}
-      className="text-xs sm:text-[10px] font-medium rounded-full px-3 sm:px-2 min-h-11 sm:min-h-0 py-0.5 disabled:opacity-50"
+      className="text-xs sm:text-[11.5px] font-medium rounded-full px-3 sm:px-2 min-h-11 sm:min-h-0 py-0.5 disabled:opacity-50"
       style={{ background: "var(--muted)", color: "var(--primary)" }}
     >
       Assign to me
@@ -358,26 +354,21 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
   const checkInLabel = formatCardDate(lead.check_in);
   const checkOutLabel = formatCardDate(lead.check_out);
 
-  // Left accent rail (prototype .k-card.urgent / .warm). Driven by the two
-  // signals the card already carries: a breached SLA is urgent, a guest still
-  // waiting on a reply is warm. Everything else stays unaccented so the
-  // colour actually means something when it does appear.
-  const accent = lead.sla_breached
-    ? "var(--haip-red)"
-    : lead.response_time_status === "waiting"
-    ? "var(--haip-gold)"
-    : null;
+  // Coral means "needs attention": a card past its reply target gets a coral border (no fill: a board where many leads
+  // are late must stay readable). A guest who is only
+  // waiting is already marked by the reply-time badge, so the card itself stays calm.
+  const late = !!lead.sla_breached;
 
   return (
     <div
-      className="haip-card p-3 cursor-pointer hover:shadow-md transition-shadow duration-150 space-y-2.5"
-      style={accent ? { borderLeft: `3px solid ${accent}` } : undefined}
+      className={cn("haip-card cursor-pointer space-y-2.5 p-3 transition-shadow duration-150",
+        late && "!border-[var(--haip-accent)]")}
       onClick={() => router.push(`/dashboard/leads/${lead.inquiry_id}`)}
     >
       {/* Row 1: Guest name + source icon */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <span className="font-medium text-sm truncate" style={{ color: "var(--haip-fg)" }}>
+          <span className="truncate text-[14px] font-semibold" style={{ color: "var(--haip-fg)" }}>
             {lead.display_name}
           </span>
           {!hasPhone && (
@@ -389,17 +380,17 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
 
       {/* Row 1b: stage dropdown on its own line so it never squeezes the name, sharing it with "last touch" and the
           reply-time badge (they used to take a row of their own further down, making every card one line taller). */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
         <StageSelect lead={lead} />
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="flex items-center gap-1 whitespace-nowrap text-[11px] sm:text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
-            <Clock size={9} />
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="flex items-center gap-1 whitespace-nowrap text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>
+            <Clock size={11} />
             {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
           </span>
           <AutopilotBadge move={lead.autopilot_move} />
           <ValidityBadge validity={lead.validity} />
           {lead.lead_type && lead.lead_type !== "guest" && (
-            <span className="whitespace-nowrap rounded-full bg-[var(--haip-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--haip-fg-2)]">{LEAD_TYPE_LABEL[lead.lead_type] ?? lead.lead_type}</span>
+            <span className="whitespace-nowrap rounded-full bg-[var(--haip-surface)] px-1.5 py-0.5 text-[11.5px] font-semibold text-[var(--haip-fg-2)]">{LEAD_TYPE_LABEL[lead.lead_type] ?? lead.lead_type}</span>
           )}
           <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
           <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
@@ -453,13 +444,13 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         {lead.assigned_agent_name ? (
           <>
             <AgentAvatar name={lead.assigned_agent_name} photoUrl={lead.assigned_agent_avatar_url} />
-            <span className="text-xs sm:text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-subtle)" }}>
+            <span className="flex-1 truncate text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
               {lead.assigned_agent_name}
             </span>
           </>
         ) : (
           <>
-            <span className="text-xs sm:text-[10px] font-semibold" style={{ color: "var(--haip-gold, var(--haip-fg-subtle))" }}>Unassigned</span>
+            <span className="text-xs font-semibold text-[var(--haip-accent-ink)]">Unassigned</span>
             <AssignToMeButton lead={lead} />
           </>
         )}
@@ -473,7 +464,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           className="lx-draft-card flex items-center justify-between gap-2 px-2 py-1.5"
           onClick={e => e.stopPropagation()}
         >
-          <p className="text-xs sm:text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-2)" }} title={lead.pending_draft.preview}>
+          <p className="text-xs sm:text-[11.5px] truncate flex-1" style={{ color: "var(--haip-fg-2)" }} title={lead.pending_draft.preview}>
             {lead.pending_draft.preview}
           </p>
           <button
@@ -483,7 +474,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
               messageId: lead.pending_draft!.message_id,
             })}
             disabled={approveAndSend.isPending}
-            className="lx-draft-send-btn inline-flex items-center gap-1 px-3 sm:px-2 min-h-11 sm:min-h-0 py-1 text-xs sm:text-[10px] font-semibold flex-shrink-0 transition-colors disabled:opacity-60"
+            className="lx-draft-send-btn inline-flex items-center gap-1 px-3 sm:px-2 min-h-11 sm:min-h-0 py-1 text-xs sm:text-[11.5px] font-semibold flex-shrink-0 transition-colors disabled:opacity-60"
           >
             {approveAndSend.isPending ? <Loader2 size={10} className="animate-spin" /> : <MessageSquare size={10} />}
             Send

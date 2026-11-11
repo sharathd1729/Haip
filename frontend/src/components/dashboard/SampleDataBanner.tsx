@@ -47,29 +47,29 @@ export function SampleDataBanner() {
       backgroundColor: "rgba(245,158,11,0.08)",
       borderBottom: "1px solid rgba(245,158,11,0.15)",
     }}>
-      <FlaskConical size={13} className="text-amber-400 flex-shrink-0" />
-      <p className="flex-1 text-amber-300/70">
-        <span className="font-semibold text-amber-300">You&apos;re viewing sample data</span>
+      <FlaskConical size={13} className="text-[var(--haip-status-warning-fg)] flex-shrink-0" />
+      <p className="flex-1 text-[var(--haip-status-warning-fg)]/70">
+        <span className="font-semibold text-[var(--haip-status-warning-fg)]">You&apos;re viewing sample data</span>
         {" "}—{" "}
         Connect WhatsApp to see real guest conversations
       </p>
       <div className="flex items-center gap-3 flex-shrink-0">
         <Link
           href="/dashboard/settings/integrations"
-          className="flex items-center gap-1 text-amber-400 hover:text-amber-300 font-semibold transition-colors"
+          className="flex items-center gap-1 text-[var(--haip-status-warning-fg)] hover:text-[var(--haip-status-warning-fg)] font-semibold transition-colors"
         >
           Connect <ArrowRight size={11} />
         </Link>
         <button
           onClick={() => wipeMutation.mutate()}
           disabled={wipeMutation.isPending}
-          className="text-amber-400/50 hover:text-amber-300 transition-colors font-medium"
+          className="text-[var(--haip-status-warning-fg)]/50 hover:text-[var(--haip-status-warning-fg)] transition-colors font-medium"
         >
           {wipeMutation.isPending ? "Wiping…" : "Wipe sample data"}
         </button>
         <button
           onClick={() => setDismissed(true)}
-          className="text-amber-400/40 hover:text-amber-300 transition-colors"
+          className="text-[var(--haip-status-warning-fg)]/40 hover:text-[var(--haip-status-warning-fg)] transition-colors"
           title="Dismiss"
         >
           <X size={12} />

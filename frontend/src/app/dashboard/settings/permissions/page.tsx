@@ -33,7 +33,7 @@ function Toast({ msg, type, onDismiss }: { msg: string; type: "success" | "error
   return (
     <div className={cn(
       "fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium",
-      type === "success" ? "bg-primary text-white" : "bg-red-600 text-white"
+      type === "success" ? "bg-primary text-white" : "bg-[var(--haip-status-danger-fg)] text-white"
     )}>
       {type === "success" ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
       {msg}
@@ -165,7 +165,7 @@ export default function PermissionsPage() {
         {loading ? (
           <p className="text-sm text-[var(--haip-fg-subtle)]">Loading...</p>
         ) : matrixError ? (
-          <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 rounded-lg px-4 py-3 max-w-lg">
+          <div className="flex items-center gap-2 text-sm text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-lg px-4 py-3 max-w-lg">
             <AlertCircle size={15} /> Couldn't load the permission matrix. It may not be provisioned for this workspace yet -- contact support.
           </div>
         ) : (
@@ -178,7 +178,7 @@ export default function PermissionsPage() {
                 {ROLES.map(role => (
                   <th key={role} className="text-center text-xs font-semibold text-[var(--haip-fg-subtle)] pb-2 px-3 min-w-[92px]">
                     {ROLE_LABELS[role]}
-                    {role === "owner" && <span className="block text-[9px] font-normal text-[var(--haip-fg-subtle)]/70">always full</span>}
+                    {role === "owner" && <span className="block text-[11.5px] font-normal text-[var(--haip-fg-subtle)]/70">always full</span>}
                   </th>
                 ))}
               </tr>
@@ -187,7 +187,7 @@ export default function PermissionsPage() {
               {Array.from(byCategory.entries()).map(([category, caps]) => (
                 <Fragment key={category}>
                   <tr>
-                    <td colSpan={ROLES.length + 1} className="pt-4 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--haip-fg-subtle)]">
+                    <td colSpan={ROLES.length + 1} className="pt-4 pb-1.5 text-[11.5px] font-bold uppercase tracking-wide text-[var(--haip-fg-subtle)]">
                       {category}
                     </td>
                   </tr>
@@ -197,10 +197,10 @@ export default function PermissionsPage() {
                         <div className="flex items-center gap-1.5">
                           {cap.label}
                           {cap.is_write && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">write</span>
+                            <span className="text-[11.5px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]">write</span>
                           )}
                           {cap.risk === "high" && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-700">sensitive</span>
+                            <span className="text-[11.5px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]">sensitive</span>
                           )}
                         </div>
                       </td>
@@ -218,7 +218,7 @@ export default function PermissionsPage() {
                               className={cn(
                                 "w-4 h-4 rounded accent-primary cursor-pointer",
                                 disabled && "opacity-40 cursor-not-allowed",
-                                isDirty && "ring-2 ring-amber-400 ring-offset-1"
+                                isDirty && "ring-2 ring-[var(--haip-accent)] ring-offset-1"
                               )}
                             />
                           </td>

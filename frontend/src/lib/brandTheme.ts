@@ -29,21 +29,21 @@ export interface BrandTheme {
   tagline?: string;
 }
 
-// Greens + terracotta (22 Oct 2026): sea green brand, forest shell, terracotta actions on a mint canvas, Figtree. The shell
+// Sea green + coral (10 Nov 2026): sea green brand and buttons, white shell, coral for what needs attention, Onest. The shell
 // colours come from globals.css (--haip-nav-*), so "sidebarColor" stays white for older readers.
 export const DEFAULT_THEME: BrandTheme = {
-  primaryColor: "#235347",
+  primaryColor: "#1E7A5A",
   sidebarColor: "#FFFFFF",
   logoUrl: "/logo-wordmark.png",
   logoDarkUrl: "/logo-wordmark.png",
-  fontFamily: "Figtree",
+  fontFamily: "Onest",
   radiusScale: "rounded",
   companyName: "HAIP",
   tagline: "Hospitality AI",
 };
 
 export const PRESET_THEMES: { name: string; primaryColor: string; sidebarColor: string }[] = [
-  { name: "Greens & Terracotta (HAIP)", primaryColor: "#235347", sidebarColor: "#FFFFFF" },
+  { name: "Sea green & Coral (HAIP)", primaryColor: "#1E7A5A", sidebarColor: "#FFFFFF" },
   { name: "Teal",           primaryColor: "#0F766E", sidebarColor: "#0B1F3A" },
   { name: "Ocean Blue",     primaryColor: "#3b82f6", sidebarColor: "#1e3a5f" },
   { name: "Indigo",         primaryColor: "#6366f1", sidebarColor: "#1e1b4b" },
@@ -59,6 +59,7 @@ export const PRESET_THEMES: { name: string; primaryColor: string; sidebarColor: 
 ];
 
 export const FONT_OPTIONS = [
+  "Onest",
   "Figtree",
   "Inter",
   "Poppins",
@@ -124,9 +125,10 @@ const RADIUS_BTN_MAP = { sharp: "4px", rounded: "10px", pill: "9999px" };
 // customised by the tenant, so it follows the current house style instead of freezing the old one.
 // Earlier house defaults, as [primary, sidebar] pairs. A workspace still on one never customised its colours, so it follows
 // the current default: teal + navy (until Oct 2026), plum + white (Hybrid launch, 17-18 Oct 2026) and sea green + white
-// (18-22 Oct 2026).
-const LEGACY_DEFAULTS: [string, string][] = [["#14b8a6", "#0b1f3a"], ["#0f766e", "#0b1f3a"], ["#5a2d6b", "#ffffff"], ["#1e7a5a", "#ffffff"]];
-const APP_FONTS = ["Figtree", "Inter"];
+// (18-22 Oct 2026, the default again from 10 Nov) and forest green + white (22 Oct-10 Nov 2026).
+const LEGACY_DEFAULTS: [string, string][] = [["#14b8a6", "#0b1f3a"], ["#0f766e", "#0b1f3a"], ["#5a2d6b", "#ffffff"], ["#235347", "#ffffff"]];
+// "Figtree" was the app font until 10 Nov 2026: a theme saved with it follows the app font, it is not fetched.
+const APP_FONTS = ["Onest", "Figtree", "Inter"];
 
 /** Primary as seen in dark mode: the house sea green lifts to sage; any other brand colour is lifted towards white
  *  until it reads on the dark canvas. */
@@ -181,14 +183,14 @@ export function buildCSSVars(theme: BrandTheme): Record<string, string> {
     "--brand-on-primary":        onPrimary,
     "--brand-primary-on-dark":   onDark,
     "--brand-on-primary-dark":   onPrimaryDark,
-    // Primary BUTTONS: the house theme paints them terracotta (--haip-action in globals.css), so these stay unset; a
-    // tenant with its own brand colour gets its colour back on buttons.
+    // Primary BUTTONS: --haip-action in globals.css falls back to --primary, so the house theme leaves these unset; a
+    // tenant's own brand colour is written here.
     "--brand-action":            house ? "" : p,
     "--brand-on-action":         house ? "" : onPrimary,
     "--brand-action-on-dark":    house ? "" : onDark,
     "--brand-on-action-dark":    house ? "" : onPrimaryDark,
     "--brand-radius":            RADIUS_MAP[theme.radiusScale],
-    // NOTE: --font-sans is deliberately NOT set here. It is owned by next/font (app/layout.tsx, Figtree); applyTheme()
+    // NOTE: --font-sans is deliberately NOT set here. It is owned by next/font (app/layout.tsx, Onest); applyTheme()
     // only overrides it when a tenant picks a different font, see below.
   };
 }
@@ -240,7 +242,7 @@ export function withCurrentDefaultLogo(t: BrandTheme): BrandTheme {
     logoDarkUrl: fix(t.logoDarkUrl),
     // Never customised: follow the current house style (see LEGACY_DEFAULTS).
     ...(legacyColours ? { primaryColor: DEFAULT_THEME.primaryColor, sidebarColor: DEFAULT_THEME.sidebarColor } : {}),
-    ...(t.fontFamily === "Inter" ? { fontFamily: DEFAULT_THEME.fontFamily } : {}),
+    ...(t.fontFamily === "Inter" || t.fontFamily === "Figtree" ? { fontFamily: DEFAULT_THEME.fontFamily } : {}),
   };
 }
 

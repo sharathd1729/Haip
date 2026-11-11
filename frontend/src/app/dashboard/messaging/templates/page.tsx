@@ -18,10 +18,10 @@ type Status = Template["status"];
 
 const STATUS_CFG: Record<Status, { label: string; cls: string; icon: React.ReactNode }> = {
   draft:             { label: "Draft",            cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]",    icon: <FileText size={10} /> },
-  pending:           { label: "In review",        cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Clock size={10} /> },
-  approved:          { label: "Approved",         cls: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={10} /> },
-  rejected:          { label: "Rejected",         cls: "bg-red-50 text-red-600 border-red-200",       icon: <XCircle size={10} /> },
-  submission_failed: { label: "Couldn't submit",  cls: "bg-red-50 text-red-600 border-red-200",       icon: <AlertCircle size={10} /> },
+  pending:           { label: "In review",        cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]", icon: <Clock size={10} /> },
+  approved:          { label: "Approved",         cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]", icon: <CheckCircle2 size={10} /> },
+  rejected:          { label: "Rejected",         cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]",       icon: <XCircle size={10} /> },
+  submission_failed: { label: "Couldn't submit",  cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]",       icon: <AlertCircle size={10} /> },
 };
 
 const FILTERS = ["all", "draft", "pending", "approved", "rejected"] as const;
@@ -59,9 +59,9 @@ function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error";
   return (
     <div className={cn(
       "fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium max-w-sm",
-      type === "success" ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"
+      type === "success" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]"
     )}>
-      {type === "success" ? <CheckCircle2 size={15} className="text-green-600" /> : <AlertCircle size={15} className="text-red-600" />}
+      {type === "success" ? <CheckCircle2 size={15} className="text-[var(--haip-status-success-fg)]" /> : <AlertCircle size={15} className="text-[var(--haip-status-danger-fg)]" />}
       <span className="flex-1">{msg}</span>
       <button onClick={onClose} aria-label="Dismiss"><X size={13} className="opacity-60" /></button>
     </div>
@@ -77,14 +77,14 @@ function PreviewModal({ template, onClose }: { template: Template; onClose: () =
         <div className="px-5 pt-4 pb-3 border-b border-[var(--haip-border)] flex items-center justify-between">
           <div className="min-w-0">
             <p className="text-sm font-bold text-[var(--haip-fg)] font-mono truncate">{template.name}</p>
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] capitalize">{template.category.toLowerCase()} · {template.language.toUpperCase()}</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] capitalize">{template.category.toLowerCase()} · {template.language.toUpperCase()}</p>
           </div>
           <button onClick={onClose} aria-label="Close"><X size={16} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]" /></button>
         </div>
         <div className="p-4">
           <WhatsAppPreview form={formFromTemplate(template)} />
           {template.rejection_reason && (
-            <p className="mt-3 text-[11px] text-red-600 flex items-start gap-1.5"><AlertCircle size={12} className="mt-0.5 flex-shrink-0" />{template.rejection_reason}</p>
+            <p className="mt-3 text-[11px] text-[var(--haip-status-danger-fg)] flex items-start gap-1.5"><AlertCircle size={12} className="mt-0.5 flex-shrink-0" />{template.rejection_reason}</p>
           )}
         </div>
       </div>
@@ -175,7 +175,7 @@ export default function TemplatesPage() {
           </button>
           </div>
         </div>
-        {syncNote && <p className={cn("text-xs mb-3", syncNote.ok ? "text-green-700" : "text-red-600")} role="status">{syncNote.text}</p>}
+        {syncNote && <p className={cn("text-xs mb-3", syncNote.ok ? "text-[var(--haip-status-success-fg)]" : "text-[var(--haip-status-danger-fg)]")} role="status">{syncNote.text}</p>}
 
         <div className="flex gap-1 flex-wrap">
           {FILTERS.map(f => (
@@ -192,7 +192,7 @@ export default function TemplatesPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {isError ? (
           <div className="py-20 text-center">
-            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <AlertCircle size={32} className="text-[var(--haip-status-danger-fg)] mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load templates</p>
             <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">The server didn't respond — this isn't your saved template list.</p>
             <button onClick={() => refetch()} disabled={isFetching}
@@ -226,23 +226,23 @@ export default function TemplatesPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={tmpl.header_media_url} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
-                        {media ? <ImageIcon size={18} className="text-green-600" /> : <MessageSquare size={18} className="text-green-600" />}
+                      <div className="w-10 h-10 rounded-xl bg-[var(--haip-status-success-bg)] flex items-center justify-center flex-shrink-0">
+                        {media ? <ImageIcon size={18} className="text-[var(--haip-status-success-fg)]" /> : <MessageSquare size={18} className="text-[var(--haip-status-success-fg)]" />}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="text-sm font-bold text-[var(--haip-fg)] font-mono">{tmpl.name}</span>
-                        <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc.cls)}>
+                        <span className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border", sc.cls)}>
                           {sc.icon} {sc.label}
                         </span>
-                        <span className="text-[10px] bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] px-2 py-0.5 rounded-full capitalize">{tmpl.category.toLowerCase()}</span>
-                        <span className="text-[10px] text-[var(--haip-fg-subtle)]">{tmpl.language.toUpperCase()}</span>
-                        {media && <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full capitalize">{media} header</span>}
+                        <span className="text-[11.5px] bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] px-2 py-0.5 rounded-full capitalize">{tmpl.category.toLowerCase()}</span>
+                        <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{tmpl.language.toUpperCase()}</span>
+                        {media && <span className="text-[11.5px] bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] px-2 py-0.5 rounded-full capitalize">{media} header</span>}
                       </div>
                       <p className="text-xs text-[var(--haip-fg-subtle)] truncate leading-relaxed">{extractBody(tmpl)}</p>
-                      {tmpl.rejection_reason && <p className="text-[10px] text-red-500 mt-1">Reason: {tmpl.rejection_reason}</p>}
-                      {tmpl.meta_template_id && <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5 font-mono">Meta ID: {tmpl.meta_template_id}</p>}
+                      {tmpl.rejection_reason && <p className="text-[11.5px] text-[var(--haip-status-danger-fg)] mt-1">Reason: {tmpl.rejection_reason}</p>}
+                      {tmpl.meta_template_id && <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-0.5 font-mono">Meta ID: {tmpl.meta_template_id}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                       <button onClick={() => setPreviewing(tmpl)} title="Preview" aria-label="Preview"
@@ -261,7 +261,7 @@ export default function TemplatesPage() {
                         </button>
                       )}
                       <button onClick={() => { if (confirm("Delete this template?")) deleteMutation.mutate(tmpl.id); }} title="Delete" aria-label="Delete"
-                        className="text-[var(--haip-fg-subtle)] hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"><Trash2 size={14} /></button>
+                        className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] transition-colors p-1.5 rounded-lg hover:bg-[var(--haip-status-danger-bg)]"><Trash2 size={14} /></button>
                     </div>
                   </div>
                   {editable && needsSampleDoc(tmpl) && (
@@ -275,8 +275,8 @@ export default function TemplatesPage() {
 
         {/* Info card */}
         <div className="mt-8 haip-card p-5 flex gap-4">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-            <Tag size={18} className="text-amber-600" />
+          <div className="w-10 h-10 rounded-xl bg-[var(--haip-status-warning-bg)] flex items-center justify-center flex-shrink-0">
+            <Tag size={18} className="text-[var(--haip-status-warning-fg)]" />
           </div>
           <div>
             <p className="text-sm font-semibold text-[var(--haip-fg)] mb-1">How template approval works</p>

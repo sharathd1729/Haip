@@ -123,7 +123,7 @@ export function OccupancyStrip({ onOpen, onOpenHold, selectedId }: {
               const d = new Date(`${iso}T00:00:00Z`);
               const today = iso === data.today;
               return (
-                <span key={iso} className="text-center text-[10.5px] leading-tight text-[var(--haip-fg-subtle)]">
+                <span key={iso} className="text-center text-[11.5px] leading-tight text-[var(--haip-fg-subtle)]">
                   {NARROW[d.getUTCDay()]}
                   <b className={cn("block text-[12.5px]", today ? "text-[var(--haip-accent-ink)]" : "text-[var(--haip-fg)]")}>{d.getUTCDate()}</b>
                 </span>
@@ -189,7 +189,7 @@ function Bar({ blk, unit, waitingRow, selectedId, wide, onOpen, onOpenHold, pick
     <button type="button" className={cls} title={blk.title} aria-label={`${blk.title}. Open details`} onClick={() => blk.block && onOpenHold(blk.block)}>
       {blk.cal && <Calendar size={11} aria-hidden className="shrink-0" />}
       <span className="min-w-0 flex-1 truncate">{blk.label}</span>
-      {waitingHold && blk.span >= 3 && <span className="shrink-0 rounded-full bg-[var(--haip-card)] px-1.5 py-0.5 text-[10.5px]">{pick}</span>}
+      {waitingHold && blk.span >= 3 && <span className="shrink-0 rounded-full bg-[var(--haip-card)] px-1.5 py-0.5 text-[11.5px]">{pick}</span>}
     </button>
   );
 }

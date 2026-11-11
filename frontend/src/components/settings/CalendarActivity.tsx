@@ -32,7 +32,7 @@ export function CalendarActivity({ feedId }: { feedId: string }) {
       {open && (
         <div className="mt-2 space-y-3">
           {isLoading && <Skeleton className="h-16 rounded-lg" />}
-          {isError && <p className="text-red-600">Could not load this. Try again in a moment.</p>}
+          {isError && <p className="text-[var(--haip-status-danger-fg)]">Could not load this. Try again in a moment.</p>}
           {data && (
             <>
               <div>
@@ -43,10 +43,10 @@ export function CalendarActivity({ feedId }: { feedId: string }) {
                       <li key={b.stay_id} className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <Link href={`/dashboard/bookings/${b.stay_id}`} className="font-semibold text-[var(--haip-fg)] hover:underline">{b.guest_name || "Guest"}</Link>
                         <span className="text-[var(--haip-fg-subtle)]">{b.check_in} to {b.check_out}</span>
-                        <span className={b.vehicle ? "text-[var(--haip-fg-2)]" : "text-amber-700"}>{b.vehicle ?? notChosen}</span>
+                        <span className={b.vehicle ? "text-[var(--haip-fg-2)]" : "text-[var(--haip-status-warning-fg)]"}>{b.vehicle ?? notChosen}</span>
                         {b.status !== "confirmed" && <span className="text-[var(--haip-fg-subtle)] capitalize">{b.status.replace("_", " ")}</span>}
                         {b.locked && <span className="text-[var(--haip-fg-subtle)]">Edited here</span>}
-                        {b.lead_linked && <span className="text-green-700">Lead marked sold</span>}
+                        {b.lead_linked && <span className="text-[var(--haip-status-success-fg)]">Lead marked sold</span>}
                       </li>
                     ))}
                   </ul>
@@ -60,7 +60,7 @@ export function CalendarActivity({ feedId }: { feedId: string }) {
                       <li key={`${s.title}-${i}`} className="px-3 py-2">
                         <span className="font-semibold text-[var(--haip-fg)]">{s.title || "Untitled event"}</span>
                         <span className="text-[var(--haip-fg-subtle)]"> · {s.from} to {s.to}</span>
-                        <p className="text-amber-700">Held as a block: {s.reasons.join(", ")}.</p>
+                        <p className="text-[var(--haip-status-warning-fg)]">Held as a block: {s.reasons.join(", ")}.</p>
                       </li>
                     ))}
                   </ul>

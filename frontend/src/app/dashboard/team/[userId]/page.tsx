@@ -48,7 +48,7 @@ function formatSeconds(s: number): string {
 function StatTile({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="p-3 rounded-xl border flex-1 min-w-[120px]" style={{ borderColor: "var(--haip-border)", background: "var(--haip-card)" }}>
-      <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>{label}</div>
+      <div className="text-[11.5px] font-medium uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>{label}</div>
       <div className="text-lg font-bold mt-1" style={{ color: "var(--haip-fg)" }}>{value}</div>
     </div>
   );
@@ -94,7 +94,7 @@ export default function AgentProfilePage() {
 
   if (!allowed) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 bg-[#F8FAFC]">
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 bg-[var(--haip-surface)]">
         <ShieldAlert size={32} className="text-[var(--haip-fg-subtle)]/70" />
         <p className="text-sm font-semibold text-[var(--haip-fg-muted)]">You can only view your own profile</p>
         <Link href="/dashboard" className="text-xs text-primary hover:underline">Back to dashboard</Link>
@@ -170,7 +170,7 @@ export default function AgentProfilePage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-[var(--haip-fg)]">{c.guest_name || c.guest_phone}</span>
                   {c.disposition && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-primary bg-[var(--haip-primary-tint)] px-1.5 py-0.5 rounded">{c.disposition}</span>
+                    <span className="text-[11.5px] font-semibold uppercase tracking-wide text-primary bg-[var(--haip-primary-tint)] px-1.5 py-0.5 rounded">{c.disposition}</span>
                   )}
                 </div>
                 <div className="text-xs text-[var(--haip-fg-subtle)] mt-1">{c.direction} · {new Date(c.started_at).toLocaleString()}</div>
@@ -193,7 +193,7 @@ export default function AgentProfilePage() {
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-[var(--haip-fg)]">{m.guest_name || "Guest"}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)] bg-[var(--haip-surface)] px-1.5 py-0.5 rounded">{m.channel}</span>
+                  <span className="text-[11.5px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)] bg-[var(--haip-surface)] px-1.5 py-0.5 rounded">{m.channel}</span>
                 </div>
                 <div className="text-xs text-[var(--haip-fg-subtle)] mt-1">
                   {m.message_count} repl{m.message_count === 1 ? "y" : "ies"}

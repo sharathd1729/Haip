@@ -66,7 +66,7 @@ export function InboxListPane({
         {onlineUsers.length > 0 && (
           <div className="hidden md:flex px-3 py-1.5 items-center gap-1.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--haip-status-success-fg)] flex-shrink-0" />
-            <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
+            <span className="text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>
               {onlineUsers.length === 1
                 ? `${onlineUsers[0].name.split(" ")[0]} is online`
                 : `${onlineUsers.length} agents online`}
@@ -88,7 +88,7 @@ export function InboxListPane({
         {/* W15: saved views section */}
         {savedViews.length > 0 && (
           <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-            <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>Saved views</p>
+            <p className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>Saved views</p>
             <div className="space-y-0.5">
               {savedViews.map((v: any) => (
                 <button

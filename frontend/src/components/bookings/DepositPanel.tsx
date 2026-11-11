@@ -11,9 +11,9 @@ const METHODS: PayMethod[] = ["upi", "cash", "card", "bank_transfer", "other"];
 
 const STATUS: Record<Deposit["status"], { label: string; cls: string }> = {
   pending:   { label: "Not collected", cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]" },
-  held:      { label: "Held",          cls: "bg-blue-50 text-blue-700 border-blue-100" },
-  released:  { label: "Released",      cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
-  forfeited: { label: "Kept",          cls: "bg-red-50 text-red-700 border-red-100" },
+  held:      { label: "Held",          cls: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]" },
+  released:  { label: "Released",      cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+  forfeited: { label: "Kept",          cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
 };
 
 /** Refundable security deposit. Held apart from the booking total and never counted as revenue. */
@@ -52,7 +52,7 @@ export function DepositPanel({ booking, onChange }: { booking: BookingDetail; on
         {!dep && !form && (
           <>
             <p className="text-[var(--haip-fg-subtle)]">No deposit on this booking. A deposit is held separately and does not count as revenue.</p>
-            <button onClick={open} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-2 rounded-lg hover:bg-[var(--haip-surface)]">Add deposit</button>
+            <button onClick={open} className="haip-btn-secondary md:!min-h-9 !px-3 text-xs">Add deposit</button>
           </>
         )}
 
@@ -62,8 +62,8 @@ export function DepositPanel({ booking, onChange }: { booking: BookingDetail; on
               <div className="flex justify-between"><dt className="text-[var(--haip-fg-subtle)]">Deposit</dt><dd className="tabular-nums font-semibold">{formatINR(dep.amount)}</dd></div>
               {dep.status === "released" && (
                 <>
-                  {dep.deducted > 0 && <div className="flex justify-between text-red-600"><dt>Kept for damage</dt><dd className="tabular-nums">{formatINR(dep.deducted)}</dd></div>}
-                  <div className="flex justify-between text-emerald-700"><dt>Returned to guest</dt><dd className="tabular-nums">{formatINR(dep.refundable)}</dd></div>
+                  {dep.deducted > 0 && <div className="flex justify-between text-[var(--haip-status-danger-fg)]"><dt>Kept for damage</dt><dd className="tabular-nums">{formatINR(dep.deducted)}</dd></div>}
+                  <div className="flex justify-between text-[var(--haip-status-success-fg)]"><dt>Returned to guest</dt><dd className="tabular-nums">{formatINR(dep.refundable)}</dd></div>
                 </>
               )}
               {dep.method && <div className="flex justify-between"><dt className="text-[var(--haip-fg-subtle)]">Method</dt><dd>{METHOD_LABEL[dep.method]}</dd></div>}
@@ -72,8 +72,8 @@ export function DepositPanel({ booking, onChange }: { booking: BookingDetail; on
             </dl>
             {dep.notes && <p className="text-xs text-[var(--haip-fg-subtle)]">{dep.notes}</p>}
             <div className="flex gap-2">
-              <button onClick={open} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">Update</button>
-              <button onClick={() => { if (confirm("Remove the deposit record?")) remove.mutate(); }} className="text-xs font-semibold text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-50">Remove</button>
+              <button onClick={open} className="haip-btn-secondary md:!min-h-9 !px-3 text-xs">Update</button>
+              <button onClick={() => { if (confirm("Remove the deposit record?")) remove.mutate(); }} className="text-xs font-semibold text-[var(--haip-status-danger-fg)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-status-danger-bg)]">Remove</button>
             </div>
           </>
         )}
@@ -111,7 +111,7 @@ export function DepositPanel({ booking, onChange }: { booking: BookingDetail; on
             <div className="flex gap-2">
               <button onClick={() => setForm(null)} className="flex-1 py-2 border border-[var(--haip-border)] rounded-lg text-xs text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]">Cancel</button>
               <button onClick={() => save.mutate()} disabled={!(Number(form.amount) > 0) || save.isPending}
-                className="flex-1 py-2 bg-primary hover:bg-primary disabled:opacity-40 text-white font-semibold rounded-lg text-xs">
+                className="haip-btn-primary flex-1 md:!min-h-9 text-xs">
                 {save.isPending ? "Saving..." : "Save deposit"}
               </button>
             </div>

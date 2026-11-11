@@ -331,7 +331,7 @@ export default function CalculatorPage() {
                 <button key={p.property_id} onClick={() => handleSelectProperty(p)}
                   className={cn(
                     "w-full text-left px-4 py-3 border-b border-[var(--haip-border)] hover:bg-[var(--haip-surface)] transition-colors",
-                    selectedProperty?.property_id === p.property_id && "bg-[var(--haip-primary-tint)] border-l-2 border-l-teal-500"
+                    selectedProperty?.property_id === p.property_id && "bg-[var(--haip-primary-tint)] border-l-2 border-l-primary"
                   )}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -349,7 +349,7 @@ export default function CalculatorPage() {
                   </div>
                   <div className="mt-1.5 flex items-center justify-between">
                     <span className="text-xs text-[var(--haip-fg-subtle)]">{p.nights} nights = <span className="font-semibold text-[var(--haip-fg-2)]">{fmt(p.subtotal_accommodation)}</span></span>
-                    {p.rate_name && <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-medium">{p.rate_name}</span>}
+                    {p.rate_name && <span className="text-[11.5px] bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] px-1.5 py-0.5 rounded font-medium">{p.rate_name}</span>}
                   </div>
                 </button>
               ))}
@@ -434,11 +434,11 @@ export default function CalculatorPage() {
               )}
 
               {/* Dynamic Pricing panel */}
-              <div className="bg-gradient-to-br from-[var(--haip-primary-tint)] to-blue-50 rounded-2xl border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] p-4 space-y-3">
+              <div className="bg-gradient-to-br from-[var(--haip-primary-tint)] to-[var(--haip-status-info-bg)] rounded-2xl border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Zap size={14} className="text-primary" />
                   <span className="text-sm font-semibold text-[var(--haip-fg)]">Dynamic Pricing</span>
-                  <span className="text-[10px] bg-[var(--haip-primary-tint)] text-primary px-1.5 py-0.5 rounded-full font-medium ml-auto">AI-powered</span>
+                  <span className="text-[11.5px] bg-[var(--haip-primary-tint)] text-primary px-1.5 py-0.5 rounded-full font-medium ml-auto">AI-powered</span>
                 </div>
 
                 {/* Occupancy slider */}
@@ -453,7 +453,7 @@ export default function CalculatorPage() {
                     onChange={e => { setOccupancyOverride(+e.target.value); setDynamicPrice(null); }}
                     className="w-full accent-primary h-1.5"
                   />
-                  <div className="flex justify-between text-[10px] text-[var(--haip-fg-subtle)]/70 mt-0.5">
+                  <div className="flex justify-between text-[11.5px] text-[var(--haip-fg-subtle)]/70 mt-0.5">
                     <span>Low demand</span><span>High demand</span>
                   </div>
                 </div>
@@ -478,16 +478,16 @@ export default function CalculatorPage() {
                       <span className="text-xs text-[var(--haip-fg-subtle)]">Smart rate / night</span>
                       <div className="flex items-center gap-1">
                         {dynamicPrice.final_rate > dynamicPrice.base_rate
-                          ? <TrendingUp size={11} className="text-green-500" />
-                          : <TrendingDown size={11} className="text-rose-400" />
+                          ? <TrendingUp size={11} className="text-[var(--haip-status-success-fg)]" />
+                          : <TrendingDown size={11} className="text-[var(--haip-status-danger-fg)]" />
                         }
                         <span className={cn(
                           "text-sm font-bold",
-                          dynamicPrice.final_rate > dynamicPrice.base_rate ? "text-green-600" : "text-rose-500"
+                          dynamicPrice.final_rate > dynamicPrice.base_rate ? "text-[var(--haip-status-success-fg)]" : "text-[var(--haip-status-danger-fg)]"
                         )}>
                           {fmt(dynamicPrice.final_rate)}
                         </span>
-                        <span className="text-[10px] text-[var(--haip-fg-subtle)]">
+                        <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">
                           ({dynamicPrice.aggregate_multiplier >= 1 ? "+" : ""}{Math.round((dynamicPrice.aggregate_multiplier - 1) * 100)}%)
                         </span>
                       </div>
@@ -499,13 +499,13 @@ export default function CalculatorPage() {
 
                     {/* Factors breakdown */}
                     <div className="bg-white/70 rounded-xl p-2.5 space-y-1.5">
-                      <p className="text-[10px] font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-1">Pricing factors</p>
+                      <p className="text-[11.5px] font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-1">Pricing factors</p>
                       {Object.entries(dynamicPrice.factors).map(([k, v]) => (
                         <div key={k} className="flex items-center justify-between">
                           <span className="text-[11px] text-[var(--haip-fg-subtle)] capitalize">{k.replace("_", " ")}</span>
                           <span className={cn(
                             "text-[11px] font-semibold tabular-nums",
-                            v > 1 ? "text-green-600" : v < 1 ? "text-rose-500" : "text-[var(--haip-fg-subtle)]"
+                            v > 1 ? "text-[var(--haip-status-success-fg)]" : v < 1 ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]"
                           )}>
                             {v > 1 ? "+" : ""}{Math.round((v - 1) * 100)}%
                           </span>
@@ -524,7 +524,7 @@ export default function CalculatorPage() {
                     </div>
 
                     {/* Floor / ceiling */}
-                    <div className="flex gap-2 text-[10px] text-[var(--haip-fg-subtle)]">
+                    <div className="flex gap-2 text-[11.5px] text-[var(--haip-fg-subtle)]">
                       <span>Floor: <span className="font-medium text-[var(--haip-fg-subtle)]">{fmt(dynamicPrice.suggested_floor)}</span></span>
                       <span>·</span>
                       <span>Ceiling: <span className="font-medium text-[var(--haip-fg-subtle)]">{fmt(dynamicPrice.suggested_ceiling)}</span></span>
@@ -535,7 +535,7 @@ export default function CalculatorPage() {
 
               {/* Build Quote button */}
               <button onClick={handleBuildQuote} disabled={quoteMutation.isPending}
-                className="w-full py-3 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                className="w-full py-3 bg-[var(--haip-brand-panel)] hover:bg-[var(--haip-brand-panel)] disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
                 {quoteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
                 Build Quote
               </button>
@@ -565,7 +565,7 @@ export default function CalculatorPage() {
                       <span>Total</span>
                       <span className="text-primary">{fmt(quote.breakdown.total)}</span>
                     </div>
-                    <div className="flex justify-between text-[var(--haip-fg-muted)] bg-amber-50 rounded-lg px-3 py-2 mt-2">
+                    <div className="flex justify-between text-[var(--haip-fg-muted)] bg-[var(--haip-status-warning-bg)] rounded-lg px-3 py-2 mt-2">
                       <span className="font-medium">Advance ({quote.breakdown.advance_percent}%)</span>
                       <span className="font-bold">{fmt(quote.breakdown.advance_amount)}</span>
                     </div>
@@ -585,13 +585,13 @@ export default function CalculatorPage() {
                     <div className="flex gap-2">
                       <button onClick={handleCopy}
                         className="flex-1 py-2.5 border border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors">
-                        {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                        {copied ? <Check size={14} className="text-[var(--haip-status-success-fg)]" /> : <Copy size={14} />}
                         {copied ? "Copied!" : "Copy"}
                       </button>
                       <button
                         onClick={() => shareMutation.mutate()}
                         disabled={!guestPhone || shareMutation.isPending}
-                        className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
+                        className="flex-1 py-2.5 bg-primary hover:bg-primary disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
                         {shareMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                         Send on WhatsApp
                       </button>

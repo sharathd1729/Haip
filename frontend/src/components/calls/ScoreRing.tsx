@@ -60,7 +60,7 @@ export function ScoreRing({
   <span className={cn("font-bold leading-none", text, size >= 72 ? "text-xl" : "text-base")}>
   {Math.round(score)}
   </span>
-  <span className="text-[9px] text-[var(--haip-fg-subtle)] uppercase tracking-wide leading-tight mt-0.5">
+  <span className="text-[11.5px] text-[var(--haip-fg-subtle)] uppercase tracking-wide leading-tight mt-0.5">
   score
   </span>
   </div>

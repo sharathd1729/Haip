@@ -270,13 +270,13 @@ export function PipelineSettingsModal({ stages: initialStages, onClose }: Props)
                 <button className="flex-1 text-left text-xs truncate" style={{ color: "var(--haip-fg)" }} onClick={() => setEditingId(row.id)}>
                   {row.label}
                   {row.lead_count > 0 && (
-                    <span className="ml-1.5 text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>({row.lead_count})</span>
+                    <span className="ml-1.5 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>({row.lead_count})</span>
                   )}
                 </button>
               )}
 
               <select
-                className="flex-shrink-0 text-[10px] rounded px-1 py-0.5"
+                className="flex-shrink-0 text-[11.5px] rounded px-1 py-0.5"
                 style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }}
                 value={row.category ?? ""}
                 onChange={e => handleCategoryChange(row, (e.target.value || null) as PipelineStageRow["category"])}

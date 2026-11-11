@@ -20,9 +20,9 @@ interface ListResponse { endpoints: Endpoint[]; events: { event: string; descrip
 
 const field = "w-full text-sm border border-[var(--haip-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary";
 const DELIVERY_STYLE: Record<string, string> = {
-  success: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  pending: "bg-amber-50 text-amber-800 border-amber-100",
-  failed: "bg-red-50 text-red-700 border-red-100",
+  success: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]",
+  pending: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
+  failed: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]",
 };
 
 function Deliveries({ endpoint, canRetry }: { endpoint: Endpoint; canRetry: boolean }) {
@@ -117,7 +117,7 @@ export function WebhooksSection({ isOwner }: { isOwner: boolean }) {
       </div>
 
       {secret && (
-        <div className="haip-card p-4 space-y-3 border-amber-200">
+        <div className="haip-card p-4 space-y-3 border-[var(--haip-status-warning-border)]">
           <p className="text-sm font-semibold text-[var(--haip-fg)]">Copy the signing secret now, it won&apos;t be shown again</p>
           <div className="flex gap-2">
             <input readOnly value={secret.secret} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 text-xs font-mono bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2.5 py-2" />
@@ -140,14 +140,14 @@ export function WebhooksSection({ isOwner }: { isOwner: boolean }) {
                     {ep.description && <p className="text-xs text-[var(--haip-fg-subtle)]">{ep.description}</p>}
                   </div>
                   <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-                    ep.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]")}>
+                    ep.is_active ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]")}>
                     {ep.is_active ? "Active" : "Off"}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {ep.events.map(e => <span key={e} className="text-[11px] font-mono bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] rounded px-1.5 py-0.5">{e}</span>)}
                 </div>
-                {ep.disabled_reason && <p className="text-xs text-red-600">{ep.disabled_reason}</p>}
+                {ep.disabled_reason && <p className="text-xs text-[var(--haip-status-danger-fg)]">{ep.disabled_reason}</p>}
                 <p className="text-xs text-[var(--haip-fg-subtle)]">
                   {ep.last_success_at ? `Last success ${fmtDate(ep.last_success_at)}` : "No successful delivery yet"}
                   {ep.consecutive_failures > 0 ? ` · ${ep.consecutive_failures} failed in a row` : ""}
@@ -175,7 +175,7 @@ export function WebhooksSection({ isOwner }: { isOwner: boolean }) {
                       <button
                         aria-label="Delete endpoint"
                         onClick={() => { if (confirm("Delete this endpoint and its delivery history?")) remove.mutate(ep.id); }}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"
                       >
                         <Trash2 size={14} />
                       </button>

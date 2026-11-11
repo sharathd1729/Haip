@@ -38,7 +38,7 @@ export function ThreadBody({
   canSend?: boolean;
 }) {
   // Thread body sits a shade below the white pane so the message column reads as its own surface
-  // (prototype .thread-body). --haip-surface, not a literal gradient: it resolves to #F8FAFC in light
+  // (prototype .thread-body). --haip-surface, not a literal gradient: it resolves to var(--haip-surface) in light
   // and the page bg in dark, so this doesn't invert.
   return (
             <div

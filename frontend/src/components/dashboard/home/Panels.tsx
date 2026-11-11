@@ -74,15 +74,15 @@ export function RevenueChart({ series, rangeLabel }: { series: Series; rangeLabe
 
 // ── Lead funnel ───────────────────────────────────────────────────────────────
 
-const FUNNEL_COLORS = ["bg-blue-600", "bg-[var(--haip-primary-hover)]", "bg-emerald-600", "bg-violet-600", "bg-amber-600", "bg-rose-600"];
+const FUNNEL_COLORS = ["bg-primary", "bg-[var(--haip-primary-hover)]", "bg-primary", "bg-primary", "bg-[var(--haip-amber)]", "bg-[var(--haip-status-danger-fg)]"];
 
 export function LeadFunnel({ data, rangeLabel }: { data: OverviewResponse; rangeLabel: string }) {
   const total = data.kpi.total_leads;
-  const rows = [{ stage: "Enquiries", count: total, color: "bg-slate-700" },
+  const rows = [{ stage: "Enquiries", count: total, color: "bg-[var(--haip-fg-2)]" },
     ...data.funnel.map((f, i) => ({
       stage: f.stage, count: f.count,
       // Lost / unsuitable are outcomes, not progress: quiet grey so the biggest bar is not an alarm.
-      color: /lost|unsuitable/i.test(f.stage) ? "bg-slate-300 dark:bg-slate-600" : FUNNEL_COLORS[i % FUNNEL_COLORS.length],
+      color: /lost|unsuitable/i.test(f.stage) ? "bg-[var(--haip-border)] " : FUNNEL_COLORS[i % FUNNEL_COLORS.length],
     }))];
   return (
     <Panel title="Lead funnel" meta={rangeLabel} className="lg:col-span-2">
@@ -129,9 +129,9 @@ export function TeamTable({ agents, rangeLabel }: { agents: AgentRow[]; rangeLab
               </p>
               <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-[13px] tabular-nums">
                 <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Leads</dt><dd>{a.leads_handled}</dd></div>
-                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Booked</dt><dd className="font-bold text-violet-700 dark:text-violet-300">{a.conversions}</dd></div>
+                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Booked</dt><dd className="font-bold text-[var(--haip-status-info-fg)] ">{a.conversions}</dd></div>
                 <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>First reply</dt><dd>{a.response_count ? formatSeconds(a.avg_response_seconds) : "—"}</dd></div>
-                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Calls answered</dt><dd>{a.calls_answered}{a.calls_missed > 0 && <span className="text-red-600 text-xs"> · {a.calls_missed} missed</span>}</dd></div>
+                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Calls answered</dt><dd>{a.calls_answered}{a.calls_missed > 0 && <span className="text-[var(--haip-status-danger-fg)] text-xs"> · {a.calls_missed} missed</span>}</dd></div>
               </dl>
             </li>
           ))}
@@ -162,9 +162,9 @@ export function TeamTable({ agents, rangeLabel }: { agents: AgentRow[]; rangeLab
                   <td className="text-right">{a.response_count ? formatSeconds(a.avg_response_seconds) : "—"}</td>
                   <td className="text-right">
                     {a.calls_answered}
-                    {a.calls_missed > 0 && <span className="text-red-600 text-xs"> · {a.calls_missed} missed</span>}
+                    {a.calls_missed > 0 && <span className="text-[var(--haip-status-danger-fg)] text-xs"> · {a.calls_missed} missed</span>}
                   </td>
-                  <td className="text-right font-bold text-violet-700 dark:text-violet-300">{a.conversions}</td>
+                  <td className="text-right font-bold text-[var(--haip-status-info-fg)] ">{a.conversions}</td>
                 </tr>
               ))}
             </tbody>

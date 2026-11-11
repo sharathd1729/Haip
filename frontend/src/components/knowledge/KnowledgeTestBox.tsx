@@ -149,7 +149,7 @@ export function KnowledgeTestBox({ properties }: { properties: { id: string; nam
               <p className="text-xs text-[var(--haip-fg-subtle)]">Nothing matched.</p>
             ) : result.kb.hits.map(h => (
               <div key={h.id} className="rounded-lg border border-[var(--haip-border)] bg-[var(--haip-surface)] p-3">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">{h.category} · match {(h.score * 100).toFixed(0)}%</p>
+                <p className="mb-1 text-[11.5px] font-semibold uppercase tracking-wider text-primary">{h.category} · match {(h.score * 100).toFixed(0)}%</p>
                 {h.question && <p className="text-xs font-medium text-[var(--haip-fg-2)]">{h.question}</p>}
                 <p className="text-xs leading-relaxed text-[var(--haip-fg-subtle)]">{h.content}</p>
               </div>

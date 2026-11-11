@@ -41,11 +41,11 @@ interface Flow {
 // ─── Node type definitions ────────────────────────────────────────────────────
 
 const NODE_TYPES = {
-  trigger: { label: "Trigger", icon: <Zap size={14} />, color: "bg-amber-50 border-amber-300 text-amber-700", dot: "bg-amber-400" },
+  trigger: { label: "Trigger", icon: <Zap size={14} />, color: "bg-[var(--haip-status-warning-bg)] border-[var(--haip-status-warning-border)] text-[var(--haip-status-warning-fg)]", dot: "bg-[var(--haip-amber)]" },
   message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
-  condition: { label: "Condition", icon: <GitBranch size={14} />, color: "bg-blue-50 border-blue-300 text-blue-700", dot: "bg-blue-400" },
-  delay: { label: "Wait / Delay", icon: <Clock size={14} />, color: "bg-purple-50 border-purple-300 text-purple-700", dot: "bg-purple-400" },
-  action: { label: "Action", icon: <Zap size={14} />, color: "bg-pink-50 border-pink-300 text-pink-700", dot: "bg-pink-400" },
+  condition: { label: "Condition", icon: <GitBranch size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
+  delay: { label: "Wait / Delay", icon: <Clock size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
+  action: { label: "Action", icon: <Zap size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
   end: { label: "End", icon: <Hash size={14} />, color: "bg-[var(--haip-surface)] border-[var(--haip-border-strong)] text-[var(--haip-fg-subtle)]", dot: "bg-[var(--haip-border-strong)]" },
 };
 
@@ -66,8 +66,8 @@ const TRIGGER_OPTIONS = [
 function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
   return (
     <div className={cn("fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium max-w-sm",
-      type === "success" ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200")}>
-      {type === "success" ? <CheckCircle2 size={15} className="text-green-600" /> : <AlertCircle size={15} className="text-red-600" />}
+      type === "success" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]")}>
+      {type === "success" ? <CheckCircle2 size={15} className="text-[var(--haip-status-success-fg)]" /> : <AlertCircle size={15} className="text-[var(--haip-status-danger-fg)]" />}
       <span className="flex-1">{msg}</span>
       <button onClick={onClose}><X size={13} className="opacity-60" /></button>
     </div>
@@ -92,7 +92,7 @@ function FlowCanvas({
   onDeleteNode: (id: string) => void;
 }) {
   return (
-    <div className="relative w-full overflow-auto bg-[#f8fafc]" style={{ minHeight: "500px", backgroundImage: "radial-gradient(circle, #e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
+    <div className="relative w-full overflow-auto bg-[var(--haip-surface)]" style={{ minHeight: "500px", backgroundImage: "radial-gradient(circle, var(--haip-border) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
       <div className="p-8 flex flex-col items-start gap-0 min-w-[600px]">
         {nodes.map((node, idx) => {
           const cfg = NODE_TYPES[node.type] ?? NODE_TYPES.message;
@@ -117,10 +117,10 @@ function FlowCanvas({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wide opacity-60">{cfg.label}</span>
+                      <span className="text-[11.5px] font-bold uppercase tracking-wide opacity-60">{cfg.label}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); onDeleteNode(node.id); }}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all"
+                        className="opacity-0 group-hover:opacity-100 text-[var(--haip-status-danger-fg)] hover:text-[var(--haip-status-danger-fg)] transition-all"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -137,7 +137,7 @@ function FlowCanvas({
                 <div className="flex flex-col items-center py-1">
                   <div className="w-0.5 h-4 bg-[var(--haip-border-strong)]" />
                   {edge?.label && (
-                    <span className="text-[9px] bg-white border border-[var(--haip-border)] rounded px-1.5 py-0.5 text-[var(--haip-fg-subtle)] font-medium">{edge.label}</span>
+                    <span className="text-[11.5px] bg-white border border-[var(--haip-border)] rounded px-1.5 py-0.5 text-[var(--haip-fg-subtle)] font-medium">{edge.label}</span>
                   )}
                   <button
                     onClick={() => onAddNode("message", node.id)}
@@ -213,7 +213,7 @@ function NodeEditorPanel({
             <textarea value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))} rows={4}
               placeholder={"Hi {{name}}, welcome to our villa!\n\nYour booking is confirmed."}
               className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Use {`{{name}}`}, {`{{property}}`} etc. for personalization.</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Use {`{{name}}`}, {`{{property}}`} etc. for personalization.</p>
           </div>
         )}
 
@@ -318,7 +318,7 @@ function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreate
         </div>
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Flow name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Flow name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Welcome series"
               className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
@@ -327,7 +327,7 @@ function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Sent to new opt-ins"
               className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
-          {error && <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
+          {error && <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
         </div>
         <div className="px-6 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors">Cancel</button>
@@ -545,7 +545,7 @@ export default function FlowsPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {isError ? (
           <div className="py-20 text-center">
-            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <AlertCircle size={32} className="text-[var(--haip-status-danger-fg)] mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load flows</p>
             <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">The server didn't respond — this isn't your saved flow list.</p>
             <button
@@ -585,7 +585,7 @@ export default function FlowsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-sm font-bold text-[var(--haip-fg)]">{flow.name}</h3>
-                        <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                        <span className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border",
                           flow.is_active ? "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]")}>
                           {flow.is_active ? <><Play size={8} /> Active</> : <><Pause size={8} /> Inactive</>}
                         </span>
@@ -607,11 +607,11 @@ export default function FlowsPage() {
                       </button>
                       <button onClick={() => toggleMutation.mutate(flow.id)}
                         className={cn("text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border",
-                          flow.is_active ? "text-amber-600 border-amber-200 hover:bg-amber-50" : "text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)]")}>
+                          flow.is_active ? "text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)] hover:bg-[var(--haip-status-warning-bg)]" : "text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)]")}>
                         {flow.is_active ? "Pause" : "Activate"}
                       </button>
                       <button onClick={() => { if (confirm("Delete this flow?")) deleteMutation.mutate(flow.id); }}
-                        className="text-[var(--haip-fg-subtle)] hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
+                        className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] transition-colors p-1.5 rounded-lg hover:bg-[var(--haip-status-danger-bg)]">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -636,7 +636,7 @@ export default function FlowsPage() {
                 <div className="w-6 h-6 rounded-full bg-[var(--haip-primary-tint)] text-primary flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">{s.step}</div>
                 <div>
                   <p className="text-xs font-semibold text-[var(--haip-fg)]">{s.title}</p>
-                  <p className="text-[10px] text-[var(--haip-fg-subtle)] leading-relaxed mt-0.5">{s.desc}</p>
+                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] leading-relaxed mt-0.5">{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -677,8 +677,8 @@ interface FlowRun {
 
 const RUN_STATUS_STYLE: Record<string, string> = {
   success: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",
-  failed: "bg-red-50 text-red-700 border-red-200",
-  waiting: "bg-amber-50 text-amber-700 border-amber-200",
+  failed: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]",
+  waiting: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
   skipped: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]",
 };
 
@@ -703,7 +703,7 @@ function FlowLogsModal({ flow, onClose }: { flow: Flow; onClose: () => void }) {
           {isLoading ? (
             <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
           ) : isError ? (
-            <p className="text-sm text-red-500 text-center py-8">Couldn't load logs.</p>
+            <p className="text-sm text-[var(--haip-status-danger-fg)] text-center py-8">Couldn't load logs.</p>
           ) : runs.length === 0 ? (
             <div className="text-center py-10">
               <History size={32} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-2" />

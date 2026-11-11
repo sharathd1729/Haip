@@ -167,7 +167,7 @@ export function Composer({
                     className="absolute bottom-full left-0 mb-1.5 z-30 rounded-xl p-1 min-w-[200px]"
                     style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", boxShadow: "var(--haip-shadow-lg)" }}
                   >
-                    <p className="text-[10px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Mention teammate</p>
+                    <p className="text-[11.5px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Mention teammate</p>
                     {mentionMatches.map((u: any) => (
                       <button
                         key={u.id}
@@ -182,7 +182,7 @@ export function Composer({
                         </div>
                         <div className="text-left">
                           <p className="text-xs font-medium" style={{ color: "var(--haip-fg)" }}>{u.name}</p>
-                          <p className="text-[10px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{u.role}</p>
+                          <p className="text-[11.5px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{u.role}</p>
                         </div>
                         {onlineUsers.some(o => o.id === u.id) && (
                           <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--haip-green)" }} />
@@ -198,7 +198,7 @@ export function Composer({
                     className="absolute bottom-full right-0 mb-1.5 z-30 rounded-xl p-1 min-w-[170px]"
                     style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", boxShadow: "var(--haip-shadow-lg)" }}
                   >
-                    <p className="text-[10px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Send later</p>
+                    <p className="text-[11.5px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Send later</p>
                     {SCHEDULE_OPTIONS.map(opt => (
                       <button
                         key={opt.label}
@@ -281,7 +281,7 @@ export function Composer({
                 </div>
               </div>
               {/* W2: helper text */}
-              <p className="text-[10px] mt-1 px-1 flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+              <p className="text-[11.5px] mt-1 px-1 flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
                 {/* Which channel a reply goes out on -- matters once a guest
                     has talked to us on more than one. */}
                 {!isInternalNote && detail && toGuestChannel(detail.channel) && (

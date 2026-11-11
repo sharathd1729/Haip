@@ -57,17 +57,17 @@ export function useToast() {
 const ICONS: Record<ToastVariant, React.ReactNode> = {
   default: null,
   success: <CheckCircle2 size={16} className="text-primary flex-shrink-0" />,
-  error:   <AlertCircle size={16} className="text-red-500 flex-shrink-0" />,
-  warning: <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />,
-  info:    <Info size={16} className="text-blue-500 flex-shrink-0" />,
+  error:   <AlertCircle size={16} className="text-[var(--haip-status-danger-fg)] flex-shrink-0" />,
+  warning: <AlertTriangle size={16} className="text-[var(--haip-status-warning-fg)] flex-shrink-0" />,
+  info:    <Info size={16} className="text-[var(--haip-status-info-fg)] flex-shrink-0" />,
 };
 
 const BORDER: Record<ToastVariant, string> = {
   default: "border-border",
   success: "border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",
-  error:   "border-red-200",
-  warning: "border-amber-200",
-  info:    "border-blue-200",
+  error:   "border-[var(--haip-status-danger-border)]",
+  warning: "border-[var(--haip-status-warning-border)]",
+  info:    "border-[var(--haip-status-info-border)]",
 };
 
 function ToastViewport() {

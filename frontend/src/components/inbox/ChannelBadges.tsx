@@ -10,8 +10,8 @@ import { CallIcon, InstagramIcon, WhatsAppIcon } from "./ChannelIcon";
 const META: Record<GuestChannel, { label: string; bg: string; Glyph: typeof CallIcon }> = {
   instagram: { label: "Instagram", bg: "#D62976", Glyph: InstagramIcon },
   whatsapp:  { label: "WhatsApp",  bg: "#25D366", Glyph: WhatsAppIcon },
-  call:      { label: "Call",      bg: "#2563EB", Glyph: CallIcon },
-  lead_form: { label: "Lead form",  bg: "#1877F2", Glyph: ClipboardList },
+  call:      { label: "Call",      bg: "var(--primary)", Glyph: CallIcon },
+  lead_form: { label: "Lead form",  bg: "var(--haip-brand-panel)", Glyph: ClipboardList },
 };
 
 /** Maps a conversation/message channel value to a badge key. */

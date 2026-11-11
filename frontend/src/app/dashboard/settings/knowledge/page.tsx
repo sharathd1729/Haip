@@ -332,13 +332,13 @@ function KnowledgeAndTrainingTab() {
               </span>
             )}
             {stats.embedding_failed > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-red-600" title={stats.last_error ?? undefined}>
+              <span className="inline-flex items-center gap-1.5 text-[var(--haip-status-danger-fg)]" title={stats.last_error ?? undefined}>
                 <AlertCircle size={12} /> {stats.embedding_failed} failed to index — the AI cannot use{" "}
                 {stats.embedding_failed === 1 ? "it" : "them"}
               </span>
             )}
             {!!stats.stale && (
-              <span className="inline-flex items-center gap-1.5 text-amber-600">
+              <span className="inline-flex items-center gap-1.5 text-[var(--haip-status-warning-fg)]">
                 <AlertCircle size={12} /> {stats.stale} out of date — not used
               </span>
             )}
@@ -352,19 +352,19 @@ function KnowledgeAndTrainingTab() {
               </button>
             )}
             {stats.pending_review > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-amber-600">
+              <span className="inline-flex items-center gap-1.5 text-[var(--haip-status-warning-fg)]">
                 <AlertCircle size={12} /> {stats.pending_review} awaiting review
               </span>
             )}
           </div>
         )}
         {stats && stats.search_available === false && (
-          <p className="mt-3 text-xs text-red-600">
+          <p className="mt-3 text-xs text-[var(--haip-status-danger-fg)]">
             Knowledge search is not available on this deployment, so the AI is answering without your knowledge base.
           </p>
         )}
         {stats && stats.embedding_failed > 0 && stats.last_error && (
-          <p className="mt-2 text-[11px] text-red-500 break-words">Last indexing error: {stats.last_error}</p>
+          <p className="mt-2 text-[11px] text-[var(--haip-status-danger-fg)] break-words">Last indexing error: {stats.last_error}</p>
         )}
       </div>
 
@@ -412,14 +412,14 @@ function KnowledgeAndTrainingTab() {
               ))}
             </div>
           ) : isError ? (
-            <div className="flex items-start gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            <div className="flex items-start gap-3 px-4 py-3.5 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl text-sm text-[var(--haip-status-danger-fg)]">
               <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-medium">Couldn&apos;t load the knowledge base.</p>
               </div>
               <button
                 onClick={() => refetch()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors flex-shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[var(--haip-status-danger-border)] text-[var(--haip-status-danger-fg)] rounded-lg text-xs font-semibold hover:bg-[var(--haip-status-danger-bg)] transition-colors flex-shrink-0"
               >
                 <RefreshCw size={12} /> Retry
               </button>
@@ -454,51 +454,51 @@ function KnowledgeAndTrainingTab() {
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-[var(--haip-primary-tint)] px-1.5 py-0.5 rounded">
+                        <span className="text-[11.5px] font-semibold uppercase tracking-wider text-primary bg-[var(--haip-primary-tint)] px-1.5 py-0.5 rounded">
                           {CATEGORY_LABEL[e.category] ?? e.category}
                         </span>
                         <SourceBadge source={e.source} />
                         <FlagBadges flags={e.content_flags} />
                         {e.property_id && (
-                          <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">
+                          <span className="text-[11.5px] text-[var(--haip-status-info-fg)] bg-[var(--haip-status-info-bg)] px-1.5 py-0.5 rounded">
                             only {propertyName(e.property_id)}
                           </span>
                         )}
                         {e.review_status === "pending" && (
-                          <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                          <span className="text-[11.5px] text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] px-1.5 py-0.5 rounded">
                             needs review — not used yet
                           </span>
                         )}
                         {e.review_status === "rejected" && (
-                          <span className="text-[10px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] px-1.5 py-0.5 rounded">rejected</span>
+                          <span className="text-[11.5px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] px-1.5 py-0.5 rounded">rejected</span>
                         )}
                         {e.stale_since && (
-                          <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                          <span className="text-[11.5px] text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] px-1.5 py-0.5 rounded">
                             no longer on the source — not used
                           </span>
                         )}
                         {e.embedding_status === "pending" && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-[var(--haip-fg-subtle)]">
+                          <span className="inline-flex items-center gap-1 text-[11.5px] text-[var(--haip-fg-subtle)]">
                             <Loader2 size={9} className="animate-spin" /> indexing — not usable until done
                           </span>
                         )}
                         {e.embedding_status === "failed" && (
                           <span
-                            className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded"
+                            className="text-[11.5px] text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] px-1.5 py-0.5 rounded"
                             title={e.embedding_error ?? undefined}
                           >
                             indexing failed — not used
                           </span>
                         )}
                         {e.embedding_status === "done" && e.embedded_at && (
-                          <span className="text-[10px] text-[var(--haip-fg-subtle)]">indexed {timeAgo(e.embedded_at)}</span>
+                          <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">indexed {timeAgo(e.embedded_at)}</span>
                         )}
                         {!e.is_active && (
-                          <span className="text-[10px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] px-1.5 py-0.5 rounded">off</span>
+                          <span className="text-[11.5px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] px-1.5 py-0.5 rounded">off</span>
                         )}
                       </div>
                       {e.embedding_status === "failed" && e.embedding_error && (
-                        <p className="text-[11px] text-red-500 mb-1 break-words">{e.embedding_error}</p>
+                        <p className="text-[11px] text-[var(--haip-status-danger-fg)] mb-1 break-words">{e.embedding_error}</p>
                       )}
                       {e.question && <p className="text-sm font-semibold text-[var(--haip-fg)]">{e.question}</p>}
                       <p className="text-xs text-[var(--haip-fg-muted)] leading-relaxed mt-0.5 whitespace-pre-wrap">{e.content}</p>
@@ -508,14 +508,14 @@ function KnowledgeAndTrainingTab() {
                           miss the point. */}
                       {!!e.alt_phrasings?.length && (
                         <div className="mt-2">
-                          <p className="text-[10px] uppercase tracking-wider text-[var(--haip-fg-subtle)] mb-1">
+                          <p className="text-[11.5px] uppercase tracking-wider text-[var(--haip-fg-subtle)] mb-1">
                             Also recognises
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {e.alt_phrasings.map(p => (
                               <span
                                 key={p}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded text-[10px] text-[var(--haip-fg-muted)]"
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded text-[11.5px] text-[var(--haip-fg-muted)]"
                               >
                                 {p}
                                 <button
@@ -525,7 +525,7 @@ function KnowledgeAndTrainingTab() {
                                       phrasings: (e.alt_phrasings ?? []).filter(x => x !== p),
                                     })
                                   }
-                                  className="text-[var(--haip-fg-subtle)]/70 hover:text-red-500"
+                                  className="text-[var(--haip-fg-subtle)]/70 hover:text-[var(--haip-status-danger-fg)]"
                                   title="Remove this phrasing"
                                 >
                                   ×
@@ -552,7 +552,7 @@ function KnowledgeAndTrainingTab() {
                             onClick={() => review.mutate({ id: e.id, review_status: "rejected" })}
                             disabled={review.isPending}
                             title="Never use this"
-                            className="px-2 py-1.5 text-[var(--haip-fg-subtle)] hover:text-red-600 text-[11px] font-medium whitespace-nowrap"
+                            className="px-2 py-1.5 text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] text-[11px] font-medium whitespace-nowrap"
                           >
                             Reject
                           </button>
@@ -617,7 +617,7 @@ function KnowledgeAndTrainingTab() {
                           }
                         }}
                         title="Delete"
-                        className="p-1.5 text-[var(--haip-fg-subtle)] hover:text-red-600 transition-colors"
+                        className="p-1.5 text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] transition-colors"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -668,7 +668,7 @@ function KnowledgeAndTrainingTab() {
                 <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">
                   Guest question{" "}
                   {form.category === "faq" ? (
-                    <span className="text-red-500">*</span>
+                    <span className="text-[var(--haip-status-danger-fg)]">*</span>
                   ) : (
                     <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span>
                   )}
@@ -686,7 +686,7 @@ function KnowledgeAndTrainingTab() {
 
               <div>
                 <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">
-                  What the AI should know <span className="text-red-500">*</span>
+                  What the AI should know <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <textarea
                   value={form.content}
@@ -777,7 +777,7 @@ function KnowledgeAndTrainingTab() {
 
             <div className="p-5 space-y-3">
               <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">
-                Page URLs <span className="text-red-500">*</span>
+                Page URLs <span className="text-[var(--haip-status-danger-fg)]">*</span>
               </label>
               <textarea
                 value={crawlUrls}

@@ -53,9 +53,9 @@ function ProviderBadge({ provider: providerRaw, size = "sm" }: { provider: RWPro
         ? String((providerRaw as any).id ?? (providerRaw as any).slug ?? (providerRaw as any).name ?? "")
         : String(providerRaw ?? "")
   );
-  const color = PROVIDER_COLORS[provider] ?? "#6B7280";
+  const color = PROVIDER_COLORS[provider] ?? "var(--haip-fg-subtle)";
   const label = PROVIDER_LABELS[provider] ?? provider;
-  const pad   = size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[11px]";
+  const pad   = size === "sm" ? "px-1.5 py-0.5 text-[11.5px]" : "px-2 py-1 text-[11px]";
 
   const icon = provider === "booking-com" ? (
     <Globe size={size === "sm" ? 9 : 11} />
@@ -106,7 +106,7 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
         active
           ? "bg-[var(--haip-primary-tint)] border-l-2 border-l-primary"
           : "hover:bg-[var(--haip-surface)] border-l-2 border-l-transparent",
-        "border-b-gray-100"
+        "border-b-[var(--haip-border)]"
       )}
     >
       <div className="flex items-start gap-3">
@@ -114,7 +114,7 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
           className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5"
           style={{
             background: thread.requires_attention
-              ? "linear-gradient(135deg, #F59E0B, #D97706)"
+              ? "linear-gradient(135deg, var(--haip-accent-ink), var(--haip-accent-ink))"
               : "var(--primary)",
           }}
         >
@@ -123,16 +123,16 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
-            <p className="text-[13px] font-semibold truncate" style={{ color: "#111827" }}>
+            <p className="text-[13px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
               {name}
             </p>
-            <span className="text-[10px] flex-shrink-0" style={{ color: "#9CA3AF" }}>
+            <span className="text-[11.5px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
               {formatTime(thread.last_message_at)}
             </span>
           </div>
 
           {thread.last_message_excerpt && (
-            <p className="text-[11px] truncate mb-1.5" style={{ color: "#9CA3AF" }}>
+            <p className="text-[11px] truncate mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
               {localStr(thread.last_message_excerpt)}
             </p>
           )}
@@ -140,12 +140,12 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
           <div className="flex items-center gap-1.5 flex-wrap">
             <ProviderBadge provider={thread.default_message_provider} size="sm" />
             {thread.requires_attention && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-amber-50 text-amber-700">
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11.5px] font-semibold bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]">
                 <AlertTriangle size={8} /> Attention
               </span>
             )}
             {thread.messages_count > 0 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11.5px] font-medium bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">
                 <MessageSquare size={8} /> {thread.messages_count}
               </span>
             )}
@@ -175,7 +175,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
       {!isOutbound && (
         <div
           className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 mt-1"
-          style={{ background: PROVIDER_COLORS[msg.provider] ?? "#6B7280" }}
+          style={{ background: PROVIDER_COLORS[msg.provider] ?? "var(--haip-fg-subtle)" }}
         >
           G
         </div>
@@ -184,7 +184,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
       <div className={cn("max-w-[72%] space-y-1", isOutbound && "items-end flex flex-col")}>
         {/* Sender */}
         {(msg.sent_by_name || msg.sent_by_workflow?.name) && (
-          <p className="text-[10px] font-medium px-1" style={{ color: "#9CA3AF" }}>
+          <p className="text-[11.5px] font-medium px-1" style={{ color: "var(--haip-fg-subtle)" }}>
             {msg.sent_by_workflow?.name
               ? `🤖 ${localStr(msg.sent_by_workflow.name)}`
               : localStr(msg.sent_by_name)}
@@ -217,7 +217,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
 
           {/* Error */}
           {msg.error_message && typeof msg.error_message === "string" && (
-            <p className="mt-1 text-[10px] text-red-300 flex items-center gap-1">
+            <p className="mt-1 text-[11.5px] text-[var(--haip-status-danger-fg)] flex items-center gap-1">
               <AlertTriangle size={9} /> {msg.error_message}
             </p>
           )}
@@ -226,7 +226,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
         {/* Footer row */}
         <div className={cn("flex items-center gap-1.5 px-1", isOutbound ? "justify-end" : "justify-start")}>
           <ProviderBadge provider={msg.provider} size="sm" />
-          <span className="text-[10px]" style={{ color: "#9CA3AF" }}>{time}</span>
+          <span className="text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>{time}</span>
           {isOutbound && msg.is_sent && <CheckCircle2 size={10} className="text-primary" />}
           {isOutbound && !msg.is_sent && !msg.error_message && <Loader2 size={10} className="text-[var(--haip-fg-subtle)]/70 animate-spin" />}
         </div>
@@ -300,12 +300,12 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
       {/* Header */}
       <div
         className="flex items-center gap-3 px-4 py-3.5 flex-shrink-0"
-        style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
+        style={{ background: "#FFFFFF", borderBottom: "1px solid var(--haip-border)" }}
       >
         <button
           onClick={onBack}
           className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-[var(--haip-status-neutral-bg)] transition-colors"
-          style={{ color: "#6B7280" }}
+          style={{ color: "var(--haip-fg-subtle)" }}
         >
           <ChevronLeft size={18} />
         </button>
@@ -318,12 +318,12 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-semibold truncate" style={{ color: "#111827" }}>
+          <p className="text-[14px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
             {guestName}
           </p>
           <div className="flex items-center gap-2 mt-0.5">
             {thread.subject && (
-              <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>{localStr(thread.subject)}</p>
+              <p className="text-[11px] truncate" style={{ color: "var(--haip-fg-subtle)" }}>{localStr(thread.subject)}</p>
             )}
             <ProviderBadge provider={thread.default_message_provider} size="sm" />
           </div>
@@ -331,14 +331,14 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
 
         <div className="flex items-center gap-1 flex-shrink-0">
           {thread.requires_attention && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11.5px] font-semibold bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border border-[var(--haip-status-warning-border)]">
               <AlertTriangle size={10} /> Needs attention
             </span>
           )}
           <button
             onClick={() => refetch()}
             className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[var(--haip-status-neutral-bg)] transition-colors"
-            style={{ color: "#9CA3AF" }}
+            style={{ color: "var(--haip-fg-subtle)" }}
             title="Refresh"
           >
             <RefreshCw size={14} />
@@ -347,7 +347,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 haip-scrollbar" style={{ background: "#F8FAFC" }}>
+      <div className="flex-1 overflow-y-auto px-4 py-4 haip-scrollbar" style={{ background: "var(--haip-surface)" }}>
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map(i => (
@@ -359,7 +359,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <AlertCircle size={28} className="text-red-400" />
+            <AlertCircle size={28} className="text-[var(--haip-status-danger-fg)]" />
             <p className="text-sm text-[var(--haip-fg-subtle)]">Failed to load messages</p>
             <button
               onClick={() => refetch()}
@@ -386,7 +386,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
       {/* Reply composer */}
       <div
         className="flex-shrink-0 px-4 pt-3 pb-3"
-        style={{ borderTop: "1px solid #E5E7EB", background: "#FFFFFF" }}
+        style={{ borderTop: "1px solid var(--haip-border)", background: "#FFFFFF" }}
       >
         {/* Provider selector (only show if multiple providers available) */}
         {providers.length > 1 && (
@@ -396,7 +396,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
                 key={p.id}
                 onClick={() => setSelectedProvider(p.id)}
                 className={cn(
-                  "px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors border",
+                  "px-2.5 py-1 rounded-lg text-[11.5px] font-semibold transition-colors border",
                   selectedProvider === p.id
                     ? "border-primary bg-primary/5 text-primary"
                     : "border-[var(--haip-border)] text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-surface)]"
@@ -420,14 +420,14 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
               className="w-full px-3 py-2.5 rounded-xl text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               style={{
                 background: "#F8FAFC",
-                border: "1px solid #E5E7EB",
+                border: "1px solid var(--haip-border)",
                 color: "#111827",
                 maxHeight: 120,
               }}
               onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--primary)"; }}
-              onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
+              onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)"; }}
             />
-            <span className="absolute right-2 bottom-2 text-[10px]" style={{ color: "#D1D5DB" }}>
+            <span className="absolute right-2 bottom-2 text-[11.5px]" style={{ color: "var(--haip-border)" }}>
               ⌘↵
             </span>
           </div>
@@ -452,7 +452,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
 
         {/* Send error */}
         {sendMutation.isError && (
-          <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
+          <p className="mt-1.5 text-[11px] text-[var(--haip-status-danger-fg)] flex items-center gap-1">
             <AlertTriangle size={10} />
             {String((sendMutation.error as any)?.message ?? "Failed to send — check your RentalWise connection")}
           </p>
@@ -472,11 +472,11 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
   return (
     <div
       className="hidden lg:flex flex-col w-60 flex-shrink-0 overflow-y-auto haip-scrollbar"
-      style={{ borderLeft: "1px solid #E5E7EB", background: "#FFFFFF" }}
+      style={{ borderLeft: "1px solid var(--haip-border)", background: "#FFFFFF" }}
     >
       {/* Header */}
-      <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: "1px solid #E5E7EB" }}>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#9CA3AF" }}>
+      <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+        <p className="text-[11.5px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--haip-fg-subtle)" }}>
           Guest Info
         </p>
         <div className="flex items-center gap-3">
@@ -487,7 +487,7 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
             {initials}
           </div>
           <div className="min-w-0">
-            <p className="text-[13px] font-bold truncate" style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}>
+            <p className="text-[13px] font-bold truncate" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
               {guestName}
             </p>
             <ProviderBadge provider={thread.default_message_provider} size="sm" />
@@ -499,60 +499,60 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
       <div className="flex-1 px-4 py-4 space-y-3.5">
         {email && (
           <div className="flex items-start gap-2.5">
-            <AtSign size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+            <AtSign size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--haip-fg-subtle)" }} />
             <div className="min-w-0">
-              <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Email</p>
-              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{localStr(email)}</p>
+              <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--haip-fg-subtle)" }}>Email</p>
+              <p className="text-[11.5px] font-medium truncate" style={{ color: "var(--haip-fg-2)" }}>{localStr(email)}</p>
             </div>
           </div>
         )}
         {phone && (
           <div className="flex items-start gap-2.5">
-            <Phone size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+            <Phone size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--haip-fg-subtle)" }} />
             <div className="min-w-0">
-              <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Phone</p>
-              <p className="text-[11.5px] font-medium" style={{ color: "#374151" }}>{localStr(phone)}</p>
+              <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--haip-fg-subtle)" }}>Phone</p>
+              <p className="text-[11.5px] font-medium" style={{ color: "var(--haip-fg-2)" }}>{localStr(phone)}</p>
             </div>
           </div>
         )}
         {company && (
           <div className="flex items-start gap-2.5">
-            <Globe size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+            <Globe size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--haip-fg-subtle)" }} />
             <div className="min-w-0">
-              <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Company</p>
-              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{localStr(company)}</p>
+              <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--haip-fg-subtle)" }}>Company</p>
+              <p className="text-[11.5px] font-medium truncate" style={{ color: "var(--haip-fg-2)" }}>{localStr(company)}</p>
             </div>
           </div>
         )}
         <div className="flex items-start gap-2.5">
-          <Hash size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+          <Hash size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--haip-fg-subtle)" }} />
           <div className="min-w-0">
-            <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Thread ID</p>
-            <p className="text-[11px] font-mono truncate" style={{ color: "#374151" }}>{thread.thread_identifier}</p>
+            <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--haip-fg-subtle)" }}>Thread ID</p>
+            <p className="text-[11px] font-mono truncate" style={{ color: "var(--haip-fg-2)" }}>{thread.thread_identifier}</p>
           </div>
         </div>
         {thread.thread_external_id && (
           <div className="flex items-start gap-2.5">
-            <Hash size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+            <Hash size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--haip-fg-subtle)" }} />
             <div className="min-w-0">
-              <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>External ID</p>
-              <p className="text-[11px] font-mono truncate" style={{ color: "#374151" }}>{thread.thread_external_id}</p>
+              <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--haip-fg-subtle)" }}>External ID</p>
+              <p className="text-[11px] font-mono truncate" style={{ color: "var(--haip-fg-2)" }}>{thread.thread_external_id}</p>
             </div>
           </div>
         )}
         <div className="flex items-start gap-2.5">
-          <MessageSquare size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+          <MessageSquare size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--haip-fg-subtle)" }} />
           <div className="min-w-0">
-            <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Messages</p>
-            <p className="text-[11.5px] font-semibold" style={{ color: "#374151" }}>{thread.messages_count}</p>
+            <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--haip-fg-subtle)" }}>Messages</p>
+            <p className="text-[11.5px] font-semibold" style={{ color: "var(--haip-fg-2)" }}>{thread.messages_count}</p>
           </div>
         </div>
         {thread.last_message_at && (
           <div className="flex items-start gap-2.5">
-            <Clock size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+            <Clock size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--haip-fg-subtle)" }} />
             <div className="min-w-0">
-              <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Last message</p>
-              <p className="text-[11px]" style={{ color: "#374151" }}>
+              <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--haip-fg-subtle)" }}>Last message</p>
+              <p className="text-[11px]" style={{ color: "var(--haip-fg-2)" }}>
                 {new Date(thread.last_message_at).toLocaleDateString("en-IN", {
                   day: "numeric", month: "short", year: "numeric",
                 })}
@@ -564,7 +564,7 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
         {/* Available providers */}
         {(thread.available_message_providers?.length ?? 0) > 1 && (
           <div>
-            <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#9CA3AF" }}>Channels</p>
+            <p className="text-[11.5px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>Channels</p>
             <div className="flex flex-wrap gap-1">
               {thread.available_message_providers.map(p => (
                 <ProviderBadge key={p.id} provider={p.id} size="sm" />
@@ -574,9 +574,9 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
         )}
 
         {thread.requires_attention && (
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50">
-            <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
-            <p className="text-[11px] font-semibold text-amber-700">Needs attention</p>
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)]">
+            <AlertTriangle size={13} className="text-[var(--haip-status-warning-fg)] flex-shrink-0" />
+            <p className="text-[11px] font-semibold text-[var(--haip-status-warning-fg)]">Needs attention</p>
           </div>
         )}
       </div>
@@ -588,7 +588,7 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
 
 function FilterRow({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="flex gap-1 overflow-x-auto scrollbar-hide px-4 py-2.5 border-b" style={{ borderColor: "#E5E7EB" }}>
+    <div className="flex gap-1 overflow-x-auto scrollbar-hide px-4 py-2.5 border-b" style={{ borderColor: "var(--haip-border)" }}>
       {THREAD_FILTERS.map(f => (
         <button
           key={f.value}
@@ -648,12 +648,12 @@ export default function ChannelManagerPage() {
   }
 
   return (
-    <div className="h-full flex flex-col" style={{ background: "#F8FAFC" }}>
+    <div className="h-full flex flex-col" style={{ background: "var(--haip-surface)" }}>
 
       {/* Page header */}
       <div
         className="flex-shrink-0 px-6 py-4"
-        style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
+        style={{ background: "#FFFFFF", borderBottom: "1px solid var(--haip-border)" }}
       >
         <div className="flex items-center justify-between">
           <div>
@@ -662,7 +662,7 @@ export default function ChannelManagerPage() {
             >
               Channel Manager
             </h1>
-            <p className="text-[12px] mt-0.5" style={{ color: "#6B7280" }}>
+            <p className="text-[12px] mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
               Guest conversations from Airbnb, Booking.com, HomeAway &amp; Email
             </p>
           </div>
@@ -686,23 +686,23 @@ export default function ChannelManagerPage() {
             "w-full md:w-72 lg:w-80",
             mobileView === "thread" && "hidden md:flex"
           )}
-          style={{ borderColor: "#E5E7EB", background: "#FFFFFF" }}
+          style={{ borderColor: "var(--haip-border)", background: "#FFFFFF" }}
         >
           {/* Search */}
-          <div className="px-4 py-3 border-b" style={{ borderColor: "#E5E7EB" }}>
+          <div className="px-4 py-3 border-b" style={{ borderColor: "var(--haip-border)" }}>
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#9CA3AF" }} />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--haip-fg-subtle)" }} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search guests, email…"
                 className="w-full pl-8 pr-8 py-2 rounded-xl text-[12.5px] focus:outline-none"
-                style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+                style={{ background: "var(--haip-surface)", border: "1px solid var(--haip-border)", color: "var(--haip-fg-2)" }}
                 onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--primary)"; }}
-                onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
+                onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)"; }}
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "#9CA3AF" }}>
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--haip-fg-subtle)" }}>
                   <X size={12} />
                 </button>
               )}
@@ -731,7 +731,7 @@ export default function ChannelManagerPage() {
               </div>
             ) : isError ? (
               <div className="flex flex-col items-center justify-center py-16 px-4 gap-3">
-                <AlertCircle size={28} className="text-red-400" />
+                <AlertCircle size={28} className="text-[var(--haip-status-danger-fg)]" />
                 <p className="text-sm text-[var(--haip-fg-subtle)] text-center">Failed to load conversations</p>
                 <button
                   onClick={() => refetch()}
@@ -760,8 +760,8 @@ export default function ChannelManagerPage() {
 
           {/* Total count */}
           {!isLoading && !isError && threads.length > 0 && (
-            <div className="px-4 py-2 text-center flex-shrink-0" style={{ borderTop: "1px solid #E5E7EB" }}>
-              <p className="text-[10px]" style={{ color: "#9CA3AF" }}>
+            <div className="px-4 py-2 text-center flex-shrink-0" style={{ borderTop: "1px solid var(--haip-border)" }}>
+              <p className="text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>
                 {data?.meta?.total
                   ? `${data.meta.total} total · showing ${threads.length}`
                   : `${threads.length} conversations`}
@@ -785,15 +785,15 @@ export default function ChannelManagerPage() {
               <GuestContextPanel thread={activeThread} />
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3" style={{ background: "#F8FAFC" }}>
+            <div className="flex-1 flex flex-col items-center justify-center gap-3" style={{ background: "var(--haip-surface)" }}>
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center"
                 style={{ background: "var(--haip-primary-tint)" }}
               >
                 <MessageSquare size={24} style={{ color: "var(--primary)" }} />
               </div>
-              <p className="text-[15px] font-semibold" style={{ color: "#374151" }}>Select a conversation</p>
-              <p className="text-[13px]" style={{ color: "#9CA3AF" }}>Choose a thread from the left to view messages</p>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--haip-fg-2)" }}>Select a conversation</p>
+              <p className="text-[13px]" style={{ color: "var(--haip-fg-subtle)" }}>Choose a thread from the left to view messages</p>
             </div>
           )}
         </div>

@@ -124,7 +124,7 @@ function PersonalInfoCard() {
             {form.role}
           </span>
           {avatarError && (
-            <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
+            <p className="text-xs text-[var(--haip-status-danger-fg)] mt-1.5 flex items-center gap-1">
               <AlertCircle size={12} /> {avatarError}
             </p>
           )}
@@ -154,7 +154,7 @@ function PersonalInfoCard() {
         disabled={loading}
         className={cn(
           "mt-5 flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-          saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-primary text-white hover:bg-primary disabled:opacity-50"
+          saved ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border border-[var(--haip-status-success-border)]" : "bg-primary text-white hover:bg-primary disabled:opacity-50"
         )}
       >
         {loading ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
@@ -184,7 +184,7 @@ function ChangePasswordCard() {
   })();
 
   const strengthLabel = ["", "Weak", "Fair", "Good", "Strong"][strength];
-  const strengthColor = ["", "bg-red-400", "bg-amber-400", "bg-blue-400", "bg-green-500"][strength];
+  const strengthColor = ["", "bg-[var(--haip-status-danger-fg)]", "bg-[var(--haip-amber)]", "bg-primary", "bg-primary"][strength];
 
   async function handleSubmit() {
     setError("");
@@ -203,11 +203,11 @@ function ChangePasswordCard() {
   return (
     <Card title="Change password">
       {success ? (
-        <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700">
+        <div className="flex items-center gap-3 p-4 bg-[var(--haip-status-success-bg)] border border-[var(--haip-status-success-border)] rounded-xl text-[var(--haip-status-success-fg)]">
           <CheckCircle size={16} />
           <div>
             <p className="text-sm font-semibold">Password updated successfully</p>
-            <p className="text-xs mt-0.5 text-green-600">You'll be asked to sign in on other devices.</p>
+            <p className="text-xs mt-0.5 text-[var(--haip-status-success-fg)]">You'll be asked to sign in on other devices.</p>
           </div>
         </div>
       ) : (
@@ -224,7 +224,7 @@ function ChangePasswordCard() {
                   <div key={i} className={cn("h-1 flex-1 rounded-full transition-colors", i <= strength ? strengthColor : "bg-[var(--haip-border)]")} />
                 ))}
               </div>
-              <p className={cn("text-[11px] font-medium", strength <= 1 ? "text-red-500" : strength === 2 ? "text-amber-500" : strength === 3 ? "text-blue-500" : "text-green-500")}>
+              <p className={cn("text-[11px] font-medium", strength <= 1 ? "text-[var(--haip-status-danger-fg)]" : strength === 2 ? "text-[var(--haip-status-warning-fg)]" : strength === 3 ? "text-[var(--haip-status-info-fg)]" : "text-[var(--haip-status-success-fg)]")}>
                 {strengthLabel}
               </p>
             </div>
@@ -234,7 +234,7 @@ function ChangePasswordCard() {
             show={show.confirm} onToggle={() => setShow(s => ({...s, confirm: !s.confirm}))} />
 
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-600">
+            <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)]">
               <AlertCircle size={13} /> {error}
             </div>
           )}
@@ -289,8 +289,8 @@ function PreferencesCard() {
           <div className="flex gap-3">
             {[
               { id: "light", label: "Light", preview: "bg-white border-2 border-[var(--haip-border)]" },
-              { id: "dark",  label: "Dark",  preview: "bg-[#0B1F3A] border-2 border-gray-600" },
-              { id: "system",label: "System",preview: "bg-gradient-to-r from-white to-[#0B1F3A] border-2 border-[var(--haip-border-strong)]" },
+              { id: "dark",  label: "Dark",  preview: "bg-[var(--haip-brand-panel)] border-2 border-[var(--haip-border-strong)]" },
+              { id: "system",label: "System",preview: "bg-gradient-to-r from-white to-[var(--haip-brand-panel)] border-2 border-[var(--haip-border-strong)]" },
             ].map(t => (
               <label key={t.id} className="cursor-pointer flex-1">
                 <input type="radio" name="theme" value={t.id} checked={prefs.theme === t.id} onChange={() => { setPrefs(p => ({...p, theme: t.id})); setSaved(false); }} className="sr-only" />
@@ -309,7 +309,7 @@ function PreferencesCard() {
 
       <button onClick={() => setSaved(true)} className={cn(
         "mt-5 flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-        saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-primary text-white hover:bg-primary"
+        saved ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border border-[var(--haip-status-success-border)]" : "bg-primary text-white hover:bg-primary"
       )}>
         {saved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save preferences</>}
       </button>
@@ -324,26 +324,26 @@ function DangerZoneCard() {
   return (
     <Card title="Danger zone">
       <div className="space-y-4">
-        <div className="flex items-start justify-between gap-4 p-4 border border-red-200 rounded-xl bg-red-50">
+        <div className="flex items-start justify-between gap-4 p-4 border border-[var(--haip-status-danger-border)] rounded-xl bg-[var(--haip-status-danger-bg)]">
           <div>
-            <p className="text-sm font-semibold text-red-800">Delete my account</p>
-            <p className="text-xs text-red-600 mt-0.5">
+            <p className="text-sm font-semibold text-[var(--haip-status-danger-fg)]">Delete my account</p>
+            <p className="text-xs text-[var(--haip-status-danger-fg)] mt-0.5">
               Permanently removes your user account from this workspace. Workspace data is retained.
               This cannot be undone.
             </p>
           </div>
-          <button className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 border border-red-300 text-red-700 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors">
+          <button className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 border border-[var(--haip-status-danger-border)] text-[var(--haip-status-danger-fg)] rounded-lg text-xs font-medium hover:bg-[var(--haip-status-danger-bg)] transition-colors">
             <Trash2 size={12} />
             Delete account
           </button>
         </div>
 
-        <div className="flex items-start justify-between gap-4 p-4 border border-amber-200 rounded-xl bg-amber-50">
+        <div className="flex items-start justify-between gap-4 p-4 border border-[var(--haip-status-warning-border)] rounded-xl bg-[var(--haip-status-warning-bg)]">
           <div>
-            <p className="text-sm font-semibold text-amber-800">Sign out all devices</p>
-            <p className="text-xs text-amber-600 mt-0.5">Invalidates all refresh tokens and signs you out everywhere.</p>
+            <p className="text-sm font-semibold text-[var(--haip-status-warning-fg)]">Sign out all devices</p>
+            <p className="text-xs text-[var(--haip-status-warning-fg)] mt-0.5">Invalidates all refresh tokens and signs you out everywhere.</p>
           </div>
-          <button className="flex-shrink-0 px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 transition-colors">
+          <button className="flex-shrink-0 px-3 py-1.5 border border-[var(--haip-status-warning-border)] text-[var(--haip-status-warning-fg)] rounded-lg text-xs font-medium hover:bg-[var(--haip-status-warning-bg)] transition-colors">
             Sign out all
           </button>
         </div>

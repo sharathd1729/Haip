@@ -12,8 +12,8 @@ import { useToast } from "@/components/ui/toast";
 // Real CallDisposition values (backend models/call.py). The old filter and
 // wrap-up used pending/qualified/spam, which the server never accepted.
 export const OUTCOMES: { value: string; label: string; tone: string }[] = [
-  { value: "booked", label: "Booked", tone: "bg-violet-50 text-violet-700 border-violet-200" },
-  { value: "hot", label: "Hot lead", tone: "bg-rose-50 text-rose-700 border-rose-200" },
+  { value: "booked", label: "Booked", tone: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+  { value: "hot", label: "Hot lead", tone: "bg-[var(--haip-accent-light)] text-[var(--haip-accent-ink)] border-[var(--haip-accent-line)]" },
   { value: "quoted", label: "Quoted", tone: "bg-primary/10 text-primary border-primary/30" },
   { value: "callback", label: "Callback", tone: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]" },
   { value: "lost", label: "Lost", tone: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },

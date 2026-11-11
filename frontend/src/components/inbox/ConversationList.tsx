@@ -202,14 +202,14 @@ export function ConversationList({
                 aria-selected={on}
                 onClick={() => onViewChange(v.key)}
                 className={cn(
-                  "flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-colors border",
-                  "border-[color:var(--haip-border)]",
+                  "inline-flex min-h-9 flex-shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors",
+                  on ? "border-[var(--haip-tab-active-bg)] bg-[var(--haip-tab-active-bg)] text-[var(--haip-tab-active-fg)]"
+                    : "border-[var(--haip-btn-secondary-border)] bg-[var(--haip-card)] text-[var(--accent-foreground)] hover:bg-[var(--haip-btn-secondary-hover)]",
                 )}
-                style={on ? { background: "color-mix(in srgb, var(--primary) 12%, var(--haip-card))", color: "var(--primary)", borderColor: "color-mix(in srgb, var(--primary) 50%, transparent)" } : { color: "var(--haip-fg-2, var(--haip-fg))", background: "var(--haip-card)" }}
               >
                 {v.label}
                 {n != null && n > 0 && (
-                  <span className={"tabular-nums text-primary"}>{n}</span>
+                  <span className="num font-medium opacity-80">{n}</span>
                 )}
               </button>
             );
@@ -374,12 +374,12 @@ export function ConversationList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1 min-w-0">
-                      {conv.is_vip && <Star size={10} className="flex-shrink-0 text-amber-400 fill-amber-400" />}
+                      {conv.is_vip && <Star size={12} className="flex-shrink-0 fill-primary text-primary" />}
                       <span className={cn("text-sm truncate", unread > 0 ? "font-extrabold" : "font-semibold")} style={{ color: "var(--haip-fg)" }}>
                         {displayName}
                       </span>
                       {conv.ad_title && (
-                        <span title={`From ad: ${conv.ad_title}`} className="flex-shrink-0 text-[9px] font-bold text-pink-600 bg-pink-50 rounded px-1 uppercase">Ad</span>
+                        <span title={`From ad: ${conv.ad_title}`} className="flex-shrink-0 rounded-full bg-[var(--haip-chip-bg)] px-1.5 text-[11px] font-semibold text-[var(--haip-chip-fg)]">Ad</span>
                       )}
                     </span>
                     <span className={cn("text-[11px] flex-shrink-0 tabular-nums", unread > 0 ? "font-bold text-primary" : "")}
@@ -393,7 +393,7 @@ export function ConversationList({
                       {conv.last_message || "No messages yet"}
                     </p>
                     {unread > 0 ? (
-                      <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
+                      <span className="flex-shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-[var(--haip-accent)] text-[var(--haip-on-accent)] text-[11px] font-bold flex items-center justify-center tabular-nums">
                         {unread > 99 ? "99+" : unread}
                       </span>
                     ) : conv.assigned_owner_name ? (

@@ -168,7 +168,7 @@ export default function WhoIsOnDutyPage() {
                     className={cn("relative flex min-h-14 flex-col items-center justify-center rounded-xl border transition-transform active:scale-[0.96]",
                       i === day ? "border-primary bg-primary text-primary-foreground" : "border-[var(--haip-border)] bg-[var(--haip-card)]")}>
                     <span className="text-[11px] font-semibold opacity-80">{WEEKDAYS[i]}</span>
-                    <span className={cn("num text-[17px] font-bold", i === todayIdx && i !== day && "text-[var(--haip-accent)]")}>{dayNum(iso)}</span>
+                    <span className={cn("num text-[17px] font-bold", i === todayIdx && i !== day && "text-[var(--haip-accent-ink)]")}>{dayNum(iso)}</span>
                     {gap && <span aria-hidden className="absolute bottom-1 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-[var(--haip-status-warning-fg)]" />}
                   </button>
                 );

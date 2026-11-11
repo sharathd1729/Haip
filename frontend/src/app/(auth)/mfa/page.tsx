@@ -86,14 +86,14 @@ function MFAForm() {
             onKeyDown={e => handleKeyDown(i, e)}
             className={`w-11 h-14 text-center text-xl font-bold border rounded-xl
               focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary
-              transition-all ${error ? "border-red-400 bg-red-50" : "border-[var(--haip-border)] bg-[var(--haip-surface)]"}
+              transition-all ${error ? "border-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)]" : "border-[var(--haip-border)] bg-[var(--haip-surface)]"}
               ${digit ? "text-[var(--haip-fg)] bg-white border-[var(--haip-border-strong)]" : "text-[var(--haip-fg-subtle)]"}`}
           />
         ))}
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl px-4 py-3">
           <AlertCircle size={14} className="flex-shrink-0" />
           {error}
         </div>

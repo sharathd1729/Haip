@@ -49,8 +49,8 @@ function downloadCsv(filename: string, rows: string[][]) {
 function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
   return (
     <div className={cn("fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium max-w-sm",
-      type === "success" ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200")}>
-      {type === "success" ? <CheckCircle2 size={15} className="text-green-600" /> : <AlertCircle size={15} className="text-red-600" />}
+      type === "success" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]")}>
+      {type === "success" ? <CheckCircle2 size={15} className="text-[var(--haip-status-success-fg)]" /> : <AlertCircle size={15} className="text-[var(--haip-status-danger-fg)]" />}
       <span className="flex-1">{msg}</span>
       <button onClick={onClose}><X size={13} className="opacity-60" /></button>
     </div>
@@ -98,13 +98,13 @@ function AddSubscriberModal({ onClose, onAdded }: { onClose: () => void; onAdded
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">WhatsApp number <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">WhatsApp number <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <div className="relative">
               <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
               <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 placeholder="+91 98765 43210" className="w-full pl-9 pr-4 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Include country code. E.g. +91 for India.</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Include country code. E.g. +91 for India.</p>
           </div>
           <div>
             <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Name <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
@@ -119,7 +119,7 @@ function AddSubscriberModal({ onClose, onAdded }: { onClose: () => void; onAdded
           <div className="bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-xl p-3 text-[11px] text-primary">
             By adding this contact, you confirm they have explicitly opted in to receive WhatsApp messages from you, as required by Meta's policies.
           </div>
-          {error && <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
+          {error && <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors">Cancel</button>
             <button type="submit" disabled={submitting}
@@ -242,11 +242,11 @@ export default function SubscribersPage() {
           {[
             { label: "Total contacts", value: totalCount, cls: "text-[var(--haip-fg)]" },
             { label: "Opted in", value: optedInCount, cls: "text-primary" },
-            { label: "Opted out", value: optedOutCount, cls: "text-red-500" },
+            { label: "Opted out", value: optedOutCount, cls: "text-[var(--haip-status-danger-fg)]" },
           ].map(s => (
             <div key={s.label} className="bg-[var(--haip-surface)] rounded-xl p-3">
               <p className={cn("text-2xl font-bold", s.cls)}>{s.value.toLocaleString()}</p>
-              <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5">{s.label}</p>
+              <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-0.5">{s.label}</p>
             </div>
           ))}
         </div>
@@ -280,7 +280,7 @@ export default function SubscribersPage() {
       <div className="flex-1 overflow-y-auto">
         {isError ? (
           <div className="py-20 text-center">
-            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <AlertCircle size={32} className="text-[var(--haip-status-danger-fg)] mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load subscribers</p>
             <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">The server didn't respond — this isn't your saved subscriber list.</p>
             <button
@@ -304,7 +304,7 @@ export default function SubscribersPage() {
             {filtered.map(sub => (
               <div key={sub.id} className="px-6 py-3.5 flex items-center gap-4 hover:bg-[var(--haip-surface)]/60 transition-colors">
                 {/* Status indicator */}
-                <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", sub.opted_in ? "bg-primary" : "bg-red-400")} />
+                <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", sub.opted_in ? "bg-primary" : "bg-[var(--haip-status-danger-fg)]")} />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -314,17 +314,17 @@ export default function SubscribersPage() {
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     {sub.tags.map(tag => (
-                      <span key={tag} className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                      <span key={tag} className="inline-flex items-center gap-1 text-[11.5px] bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] px-1.5 py-0.5 rounded-full">
                         <Tag size={8} /> {tag}
                       </span>
                     ))}
-                    {sub.source && <span className="text-[10px] text-[var(--haip-fg-subtle)]">via {sub.source}</span>}
+                    {sub.source && <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">via {sub.source}</span>}
                   </div>
                 </div>
 
                 {/* Opt timing */}
                 <div className="text-right flex-shrink-0">
-                  <div className="flex items-center gap-1 text-[10px] text-[var(--haip-fg-subtle)] justify-end">
+                  <div className="flex items-center gap-1 text-[11.5px] text-[var(--haip-fg-subtle)] justify-end">
                     <Clock size={10} />
                     {sub.opted_in ? `Opt-in: ${timeAgo(sub.opt_in_at)}` : `Opt-out: ${timeAgo(sub.opt_out_at)}`}
                   </div>
@@ -332,14 +332,14 @@ export default function SubscribersPage() {
 
                 {/* Status badge + action */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                    sub.opted_in ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-600 border-red-200")}>
+                  <span className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border",
+                    sub.opted_in ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]")}>
                     {sub.opted_in ? <><CheckCircle2 size={9} /> Opted in</> : <><XCircle size={9} /> Opted out</>}
                   </span>
                   <button
                     onClick={() => sub.opted_in ? optOutMutation.mutate(sub.id) : optInMutation.mutate(sub.id)}
                     className={cn("text-xs px-2.5 py-1 rounded-lg font-medium transition-colors border",
-                      sub.opted_in ? "text-red-500 border-red-200 hover:bg-red-50" : "text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)]"
+                      sub.opted_in ? "text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)] hover:bg-[var(--haip-status-danger-bg)]" : "text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)]"
                     )}
                   >
                     {sub.opted_in ? "Opt out" : "Opt in"}

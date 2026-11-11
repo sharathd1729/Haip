@@ -103,7 +103,7 @@ export function VariableMapping({ template, value, onChange }: {
                 <input value={spec.value ?? ""} onChange={e => setSpec(section, i, { ...spec, value: e.target.value })}
                   placeholder="Text to send" aria-label="Text to send"
                   className={cn("mt-2 w-full px-2.5 py-2 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30",
-                    (spec.value ?? "").trim() ? "border-[var(--haip-border)]" : "border-amber-300")} />
+                    (spec.value ?? "").trim() ? "border-[var(--haip-border)]" : "border-[var(--haip-status-warning-border)]")} />
               ) : (
                 <input value={spec.fallback ?? ""} onChange={e => setSpec(section, i, { ...spec, fallback: e.target.value })}
                   placeholder={spec.source === "phone" ? "If missing, send… (optional)" : "If we don't have it, send… (e.g. Guest)"}
@@ -113,7 +113,7 @@ export function VariableMapping({ template, value, onChange }: {
             </div>
           );
         }))}
-        <p className="text-[10px] text-[var(--haip-fg-subtle)]">A guest with no value and no fallback is skipped, and counted as failed in the campaign.</p>
+        <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">A guest with no value and no fallback is skipped, and counted as failed in the campaign.</p>
       </div>
       <div>
         <p className="text-[11px] font-semibold text-[var(--haip-fg-2)] mb-2">Preview for “{SAMPLE.name}”</p>

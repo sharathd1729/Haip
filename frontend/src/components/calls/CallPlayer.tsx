@@ -232,7 +232,7 @@ export function CallPlayer({
   </div>
 
   {focused && (
-  <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center">
+  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] text-center">
   Space/K = play · ← → = ±5s · J/L = ±10s
   </p>
   )}

@@ -51,7 +51,7 @@ export function WeekStrip({ onOpen, onOpenHold }: { onOpen: (bookingId: string) 
           const d = new Date(`${iso}T00:00:00Z`);
           const today = iso === data.today;
           return (
-            <span key={iso} className="text-center text-[10.5px] leading-tight text-[var(--haip-fg-subtle)]">
+            <span key={iso} className="text-center text-[11.5px] leading-tight text-[var(--haip-fg-subtle)]">
               {NARROW[d.getUTCDay()]}
               <b className={cn("mx-auto block w-6 rounded-md text-[12.5px]", today ? "bg-[var(--haip-accent)] text-[var(--haip-on-accent)]" : "text-[var(--haip-fg)]")}>{d.getUTCDate()}</b>
             </span>

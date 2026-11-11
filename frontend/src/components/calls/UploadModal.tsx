@@ -109,7 +109,7 @@ export function UploadModal({ onClose, onSuccess }: UploadModalProps) {
                   {i < 2 ? "✓" : i + 1}
                 </div>
                 <span className="text-sm" style={{ color: i < 2 ? "var(--haip-fg)" : "var(--haip-fg-subtle)" }}>{label}</span>
-                {i === 1 && <span className="text-[10px] rounded-full px-2 py-0.5 font-medium animate-pulse"
+                {i === 1 && <span className="text-[11.5px] rounded-full px-2 py-0.5 font-medium animate-pulse"
                   style={{ background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)" }}>processing…</span>}
               </div>
             ))}

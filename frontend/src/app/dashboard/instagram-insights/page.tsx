@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";
 import { useIsPhone } from "@/lib/useIsPhone";
 
-const TEAL = "var(--primary)"; const PINK = "#e1306c"; const AMBER = "#fbbf24"; const GRAY = "#e5e7eb";
+const TEAL = "var(--primary)"; const PINK = "var(--haip-series-2)"; const AMBER = "var(--haip-accent)"; const GRAY = "var(--haip-border)";
 
 interface InstagramInsightPoint {
   date: string;
@@ -80,11 +80,11 @@ function DemographicBar({ title, results }: { title: string; results: Demographi
         <div className="space-y-1.5">
           {results.map((r, i) => (
             <div key={i} className="flex items-center gap-2">
-              <span className="w-24 text-[10px] text-[var(--haip-fg-subtle)] flex-shrink-0 truncate" title={r.label}>{r.label}</span>
+              <span className="w-24 text-[11.5px] text-[var(--haip-fg-subtle)] flex-shrink-0 truncate" title={r.label}>{r.label}</span>
               <div className="flex-1 h-3.5 rounded-full overflow-hidden" style={{ background: GRAY }}>
                 <div className="h-full rounded-full" style={{ width: `${(r.value / max) * 100}%`, background: PINK }} />
               </div>
-              <span className="w-8 text-right text-[10px] font-mono font-bold text-[var(--haip-fg-2)]">{r.value}</span>
+              <span className="w-8 text-right text-[11.5px] font-mono font-bold text-[var(--haip-fg-2)]">{r.value}</span>
             </div>
           ))}
         </div>
@@ -182,10 +182,10 @@ export default function InstagramInsightsPage() {
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={trend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={GRAY} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false}
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--haip-fg-subtle)" }} tickLine={false} axisLine={false}
                     tickFormatter={d => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                     interval={Math.max(0, Math.floor(trend.length / 6) - 1)} />
-                  <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--haip-fg-subtle)" }} tickLine={false} axisLine={false} />
                   <Tooltip labelFormatter={d => new Date(d as string).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} />
                   <Legend wrapperStyle={{ fontSize: "11px" }} />
                   <Line type="monotone" dataKey="reach" name="Reach" stroke={PINK} strokeWidth={2} dot={false} />
@@ -202,10 +202,10 @@ export default function InstagramInsightsPage() {
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={trend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={GRAY} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false}
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--haip-fg-subtle)" }} tickLine={false} axisLine={false}
                     tickFormatter={d => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                     interval={Math.max(0, Math.floor(trend.length / 6) - 1)} />
-                  <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--haip-fg-subtle)" }} tickLine={false} axisLine={false} />
                   <Tooltip labelFormatter={d => new Date(d as string).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} />
                   <Line type="monotone" dataKey="follower_count" name="Followers" stroke={AMBER} strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
@@ -253,8 +253,8 @@ export default function InstagramInsightsPage() {
                         )}
                       </div>
                       <div className="p-2.5">
-                        <p className="text-[10px] text-[var(--haip-fg-subtle)] truncate mb-1">{p.caption ?? "—"}</p>
-                        <div className="flex items-center gap-2.5 text-[10px] text-[var(--haip-fg-subtle)]">
+                        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] truncate mb-1">{p.caption ?? "—"}</p>
+                        <div className="flex items-center gap-2.5 text-[11.5px] text-[var(--haip-fg-subtle)]">
                           <span className="flex items-center gap-0.5"><Heart size={10} />{p.like_count ?? 0}</span>
                           <span className="flex items-center gap-0.5"><MessageSquare size={10} />{p.comments_count ?? 0}</span>
                           {p.reach != null && <span className="flex items-center gap-0.5"><Eye size={10} />{p.reach}</span>}

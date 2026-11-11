@@ -12,9 +12,9 @@ interface Health {
 }
 
 const TONE = {
-  fail: { box: "border-red-200 bg-red-50/60", icon: "text-red-600", head: "text-red-800" },
-  warn: { box: "border-amber-200 bg-amber-50/60", icon: "text-amber-600", head: "text-amber-800" },
-  ok: { box: "border-green-200 bg-green-50/50", icon: "text-green-600", head: "text-green-800" },
+  fail: { box: "border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-fg)]/60", icon: "text-[var(--haip-status-danger-fg)]", head: "text-[var(--haip-status-danger-fg)]" },
+  warn: { box: "border-[var(--haip-status-warning-border)] bg-[var(--haip-accent)]/60", icon: "text-[var(--haip-status-warning-fg)]", head: "text-[var(--haip-status-warning-fg)]" },
+  ok: { box: "border-[var(--haip-status-success-border)] bg-primary/50", icon: "text-[var(--haip-status-success-fg)]", head: "text-[var(--haip-status-success-fg)]" },
 } as const;
 
 /** Can Meta tell us about replies and delivery? Silent when everything is fine. */
@@ -38,7 +38,7 @@ export function WhatsAppHealthCard() {
 
   if (data.status === "ok") {
     return (
-      <p className="text-xs text-green-700 flex items-center gap-1.5">
+      <p className="text-xs text-[var(--haip-status-success-fg)] flex items-center gap-1.5">
         <CheckCircle2 size={13} /> Replies and delivery updates are coming through.
         <button onClick={() => refetch()} className="text-[var(--haip-fg-muted)] hover:underline ml-1">Check again</button>
       </p>
@@ -74,14 +74,14 @@ export function WhatsAppHealthCard() {
                 {useWaba.isPending ? "Saving…" : `Use account ${data.suggested_waba_id}`}
               </button>
             )}
-            {useWaba.isError && <span className="text-xs text-red-700">Couldn&apos;t save that ID. Try Settings instead.</span>}
+            {useWaba.isError && <span className="text-xs text-[var(--haip-status-danger-fg)]">Couldn&apos;t save that ID. Try Settings instead.</span>}
             <Link href="/dashboard/settings/integrations" className="text-xs font-semibold bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary">Open WhatsApp settings</Link>
             <button onClick={() => refetch()} disabled={isFetching}
               className="flex items-center gap-1.5 text-xs font-medium border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] disabled:opacity-60">
               {isFetching ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Check again
             </button>
           </div>
-          <p className="mt-3 text-[10px] text-[var(--haip-fg-muted)] break-all">Meta should call: <span className="font-mono">{data.webhook_url}</span></p>
+          <p className="mt-3 text-[11.5px] text-[var(--haip-fg-muted)] break-all">Meta should call: <span className="font-mono">{data.webhook_url}</span></p>
         </div>
       </div>
     </section>

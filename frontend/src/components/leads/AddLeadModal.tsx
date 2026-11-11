@@ -91,9 +91,9 @@ export function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCr
       >
         <div
           className="flex items-center justify-between px-6 py-4 flex-shrink-0"
-          style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}
+          style={{ background: "var(--haip-surface)", borderBottom: "1px solid var(--haip-border)" }}
         >
-          <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
+          <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
             Add Lead
           </h3>
           <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]">
@@ -207,9 +207,9 @@ export function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCr
           {/* Pinned footer: Cancel / Add Lead stay on screen however long the
               form gets. The error sits here too, so a failed save is never
               scrolled out of view. */}
-          <div className="px-6 py-4 flex-shrink-0 space-y-2" style={{ borderTop: "1px solid #E5E7EB", background: "#fff" }}>
+          <div className="px-6 py-4 flex-shrink-0 space-y-2" style={{ borderTop: "1px solid var(--haip-border)", background: "#fff" }}>
           {mutation.isError && (
-            <p className="text-xs text-red-600">
+            <p className="text-xs text-[var(--haip-status-danger-fg)]">
               {(mutation.error as any)?.response?.data?.detail || "Failed to add lead. Please check the fields and try again."}
             </p>
           )}

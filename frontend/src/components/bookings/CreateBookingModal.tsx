@@ -169,9 +169,9 @@ export function CreateBookingModal({
       >
         <div
           className="flex items-center justify-between px-6 py-4 flex-shrink-0"
-          style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}
+          style={{ background: "var(--haip-surface)", borderBottom: "1px solid var(--haip-border)" }}
         >
-          <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
+          <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
             {isEditing ? `Edit Booking #${editBooking!.external_id ?? editBooking!.id}` : "Create Booking"}
           </h3>
           <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]">
@@ -220,7 +220,7 @@ export function CreateBookingModal({
                           type="button"
                           onClick={() => { setSelectedGuest(g); setGuestSearch(""); }}
                           className="w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--haip-surface)] border-b last:border-b-0"
-                          style={{ borderColor: "#F3F4F6" }}
+                          style={{ borderColor: "var(--haip-border)" }}
                         >
                           {g.name || "Unknown"} · {formatPhone(g.phone)}
                         </button>
@@ -368,9 +368,9 @@ export function CreateBookingModal({
           {/* Pinned footer: Cancel / Create stay on screen however long the
               form gets, instead of living at the bottom of the scroll area.
               The error sits here too, so a failed save is never off-screen. */}
-          <div className="px-6 py-4 flex-shrink-0 space-y-2" style={{ borderTop: "1px solid #E5E7EB", background: "#fff" }}>
+          <div className="px-6 py-4 flex-shrink-0 space-y-2" style={{ borderTop: "1px solid var(--haip-border)", background: "var(--haip-card)" }}>
           {mutation.isError && (
-            <p className="text-xs text-red-600">
+            <p className="text-xs text-[var(--haip-status-danger-fg)]">
               {(mutation.error as any)?.response?.data?.detail || "Failed to save booking. Please check the fields and try again."}
             </p>
           )}

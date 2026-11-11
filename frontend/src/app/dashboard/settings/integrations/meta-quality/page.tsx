@@ -48,34 +48,34 @@ interface QualityResponse {
 const RATING_CONFIG = {
   GREEN: {
     label: "Green — Healthy",
-    color: "#16a34a",
-    bg: "bg-green-50",
-    border: "border-green-200",
-    text: "text-green-700",
-    icon: <CheckCircle2 size={18} className="text-green-600" />,
-    dot: "bg-green-500",
+    color: "var(--primary)",
+    bg: "bg-[var(--haip-status-success-bg)]",
+    border: "border-[var(--haip-status-success-border)]",
+    text: "text-[var(--haip-status-success-fg)]",
+    icon: <CheckCircle2 size={18} className="text-[var(--haip-status-success-fg)]" />,
+    dot: "bg-primary",
   },
   YELLOW: {
     label: "Yellow — At Risk",
-    color: "#ca8a04",
-    bg: "bg-yellow-50",
-    border: "border-yellow-300",
-    text: "text-yellow-700",
-    icon: <AlertTriangle size={18} className="text-yellow-600" />,
-    dot: "bg-yellow-400",
+    color: "var(--haip-accent-ink)",
+    bg: "bg-[var(--haip-status-warning-bg)]",
+    border: "border-[var(--haip-status-warning-border)]",
+    text: "text-[var(--haip-status-warning-fg)]",
+    icon: <AlertTriangle size={18} className="text-[var(--haip-status-warning-fg)]" />,
+    dot: "bg-[var(--haip-amber)]",
   },
   RED: {
     label: "Red — Critical",
-    color: "#dc2626",
-    bg: "bg-red-50",
-    border: "border-red-300",
-    text: "text-red-700",
-    icon: <AlertTriangle size={18} className="text-red-600" />,
-    dot: "bg-red-500",
+    color: "var(--haip-status-danger-fg)",
+    bg: "bg-[var(--haip-status-danger-bg)]",
+    border: "border-[var(--haip-status-danger-border)]",
+    text: "text-[var(--haip-status-danger-fg)]",
+    icon: <AlertTriangle size={18} className="text-[var(--haip-status-danger-fg)]" />,
+    dot: "bg-[var(--haip-status-danger-fg)]",
   },
   UNKNOWN: {
     label: "Unknown",
-    color: "#9ca3af",
+    color: "var(--haip-fg-subtle)",
     bg: "bg-[var(--haip-surface)]",
     border: "border-[var(--haip-border)]",
     text: "text-[var(--haip-fg-muted)]",
@@ -153,7 +153,7 @@ export default function MetaQualityPage() {
   })();
 
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-  const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-500" : "text-[var(--haip-fg-subtle)]";
+  const trendColor = trend === "up" ? "text-[var(--haip-status-success-fg)]" : trend === "down" ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]";
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -228,7 +228,7 @@ export default function MetaQualityPage() {
             <div className="rounded-2xl border border-[var(--haip-border)] p-5 bg-white shadow-sm">
               <p className="text-xs font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-2">Messaging Tier</p>
               <div className="flex items-center gap-2">
-                <Shield size={18} className="text-blue-500" />
+                <Shield size={18} className="text-[var(--haip-status-info-fg)]" />
                 <span className="text-lg font-bold text-[var(--haip-fg)]">
                   {formatTier(current?.messaging_limit_tier ?? null)}
                 </span>
@@ -239,7 +239,7 @@ export default function MetaQualityPage() {
                   href="https://developers.facebook.com/docs/whatsapp/api/rate-limits#messaging"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-500 hover:underline inline-flex items-center gap-0.5"
+                  className="text-[var(--haip-status-info-fg)] hover:underline inline-flex items-center gap-0.5"
                 >
                   Learn more <ExternalLink size={10} />
                 </a>
@@ -249,18 +249,18 @@ export default function MetaQualityPage() {
 
           {/* ── Alert banners ── */}
           {rating === "YELLOW" && (
-            <div className="bg-yellow-50 border border-yellow-300 rounded-2xl p-5">
+            <div className="bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-2xl p-5">
               <div className="flex items-start gap-3">
-                <AlertTriangle size={18} className="text-yellow-600 mt-0.5 flex-shrink-0" />
+                <AlertTriangle size={18} className="text-[var(--haip-status-warning-fg)] mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-bold text-yellow-800 mb-2">Rating at risk — action recommended</p>
-                  <p className="text-xs text-yellow-700 mb-3">
+                  <p className="text-sm font-bold text-[var(--haip-status-warning-fg)] mb-2">Rating at risk — action recommended</p>
+                  <p className="text-xs text-[var(--haip-status-warning-fg)] mb-3">
                     Meta may restrict your messaging tier if the quality score doesn&apos;t improve.
                     Take these steps to recover:
                   </p>
                   <ul className="space-y-1.5">
                     {YELLOW_FIXES.map((fix, i) => (
-                      <li key={i} className="flex gap-2 text-xs text-yellow-800">
+                      <li key={i} className="flex gap-2 text-xs text-[var(--haip-status-warning-fg)]">
                         <span className="font-bold flex-shrink-0">{i + 1}.</span>
                         {fix}
                       </li>
@@ -272,18 +272,18 @@ export default function MetaQualityPage() {
           )}
 
           {rating === "RED" && (
-            <div className="bg-red-50 border border-red-300 rounded-2xl p-5">
+            <div className="bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-2xl p-5">
               <div className="flex items-start gap-3">
-                <AlertTriangle size={18} className="text-red-600 mt-0.5 flex-shrink-0" />
+                <AlertTriangle size={18} className="text-[var(--haip-status-danger-fg)] mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-bold text-red-800 mb-2">⚠️ Critical — messaging may be restricted</p>
-                  <p className="text-xs text-red-700 mb-3">
+                  <p className="text-sm font-bold text-[var(--haip-status-danger-fg)] mb-2">⚠️ Critical — messaging may be restricted</p>
+                  <p className="text-xs text-[var(--haip-status-danger-fg)] mb-3">
                     Your WABA quality is RED. Meta may have already reduced your messaging tier.
                     Take immediate action:
                   </p>
                   <ul className="space-y-1.5">
                     {RED_FIXES.map((fix, i) => (
-                      <li key={i} className="flex gap-2 text-xs text-red-800">
+                      <li key={i} className="flex gap-2 text-xs text-[var(--haip-status-danger-fg)]">
                         <span className="font-bold flex-shrink-0">{i + 1}.</span>
                         {fix}
                       </li>
@@ -293,7 +293,7 @@ export default function MetaQualityPage() {
                     href="https://business.facebook.com/business-support-home"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                    className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold bg-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-fg)] text-white px-3 py-1.5 rounded-lg transition-colors"
                   >
                     Open Meta Business Support <ExternalLink size={11} />
                   </a>
@@ -316,10 +316,10 @@ export default function MetaQualityPage() {
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--haip-surface)" />
                   <XAxis
                     dataKey="ts"
-                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tick={{ fontSize: 10, fill: "var(--haip-fg-subtle)" }}
                     interval={Math.max(0, Math.floor(chartData.length / 6))}
                     tickLine={false}
                     axisLine={false}
@@ -327,13 +327,13 @@ export default function MetaQualityPage() {
                   <YAxis
                     domain={[0, 3]}
                     ticks={[1, 2, 3]}
-                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tick={{ fontSize: 10, fill: "var(--haip-fg-subtle)" }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(v) => v === 3 ? "🟢" : v === 2 ? "🟡" : "🔴"}
                   />
                   <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--haip-border)" }}
                     formatter={(v) => {
                       const n = typeof v === "number" ? v : Number(v);
                       const map: Record<number, string> = { 3: "GREEN", 2: "YELLOW", 1: "RED", 0: "UNKNOWN" };
@@ -341,8 +341,8 @@ export default function MetaQualityPage() {
                     }}
                   />
                   {/* Reference lines for thresholds */}
-                  <ReferenceLine y={2} stroke="#fbbf24" strokeDasharray="4 2" strokeWidth={1} />
-                  <ReferenceLine y={1} stroke="#ef4444" strokeDasharray="4 2" strokeWidth={1} />
+                  <ReferenceLine y={2} stroke="var(--haip-accent)" strokeDasharray="4 2" strokeWidth={1} />
+                  <ReferenceLine y={1} stroke="var(--haip-status-danger-fg)" strokeDasharray="4 2" strokeWidth={1} />
                   <Line
                     type="stepAfter"
                     dataKey="score"
@@ -364,8 +364,8 @@ export default function MetaQualityPage() {
             </p>
             <div className="grid sm:grid-cols-3 gap-4 text-xs text-[var(--haip-fg-2)]">
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-green-700">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                <div className="flex items-center gap-1.5 font-semibold text-[var(--haip-status-success-fg)]">
+                  <span className="w-2 h-2 rounded-full bg-primary" />
                   Green
                 </div>
                 <p className="text-[var(--haip-fg-subtle)] leading-relaxed">
@@ -373,8 +373,8 @@ export default function MetaQualityPage() {
                 </p>
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-yellow-700">
-                  <span className="w-2 h-2 rounded-full bg-yellow-400" />
+                <div className="flex items-center gap-1.5 font-semibold text-[var(--haip-status-warning-fg)]">
+                  <span className="w-2 h-2 rounded-full bg-[var(--haip-amber)]" />
                   Yellow
                 </div>
                 <p className="text-[var(--haip-fg-subtle)] leading-relaxed">
@@ -382,8 +382,8 @@ export default function MetaQualityPage() {
                 </p>
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-red-700">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                <div className="flex items-center gap-1.5 font-semibold text-[var(--haip-status-danger-fg)]">
+                  <span className="w-2 h-2 rounded-full bg-[var(--haip-status-danger-fg)]" />
                   Red
                 </div>
                 <p className="text-[var(--haip-fg-subtle)] leading-relaxed">
@@ -396,7 +396,7 @@ export default function MetaQualityPage() {
                 href="https://developers.facebook.com/docs/whatsapp/api/quality-rating"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--haip-status-info-fg)] hover:text-[var(--haip-status-info-fg)] font-medium"
               >
                 Meta official quality rating docs <ExternalLink size={11} />
               </a>

@@ -128,7 +128,7 @@ function ResetPasswordForm() {
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  <p className="text-sm text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl px-4 py-3">
                     {error}
                   </p>
                 )}

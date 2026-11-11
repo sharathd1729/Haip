@@ -75,45 +75,44 @@
    See docs/DESIGN.md.
 ────────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Greens + terracotta (docs/DESIGN.md section 7, owner decision 22 Oct 2026): green carries almost all colour (forest
-     nav, mint page, sea green brand), ONE warm accent, terracotta, for primary actions, counts, today and money due.
-     --primary (sea green) stays the BRAND: links, active states, focus rings, selected fills. Solid primary BUTTONS are
-     painted with --haip-action (terracotta) by the rule after the --haip-* block. --primary/--radius come from the tenant's
-     brand theme (brandTheme.ts writes --brand-primary and friends on <html>); the literal after each var() is the default
-     when no theme is applied (marketing, auth, first paint). */
-  --font-sans: var(--font-figtree), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Sea green + coral (docs/DESIGN.md section 7, owner decision 10 Nov 2026): sea green carries the screen (brand,
+     buttons, links, focus, selected fills) on a pale green canvas with a white top bar; coral marks ONLY what needs
+     attention (counts, today, late, money due) and always carries dark ink (--haip-on-accent), never white. Coral as
+     text uses --haip-accent-ink. --primary/--radius come from the tenant's brand theme (brandTheme.ts writes
+     --brand-primary and friends on <html>); the literal after each var() is the default when no theme is applied. */
+  --font-sans: var(--font-onest), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-inbox: var(--font-sans);
   --background: #FFFFFF;
-  --foreground: #14201C;
+  --foreground: #0F2A20;
   --card: #FFFFFF;
-  --card-foreground: #14201C;
+  --card-foreground: #0F2A20;
   --popover: #FFFFFF;
-  --popover-foreground: #14201C;
-  --primary: var(--brand-primary, #235347);
+  --popover-foreground: #0F2A20;
+  --primary: var(--brand-primary, #1E7A5A);
   --primary-foreground: var(--brand-on-primary, #FFFFFF);
-  --secondary: #E6F3E9;
-  --secondary-foreground: #4E6A5F;
-  --muted: #E6F3E9;
-  --muted-foreground: #5B6B64;
-  --accent: #DAF1DE;
-  --accent-foreground: #163832;
-  --destructive: #B4322F;
-  --border: #D5E7DA;
+  --secondary: #DDF0E8;
+  --secondary-foreground: #2B4A3E;
+  --muted: #E6F1EC;
+  --muted-foreground: #4A6559;
+  --accent: #DDF0E8;
+  --accent-foreground: #0E4A36;
+  --destructive: #B3261E;
+  --border: #D3E7DE;
   /* Form-field borders need 3:1 against the field (WCAG 1.4.11). */
   --input: #6E8F7D;
   --ring: var(--primary);
   --chart-1: var(--primary);
-  --chart-2: #B05033;
-  --chart-3: #6E8B4E;
+  --chart-2: #E8663F;
+  --chart-3: #2F9B74;
   --chart-4: #3B5BA9;
-  --chart-5: #B4322F;
+  --chart-5: #B3261E;
   --radius: var(--brand-radius, 12px);
-  --sidebar: #0B2B26;
+  --sidebar: #0E4A36;
   --sidebar-foreground: #E6F2EA;
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: #DAF1DE;
-  --sidebar-accent-foreground: #0B2B26;
+  --sidebar-accent: #DDF0E8;
+  --sidebar-accent-foreground: #0E4A36;
   --sidebar-border: rgba(218, 241, 222, 0.12);
   --sidebar-ring: var(--primary);
 
@@ -183,12 +182,12 @@
    var(--text-secondary) automatically adapt to both themes.
 ────────────────────────────────────────────────────────────────────────────── */
 :root {
-  --page-bg:           #EEF7F0;
-  --panel-bg:          #F6FBF7;
-  --text-primary:      #14201C;
-  --text-secondary:    #4E6A5F;
-  --input-bg:          #F3F9F4;
-  --hover-bg:          rgba(11, 43, 38, 0.05);
+  --page-bg:           #F2F8F5;
+  --panel-bg:          #F6FBF9;
+  --text-primary:      #0F2A20;
+  --text-secondary:    #4A6559;
+  --input-bg:          #F6FBF9;
+  --hover-bg:          rgba(14, 74, 54, 0.05);
 }
 .dark {
   --page-bg:           #0B1F1B;
@@ -414,111 +413,111 @@
   /* The old dark sidebar island is retired (the shell is a top bar); these stay so any leftover consumer still reads. */
   --haip-sidebar:            #FFFFFF;
   --haip-sidebar-accent:     var(--primary);
-  --haip-sidebar-fg:         #4E6A5F;
-  --haip-sidebar-fg-active:  #14201C;
-  --haip-sidebar-fg-subtle:  #5B6B64;
-  --haip-sidebar-border:     #D5E7DA;
-  --haip-sidebar-hover:      rgba(11,43,38,0.05);
+  --haip-sidebar-fg:         #4A6559;
+  --haip-sidebar-fg-active:  #0F2A20;
+  --haip-sidebar-fg-subtle:  #4A6559;
+  --haip-sidebar-border:     #D3E7DE;
+  --haip-sidebar-hover:      rgba(14,74,54,0.05);
   --haip-sidebar-active-bg:  color-mix(in srgb, var(--primary) 10%, transparent);
 
   /* App canvas: mint, so white cards with green borders read as raised. --background stays white for marketing and auth. */
-  --haip-app-bg:        #EEF7F0;
+  --haip-app-bg:        #F2F8F5;
 
   /* Brand — follows --primary so per-tenant white-labelling propagates */
   --haip-primary:       var(--primary);
   --haip-primary-hover: color-mix(in srgb, var(--primary) 86%, black);
   --haip-primary-tint:  color-mix(in srgb, var(--primary) 9%, var(--card));
-  /* Terracotta: the ONE warm accent. Highlights (today, counts, "new", VIP) and, via --haip-action, primary buttons.
-     Ink on the solid colour: --haip-on-accent (white; forest in dark mode). */
-  --haip-accent:        #B05033;
-  --haip-accent-light:  #FCE4D8;
-  --haip-accent-ink:    #8A3A20;
-  --haip-accent-line:   #F3C9B3;
-  --haip-on-accent:     #FFFFFF;
-  --haip-gold:          #B05033;
-  --haip-gold-light:    #FCE4D8;
-  /* Primary actions (solid buttons). A tenant with its own brand colour gets that colour back through --brand-action
-     (brandTheme.ts); the house theme leaves it unset, so actions are terracotta. */
-  --haip-action:        var(--brand-action, #B05033);
+  /* Coral: the ONE warm accent, for what needs attention (today, counts, late, money due). Ink on the solid colour:
+     --haip-on-accent (dark brown; forest in dark mode). Coral as text on white: --haip-accent-ink. */
+  --haip-accent:        #F07A5A;
+  --haip-accent-light:  #FDE6DF;
+  --haip-accent-ink:    #A23A1C;
+  --haip-accent-line:   #F5C4B5;
+  --haip-on-accent:     #3B1205;
+  --haip-gold:          #E8663F;
+  --haip-gold-light:    #FDE6DF;
+  /* Primary actions (solid buttons) are the brand green. A tenant with its own brand colour gets that colour through
+     --brand-action (brandTheme.ts); the house theme leaves it unset, so actions follow --primary. */
+  --haip-action:        var(--brand-action, var(--primary));
   --haip-on-action:     var(--brand-on-action, #FFFFFF);
   --haip-action-hover:  color-mix(in srgb, var(--haip-action) 88%, black); /* house: ~#9C452B */
   /* Secondary actions: white with sea-green text and a soft green border. */
   --haip-btn-secondary-bg:     var(--card);
   --haip-btn-secondary-fg:     var(--primary);
-  --haip-btn-secondary-border: #BFDCC8;
-  --haip-btn-secondary-hover:  #F3F9F4;
+  --haip-btn-secondary-border: #C9E7DB;
+  --haip-btn-secondary-hover:  #E2F2EB;
 
   /* Shell: forest top bar (desktop) and header (phone), white bottom tab bar. */
-  --haip-nav-bg:        #0B2B26;
-  --haip-nav-fg:        #E6F2EA;
-  --haip-nav-fg-dim:    rgba(230,242,234,0.74);
-  --haip-nav-hover:     rgba(218,241,222,0.10);
-  --haip-nav-active-bg: #DAF1DE;
-  --haip-nav-active-fg: #0B2B26;
-  --haip-nav-field:     #163832;
-  --haip-nav-field-fg:  #E6F2EA;
-  --haip-nav-field-placeholder: rgba(230,242,234,0.62);
-  --haip-nav-border:    rgba(218,241,222,0.12);
-  --haip-logo-bg:       #D4FF3F;
-  --haip-logo-fg:       #0B2B26;
-  --haip-tabbar-icon:      #163832;
-  --haip-tabbar-active-bg: #DAF1DE;
-  --haip-tabbar-active-fg: #0B2B26;
+  --haip-nav-bg:        #FFFFFF;
+  --haip-nav-fg:        #0F2A20;
+  --haip-nav-fg-dim:    #2B4A3E;
+  --haip-nav-hover:     #E2F2EB;
+  --haip-nav-active-bg: #DDF0E8;
+  --haip-nav-active-fg: #0E4A36;
+  --haip-nav-field:     #F2F8F5;
+  --haip-nav-field-fg:  #0F2A20;
+  --haip-nav-field-placeholder: #4A6559;
+  --haip-nav-border:    #D3E7DE;
+  --haip-logo-bg:       var(--primary);
+  --haip-logo-fg:       var(--primary-foreground);
+  --haip-tabbar-icon:      #2B4A3E;
+  --haip-tabbar-active-bg: #DDF0E8;
+  --haip-tabbar-active-fg: #0E4A36;
 
   /* Icon tiles (PageHeader, the phone's raised Now button): sea green with a lime glyph. Lime is never text on white. */
-  --haip-tile-bg:       #235347;
-  --haip-tile-fg:       #D4FF3F;
+  --haip-tile-bg:       var(--primary);
+  --haip-tile-fg:       var(--primary-foreground);
 
   /* Card header bands (kit CardHeader): mint by default, olive as the alternative. */
-  --haip-band-bg:       #E6F3E9;
-  --haip-band-fg:       #0B2B26;
-  --haip-band-border:   #D5E7DA;
-  --haip-olive-bg:      #EEF1E6;
-  --haip-olive-fg:      #2E3D28;
-  --haip-olive-border:  #DCE3CC;
+  --haip-band-bg:       #EEF7F3;
+  --haip-band-fg:       #0E4A36;
+  --haip-band-border:   #D3E7DE;
+  --haip-olive-bg:      #E6F1EC;
+  --haip-olive-fg:      #2B4A3E;
+  --haip-olive-border:  #D3E7DE;
 
   /* Stat icon chips + variants (kit Stat). accent = money due / needs attention only. */
-  --haip-chip-bg:       #DAF1DE;
-  --haip-chip-fg:       #235347;
-  --haip-stat-dark-bg:     #163832;
-  --haip-stat-dark-fg:     #E6F2EA;
-  --haip-stat-dark-muted:  rgba(230,242,234,0.74);
-  --haip-stat-dark-chip:   #D4FF3F;
-  --haip-stat-dark-chip-fg:#0B2B26;
-  --haip-stat-olive-chip:  #DCE3CC;
-  --haip-stat-accent-chip-fg: #FFFFFF;
+  --haip-chip-bg:       #DDF0E8;
+  --haip-chip-fg:       #0E4A36;
+  --haip-stat-dark-bg:     #0E4A36;
+  --haip-stat-dark-fg:     #FFFFFF;
+  --haip-stat-dark-muted:  rgba(255,255,255,0.78);
+  --haip-stat-dark-chip:   #BFE3D4;
+  --haip-stat-dark-chip-fg:#0E4A36;
+  --haip-stat-olive-chip:  #C9E7DB;
+  --haip-stat-accent-chip-fg: #3B1205;
 
   /* Tabs (kit Tabs): green track, sea-green active pill; the active count is a lime pill. */
-  --haip-tabs-track:     #D6EBDC;
-  --haip-tab-fg:         #2E4A40;
-  --haip-tab-active-bg:  #235347;
+  --haip-tabs-track:     #DDF0E8;
+  --haip-tab-fg:         #2B4A3E;
+  --haip-tab-active-bg:  var(--primary);
   --haip-tab-active-fg:  #FFFFFF;
   --haip-tab-count-bg:   #FFFFFF;
-  --haip-tab-count-active-bg: #D4FF3F;
-  --haip-tab-count-active-fg: #0B2B26;
+  --haip-tab-count-active-bg: #BFE3D4;
+  --haip-tab-count-active-fg: #0E4A36;
 
   /* Surfaces */
-  --haip-surface:       #F6FBF7;
+  --haip-surface:       #F6FBF9;
   --haip-card:          var(--card);
   --haip-border:        var(--border);
-  --haip-border-strong: #BFDCC8;
+  --haip-border-strong: #C9E7DB;
 
   /* Typography */
   --haip-fg:            var(--foreground);
   --haip-fg-2:          var(--secondary-foreground);
   --haip-fg-muted:      var(--muted-foreground);
-  --haip-fg-subtle:     #5B6B64;
+  --haip-fg-subtle:     #4A6559;
 
   /* Legacy aliases (keep for pages not yet migrated) */
   --haip-text:          var(--foreground);
   --haip-text-2:        var(--secondary-foreground);
   --haip-text-muted:    var(--muted-foreground);
-  --haip-text-subtle:   #5B6B64;
+  --haip-text-subtle:   #4A6559;
 
   /* Status */
-  --haip-green:         #2E6B4F;
-  --haip-amber:         #A9800A;
-  --haip-red:           #B4322F;
+  --haip-green:         #1E7A5A;
+  --haip-amber:         #A23A1C; /* deep coral: readable as text on white and under white text */
+  --haip-red:           #B3261E;
 
   /* Shadows: soft, offset, tinted forest (cards lift off the mint canvas) */
   --haip-shadow-sm:     0 1px 2px rgba(11,43,38,0.05), 0 2px 6px -2px rgba(11,43,38,0.06);
@@ -534,42 +533,44 @@
 
   /* Status triplets (surface / text / border). A label always accompanies the colour. Every text pair meets WCAG AA.
      success/paid = mint + sea green; warning/part paid = wheat; danger/overdue = a small red; info = sage. */
-  --haip-status-success-bg: #DAF1DE; --haip-status-success-fg: #235347; --haip-status-success-border: #BFDCC8;
-  --haip-status-warning-bg: #FBF0D0; --haip-status-warning-fg: #6B5208; --haip-status-warning-border: #EDD9A0;
+  --haip-status-success-bg: #DDF0E8; --haip-status-success-fg: #0E4A36; --haip-status-success-border: #BFE3D4;
+  --haip-status-warning-bg: #FDE6DF; --haip-status-warning-fg: #A23A1C; --haip-status-warning-border: #F5C4B5;
   --haip-status-danger-bg:  #FBE9E6; --haip-status-danger-fg:  #A92D29; --haip-status-danger-border:  #F1C6BF;
-  --haip-status-info-bg:    #E2EDE5; --haip-status-info-fg:    #2C5546; --haip-status-info-border:    #B9D2C1;
-  --haip-status-neutral-bg: #EEF2EF; --haip-status-neutral-fg: #4E5A55; --haip-status-neutral-border: #DCE3DE;
+  --haip-status-info-bg:    #E2F2EB; --haip-status-info-fg:    #176349; --haip-status-info-border:    #BFE3D4;
+  --haip-status-neutral-bg: #EEF1EF; --haip-status-neutral-fg: #55635A; --haip-status-neutral-border: #DDE5E0;
   /* Full-width warning banner (connection lost): solid, so it reads over any page. White on #6B5208 is 7.4:1. */
-  --haip-banner-warn-bg: #6B5208; --haip-banner-warn-fg: #FFFFFF;
+  --haip-banner-warn-bg: #F07A5A; --haip-banner-warn-fg: #3B1205;
 
   /* Structural icons (chevrons, close, menus) are neutral; sea green is for what is actionable or branded. */
-  --haip-icon-neutral: #5B6B64;
+  --haip-icon-neutral: #4A6559;
 
   /* Person avatars: five green / olive / sage tints, picked by a hash of the name (lib/avatarTint.ts). AA for initials. */
-  --haip-avatar-1-bg: #DAF1DE; --haip-avatar-1-fg: #235347;
-  --haip-avatar-2-bg: #EEF1E6; --haip-avatar-2-fg: #2E3D28;
-  --haip-avatar-3-bg: #E2EDE5; --haip-avatar-3-fg: #2C5546;
-  --haip-avatar-4-bg: #E6EFD9; --haip-avatar-4-fg: #3F5426;
-  --haip-avatar-5-bg: #D9ECE6; --haip-avatar-5-fg: #1D4E44;
+  --haip-avatar-1-bg: #DDF0E8; --haip-avatar-1-fg: #0E4A36;
+  --haip-avatar-2-bg: #C9E7DB; --haip-avatar-2-fg: #0E4A36;
+  --haip-avatar-3-bg: #E2F2EB; --haip-avatar-3-fg: #176349;
+  --haip-avatar-4-bg: #E6F1EC; --haip-avatar-4-fg: #2B4A3E;
+  --haip-avatar-5-bg: #BFE3D4; --haip-avatar-5-fg: #0E4A36;
 
   /* Calendar: sea green = direct / paid booking, gray-green = blocked, red = maintenance (meanings owners were taught).
      Money due = terracotta light with a terracotta left edge (--haip-cal-due-*); today is terracotta. */
-  --haip-cal-direct: #235347;
+  --haip-cal-direct: #1E7A5A;
   --haip-cal-maint:  #B4322F;
   --haip-cal-block:  #D3DED7; --haip-cal-block-fg: #1F2B27;
-  --haip-cal-due-bg: #FCE4D8; --haip-cal-due-edge: #B05033; --haip-cal-due-fg: #8A3A20;
+  --haip-cal-due-bg: #FDE6DF; --haip-cal-due-edge: #E8663F; --haip-cal-due-fg: #A23A1C;
   /* Bookings vehicle strip and vehicle tags: one soft tint per caravan (Ratha 1, Ratha 2), dark ink on top. */
-  --haip-cal-vehicle-1: #CFE7D6; --haip-cal-vehicle-2: #E3E8D2; --haip-cal-vehicle-fg: #14201C;
+  --haip-cal-vehicle-1: #C9E7DB; --haip-cal-vehicle-2: #E6F1EC; --haip-cal-vehicle-fg: #0F2A20;
   /* Calendar occupancy bar: the lighter part = nights held by a Google Calendar event that names its unit. */
-  --haip-cal-held: #9DB8AA;
+  --haip-cal-held: #A9D8C4;
+  /* Bookings from an outside channel (Airbnb, Booking.com, ...): one deep green; the bar's short tag says which. */
+  --haip-cal-channel: #0E4A36;
 
   /* Sign-in brand panel: always forest in both themes, with a light terracotta accent that passes AA on it. */
-  --haip-brand-panel:  #0B2B26;
-  --haip-panel-accent: #F3C9B3;
+  --haip-brand-panel:  #0E4A36;
+  --haip-panel-accent: #F5C4B5;
 
   /* Two-series charts (impact revenue: booked vs collected): sea green and terracotta. */
-  --haip-series-1: #235347;
-  --haip-series-2: #B05033;
+  --haip-series-1: #1E7A5A;
+  --haip-series-2: #E8663F;
 }
 .dark {
   --haip-series-1: #8EB69B;
@@ -584,6 +585,7 @@
   --haip-cal-due-bg: rgba(217,120,90,0.26); --haip-cal-due-edge: #D9785A; --haip-cal-due-fg: #F3B9A2;
   --haip-cal-vehicle-1: #24453A; --haip-cal-vehicle-2: #3A4430; --haip-cal-vehicle-fg: #E6F2EA;
   --haip-cal-held: #5E7C70;
+  --haip-cal-channel: #4E8F7A;
   --haip-status-success-bg: rgba(142,182,155,0.16); --haip-status-success-fg: #A9D9B8; --haip-status-success-border: rgba(142,182,155,0.34);
   --haip-status-warning-bg: rgba(232,196,96,0.13);  --haip-status-warning-fg: #EBCB72; --haip-status-warning-border: rgba(232,196,96,0.30);
   --haip-status-danger-bg:  rgba(240,140,128,0.13); --haip-status-danger-fg:  #F5A99F; --haip-status-danger-border:  rgba(240,140,128,0.30);
@@ -603,10 +605,14 @@
   --haip-on-accent:     #0B2B26;
   --haip-gold:          #D9785A;
   --haip-gold-light:    rgba(217,120,90,0.16);
-  --haip-action:        var(--brand-action-on-dark, #D9785A);
-  --haip-on-action:     var(--brand-on-action-dark, #0B2B26);
+  --haip-action:        var(--brand-action-on-dark, var(--primary));
+  --haip-on-action:     var(--brand-on-action-dark, var(--primary-foreground));
   --haip-btn-secondary-border: rgba(142,182,155,0.38);
   --haip-btn-secondary-hover:  #183A33;
+  /* The light theme's bar is white (sea green + coral, Nov 2026); the dark bar keeps light ink. */
+  --haip-nav-fg: #E6F2EA; --haip-nav-fg-dim: rgba(230,242,234,0.74); --haip-nav-hover: rgba(218,241,222,0.10);
+  --haip-nav-active-fg: #0B2B26; --haip-nav-field-fg: #E6F2EA; --haip-nav-field-placeholder: rgba(230,242,234,0.62);
+  --haip-nav-border: rgba(218,241,222,0.12);
   --haip-nav-bg:        #071A16;
   --haip-nav-field:     #12302A;
   --haip-nav-active-bg: #CDE8D4;
@@ -645,8 +651,8 @@
   --haip-shadow-lg:     0 16px 40px -16px rgba(0,0,0,0.7);
 }
 
-/* Primary actions = terracotta (owner decision, 22 Oct 2026). Pages paint their main button `bg-primary` + white /
-   primary-foreground text; that pairing now resolves to --haip-action. Everything else that reads --primary (links,
+/* Primary actions read --haip-action (the brand green since 10 Nov 2026; terracotta before). Pages paint their main
+   button `bg-primary` + white / primary-foreground text; that pairing resolves to --haip-action. Everything else that reads --primary (links,
    focus rings, selected fills, switches, progress, dots) stays sea green. Unlayered on purpose so it beats the Tailwind
    utility layer, including a page's hover:bg-primary-ish override.
    NOT for selection controls: tabs, segments, radios, switches, pressed/selected/current items, Radix active/on/checked
@@ -693,6 +699,14 @@
 .haip-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .haip-btn-primary:disabled,
 .haip-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Press feedback: the control answers the finger at once. Off for people who ask for less motion. */
+.haip-btn-primary, .haip-btn-secondary, .lx-stage-pill { transition-property: background-color, border-color, transform; }
+.haip-btn-primary:active:not(:disabled),
+.haip-btn-secondary:active:not(:disabled),
+.lx-stage-pill:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .haip-btn-primary:active, .haip-btn-secondary:active, .lx-stage-pill:active { transform: none; }
+}
 @media (hover: none) and (pointer: coarse) {
   .haip-btn-primary, .haip-btn-secondary { min-height: 44px; }
 }
@@ -978,37 +992,25 @@
   --ibx-font: var(--font-inbox), ui-sans-serif, system-ui, sans-serif;
   --ibx-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  --ibx-green: #1DA851;
-  --ibx-green-bright: #25D366;
-  --ibx-green-soft: rgba(37, 211, 102, 0.12);
-  --ibx-grad: linear-gradient(135deg, #25D366 0%, #0F9E7E 100%);
-  --ibx-shadow-glow: 0 6px 20px rgba(37, 211, 102, 0.22);
+  /* Sea green + coral (Nov 2026): the Inbox follows the app theme, so it has no gradient, glow or second green. The
+     names stay because the classes below read them. Amber is now coral (attention); red stays a real error. */
+  --ibx-green: var(--primary);
+  --ibx-green-bright: var(--primary);
+  --ibx-green-soft: var(--haip-primary-tint);
+  --ibx-grad: var(--primary);
+  --ibx-shadow-glow: none;
 
-  --ibx-iris: var(--primary);            /* Hybrid: one accent, the brand primary */
+  --ibx-iris: var(--primary);
   --ibx-iris-soft: var(--haip-primary-tint);
-  --ibx-red: #D45453;
-  --ibx-red-soft: rgba(212, 84, 83, 0.12);
-  --ibx-amber: #C77D0A;
-  --ibx-amber-soft: rgba(255, 196, 66, 0.20);
+  --ibx-red: var(--haip-status-danger-fg);
+  --ibx-red-soft: var(--haip-status-danger-bg);
+  --ibx-amber: var(--haip-accent-ink);
+  --ibx-amber-soft: var(--haip-accent-light);
 
   --ibx-card-radius: 16px;
-  --ibx-shadow-card: 0 2px 10px rgba(16, 36, 26, 0.05), 0 1px 2px rgba(16, 36, 26, 0.04);
+  --ibx-shadow-card: var(--haip-shadow-sm);
 
   font-family: var(--ibx-font);
-}
-.dark .haip-inbox-v2 {
-  --ibx-green: #2FE377;
-  --ibx-green-bright: #38E784;
-  --ibx-green-soft: rgba(56, 231, 132, 0.16);
-  --ibx-grad: linear-gradient(135deg, #2FE377 0%, #0FA87F 100%);
-  --ibx-shadow-glow: 0 6px 22px rgba(47, 227, 119, 0.25);
-  --ibx-iris: #8B89F0;
-  --ibx-iris-soft: rgba(139, 137, 240, 0.16);
-  --ibx-red: #FF6B6A;
-  --ibx-red-soft: rgba(255, 107, 106, 0.16);
-  --ibx-amber: #FBBF24;
-  --ibx-amber-soft: rgba(251, 191, 36, 0.18);
-  --ibx-shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 /* Scoped override: within Inbox only, .haip-card (already used by
@@ -1051,7 +1053,7 @@
   justify-content: center;
   font-weight: 800;
   font-size: 13px;
-  color: #fff;
+  color: var(--primary-foreground);
   flex-shrink: 0;
   background: var(--ibx-grad);
 }
@@ -1079,7 +1081,7 @@
 
 .ibx-unread-pill {
   background: var(--ibx-grad);
-  color: #fff;
+  color: var(--primary-foreground);
   font-family: var(--ibx-mono);
   font-size: 10px;
   font-weight: 800;
@@ -1098,7 +1100,7 @@
    iris for a pending AI draft (matches the mockup's AI-accent convention) */
 .ibx-bubble-out {
   background: var(--ibx-grad) !important;
-  color: #fff !important;
+  color: var(--primary-foreground) !important;
   border: none !important;
 }
 .ibx-bubble-ai {
@@ -1114,7 +1116,7 @@
 
 .ibx-send-btn {
   background: var(--ibx-grad) !important;
-  color: #fff !important;
+  color: var(--primary-foreground) !important;
   box-shadow: var(--ibx-shadow-glow);
 }
 
@@ -1141,39 +1143,26 @@
   --clx-font: var(--font-inbox), ui-sans-serif, system-ui, sans-serif;
   --clx-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  --clx-navy: #0B1F3A;
-  --clx-navy-2: #163458;
-  --clx-teal: #14B8A6;
-  --clx-teal-soft: rgba(20, 184, 166, 0.12);
+  --clx-navy: var(--primary);
+  --clx-navy-2: var(--primary);
+  --clx-teal: var(--primary);
+  --clx-teal-soft: var(--haip-primary-tint);
 
   --clx-iris: var(--primary);            /* Hybrid: one accent, the brand primary */
   --clx-iris-soft: var(--haip-primary-tint);
-  --clx-green: #059669;
-  --clx-green-soft: rgba(5, 150, 105, 0.10);
-  --clx-amber: #B45309;
-  --clx-amber-soft: rgba(217, 158, 11, 0.14);
-  --clx-red: #DC2626;
-  --clx-red-soft: rgba(220, 38, 38, 0.10);
-  --clx-blue: #2563EB;
-  --clx-blue-soft: rgba(37, 99, 235, 0.10);
+  --clx-green: var(--haip-status-success-fg);
+  --clx-green-soft: var(--haip-status-success-bg);
+  --clx-amber: var(--haip-accent-ink);
+  --clx-amber-soft: var(--haip-accent-light);
+  --clx-red: var(--haip-status-danger-fg);
+  --clx-red-soft: var(--haip-status-danger-bg);
+  --clx-blue: var(--haip-status-info-fg);
+  --clx-blue-soft: var(--haip-status-info-bg);
 
   --clx-card-radius: 16px;
-  --clx-shadow-card: 0 2px 10px rgba(16, 36, 60, 0.06), 0 1px 2px rgba(16, 36, 60, 0.05);
+  --clx-shadow-card: var(--haip-shadow-sm);
 
   font-family: var(--clx-font);
-}
-.dark .haip-calls-v2 {
-  --clx-teal: #2DD4C4;
-  --clx-teal-soft: rgba(45, 212, 196, 0.16);
-  --clx-green: #34D399;
-  --clx-green-soft: rgba(52, 211, 153, 0.14);
-  --clx-amber: #F0B33D;
-  --clx-amber-soft: rgba(240, 179, 61, 0.16);
-  --clx-red: #F0645F;
-  --clx-red-soft: rgba(240, 100, 95, 0.14);
-  --clx-blue: #5B9CF6;
-  --clx-blue-soft: rgba(91, 156, 246, 0.14);
-  --clx-shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 .haip-calls-v2 .haip-page-title {
@@ -1373,8 +1362,7 @@
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 .haip-leads-v2 .haip-card:hover {
-  box-shadow: 0 6px 18px rgba(16, 36, 60, 0.10);
-  transform: translateY(-1px);
+  box-shadow: var(--haip-shadow-md);
 }
 
 /* Board header + columns */
@@ -1386,9 +1374,11 @@
   border-radius: 999px;
   font-weight: 700;
 }
+/* A board column is a tinted lane; the white cards inside it carry the content. */
 .lx-col {
   border-radius: var(--lx-card-radius);
-  box-shadow: var(--lx-shadow-card);
+  background: var(--muted);
+  border: 1px solid var(--haip-border);
 }
 .lx-col-bar {
   width: 4px;

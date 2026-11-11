@@ -115,6 +115,22 @@ Retire it incrementally: as each module is redesigned in V2 Phase 4, convert tha
 
 Warm, friendly and calm: a hospitality product, not a back-office console. People and stays are shown as faces and pills, not rows of codes.
 
+### Sea green + coral (10 Nov 2026) — this block wins over the colour, type and shell lines below
+Chosen by the owner from mock-ups (Home, parts sheet, My day, Leads). Applied through the tokens, so every page follows.
+- **Sea green** `--primary` #1E7A5A (hover #176349, deep #0E4A36) is brand, links, focus, selected fills AND primary buttons: `--haip-action` falls back to `--primary`. Tints: #DDF0E8 (soft), #C9E7DB (borders of secondary controls), #E6F1EC (lanes, tracks).
+- **Coral** `--haip-accent` #F07A5A is the one accent and means "needs attention": counts, today, late, money due. Ink on coral is `--haip-on-accent` #3B1205, never white. Coral as text on white is `--haip-accent-ink` #A23A1C; soft `--haip-accent-light` #FDE6DF, line `--haip-accent-line` #F5C4B5. Terracotta, lime and yellow are retired.
+- Surfaces: canvas `--haip-app-bg` #F2F8F5, white cards, borders #D3E7DE, ink #0F2A20 / #2B4A3E / #4A6559.
+- Shell: the top bar and the phone header are white with a green hairline (`--haip-nav-*`); the logo tile, the page icon tile and the phone's raised Now button are solid sea green with white. Dark mode keeps its forest bar.
+- Type: Onest only (`--font-onest`, `--font-display`); Figtree and Bricolage Grotesque are retired.
+- Motion: buttons and chips scale to 0.97 on press (160ms, ease-out); hover changes colour only; off under `prefers-reduced-motion`.
+- A tenant's own stage colour shows as a dot beside the name, never as the text or fill of a chip.
+- Inbox: `--ibx-*` now point at the theme (no gradient, glow or second green); unread counts are coral; every channel badge (`ChannelIcon`) is the same green chip, told apart by icon and label; nothing is set below 11.5px.
+- Warnings are coral too (`--haip-status-warning-*`, `--haip-banner-warn-*`; `--haip-amber` is deep coral #A23A1C so it reads as text and under white text). Red stays for real errors and delete.
+- Calls: `--clx-*` point at the theme (no navy, teal or blue); booked = green, hot lead = coral, every occasion chip is the same green.
+- Calendar: every outside channel is one deep green (`--haip-cal-channel`), told apart by the tag on the bar.
+- Every other app page (Settings, Messaging, Compliance, Reports, Automations, Profile, Billing, Properties, auth pages): raw Tailwind colour classes and inline grey/status hexes were mapped to the tokens in one pass (greens and blues -> success/info/primary, reds -> danger, ambers -> coral warning, greys -> neutral tokens); `dark:` colour variants were dropped because the tokens carry dark values. Text below 11.5px was lifted except in fixed small boxes (count bubbles, initials, day cells).
+- Left as they are: brand marks (WhatsApp, Instagram, Facebook, booking-site dots), the tenant colour pickers (Branding, pipeline stages), the public marketing site, and chart series (`--viz-*`).
+
 ### Palette (tokens in `globals.css`; never hex in components)
 Green carries almost all colour; ONE warm accent, terracotta, used sparingly. No pink, coral, bright yellow or orange as theme colours.
 - Greens: forest #0B2B26, #163832, sea green #235347, sage #8EB69B, mint #DAF1DE, lime #D4FF3F (only as a tile/chip fill or a glyph on dark green, never text on white); olive #9CAF88 / #A9B887 / #2E3D28.
