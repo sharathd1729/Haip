@@ -476,7 +476,7 @@ function DesktopLeads() {
           subtitle={view === "action" ? "What to do next, most urgent first" : Object.keys(stageMeta).length === 0 ? "Loading…" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}${scope ? ` · ${SCOPE_LABEL[scope]}` : ""}`} />
 
         {/* Controls: wrap on narrow screens instead of running off the edge */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-1 sm:justify-end">
           <Tabs label="Leads view" className="order-1 sm:order-none" value={view} onChange={v => setView(v as LeadsView)}
             items={[{ value: "action", label: "Needs action" }, { value: "pipeline", label: "Pipeline" }]} />
 

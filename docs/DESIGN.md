@@ -125,6 +125,7 @@ Chosen by the owner from mock-ups (Home, parts sheet, My day, Leads). Applied th
 - Motion: buttons and chips scale to 0.97 on press (160ms, ease-out); hover changes colour only; off under `prefers-reduced-motion`.
 - A tenant's own stage colour shows as a dot beside the name, never as the text or fill of a chip.
 - Inbox: `--ibx-*` now point at the theme (no gradient, glow or second green); unread counts are coral; every channel badge (`ChannelIcon`) is the same green chip, told apart by icon and label; nothing is set below 11.5px.
+- Warnings are coral too (`--haip-status-warning-*`, `--haip-banner-warn-*`; `--haip-amber` is deep coral #A23A1C so it reads as text and under white text). Red stays for real errors and delete.
 - Not yet moved: the Calls palette (`--clx-*`) and chart series (`--viz-*`).
 
 ### Palette (tokens in `globals.css`; never hex in components)

@@ -516,7 +516,7 @@
 
   /* Status */
   --haip-green:         #1E7A5A;
-  --haip-amber:         #A9800A;
+  --haip-amber:         #A23A1C; /* deep coral: readable as text on white and under white text */
   --haip-red:           #B3261E;
 
   /* Shadows: soft, offset, tinted forest (cards lift off the mint canvas) */
@@ -534,12 +534,12 @@
   /* Status triplets (surface / text / border). A label always accompanies the colour. Every text pair meets WCAG AA.
      success/paid = mint + sea green; warning/part paid = wheat; danger/overdue = a small red; info = sage. */
   --haip-status-success-bg: #DDF0E8; --haip-status-success-fg: #0E4A36; --haip-status-success-border: #BFE3D4;
-  --haip-status-warning-bg: #FBF0D0; --haip-status-warning-fg: #6B5208; --haip-status-warning-border: #EDD9A0;
+  --haip-status-warning-bg: #FDE6DF; --haip-status-warning-fg: #A23A1C; --haip-status-warning-border: #F5C4B5;
   --haip-status-danger-bg:  #FBE9E6; --haip-status-danger-fg:  #A92D29; --haip-status-danger-border:  #F1C6BF;
   --haip-status-info-bg:    #E2F2EB; --haip-status-info-fg:    #176349; --haip-status-info-border:    #BFE3D4;
   --haip-status-neutral-bg: #EEF1EF; --haip-status-neutral-fg: #55635A; --haip-status-neutral-border: #DDE5E0;
   /* Full-width warning banner (connection lost): solid, so it reads over any page. White on #6B5208 is 7.4:1. */
-  --haip-banner-warn-bg: #6B5208; --haip-banner-warn-fg: #FFFFFF;
+  --haip-banner-warn-bg: #F07A5A; --haip-banner-warn-fg: #3B1205;
 
   /* Structural icons (chevrons, close, menus) are neutral; sea green is for what is actionable or branded. */
   --haip-icon-neutral: #4A6559;
