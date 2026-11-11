@@ -12,11 +12,11 @@ import { BrandThemeProvider } from "@/components/providers/BrandThemeProvider";
 import { WorkspaceProvider } from "@/components/providers/WorkspaceProvider";
 import { QuoteSheetProvider } from "@/components/quotes/QuoteSheetProvider";
 
-// The app's phone header is the forest nav bar, so the browser / PWA status bar matches it (the marketing site keeps the
+// The app's phone header is the white nav bar (forest in dark mode), so the browser / PWA status bar matches it (the marketing site keeps the
 // root layout's white). Hex here because metadata cannot read CSS tokens: keep in step with --haip-nav-bg (light, dark).
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0B2B26" },
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
     { media: "(prefers-color-scheme: dark)", color: "#071A16" },
   ],
 };

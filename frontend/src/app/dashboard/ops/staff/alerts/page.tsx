@@ -176,7 +176,7 @@ export default function IfNobodyAnswersPage() {
                           <span aria-hidden className={cn("absolute bottom-0 left-[75px] w-0.5 bg-[var(--haip-band-border)]", i === 0 ? "top-6" : "top-0", i === steps.length - 1 && "bottom-auto h-6")} />
                           <span aria-hidden className={cn("absolute left-[69px] top-[19px] size-3.5 rounded-full border-[3px]",
                             owner ? "border-[var(--haip-accent)] bg-[var(--haip-accent)]" : skip ? "border-[var(--haip-border)] bg-[var(--haip-card)]" : "border-primary bg-[var(--haip-card)]")} />
-                          <span className={cn("num pt-4 text-right text-[13px] font-bold", times[i] === 0 ? "text-[var(--haip-accent)]" : skip ? "text-[var(--haip-fg-subtle)]" : "text-primary")}>
+                          <span className={cn("num pt-4 text-right text-[13px] font-bold", times[i] === 0 ? "text-[var(--haip-accent-ink)]" : skip ? "text-[var(--haip-fg-subtle)]" : "text-primary")}>
                             {skip ? "Skipped" : plus(times[i] as number)}
                           </span>
                           <div className={cn("my-1.5 ml-4 flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2",

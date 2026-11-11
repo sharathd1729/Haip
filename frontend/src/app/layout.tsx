@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Figtree } from "next/font/google";
+import { Onest } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
@@ -7,19 +7,17 @@ import { UpdateBanner } from "@/components/UpdateBanner";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { ResumeRevalidator } from "@/components/ResumeRevalidator";
 
-// Hospitality Hybrid type system (docs/DESIGN.md): Figtree for everything people read and operate, Bricolage Grotesque for
-// page titles, headline figures and section headings. Both self-hosted by next/font; --font-sans and --font-display in
+// Sea green + coral type system (docs/DESIGN.md): Onest everywhere, one family. Titles and headline figures use its
+// heavier weights through --font-display. Self-hosted by next/font; --font-sans and --font-display in
 // globals.css point at these variables, with a system fallback if either fails to load.
-const uiFont = Figtree({
+const uiFont = Onest({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-figtree",
+  variable: "--font-onest",
   display: "swap",
 });
 
-const displayFont = Bricolage_Grotesque({
+const displayFont = Onest({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
   variable: "--font-display",
   display: "swap",
 });

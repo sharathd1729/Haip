@@ -2,6 +2,12 @@
 
 Newest first. One entry per decision that changes how the UI is built. Rule from `HAIP_UI_Redesign_Plan.md`: when two sources disagree, follow `docs/DESIGN.md`; if it is silent, follow the plan; log the choice here.
 
+## 2026-11-10
+
+**Sea green + coral replaces greens + terracotta (owner-approved mock-ups: Home, parts sheet, My day, Leads).** Done as a token change in `globals.css` so every page follows: primary buttons are sea green (`--haip-action` falls back to `--primary`), coral marks only what needs attention and carries dark ink, the top bar is white, the font is Onest. `brandTheme.ts` default is #1E7A5A; a workspace still on #235347 follows it. Leads is the first page moved onto the new parts (kit `Tabs` for the two switches, 40px chips with the stage colour as a dot, tinted board lanes, a late card in coral instead of a left rail).
+- Astryx is NOT installed. It was chosen as the component library before the mock-ups; the approved look was then hand-built and maps onto the existing kit and tokens. Adding a second component system is a separate decision.
+- Dark mode: only the nav ink and the button colour were touched; it has not been redesigned.
+
 ## 2026-10-24
 
 **Phones get their own layouts for Home, My day, Leads, Inbox (list) and Bookings (owner-approved "mobile first" mockup).** Below 768px (`lib/useIsPhone`, the calendar's breakpoint) these pages render a phone component INSTEAD of the desktop markup (never both), so tablets and desktops are unchanged byte for byte; the first render is desktop and a phone switches right after mount, like the calendar.

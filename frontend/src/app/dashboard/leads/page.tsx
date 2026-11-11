@@ -12,7 +12,7 @@ import { CAME_FROM_LABEL, LEAD_TYPE_LABEL, LeadCard, type LeadCard as LeadCardTy
 import { groupLeads, LEAD_GROUP_LABEL } from "@/components/leads/leadGroups";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn, formatINR } from "@/lib/utils";
-import { DataTable, PageHeader, StatusPill, type Column } from "@/components/ui/kit";
+import { DataTable, PageHeader, StatusPill, Tabs, type Column } from "@/components/ui/kit";
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
 import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { NeedsActionView } from "@/components/leads/NeedsActionView";
@@ -47,6 +47,13 @@ interface LeadsApiPage {
   /** Whose leads: "team" (owner/manager) or "mine_and_unassigned" (every other role) -- the one visibility rule. */
   scope?: "team" | "mine_and_unassigned";
 }
+
+// Filter chips (stage, triage, "assigned to me"): white with a green border, solid green when chosen. A stage's own colour
+// is tenant data, so it shows only as a dot.
+const PILL = "lx-stage-pill inline-flex min-h-10 flex-shrink-0 items-center gap-2 border px-3.5 text-[13px] transition-colors duration-150";
+const PILL_ON = "border-[var(--haip-tab-active-bg)] bg-[var(--haip-tab-active-bg)] text-[var(--haip-tab-active-fg)]";
+const PILL_OFF = "border-[var(--haip-btn-secondary-border)] bg-[var(--haip-card)] text-[var(--accent-foreground)] hover:bg-[var(--haip-btn-secondary-hover)]";
+const ICON_BTN = "haip-btn-secondary order-3 size-10 !min-h-0 !p-0 sm:order-none";
 
 const SCOPE_LABEL = { team: "Showing: whole team", mine_and_unassigned: "Showing: your leads + unassigned" } as const;
 
@@ -124,54 +131,25 @@ function StageColumn({
   const revenue = meta?.potential_revenue ?? 0;
 
   return (
-    <div
-      className="lx-col flex-shrink-0 w-[264px] flex flex-col"
-      style={{ background: "var(--haip-card)" }}
-    >
-      {/* Column header — stage-color bar + tinted count badge, driven by
-          the tenant's own pipeline_stages.color, not a fixed dot. */}
-      <div className="flex items-start gap-2.5 px-2.5 pt-2.5 pb-3 flex-shrink-0">
-        <span className="lx-col-bar" style={{ background: stage.color }} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className="text-[12px] font-bold uppercase tracking-[0.06em] truncate"
-              style={{ color: "var(--haip-fg)" }}
-            >
-              {stage.label}
-            </span>
-            <span
-              className="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums flex-shrink-0"
-              style={{
-                background: `color-mix(in srgb, ${stage.color} 15%, transparent)`,
-                color: stage.color,
-              }}
-            >
-              {count}
-            </span>
-          </div>
-          {revenue > 0 && (
-            <p className="text-[10px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
-              ₹{Number(revenue).toLocaleString("en-IN")} potential
-            </p>
-          )}
+    <div className="lx-col flex w-[288px] flex-shrink-0 flex-col">
+      {/* Column header: the stage's own colour (tenant data) as a dot, its name, how many, what they could be worth. */}
+      <div className="flex-shrink-0 px-3 pb-2.5 pt-3">
+        <div className="flex items-center gap-2">
+          <span className="size-2.5 flex-shrink-0 rounded-full" style={{ background: stage.color }} aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--haip-fg)]">{stage.label}</span>
+          <span className="num flex-shrink-0 rounded-full bg-[var(--haip-card)] px-2 text-[12px] font-semibold leading-[22px] text-[var(--haip-fg-2)]">{count}</span>
         </div>
+        {revenue > 0 && (
+          <p className="num mt-1 pl-[18px] text-[12px] text-[var(--haip-fg-subtle)]">₹{Number(revenue).toLocaleString("en-IN")} possible</p>
+        )}
       </div>
 
       {/* Cards scroll area */}
-      <div
-        className="flex-1 overflow-y-auto px-0.5 pb-1 space-y-2 haip-scrollbar"
-        style={{ maxHeight: "calc(100dvh - 180px)" }}
-      >
+      <div className="haip-scrollbar max-h-[calc(100dvh-200px)] flex-1 space-y-2 overflow-y-auto px-2 pb-2">
         {isLoading ? (
           <SkeletonCard />
         ) : leads.length === 0 ? (
-          <div
-            className="flex items-center justify-center py-10 text-[11px]"
-            style={{ color: "var(--haip-fg-subtle)" }}
-          >
-            No leads here
-          </div>
+          <div className="flex items-center justify-center py-10 text-[13px] text-[var(--haip-fg-subtle)]">No leads here</div>
         ) : (
           <>
             {leads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)}
@@ -179,10 +157,9 @@ function StageColumn({
               <button
                 onClick={() => fetchNextPage()}
                 disabled={isFetchingNextPage}
-                className="w-full flex items-center justify-center gap-1 text-[10px] font-medium py-2 rounded-lg border transition-colors duration-150 disabled:opacity-50"
-                style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+                className="haip-btn-secondary w-full !min-h-9 text-[12.5px]"
               >
-                <ChevronDown size={11} className={isFetchingNextPage ? "animate-spin" : ""} />
+                <ChevronDown size={14} className={isFetchingNextPage ? "animate-spin" : ""} />
                 {isFetchingNextPage ? "Loading…" : `Load more (${Number(count) - leads.length} left)`}
               </button>
             )}
@@ -274,34 +251,27 @@ function TriageStrip({
   const viewing = stages.find(st => st.key === activeKey);
   return (
     <div
-      className="flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2 overflow-x-auto haip-scrollbar-x"
-      style={{ borderBottom: "1px solid var(--haip-border)" }}
+      className="flex flex-shrink-0 items-center gap-2 overflow-x-auto border-b border-[var(--haip-border)] px-4 py-2 haip-scrollbar-x sm:px-5"
     >
-      <span className="text-xs font-bold flex-shrink-0" style={{ color: "var(--haip-fg)" }}>Triage</span>
-      <span className="hidden sm:inline text-xs flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
+      <span className="flex-shrink-0 text-[13px] font-semibold text-[var(--haip-fg)]">Triage</span>
+      <span className="hidden flex-shrink-0 text-[13px] text-[var(--haip-fg-subtle)] sm:inline">
         {viewing ? `Reviewing ${viewing.label}` : "Not on the board"}
       </span>
       {stages.map(st => {
         const active = st.key === activeKey;
         const n = counts[st.key]?.count;
         return (
-          <button
-            key={st.key}
-            onClick={() => onOpen(st.key)}
-            className="flex-shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors"
-            style={active
-              ? { background: st.color, color: "#fff" }
-              : { background: `color-mix(in srgb, ${st.color} 12%, transparent)`, color: st.color }}
-          >
-            {st.label}{n != null ? ` · ${n.toLocaleString("en-IN")}` : ""}
+          <button key={st.key} aria-pressed={active} onClick={() => onOpen(st.key)}
+            className={cn(PILL, "!min-h-8 !px-3 !text-[12.5px]", active ? PILL_ON : PILL_OFF)}>
+            <span className="size-2 rounded-full" style={{ background: st.color }} aria-hidden />
+            {st.label}{n != null && <span className="num font-medium opacity-80">{n.toLocaleString("en-IN")}</span>}
           </button>
         );
       })}
       {viewing && (
         <button
           onClick={onBack}
-          className="flex-shrink-0 ml-auto text-xs font-semibold"
-          style={{ color: "var(--primary)" }}
+          className="ml-auto min-h-8 flex-shrink-0 text-[13px] font-semibold text-primary"
         >
           ← Back to board
         </button>
@@ -381,10 +351,10 @@ function StageTable({
 
   return (
     <section className="space-y-2">
-      <h2 className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--haip-fg)]">
+      <h2 className="flex items-center gap-2 text-[15px] font-semibold text-[var(--haip-fg)]">
         <span className="size-2.5 rounded-full" style={{ background: stage.color }} aria-hidden />
         {stage.label}
-        <span className="text-[11px] font-semibold tabular-nums text-[var(--haip-fg-subtle)]">{count}</span>
+        <span className="num text-[13px] font-medium text-[var(--haip-fg-subtle)]">{count}</span>
       </h2>
       <DataTable<LeadCardType>
         columns={LEAD_COLUMNS} rows={leads} rowKey={l => l.inquiry_id}
@@ -395,7 +365,7 @@ function StageTable({
       />
       {hasNextPage && (
         <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}
-          className="h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-4 text-xs font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-50">
+          className="haip-btn-secondary !min-h-9 text-[13px]">
           {isFetchingNextPage ? "Loading…" : "Load more"}
         </button>
       )}
@@ -507,61 +477,26 @@ function DesktopLeads() {
 
         {/* Controls: wrap on narrow screens instead of running off the edge */}
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Leads view" className="order-1 sm:order-none flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
-            {([["action", "Needs action"], ["pipeline", "Pipeline"]] as const).map(([key, label]) => (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={view === key}
-                onClick={() => setView(key)}
-                className="text-xs font-semibold px-3 min-h-11 sm:min-h-0 sm:py-1.5 rounded-md transition-colors"
-                style={view === key
-                  ? { background: "var(--haip-card)", color: "var(--haip-fg)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.06)" }
-                  : { color: "var(--haip-fg-subtle)" }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <Tabs label="Leads view" className="order-1 sm:order-none" value={view} onChange={v => setView(v as LeadsView)}
+            items={[{ value: "action", label: "Needs action" }, { value: "pipeline", label: "Pipeline" }]} />
 
           {view === "pipeline" && (<>
-          <div role="group" aria-label="Layout" className={cn("order-5 sm:order-none flex-shrink-0 rounded-lg p-0.5", layout === "board" ? "hidden md:flex" : "flex")} style={{ background: "var(--muted)" }}>
-            {(["board", "table"] as const).map(l => (
-              <button key={l} type="button" aria-pressed={layout === l} onClick={() => chooseLayout(l)}
-                className={cn("rounded-md px-3 min-h-11 sm:min-h-0 sm:py-1.5 text-xs font-semibold capitalize transition-colors",
-                  layout === l ? "bg-[var(--haip-card)] text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)]")}>
-                {l}
-              </button>
-            ))}
-          </div>
+          <Tabs label="Layout" className={cn("order-5 sm:order-none", layout === "board" && "max-md:hidden")} value={layout}
+            onChange={v => chooseLayout(v as "board" | "table")}
+            items={[{ value: "board", label: "Board" }, { value: "table", label: "Table" }]} />
           {/* Stage filter pills — scrollable on mobile */}
-          <div className="order-6 flex w-full items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 sm:order-none sm:w-auto sm:max-w-md">
-            <button
-              onClick={() => setStageFilter(ALL_STAGES_ID)}
-              className="lx-stage-pill flex-shrink-0 text-xs px-3 min-h-11 lg:min-h-0 lg:py-1 lg:text-[10px] transition-colors duration-150"
-              style={
-                stageFilter === ALL_STAGES_ID
-                  ? { background: "var(--lx-iris)", color: "#fff" }
-                  : { background: "transparent", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }
-              }
-            >
-              All
+          <div role="group" aria-label="Stage" className="order-6 flex w-full items-center gap-2 overflow-x-auto haip-scrollbar-x pb-0.5">
+            <button aria-pressed={stageFilter === ALL_STAGES_ID} onClick={() => setStageFilter(ALL_STAGES_ID)}
+              className={cn(PILL, stageFilter === ALL_STAGES_ID ? PILL_ON : PILL_OFF)}>
+              All stages
             </button>
             {pipelineStages.map(s => {
               const active = stageFilter === s.key;
               const cnt = stageMeta[s.key]?.count;
               return (
-                <button
-                  key={s.key}
-                  onClick={() => setStageFilter(s.key)}
-                  className="lx-stage-pill flex-shrink-0 text-xs px-3 min-h-11 lg:min-h-0 lg:py-1 lg:text-[10px] transition-colors duration-150"
-                  style={
-                    active
-                      ? { background: `color-mix(in srgb, ${s.color} 18%, transparent)`, color: s.color, border: `1.5px solid ${s.color}` }
-                      : { background: "transparent", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }
-                  }
-                >
-                  {s.label}{cnt ? ` · ${cnt}` : ""}
+                <button key={s.key} aria-pressed={active} onClick={() => setStageFilter(s.key)} className={cn(PILL, active ? PILL_ON : PILL_OFF)}>
+                  <span className="size-2 rounded-full" style={{ background: s.color }} aria-hidden />
+                  {s.label}{cnt ? <span className="num font-medium opacity-80">{cnt}</span> : null}
                 </button>
               );
             })}
@@ -571,17 +506,10 @@ function DesktopLeads() {
               leads here was LeadsFilterBar's full assigned_to dropdown,
               which requires finding your own name in the whole team list. */}
           {currentUserId && (
-            <button
+            <button aria-pressed={assignedToMe} title="Show only leads assigned to me"
               onClick={() => setFilters(f => ({ ...f, assigned_to: assignedToMe ? undefined : currentUserId }))}
-              className="lx-stage-pill flex-shrink-0 flex items-center gap-1 text-xs px-3 min-h-11 lg:min-h-0 lg:py-1 lg:text-[10px] transition-colors duration-150"
-              style={
-                assignedToMe
-                  ? { background: "var(--lx-iris)", color: "#fff" }
-                  : { background: "transparent", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }
-              }
-              title="Show only leads assigned to me"
-            >
-              <UserCheck size={11} />
+              className={cn(PILL, assignedToMe ? PILL_ON : PILL_OFF)}>
+              <UserCheck size={15} />
               Assigned to me
             </button>
           )}
@@ -592,31 +520,29 @@ function DesktopLeads() {
           {/* Add lead manually */}
           <button
             onClick={() => setAddLeadOpen(true)}
-            className="lx-btn-add order-2 sm:order-none flex items-center gap-1.5 text-xs font-semibold px-3 min-h-11 sm:min-h-0 sm:py-1.5 transition-colors duration-150"
+            className="haip-btn-primary order-2 sm:order-none"
             title="Add a lead manually"
           >
-            <Plus size={12} />
-            <span className="hidden sm:inline">Add Lead</span>
+            <Plus size={16} />
+            <span className="hidden sm:inline">Add lead</span>
           </button>
 
           {/* Pipeline settings */}
           <button
             onClick={() => setSettingsOpen(true)}
-            className="lx-icon-btn order-3 sm:order-none w-7 h-7 flex items-center justify-center border transition-colors duration-150"
-            style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+            className={ICON_BTN} aria-label="Pipeline settings"
             title="Configure pipeline stages"
           >
-            <Settings2 size={12} />
+            <Settings2 size={17} />
           </button>
 
           {/* Refresh */}
           <button
             onClick={refetchAll}
-            className="lx-icon-btn order-4 sm:order-none w-7 h-7 flex items-center justify-center border transition-colors duration-150"
-            style={{ borderColor: "var(--haip-border)", color: isFetching ? "var(--lx-iris)" : "var(--haip-fg-subtle)" }}
+            className={ICON_BTN} aria-label="Refresh"
             title="Refresh"
           >
-            <RefreshCw size={12} className={isFetching ? "animate-spin" : ""} />
+            <RefreshCw size={17} className={isFetching ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
@@ -651,7 +577,7 @@ function DesktopLeads() {
 
       {/* ── Kanban board (desktop) ──────────────────────────────────────── */}
       <div className={cn("hidden flex-1 overflow-x-auto overflow-y-hidden", layout === "board" && "md:block")}>
-        <div className="flex gap-3 p-4 h-full" style={{ minWidth: "max-content" }}>
+        <div className="flex h-full min-w-max gap-3 p-4">
           {columnsToRender.map(stage => (
             <StageColumn
               key={stage.key}

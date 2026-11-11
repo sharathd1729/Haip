@@ -358,26 +358,20 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
   const checkInLabel = formatCardDate(lead.check_in);
   const checkOutLabel = formatCardDate(lead.check_out);
 
-  // Left accent rail (prototype .k-card.urgent / .warm). Driven by the two
-  // signals the card already carries: a breached SLA is urgent, a guest still
-  // waiting on a reply is warm. Everything else stays unaccented so the
-  // colour actually means something when it does appear.
-  const accent = lead.sla_breached
-    ? "var(--haip-red)"
-    : lead.response_time_status === "waiting"
-    ? "var(--haip-gold)"
-    : null;
+  // Coral means "needs attention": a card past its reply target gets a coral edge and a coral wash. A guest who is only
+  // waiting is already marked by the reply-time badge, so the card itself stays calm.
+  const late = !!lead.sla_breached;
 
   return (
     <div
-      className="haip-card p-3 cursor-pointer hover:shadow-md transition-shadow duration-150 space-y-2.5"
-      style={accent ? { borderLeft: `3px solid ${accent}` } : undefined}
+      className={cn("haip-card cursor-pointer space-y-2.5 p-3 transition-shadow duration-150",
+        late && "!border-[var(--haip-accent-line)] !bg-[var(--haip-accent-light)]")}
       onClick={() => router.push(`/dashboard/leads/${lead.inquiry_id}`)}
     >
       {/* Row 1: Guest name + source icon */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <span className="font-medium text-sm truncate" style={{ color: "var(--haip-fg)" }}>
+          <span className="truncate text-[14px] font-semibold" style={{ color: "var(--haip-fg)" }}>
             {lead.display_name}
           </span>
           {!hasPhone && (
@@ -392,8 +386,8 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
       <div className="flex items-center justify-between gap-2">
         <StageSelect lead={lead} />
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="flex items-center gap-1 whitespace-nowrap text-[11px] sm:text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
-            <Clock size={9} />
+          <span className="flex items-center gap-1 whitespace-nowrap text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>
+            <Clock size={11} />
             {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
           </span>
           <AutopilotBadge move={lead.autopilot_move} />
@@ -453,13 +447,13 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         {lead.assigned_agent_name ? (
           <>
             <AgentAvatar name={lead.assigned_agent_name} photoUrl={lead.assigned_agent_avatar_url} />
-            <span className="text-xs sm:text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-subtle)" }}>
+            <span className="flex-1 truncate text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
               {lead.assigned_agent_name}
             </span>
           </>
         ) : (
           <>
-            <span className="text-xs sm:text-[10px] font-semibold" style={{ color: "var(--haip-gold, var(--haip-fg-subtle))" }}>Unassigned</span>
+            <span className="text-xs font-semibold text-[var(--haip-accent-ink)]">Unassigned</span>
             <AssignToMeButton lead={lead} />
           </>
         )}
