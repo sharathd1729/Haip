@@ -9,7 +9,8 @@ ingest IVR calls use): guest resolved through identity_service, voice conversati
 The idempotency key is ivr_call_id "mobile_app:<device row id>:<device_call_id>", unique across all calls.
 
 Privacy (spec "Privacy rule in the API"):
-  - a number the staff member marked personal is rejected (the server keeps only SHA-256 hashes of those numbers);
+  - numbers the staff member marked personal never reach the server: the app drops those calls, and the settings schema
+    refuses any personal_numbers key (even hashed, phone numbers are few enough to be reversed);
   - a number that matches no guest is stored only while "Unknown numbers are enquiries" is on for the call's start time:
     setting unknown_numbers = working_hours (default: on inside the staff member's working hours, off outside; on all day
     when no hours are set) | always | never.
@@ -40,8 +41,10 @@ def hash_token(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _hash_number(e164: str) -> str:
-    return hashlib.sha256(e164.encode()).hexdigest()
+class RegisterRefused(Exception):
+    def __init__(self, status_code: int, detail: str):
+        super().__init__(detail)
+        self.status_code, self.detail = status_code, detail
 
 
 def ivr_call_id_for(device: MobileDevice, device_call_id: str) -> str:
@@ -51,24 +54,15 @@ def ivr_call_id_for(device: MobileDevice, device_call_id: str) -> str:
 # ─── Settings ────────────────────────────────────────────────────────────────
 
 def apply_settings(db: Session, device: MobileDevice, new: DeviceSettings) -> None:
-    from app.services import phone_identity
-
-    region = phone_identity.region_for_tenant(db, device.tenant_id)
-    hashes = sorted({_hash_number(e) for e in (phone_identity.normalize(n, region) for n in new.personal_numbers) if e})
     device.settings = {
         "unknown_numbers": new.unknown_numbers,
         "working_hours": new.working_hours.model_dump() if new.working_hours else None,
-        "personal_number_hashes": hashes,
     }
 
 
 def settings_out(device: MobileDevice) -> dict:
     s = device.settings or {}
-    return {
-        "unknown_numbers": s.get("unknown_numbers", "working_hours"),
-        "working_hours": s.get("working_hours"),
-        "personal_numbers_count": len(s.get("personal_number_hashes") or []),
-    }
+    return {"unknown_numbers": s.get("unknown_numbers", "working_hours"), "working_hours": s.get("working_hours")}
 
 
 def _minutes(hhmm: str) -> int:
@@ -94,11 +88,20 @@ def unknown_numbers_on(device: MobileDevice, started_at: datetime, tz) -> bool:
 # ─── Register / authenticate / revoke ────────────────────────────────────────
 
 def register(db: Session, user: User, body: DeviceRegister) -> tuple[MobileDevice, str]:
-    """Create the device, or re-register it (same app install id in this workspace): a new token replaces the old one, the
-    device moves to this user and a revoked device is live again. Audited. Returns the row and the raw token (only here)."""
-    raw = TOKEN_PREFIX + secrets.token_urlsafe(32)
+    """Create the device, or re-register it (same app install id in this workspace): a new token replaces the old one.
+    Only an owner/manager may move a phone to another person or bring a revoked phone back (RegisterRefused otherwise),
+    so knowing another phone's install id is not enough to take it over or undo a revoke. Audited. Returns the row and
+    the raw token (only here)."""
+    from app.models.user import UserRole
+
     device = db.query(MobileDevice).filter_by(tenant_id=user.tenant_id, device_id=body.device_id).first()
     again = device is not None
+    if again and user.role not in (UserRole.OWNER, UserRole.MANAGER):
+        if device.revoked_at is not None:
+            raise RegisterRefused(403, "This phone was removed from HAIP. Ask your manager to add it back.")
+        if device.user_id != user.id:
+            raise RegisterRefused(409, "This phone is registered to another staff member. Ask your manager to move it.")
+    raw = TOKEN_PREFIX + secrets.token_urlsafe(32)
     if device is None:
         device = MobileDevice(tenant_id=user.tenant_id, device_id=body.device_id, settings={})
         db.add(device)
@@ -164,8 +167,8 @@ def authenticate(db: Session, raw: str) -> Optional[MobileDevice]:
 # ─── Call upload ─────────────────────────────────────────────────────────────
 
 def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> list[dict]:
-    """Queue each new call into call_ingest. Per call status: queued | duplicate | rejected_personal |
-    skipped_unknown_number | invalid_number. Never writes a Call row itself."""
+    """Queue each new call into call_ingest. Per call status: queued | duplicate | skipped_unknown_number |
+    invalid_number. Never writes a Call row itself."""
     from app.services import identity_service, phone_identity
     from app.services.roster_service import tenant_tz
     from app.workers.tasks.call_ingest import ingest_call
@@ -173,7 +176,6 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
     tenant_id = device.tenant_id
     region = phone_identity.region_for_tenant(db, tenant_id)
     tz = tenant_tz(db, tenant_id)
-    personal = set((device.settings or {}).get("personal_number_hashes") or [])
     ids = {c.device_call_id: ivr_call_id_for(device, c.device_call_id) for c in batch.calls}
     seen = {r[0] for r in db.query(Call.ivr_call_id).filter(Call.tenant_id == tenant_id,
                                                               Call.ivr_call_id.in_(list(ids.values()))).all()}
@@ -185,8 +187,6 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
             status = "duplicate"
         elif not e164:
             status = "invalid_number"          # withheld / private / malformed
-        elif _hash_number(e164) in personal:
-            status = "rejected_personal"
         else:
             guest_id = identity_service.find_person_by_phone(db, tenant_id, e164)
             if guest_id is None and not unknown_numbers_on(device, c.started_at, tz):

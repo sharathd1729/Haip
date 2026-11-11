@@ -218,18 +218,43 @@ def test_unknown_number_rule(client, db, tenant_and_user, queued, settings, star
     assert len(queued) == (1 if expected == "queued" else 0)
 
 
-def test_personal_number_is_rejected_and_never_stored(client, db, tenant_and_user, queued):
-    tid = _tid(tenant_and_user)
-    identity_service.resolve_gid(db, tid, "phone", KNOWN, source="test")
-    db.commit()
+def test_personal_numbers_are_never_accepted_by_the_server(client, db, tenant_and_user, queued):
     dev = _register(client, _auth(tenant_and_user["access_token"]))
     s = client.put("/api/v1/devices/settings", json={"personal_numbers": ["98456 12345"]}, headers=_auth(dev["token"]))
-    assert s.status_code == 200 and s.json()["personal_numbers_count"] == 1
+    assert s.status_code == 422
+    body = {"device_id": "install-p", "settings": {"personal_numbers": ["98456 12345"]}}
+    assert client.post("/api/v1/devices/register", json=body, headers=_auth(tenant_and_user["access_token"])).status_code == 422
     row = db.query(MobileDevice).filter_by(id=dev["id"]).one()
-    assert "9845612345" not in str(row.settings)
-    r = client.post("/api/v1/device-calls", json={"calls": [_call(number=KNOWN), _call(number="private")]},
-                    headers=_auth(dev["token"]))
-    assert [x["status"] for x in r.json()["results"]] == ["rejected_personal", "invalid_number"] and queued == []
+    assert "9845612345" not in str(row.settings) and "personal" not in str(row.settings)
+    r = client.post("/api/v1/device-calls", json={"calls": [_call(number="private")]}, headers=_auth(dev["token"]))
+    assert r.json()["results"][0]["status"] == "invalid_number" and queued == []
+
+
+def test_staff_cannot_take_over_another_persons_phone(client, db, tenant_and_user, queued):
+    tid = _tid(tenant_and_user)
+    _, alice_h = _user(db, tid)
+    _, bob_h = _user(db, tid)
+    alice = _register(client, alice_h, device_id="install-a")
+    r = client.post("/api/v1/devices/register", json={"device_id": "install-a"}, headers=bob_h)
+    assert r.status_code == 409 and "token" not in r.json()
+    row = db.query(MobileDevice).filter_by(id=alice["id"]).one()
+    assert row.user_id != r.json().get("user_id") and row.token_hash == hashlib.sha256(alice["token"].encode()).hexdigest()
+    assert client.post("/api/v1/device-calls", json={"calls": [_call()]}, headers=_auth(alice["token"])).status_code == 200
+    # an owner may move it (audited as a re-registration)
+    moved = _register(client, _auth(tenant_and_user["access_token"]), device_id="install-a")
+    assert moved["id"] == alice["id"] and moved["user_id"] == tenant_and_user["user"].id
+
+
+def test_staff_cannot_bring_back_a_revoked_phone(client, db, tenant_and_user, queued):
+    staff, staff_h = _user(db, _tid(tenant_and_user))
+    dev = _register(client, staff_h, device_id="install-r")
+    owner_h = _auth(tenant_and_user["access_token"])
+    assert client.delete(f"/api/v1/devices/{dev['id']}", headers=owner_h).status_code == 204
+    r = client.post("/api/v1/devices/register", json={"device_id": "install-r"}, headers=staff_h)
+    assert r.status_code == 403
+    assert db.query(MobileDevice).filter_by(id=dev["id"]).one().revoked_at is not None
+    _, manager_h = _user(db, _tid(tenant_and_user), UserRole.MANAGER)
+    assert client.post("/api/v1/devices/register", json={"device_id": "install-r"}, headers=manager_h).status_code == 201
 
 
 def test_batch_over_200_is_rejected(client, db, tenant_and_user, queued):

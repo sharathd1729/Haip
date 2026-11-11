@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from typing import Literal, Optional
 
-from pydantic import AwareDatetime, BaseModel, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -23,12 +23,14 @@ class WorkingHours(BaseModel):
 
 
 class DeviceSettings(BaseModel):
+    # Unknown keys are refused (422), so a personal_numbers list can never be sent here: numbers the staff member marks
+    # personal stay on the phone, which drops those calls before upload. Hashes would be reversible (small number space).
+    model_config = ConfigDict(extra="forbid")
+
     # "Unknown numbers are enquiries": working_hours (default) = on inside the staff member's working hours, off outside;
     # always / never. With no working hours set, working_hours behaves like always.
     unknown_numbers: Literal["working_hours", "always", "never"] = "working_hours"
     working_hours: Optional[WorkingHours] = None
-    # Numbers the staff member marked personal. Write-only: the server keeps only their SHA-256 (of the E.164 form).
-    personal_numbers: list[str] = Field(default_factory=list, max_length=500)
 
 
 class DeviceRegister(BaseModel):

@@ -1,7 +1,8 @@
 """HAIP Calls app (Android), step 1 (docs/MOBILE_CALL_TRACKING_SPEC.md).
 
-  POST   /devices/register   logged-in user: register this phone, returns the device token ONCE
-  PUT    /devices/settings   device token: unknown-number rule, working hours, personal numbers (stored as hashes)
+  POST   /devices/register   logged-in user: register this phone, returns the device token ONCE (moving a phone to another
+                             person or reviving a revoked one: owner/manager only, else 409 / 403)
+  PUT    /devices/settings   device token: unknown-number rule, working hours (personal numbers stay on the phone)
   GET    /devices            owner/manager: every staff device in the workspace
   DELETE /devices/{id}       revoke: your own device, or any device for owner/manager (audited)
   POST   /device-calls       device token: up to 200 call-log entries, idempotent on (device, device_call_id)
@@ -48,7 +49,10 @@ def _out(d: MobileDevice, user_name: str | None = None) -> dict:
 
 @router.post("/register", status_code=201)
 def register_device(body: DeviceRegister, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    device, raw = mobile_device_service.register(db, current_user, body)
+    try:
+        device, raw = mobile_device_service.register(db, current_user, body)
+    except mobile_device_service.RegisterRefused as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     db.commit()
     set_tenant_context(db, current_user.tenant_id)
     db.refresh(device)
