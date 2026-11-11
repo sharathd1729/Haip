@@ -6,12 +6,19 @@
   GET    /devices            owner/manager: every staff device in the workspace
   DELETE /devices/{id}       revoke: your own device, or any device for owner/manager (audited)
   POST   /device-calls       device token: up to 200 call-log entries, idempotent on (device, device_call_id)
+  POST   /device-calls/{device_call_id}/recording
+                             device token, step 2: multipart field "file", the phone's recording of one of ITS calls
+                             (m4a/mp3/amr/aac/wav/ogg by magic bytes, <= 50 MB). 201 attached, 202 waiting for the call
+                             row, 200 duplicate (ignored), 404 not a call this phone uploaded (yet: retry after the call
+                             batch said queued), 411/413/415/422 refused.
 
 Device-token requests send "Authorization: Bearer haip_dev_..."; unknown or revoked token = 401.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response, status
+from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, require_roles
@@ -94,3 +101,35 @@ def upload_device_calls(body: DeviceCallBatch, device: MobileDevice = Depends(cu
     for r in results:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
     return {"results": results, "counts": counts}
+
+
+# Multipart overhead on top of the file itself (boundary, part headers); generous, still far below the cap.
+_FORM_OVERHEAD = 64 * 1024
+
+
+@calls_router.post("/{device_call_id}/recording")
+async def upload_call_recording(request: Request, response: Response, device_call_id: str = Path(min_length=1, max_length=100),
+                                device: MobileDevice = Depends(current_device), db: Session = Depends(get_db)):
+    # Multipart, not a presigned upload: the codebase has no presigned-PUT pattern, and the magic-byte check needs the bytes.
+    # The size cap is enforced on Content-Length BEFORE the body is read (the server never reads past it), then again on
+    # the file itself, so an oversize upload is refused without being received.
+    try:
+        length = int(request.headers.get("content-length", ""))
+    except ValueError:
+        raise HTTPException(status_code=411, detail="Content-Length is required")
+    if length > mobile_device_service.MAX_RECORDING_BYTES + _FORM_OVERHEAD:
+        raise HTTPException(status_code=413, detail="A recording may be up to 50 MB.")
+    form = await request.form(max_files=1, max_fields=1)
+    try:
+        upload = form.get("file")
+        if not isinstance(upload, UploadFile):
+            raise HTTPException(status_code=422, detail='Send the recording as multipart field "file".')
+        data = await upload.read(mobile_device_service.MAX_RECORDING_BYTES + 1)
+    finally:
+        await form.close()
+    try:
+        out = await run_in_threadpool(mobile_device_service.attach_recording, db, device, device_call_id, data)
+    except mobile_device_service.RecordingRefused as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    response.status_code = {"attached": 201, "waiting": 202}.get(out["status"], 200)
+    return out

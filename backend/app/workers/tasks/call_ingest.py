@@ -192,6 +192,8 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 tenant_id=tenant_id,
             ).first()
             if existing:
+                if ivr_provider == "mobile_app":
+                    _link_mobile_recording(db, existing)   # a retry after a failed link, or a recording that raced in
                 if _merge_later_event(db, existing, normalized, tenant_id, ivr_provider):
                     return {"call_id": existing.id, "status": "updated"}
                 log.info("call_already_ingested", call_id=existing.id)
@@ -304,8 +306,11 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 from app.workers.tasks.lead_playbooks import queue_on_call
                 queue_on_call(tenant_id, call.id)
 
-            # Queue recording fetch + transcription. The Calls app has nothing to fetch: its device uploads the file.
-            if ivr_provider != "mobile_app":
+            # Queue recording fetch + transcription. The Calls app has nothing to fetch: its phone uploads the file, which
+            # may have arrived already and waits to be attached here (mobile_device_service.link_pending).
+            if ivr_provider == "mobile_app":
+                _link_mobile_recording(db, call)
+            else:
                 fetch_and_store_recording.delay(
                     call_id=call.id,
                     recording_url=normalized.recording_url,
@@ -321,6 +326,19 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
     except Exception as exc:
         log.error("call_ingest_failed", error=str(exc), tenant_id=tenant_id)
         raise self.retry(exc=exc)
+
+
+def _link_mobile_recording(db: Session, call: Call) -> None:
+    """Best-effort: a failure must not retry the ingest. The waiting row stays, and the ingest retry / a duplicate delivery
+    (the idempotency branch above) or the phone's next upload links it."""
+    try:
+        from app.services.mobile_device_service import link_pending
+        link_pending(db, call)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        from app.core.database import set_tenant_context
+        set_tenant_context(db, call.tenant_id)
+        log.error("mobile_recording_link_failed", call_id=call.id, error=str(exc)[:200])
 
 
 # Retry schedule for missing recordings (seconds):
@@ -465,30 +483,7 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         call.recording_fetched = True
         call.recording_status = RecordingStatus.AVAILABLE
         call.recording_error = None
-
-        if (call.duration_seconds or 0) < _MIN_DURATION_FOR_AI_SECONDS:
-            # Too short to carry a real conversation -- typically a
-            # misdial, voicemail beep, or an outbound leg that connected
-            # for a fraction of a second before hanging up. Not worth a
-            # transcription/scoring API call, and previously these sat at
-            # transcription_status="queued" forever since nothing ever
-            # dequeued them.
-            call.transcription_status = "skipped_short_call"
-            call.ai_score_status = "skipped_short_call"
-            db.commit()
-            log.info("recording_stored_call_too_short_for_ai", call_id=call_id, duration_seconds=call.duration_seconds)
-        elif settings.TRANSCRIPTION_PAUSED:
-            call.transcription_status = "pending"
-            db.commit()
-            log.info("recording_stored_transcription_paused", call_id=call_id, s3_key=s3_key)
-        else:
-            call.transcription_status = "queued"
-            db.commit()
-
-            log.info("recording_stored", call_id=call_id, s3_key=s3_key)
-
-            from app.workers.tasks.transcribe import transcribe as transcribe_new
-            transcribe_new.delay(call_id=call_id, tenant_id=tenant_id)
+        queue_transcription(db, call)
 
     except Exception as exc:
         error_str = str(exc)
@@ -513,6 +508,34 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
 
     finally:
         db.close()
+
+
+def queue_transcription(db: Session, call: Call) -> None:
+    """A recording was just stored on the call (IVR fetch, or a Calls-app upload): commit and start the same transcription
+    -> AI chain for both."""
+    if (call.duration_seconds or 0) < _MIN_DURATION_FOR_AI_SECONDS:
+        # Too short to carry a real conversation -- typically a
+        # misdial, voicemail beep, or an outbound leg that connected
+        # for a fraction of a second before hanging up. Not worth a
+        # transcription/scoring API call, and previously these sat at
+        # transcription_status="queued" forever since nothing ever
+        # dequeued them.
+        call.transcription_status = "skipped_short_call"
+        call.ai_score_status = "skipped_short_call"
+        db.commit()
+        log.info("recording_stored_call_too_short_for_ai", call_id=call.id, duration_seconds=call.duration_seconds)
+    elif settings.TRANSCRIPTION_PAUSED:
+        call.transcription_status = "pending"
+        db.commit()
+        log.info("recording_stored_transcription_paused", call_id=call.id, s3_key=call.recording_s3_key)
+    else:
+        call.transcription_status = "queued"
+        db.commit()
+
+        log.info("recording_stored", call_id=call.id, s3_key=call.recording_s3_key)
+
+        from app.workers.tasks.transcribe import transcribe as transcribe_new
+        transcribe_new.delay(call_id=call.id, tenant_id=call.tenant_id)
 
 
 def _mark_recording_status(db, call: Call, status: RecordingStatus, error: str) -> None:

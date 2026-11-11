@@ -15,6 +15,7 @@ celery_app = Celery(
     include=[
         # Legacy (keep for backward compat)
         "app.workers.tasks.call_ingest",
+        "app.workers.tasks.mobile_calls",
         "app.workers.tasks.transcription",
         "app.workers.tasks.ai_scoring",
         "app.workers.tasks.whatsapp",
@@ -239,6 +240,7 @@ celery_app.conf.update(
         "tasks.wrap_up":                             {"queue": "ai_scoring"},
         "ai_scoring.score_call":                     {"queue": "ai_scoring"},
         "call_ingest.process":                       {"queue": "call_ingest"},
+        "mobile_calls.purge_stale_pending":          {"queue": "call_ingest"},
         "transcription.transcribe_call":             {"queue": "transcription"},
         "sync_hostaway":                             {"queue": "call_ingest"},
         "sync_hostaway_all_tenants":                 {"queue": "call_ingest"},
@@ -606,6 +608,11 @@ celery_app.conf.beat_schedule = {
     "dpdp-purge-daily": {
         "task": "tasks.dpdp_purge",
         "schedule": crontab(hour=2, minute=0),
+    },
+    # Calls app: recordings whose call never arrived (ingest failed for good) are deleted after 2 days. 02:45 IST.
+    "mobile-calls-purge-stale-pending": {
+        "task": "mobile_calls.purge_stale_pending",
+        "schedule": crontab(hour=2, minute=45),
     },
     "retention-purge-nightly": {
         "task": "app.workers.tasks.retention_purge.nightly_purge",

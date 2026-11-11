@@ -36,7 +36,7 @@ from app.models.website import (BookingHold, GuestAccessToken, Site, SiteAiJob, 
 from app.models.google_surfaces import GbpDailyMetric, GscDailyTotal, GscSearchRow, PageSpeedRun
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
-from app.models.mobile_device import MobileDevice
+from app.models.mobile_device import MobileCallPending, MobileDevice
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
 from app.models.stay_finance import StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest
 from app.models.invoice import Invoice, InvoiceSequence
