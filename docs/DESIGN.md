@@ -124,7 +124,8 @@ Chosen by the owner from mock-ups (Home, parts sheet, My day, Leads). Applied th
 - Type: Onest only (`--font-onest`, `--font-display`); Figtree and Bricolage Grotesque are retired.
 - Motion: buttons and chips scale to 0.97 on press (160ms, ease-out); hover changes colour only; off under `prefers-reduced-motion`.
 - A tenant's own stage colour shows as a dot beside the name, never as the text or fill of a chip.
-- Not yet moved: the Calls palette (`--clx-*`), the Inbox WhatsApp greens (`--ibx-*`) and chart series (`--viz-*`).
+- Inbox: `--ibx-*` now point at the theme (no gradient, glow or second green); unread counts are coral; every channel badge (`ChannelIcon`) is the same green chip, told apart by icon and label; nothing is set below 11.5px.
+- Not yet moved: the Calls palette (`--clx-*`) and chart series (`--viz-*`).
 
 ### Palette (tokens in `globals.css`; never hex in components)
 Green carries almost all colour; ONE warm accent, terracotta, used sparingly. No pink, coral, bright yellow or orange as theme colours.

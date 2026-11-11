@@ -131,7 +131,7 @@ export function ProfileCompletenessWidget({ inquiryId }: { inquiryId: string | n
         {items.map(item => (
           <div key={item.key} className="flex items-center gap-1.5">
             {item.done ? (
-              <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0" />
+              <CheckCircle2 size={12} className="flex-shrink-0 text-primary" />
             ) : item.key === "phone" ? (
               <button
                 type="button"

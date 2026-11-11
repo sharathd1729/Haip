@@ -91,7 +91,7 @@ export function TemplatePickerModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" style={{ maxHeight: "calc(100dvh - 2rem)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--haip-border)]">
           <div className="flex items-center gap-2">
-            <LayoutTemplate size={16} className="text-amber-600" />
+            <LayoutTemplate size={16} className="text-primary" />
             <h2 className="text-sm font-bold text-[var(--haip-fg)]">{startFor ? "Start on WhatsApp" : "Send WhatsApp Template"}</h2>
           </div>
           <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"><X size={16} /></button>
@@ -141,7 +141,7 @@ export function TemplatePickerModal({
                 {preview() || "…"}
               </div>
 
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              {error && <p className="text-xs text-[var(--haip-status-danger-fg)]">{error}</p>}
             </div>
           )}
         </div>
@@ -154,7 +154,7 @@ export function TemplatePickerModal({
               disabled={sendMutation.isPending || variables.some(v => !v.trim())}
               className={cn(
                 "flex items-center gap-1.5 text-xs font-semibold text-white px-3.5 py-1.5 rounded-lg transition-colors",
-                sendMutation.isPending || variables.some(v => !v.trim()) ? "bg-amber-300" : "bg-amber-600 hover:bg-amber-700"
+                sendMutation.isPending || variables.some(v => !v.trim()) ? "bg-primary/50" : "bg-primary hover:bg-[var(--haip-primary-hover)]"
               )}
             >
               {sendMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}

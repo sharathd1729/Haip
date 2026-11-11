@@ -46,49 +46,52 @@ type ChannelConfig = {
   bg: string;
 };
 
+// Sea green + coral: every channel wears the same green badge. The icon and the label tell them apart, not a hue.
+const CH_FG = "text-[var(--haip-chip-fg)]";
+const CH_BG = "bg-[var(--haip-chip-bg)]";
+
 const CONFIGS: Record<string, ChannelConfig> = {
   // WhatsApp — real brand green
-  wa_direct:    { icon: <WhatsAppIcon size={13} />, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950" },
-  whatsapp:     { icon: <WhatsAppIcon size={13} />, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950" },
-  click_to_wa:  { icon: <WhatsAppIcon size={13} />, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950" },
+  wa_direct:    { icon: <WhatsAppIcon size={13} />, color: CH_FG, bg: CH_BG },
+  whatsapp:     { icon: <WhatsAppIcon size={13} />, color: CH_FG, bg: CH_BG },
+  click_to_wa:  { icon: <WhatsAppIcon size={13} />, color: CH_FG, bg: CH_BG },
 
   // Instagram / Meta — real brand mark
-  meta_ig:      { icon: <InstagramIcon size={13} />, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950" },
-  instagram:    { icon: <InstagramIcon size={13} />, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950" },
+  meta_ig:      { icon: <InstagramIcon size={13} />, color: CH_FG, bg: CH_BG },
+  instagram:    { icon: <InstagramIcon size={13} />, color: CH_FG, bg: CH_BG },
 
   // Meta lead form (a thread in the Inbox under "Facebook"; not a chat)
-  facebook:     { icon: <ClipboardList size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
+  facebook:     { icon: <ClipboardList size={13} />, color: CH_FG, bg: CH_BG },
 
   // Phone — filled solid, blue
-  inbound_call:  { icon: <CallIcon size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
-  outbound_call: { icon: <CallIcon size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
-  call:          { icon: <CallIcon size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
-  voice:         { icon: <CallIcon size={13} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
+  inbound_call:  { icon: <CallIcon size={13} />, color: CH_FG, bg: CH_BG },
+  outbound_call: { icon: <CallIcon size={13} />, color: CH_FG, bg: CH_BG },
+  call:          { icon: <CallIcon size={13} />, color: CH_FG, bg: CH_BG },
+  voice:         { icon: <CallIcon size={13} />, color: CH_FG, bg: CH_BG },
 
   // OTA Airbnb — rose
-  ota_airbnb:   { icon: <Building2 size={14} />, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950" },
-  airbnb:       { icon: <Building2 size={14} />, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950" },
+  ota_airbnb:   { icon: <Building2 size={14} />, color: CH_FG, bg: CH_BG },
+  airbnb:       { icon: <Building2 size={14} />, color: CH_FG, bg: CH_BG },
 
   // OTA MMT / Goibibo / Booking — red/orange
-  ota_mmt:      { icon: <Building2 size={14} />, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950" },
-  ota_booking:  { icon: <Building2 size={14} />, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-950" },
-  ota_vrbo:     { icon: <Building2 size={14} />, color: "text-sky-600 dark:text-sky-400", bg: "bg-sky-50 dark:bg-sky-950" },
-  ota_goibibo:  { icon: <Building2 size={14} />, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950" },
+  ota_mmt:      { icon: <Building2 size={14} />, color: CH_FG, bg: CH_BG },
+  ota_booking:  { icon: <Building2 size={14} />, color: CH_FG, bg: CH_BG },
+  ota_vrbo:     { icon: <Building2 size={14} />, color: CH_FG, bg: CH_BG },
+  ota_goibibo:  { icon: <Building2 size={14} />, color: CH_FG, bg: CH_BG },
 
   // Channel manager / referral / other
-  channel_manager: { icon: <Building2 size={14} />, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950" },
-  referral:        { icon: <Users size={14} />,     color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950" },
+  channel_manager: { icon: <Building2 size={14} />, color: CH_FG, bg: CH_BG },
+  referral:        { icon: <Users size={14} />,     color: CH_FG, bg: CH_BG },
   walk_in:         { icon: <Users size={14} />,     color: "text-primary dark:text-primary", bg: "bg-[var(--haip-primary-tint)] dark:bg-[var(--haip-primary-tint)]" },
-  website:         { icon: <Globe size={14} />,     color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
-  web_chat:        { icon: <Globe size={14} />,     color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
-  web:             { icon: <Globe size={14} />,     color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
-  sms:             { icon: <MessageSquare size={14} />, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950" },
+  website:         { icon: <Globe size={14} />,     color: CH_FG, bg: CH_BG },
+  web_chat:        { icon: <Globe size={14} />,     color: CH_FG, bg: CH_BG },
+  web:             { icon: <Globe size={14} />,     color: CH_FG, bg: CH_BG },
+  sms:             { icon: <MessageSquare size={14} />, color: CH_FG, bg: CH_BG },
 };
 
 const FALLBACK: ChannelConfig = {
   icon: <MessageSquare size={14} />,
-  color: "text-zinc-500 dark:text-zinc-400",
-  bg: "bg-zinc-100 dark:bg-zinc-800",
+  color: CH_FG, bg: CH_BG,
 };
 
 // Human-facing label per channel/source key — kept separate from CONFIGS so

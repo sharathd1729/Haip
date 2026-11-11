@@ -148,13 +148,13 @@ export const MessageBubble = memo(function MessageBubble({
     return (
       <div className={cn("flex justify-center", className)}>
         <div className="max-w-[85%] bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--haip-status-warning-fg)]">
-          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-[var(--haip-status-warning-fg)] uppercase tracking-wide">
+          <div className="flex items-center gap-1.5 mb-1 text-[11.5px] font-bold text-[var(--haip-status-warning-fg)] uppercase tracking-wide">
             <StickyNote size={10} />
             Internal note
             {senderName && <span className="font-normal normal-case ml-1 opacity-80">· {senderName}</span>}
           </div>
           <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text}</p>
-          <p className="text-[10px] opacity-70 mt-1">{formatTime(timestamp)}</p>
+          <p className="text-[11.5px] opacity-70 mt-1">{formatTime(timestamp)}</p>
         </div>
       </div>
     );
@@ -168,7 +168,7 @@ export const MessageBubble = memo(function MessageBubble({
     >
       {/* Sender name */}
       {senderName && !isOut && (
-        <span className="text-[10px] text-[var(--haip-fg-subtle)] font-medium mb-1 ml-1">{senderName}</span>
+        <span className="text-[11.5px] text-[var(--haip-fg-subtle)] font-medium mb-1 ml-1">{senderName}</span>
       )}
 
       <div className={cn("max-w-[80%] flex flex-col gap-1", isOut && "items-end")}>
@@ -187,9 +187,9 @@ export const MessageBubble = memo(function MessageBubble({
             {isAiDraft && (
               <div className="flex items-center gap-1.5 mb-1.5 pb-1.5" style={{ borderBottom: "1px solid color-mix(in srgb, var(--ibx-iris) 25%, transparent)" }}>
                 <Sparkles size={12} style={{ color: "var(--ibx-iris)" }} />
-                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--ibx-iris)" }}>AI Draft</span>
+                <span className="text-[11.5px] font-bold uppercase tracking-wide" style={{ color: "var(--ibx-iris)" }}>AI Draft</span>
                 {aiConfidence != null && Number(aiConfidence) > 0 && (
-                  <span className="ml-auto text-[10px] font-mono" style={{ color: "var(--ibx-iris)" }}>
+                  <span className="ml-auto text-[11.5px] font-mono" style={{ color: "var(--ibx-iris)" }}>
                     {Math.round(aiConfidence * 100)}%
                   </span>
                 )}
@@ -237,12 +237,12 @@ export const MessageBubble = memo(function MessageBubble({
         {/* Meta row — W20: status always visible */}
         <div className={cn("flex items-center gap-1.5 px-1", isOut ? "flex-row-reverse" : "flex-row")}>
           {!isOut && toGuestChannel(channel) && <ChannelBadge channel={toGuestChannel(channel)!} size={12} />}
-          <span className="text-[10px] text-[var(--haip-fg-subtle)]">{formatTime(timestamp)}</span>
+          <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{formatTime(timestamp)}</span>
           {isOut && <StatusIcon status={status} error={deliveryError} />}
           {/* W23: the next step for a failed send -- Retry only when sending the same thing again can work */}
           {isOut && isFailed && (() => {
             const step = failureStep(deliveryError, { isTemplate, channel });
-            const btn = "flex items-center gap-0.5 text-[10px] font-medium text-[var(--haip-status-danger-fg)] hover:opacity-80 transition-colors ml-1";
+            const btn = "flex items-center gap-0.5 text-[11.5px] font-medium text-[var(--haip-status-danger-fg)] hover:opacity-80 transition-colors ml-1";
             if (step === "retry" && onRetry) return <button onClick={() => onRetry(id)} className={btn}><RotateCw size={10} /> Retry</button>;
             if (step === "template" && onFailureAction) return <button onClick={() => onFailureAction("template")} className={btn}>Send a template</button>;
             if (step === "whatsapp" && onFailureAction) return <button onClick={() => onFailureAction("whatsapp")} className={btn}>Message on WhatsApp</button>;

@@ -59,7 +59,7 @@ export function FollowUpTasksPanel({ conversationId }: { conversationId: string 
           Follow-up tasks
         </span>
         {tasks.length > 0 && (
-          <span className="text-[10px] font-bold" style={{ color: "var(--primary)" }}>
+          <span className="text-[11.5px] font-bold" style={{ color: "var(--primary)" }}>
             {doneCount}/{tasks.length} done
           </span>
         )}
@@ -79,7 +79,7 @@ export function FollowUpTasksPanel({ conversationId }: { conversationId: string 
                 <span
                   className={cn(
                     "w-4 h-4 rounded flex items-center justify-center border flex-shrink-0",
-                    t.is_done ? "bg-emerald-500 border-emerald-500 text-white" : "border-[var(--haip-border-strong)]"
+                    t.is_done ? "bg-primary border-primary text-primary-foreground" : "border-[var(--haip-border-strong)]"
                   )}
                 >
                   {t.is_done && <Check size={11} />}
@@ -92,7 +92,7 @@ export function FollowUpTasksPanel({ conversationId }: { conversationId: string 
                 <span className={cn("truncate", t.is_done && "line-through opacity-50")}>{t.title}</span>
               </span>
               {t.due_date && (
-                <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
+                <span className="flex items-center gap-1 text-[11.5px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
                   <CalendarClock size={10} />
                   {new Date(t.due_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                 </span>

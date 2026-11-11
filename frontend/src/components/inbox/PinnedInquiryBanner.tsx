@@ -65,7 +65,7 @@ export function PinnedInquiryBanner({ inquiryId }: { inquiryId: string | null })
           <span style={{ color: "var(--haip-fg-subtle)" }}>{label}</span>
           {value
             ? <span className="font-semibold" style={{ color: "var(--haip-fg)" }}>{value}</span>
-            : <span className="font-semibold text-amber-700">Not shared</span>}
+            : <span className="font-semibold text-[var(--haip-accent-ink)]">Not shared</span>}
         </span>
       ))}
     </div>
