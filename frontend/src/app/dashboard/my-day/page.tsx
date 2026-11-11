@@ -202,7 +202,7 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
           title={item.since ? `Waiting since ${new Date(item.since).toLocaleString("en-IN")}` : undefined}>
           {ago(item.since)}
         </span>
-        <span className="text-[10.5px] text-[var(--haip-fg-subtle)]">{item.kind !== "followup" ? "waiting" : item.overdue ? "overdue" : "due"}</span>
+        <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{item.kind !== "followup" ? "waiting" : item.overdue ? "overdue" : "due"}</span>
       </div>
     </>
   );

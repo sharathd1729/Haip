@@ -489,7 +489,7 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                   style={{ width: DAY_W }}
                   title={AVAIL_LABEL[status] ?? status}
                 >
-                  <span className="text-[8px] font-bold text-[var(--haip-fg-subtle)]/60 uppercase">
+                  <span className="text-[11.5px] font-bold text-[var(--haip-fg-subtle)]/60 uppercase">
                     {status === "confirmed" || status === "checked_in" ? "●" : ""}
                   </span>
                 </div>
@@ -573,7 +573,7 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                       className="flex-shrink-0 flex items-center justify-center border-r border-[var(--haip-border)]"
                       style={{ width: DAY_W }}
                     >
-                      <span className="text-[9px] font-semibold tabular-nums text-[var(--haip-fg-subtle)]">
+                      <span className="text-[11.5px] font-semibold tabular-nums text-[var(--haip-fg-subtle)]">
                         {fmtRate(rate)}
                       </span>
                     </div>
@@ -658,7 +658,7 @@ const CalendarHeader = memo(function CalendarHeader({
           <div className="flex border-t border-[var(--haip-border)]" style={{ height: RATE_H }}>
             {days.map(day => (
               <div key={day} className="flex-shrink-0 flex items-center justify-center border-r border-[var(--haip-border)]" style={{ width: DAY_W }}>
-                <span className="text-[8px] font-bold text-[var(--haip-fg-subtle)] uppercase">₹</span>
+                <span className="text-[11.5px] font-bold text-[var(--haip-fg-subtle)] uppercase">₹</span>
               </div>
             ))}
           </div>

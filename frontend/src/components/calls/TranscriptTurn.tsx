@@ -85,7 +85,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   <div className="flex items-baseline gap-2 mb-1">
   <span className="text-xs font-semibold text-[var(--haip-fg-2)]">{styles.label}</span>
   <button
-  className="text-[10px] text-[var(--haip-fg-subtle)] hover:text-primary transition-colors tabular-nums"
+  className="text-[11.5px] text-[var(--haip-fg-subtle)] hover:text-primary transition-colors tabular-nums"
   onClick={(e) => { e.stopPropagation(); onClick?.(t0); }}
   title="Seek to this turn"
   >

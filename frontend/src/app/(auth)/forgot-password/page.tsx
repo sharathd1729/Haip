@@ -94,7 +94,7 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                  <p className="text-sm text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-fg)]/10 border border-[var(--haip-status-danger-fg)]/20 rounded-xl px-4 py-3">
                     {error}
                   </p>
                 )}

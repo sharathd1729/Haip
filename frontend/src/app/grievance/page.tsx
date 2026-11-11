@@ -85,12 +85,12 @@ export default function GrievancePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--haip-surface)]">
       {/* Header */}
       <div className="bg-[#060e1c] text-white py-16 px-5">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="w-14 h-14 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-5">
-            <Shield size={26} className="text-teal-400" />
+          <div className="w-14 h-14 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center mx-auto mb-5">
+            <Shield size={26} className="text-primary" />
           </div>
           <h1 className="text-3xl font-bold mb-3">Privacy &amp; Grievances</h1>
           <p className="text-white/60 text-base leading-relaxed max-w-xl mx-auto">
@@ -105,27 +105,27 @@ export default function GrievancePage() {
         {/* Sidebar — officer info */}
         <div className="md:col-span-2 space-y-6">
           {/* Officer card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Grievance Officer</p>
-            <p className="text-sm font-semibold text-gray-900">HAIP Privacy Team</p>
+          <div className="bg-white rounded-2xl border border-[var(--haip-border)] p-6 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)] mb-4">Grievance Officer</p>
+            <p className="text-sm font-semibold text-[var(--haip-fg)]">HAIP Privacy Team</p>
             <div className="mt-4 space-y-3">
               <div className="flex items-center gap-2.5">
-                <Mail size={14} className="text-teal-500 flex-shrink-0" />
+                <Mail size={14} className="text-[var(--haip-status-success-fg)] flex-shrink-0" />
                 <a href="mailto:privacy@haip.in" className="text-sm text-[#3D9E7E] hover:text-[#4DB893] font-medium">
                   privacy@haip.in
                 </a>
               </div>
               <div className="flex items-center gap-2.5">
-                <Clock size={14} className="text-gray-400 flex-shrink-0" />
-                <span className="text-sm text-gray-600">Response within <strong>30 days</strong></span>
+                <Clock size={14} className="text-[var(--haip-fg-subtle)] flex-shrink-0" />
+                <span className="text-sm text-[var(--haip-fg-2)]">Response within <strong>30 days</strong></span>
               </div>
             </div>
           </div>
 
           {/* Your rights */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Your Rights under DPDP</p>
-            <ul className="space-y-3 text-sm text-gray-700">
+          <div className="bg-white rounded-2xl border border-[var(--haip-border)] p-6 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)] mb-4">Your Rights under DPDP</p>
+            <ul className="space-y-3 text-sm text-[var(--haip-fg-2)]">
               {[
                 ["Access", "Know what data we hold about you"],
                 ["Correction", "Fix inaccurate information"],
@@ -135,10 +135,10 @@ export default function GrievancePage() {
                 ["Complaint", "Escalate to the Data Protection Board"],
               ].map(([right, desc]) => (
                 <li key={right} className="flex gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold text-gray-900">{right}</span>
-                    <span className="text-gray-500 ml-1 text-xs">{desc}</span>
+                    <span className="font-semibold text-[var(--haip-fg)]">{right}</span>
+                    <span className="text-[var(--haip-fg-subtle)] ml-1 text-xs">{desc}</span>
                   </div>
                 </li>
               ))}
@@ -146,11 +146,11 @@ export default function GrievancePage() {
           </div>
 
           {/* Quick opt-out */}
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-            <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">Quick Opt-out</p>
-            <p className="text-sm text-amber-800 leading-relaxed">
+          <div className="bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-2xl p-5">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--haip-status-warning-fg)] mb-2">Quick Opt-out</p>
+            <p className="text-sm text-[var(--haip-status-warning-fg)] leading-relaxed">
               To stop marketing messages instantly, reply{" "}
-              <strong className="font-mono bg-amber-100 px-1 rounded">STOP</strong> to any WhatsApp message from us.
+              <strong className="font-mono bg-[var(--haip-status-warning-bg)] px-1 rounded">STOP</strong> to any WhatsApp message from us.
               Takes effect in under 30 seconds.
             </p>
           </div>
@@ -159,18 +159,18 @@ export default function GrievancePage() {
         {/* Form */}
         <div className="md:col-span-3">
           {submitted ? (
-            <div className="bg-white rounded-2xl border border-gray-200 p-10 shadow-sm text-center">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
-                <CheckCircle2 size={30} className="text-green-600" />
+            <div className="bg-white rounded-2xl border border-[var(--haip-border)] p-10 shadow-sm text-center">
+              <div className="w-16 h-16 rounded-full bg-[var(--haip-status-success-bg)] flex items-center justify-center mx-auto mb-5">
+                <CheckCircle2 size={30} className="text-[var(--haip-status-success-fg)]" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Grievance Submitted</h2>
-              <p className="text-gray-500 mb-4 text-sm leading-relaxed">
+              <h2 className="text-xl font-bold text-[var(--haip-fg)] mb-2">Grievance Submitted</h2>
+              <p className="text-[var(--haip-fg-subtle)] mb-4 text-sm leading-relaxed">
                 Your reference number is{" "}
-                <span className="font-mono font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">
+                <span className="font-mono font-semibold text-[var(--haip-fg)] bg-[var(--haip-status-neutral-bg)] px-2 py-0.5 rounded">
                   {referenceNo}
                 </span>
               </p>
-              <p className="text-gray-500 text-sm mb-8">
+              <p className="text-[var(--haip-fg-subtle)] text-sm mb-8">
                 We will respond to <strong>privacy@haip.in</strong> within <strong>30 days</strong> as required by the DPDP Act.
               </p>
               <button
@@ -181,13 +181,13 @@ export default function GrievancePage() {
               </button>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-              <h2 className="text-lg font-bold text-gray-900 mb-6">Submit a Grievance</h2>
+            <div className="bg-white rounded-2xl border border-[var(--haip-border)] p-8 shadow-sm">
+              <h2 className="text-lg font-bold text-[var(--haip-fg)] mb-6">Submit a Grievance</h2>
 
               {mutation.isError && (
-                <div className="mb-5 flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
-                  <p className="text-sm text-red-700">Something went wrong. Please try again or email us directly.</p>
+                <div className="mb-5 flex items-center gap-2.5 bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl px-4 py-3">
+                  <AlertCircle size={14} className="text-[var(--haip-status-danger-fg)] flex-shrink-0" />
+                  <p className="text-sm text-[var(--haip-status-danger-fg)]">Something went wrong. Please try again or email us directly.</p>
                 </div>
               )}
 
@@ -195,7 +195,7 @@ export default function GrievancePage() {
                 {/* Name + Email */}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Full name *</label>
+                    <label className="block text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Full name *</label>
                     <input
                       type="text"
                       value={form.name}
@@ -203,13 +203,13 @@ export default function GrievancePage() {
                       placeholder="Rahul Sharma"
                       className={cn(
                         "w-full text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent transition-colors",
-                        errors.name ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                        errors.name ? "border-[var(--haip-status-danger-border)] focus:ring-[var(--haip-status-danger-border)]" : "border-[var(--haip-border)] focus:ring-primary"
                       )}
                     />
-                    {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
+                    {errors.name && <p className="text-xs text-[var(--haip-status-danger-fg)] mt-1">{errors.name}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email address *</label>
+                    <label className="block text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Email address *</label>
                     <input
                       type="email"
                       value={form.email}
@@ -217,35 +217,35 @@ export default function GrievancePage() {
                       placeholder="rahul@email.com"
                       className={cn(
                         "w-full text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent transition-colors",
-                        errors.email ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                        errors.email ? "border-[var(--haip-status-danger-border)] focus:ring-[var(--haip-status-danger-border)]" : "border-[var(--haip-border)] focus:ring-primary"
                       )}
                     />
-                    {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
+                    {errors.email && <p className="text-xs text-[var(--haip-status-danger-fg)] mt-1">{errors.email}</p>}
                   </div>
                 </div>
 
                 {/* Phone (optional) */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Phone number <span className="font-normal text-gray-400">(optional)</span></label>
+                  <label className="block text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Phone number <span className="font-normal text-[var(--haip-fg-subtle)]">(optional)</span></label>
                   <input
                     type="tel"
                     value={form.phone}
                     onChange={set("phone")}
                     placeholder="+91 98765 43210"
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
+                    className="w-full text-sm border border-[var(--haip-border)] rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
                   />
                 </div>
 
                 {/* Grievance type */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Nature of grievance *</label>
+                  <label className="block text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Nature of grievance *</label>
                   <div className="relative">
                     <select
                       value={form.grievance_type}
                       onChange={set("grievance_type")}
                       className={cn(
                         "w-full text-sm border rounded-xl px-3.5 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:border-transparent bg-white pr-10 transition-colors",
-                        errors.grievance_type ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                        errors.grievance_type ? "border-[var(--haip-status-danger-border)] focus:ring-[var(--haip-status-danger-border)]" : "border-[var(--haip-border)] focus:ring-primary"
                       )}
                     >
                       <option value="">Select type…</option>
@@ -253,14 +253,14 @@ export default function GrievancePage() {
                         <option key={t.value} value={t.value}>{t.label}</option>
                       ))}
                     </select>
-                    <ChevronDown size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <ChevronDown size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)] pointer-events-none" />
                   </div>
-                  {errors.grievance_type && <p className="text-xs text-red-600 mt-1">{errors.grievance_type}</p>}
+                  {errors.grievance_type && <p className="text-xs text-[var(--haip-status-danger-fg)] mt-1">{errors.grievance_type}</p>}
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Description *</label>
+                  <label className="block text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Description *</label>
                   <textarea
                     value={form.description}
                     onChange={set("description")}
@@ -268,14 +268,14 @@ export default function GrievancePage() {
                     placeholder="Please describe your concern in detail. Include dates, which service, and what resolution you are seeking."
                     className={cn(
                       "w-full text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent resize-none transition-colors",
-                      errors.description ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                      errors.description ? "border-[var(--haip-status-danger-border)] focus:ring-[var(--haip-status-danger-border)]" : "border-[var(--haip-border)] focus:ring-primary"
                     )}
                   />
                   <div className="flex items-center justify-between mt-1">
                     {errors.description
-                      ? <p className="text-xs text-red-600">{errors.description}</p>
+                      ? <p className="text-xs text-[var(--haip-status-danger-fg)]">{errors.description}</p>
                       : <span />}
-                    <p className="text-[11px] text-gray-400">{form.description.length} chars</p>
+                    <p className="text-[11px] text-[var(--haip-fg-subtle)]">{form.description.length} chars</p>
                   </div>
                 </div>
 
@@ -292,9 +292,9 @@ export default function GrievancePage() {
                   ) : "Submit grievance"}
                 </button>
 
-                <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] text-center leading-relaxed">
                   By submitting, you agree that HAIP may process your information to respond to this grievance per our{" "}
-                  <Link href="/privacy" className="text-teal-500 hover:underline">Privacy Policy</Link>.
+                  <Link href="/privacy" className="text-[var(--haip-status-success-fg)] hover:underline">Privacy Policy</Link>.
                   We will respond within 30 days.
                 </p>
               </form>
@@ -304,10 +304,10 @@ export default function GrievancePage() {
       </div>
 
       {/* Bottom bar */}
-      <div className="border-t border-gray-200 py-8 text-center">
-        <p className="text-xs text-gray-400">
+      <div className="border-t border-[var(--haip-border)] py-8 text-center">
+        <p className="text-xs text-[var(--haip-fg-subtle)]">
           HAIP Hospitality AI Intelligence Platform · privacy@haip.in ·{" "}
-          <Link href="/privacy" className="text-teal-500 hover:underline">Privacy Policy</Link>{" "}
+          <Link href="/privacy" className="text-[var(--haip-status-success-fg)] hover:underline">Privacy Policy</Link>{" "}
           · Regulated under the Digital Personal Data Protection Act, 2023
         </p>
       </div>

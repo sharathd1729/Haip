@@ -26,7 +26,7 @@ export interface Preview {
 }
 
 const HEAT_STYLE: Record<string, string> = {
-  hot: "bg-red-50 text-red-700 border-red-200", warm: "bg-amber-50 text-amber-700 border-amber-200", cold: "bg-blue-50 text-blue-700 border-blue-200",
+  hot: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]", warm: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]", cold: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
 };
 
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -122,7 +122,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
                 <Chip key={h} on={!!filter.heat?.includes(h)} onClick={() => set({ heat: toggle(filter.heat, h) })}><span className="capitalize">{h}</span></Chip>
               ))}
             </div>
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">From mood, urgency, trip dates, group size, quote and how much they've chatted.</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">From mood, urgency, trip dates, group size, quote and how much they've chatted.</p>
           </div>
 
           {opts && opts.stages.length > 0 && (
@@ -181,7 +181,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
       {/* Result */}
       <div className="rounded-xl border border-[var(--haip-border)] p-3" aria-live="polite">
         {isError ? (
-          <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle size={13} /> Couldn't count the audience. Try again.</p>
+          <p className="text-xs text-[var(--haip-status-danger-fg)] flex items-center gap-1.5"><AlertCircle size={13} /> Couldn't count the audience. Try again.</p>
         ) : !preview ? (
           <p className="text-xs text-[var(--haip-fg-subtle)] flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Counting…</p>
         ) : (
@@ -193,7 +193,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
               {preview.will_receive > 0 && (
                 <span className="ml-auto flex gap-1">
                   {(["hot", "warm", "cold"] as const).map(h => preview.heat[h] > 0 && (
-                    <span key={h} className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize", HEAT_STYLE[h])}>{preview.heat[h].toLocaleString()} {h}</span>
+                    <span key={h} className={cn("text-[11.5px] font-semibold px-2 py-0.5 rounded-full border capitalize", HEAT_STYLE[h])}>{preview.heat[h].toLocaleString()} {h}</span>
                   ))}
                 </span>
               )}
@@ -209,19 +209,19 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
                 ].filter(Boolean).join(" · ")}
               </p>
             )}
-            {preview.truncated && <p className="text-[11px] text-amber-700 mt-1">Very large audience: only the first 50,000 leads were considered.</p>}
+            {preview.truncated && <p className="text-[11px] text-[var(--haip-status-warning-fg)] mt-1">Very large audience: only the first 50,000 leads were considered.</p>}
             {preview.sample.length > 0 && (
               <ul className="mt-3 divide-y divide-[var(--haip-border)] border border-[var(--haip-border)] rounded-lg">
                 {preview.sample.map((m, i) => (
                   <li key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
                     <span className="font-medium text-[var(--haip-fg)] truncate w-32 flex-shrink-0">{m.name || "—"}</span>
-                    <span className="font-mono text-[10px] text-[var(--haip-fg-subtle)] flex-shrink-0">{m.phone}</span>
-                    {m.heat && <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full border capitalize flex-shrink-0", HEAT_STYLE[m.heat])}>{m.heat}</span>}
-                    <span className="text-[10px] text-[var(--haip-fg-subtle)] truncate">{m.why.join(" · ")}</span>
+                    <span className="font-mono text-[11.5px] text-[var(--haip-fg-subtle)] flex-shrink-0">{m.phone}</span>
+                    {m.heat && <span className={cn("text-[11.5px] font-semibold px-1.5 py-0.5 rounded-full border capitalize flex-shrink-0", HEAT_STYLE[m.heat])}>{m.heat}</span>}
+                    <span className="text-[11.5px] text-[var(--haip-fg-subtle)] truncate">{m.why.join(" · ")}</span>
                   </li>
                 ))}
                 {preview.will_receive > preview.sample.length && (
-                  <li className="px-3 py-1.5 text-[10px] text-[var(--haip-fg-subtle)]">…and {(preview.will_receive - preview.sample.length).toLocaleString()} more, hottest first</li>
+                  <li className="px-3 py-1.5 text-[11.5px] text-[var(--haip-fg-subtle)]">…and {(preview.will_receive - preview.sample.length).toLocaleString()} more, hottest first</li>
                 )}
               </ul>
             )}
@@ -233,7 +233,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
         <input type="checkbox" checked={consent} onChange={e => onConsent(e.target.checked)} className="mt-0.5 accent-primary" />
         <span className="text-[var(--haip-fg-2)] leading-snug">
           These leads contacted us or gave us their number, and none have asked us to stop.
-          <span className="block text-[10px] text-[var(--haip-fg-subtle)] mt-0.5">Anyone who replied STOP is already left out. This confirmation is saved with the campaign.</span>
+          <span className="block text-[11.5px] text-[var(--haip-fg-subtle)] mt-0.5">Anyone who replied STOP is already left out. This confirmation is saved with the campaign.</span>
         </span>
       </label>
     </div>

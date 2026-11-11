@@ -14,7 +14,7 @@ const MODULES = [
     id: "calls",
     label: "Calls & IVR",
     icon: <Phone size={16} />,
-    color: "from-blue-500 to-blue-600",
+    color: "from-primary to-primary",
     faqs: [
       {
         q: "How does HAIP receive inbound calls?",
@@ -42,7 +42,7 @@ const MODULES = [
     id: "inbox",
     label: "Inbox & Messaging",
     icon: <MessageSquare size={16} />,
-    color: "from-green-500 to-green-600",
+    color: "from-primary to-primary",
     faqs: [
       {
         q: "What channels appear in the Inbox?",
@@ -70,7 +70,7 @@ const MODULES = [
     id: "crm",
     label: "Guests & Inquiries",
     icon: <Users size={16} />,
-    color: "from-violet-500 to-violet-600",
+    color: "from-primary to-primary",
     faqs: [
       {
         q: "How are guests created?",
@@ -98,7 +98,7 @@ const MODULES = [
     id: "qa",
     label: "QA & Scoring",
     icon: <Star size={16} />,
-    color: "from-amber-500 to-amber-600",
+    color: "from-[var(--haip-amber)] to-[var(--haip-amber)]",
     faqs: [
       {
         q: "How is the QA score calculated?",
@@ -146,7 +146,7 @@ const MODULES = [
     id: "integrations",
     label: "Integrations",
     icon: <Plug2 size={16} />,
-    color: "from-indigo-500 to-indigo-600",
+    color: "from-primary to-primary",
     faqs: [
       {
         q: "Do I need a Meta (Facebook) developer app to connect WhatsApp?",
@@ -170,7 +170,7 @@ const MODULES = [
     id: "compliance",
     label: "Compliance & Privacy",
     icon: <Shield size={16} />,
-    color: "from-red-500 to-red-600",
+    color: "from-[var(--haip-status-danger-fg)] to-[var(--haip-status-danger-fg)]",
     faqs: [
       {
         q: "Is HAIP compliant with India's DPDP Act 2023?",
@@ -273,7 +273,7 @@ export default function HelpPage() {
               ) : (
                 searchResults.map((f, i) => (
                   <div key={i}>
-                    <p className="text-[10px] font-bold text-primary uppercase tracking-wider mt-3 mb-0.5">{f.module}</p>
+                    <p className="text-[11.5px] font-bold text-primary uppercase tracking-wider mt-3 mb-0.5">{f.module}</p>
                     <FAQItem q={f.q} a={f.a} />
                   </div>
                 ))
@@ -298,7 +298,7 @@ export default function HelpPage() {
                       {m.icon}
                     </div>
                     <span className="text-xs font-semibold text-[var(--haip-fg-2)]">{m.label}</span>
-                    <span className="text-[10px] text-[var(--haip-fg-subtle)]">{m.faqs.length} FAQs</span>
+                    <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{m.faqs.length} FAQs</span>
                   </button>
                 ))}
               </div>
@@ -328,7 +328,7 @@ export default function HelpPage() {
               </div>
               <div className="flex-1">
                 <h3 className="text-base font-bold mb-1">Still need help?</h3>
-                <p className="text-sm text-slate-300 mb-4 leading-relaxed">
+                <p className="text-sm text-[var(--haip-fg-subtle)] mb-4 leading-relaxed">
                   Our support team typically responds within 4 business hours. Include your workspace name and a brief description of the issue.
                 </p>
                 <div className="flex flex-wrap gap-3">
@@ -349,7 +349,7 @@ export default function HelpPage() {
                     WhatsApp support
                   </a>
                 </div>
-                <p className="text-xs text-slate-500 mt-4">
+                <p className="text-xs text-[var(--haip-fg-subtle)] mt-4">
                   Support hours: Monday–Saturday, 9 AM – 7 PM IST
                   · hello@haip.app
                 </p>

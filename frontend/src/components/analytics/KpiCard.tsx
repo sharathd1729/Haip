@@ -34,9 +34,9 @@ export function DeltaChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+        "inline-flex items-center gap-0.5 text-[11.5px] font-bold px-1.5 py-0.5 rounded-full",
         positive ? "bg-[var(--haip-primary-tint)] text-primary" :
-        negative ? "bg-red-100 text-red-600"   : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]",
+        negative ? "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]"   : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]",
       )}
     >
       {delta.direction === "up"   ? <ArrowUpRight size={9} />   :
@@ -74,8 +74,8 @@ export const KpiCard = memo(function KpiCard({
     variant === "danger"  ? "rgba(248,113,113,0.12)" :
     "var(--haip-primary-tint)";
   const iconColor =
-    variant === "warning" ? "#D97706" :
-    variant === "danger"  ? "#ef4444" : "var(--primary)";
+    variant === "warning" ? "var(--haip-accent-ink)" :
+    variant === "danger"  ? "var(--haip-status-danger-fg)" : "var(--primary)";
 
   return (
     <div
@@ -111,7 +111,7 @@ export const KpiCard = memo(function KpiCard({
         </p>
       )}
       {onClick && (
-        <p className="text-[10px] mt-2 font-medium" style={{ color: "var(--primary)" }}>
+        <p className="text-[11.5px] mt-2 font-medium" style={{ color: "var(--primary)" }}>
           Drill down →
         </p>
       )}

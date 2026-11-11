@@ -137,12 +137,12 @@ export function ProfileCompletenessWidget({ inquiryId }: { inquiryId: string | n
                 type="button"
                 onClick={() => setShowPhoneInput(true)}
                 className="flex items-center gap-1 hover:underline"
-                style={{ color: "var(--haip-amber, #d97706)" }}
+                style={{ color: "var(--haip-amber, var(--haip-accent-ink))" }}
               >
                 <XCircle size={12} className="flex-shrink-0" /> {item.label}
               </button>
             ) : (
-              <XCircle size={12} className="text-rose-400 flex-shrink-0" />
+              <XCircle size={12} className="text-[var(--haip-status-danger-fg)] flex-shrink-0" />
             )}
             {!(item.key === "phone" && !item.done) && <span style={{ color: "var(--haip-fg-muted)" }}>{item.label}</span>}
           </div>

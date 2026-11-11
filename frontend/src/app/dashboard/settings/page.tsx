@@ -129,7 +129,7 @@ export default function SettingsPage() {
         )}
 
         <div className="mt-auto pt-4 border-t border-[var(--haip-border)]">
-          <p className="text-[10px] text-[var(--haip-fg-subtle)] px-3">
+          <p className="text-[11.5px] text-[var(--haip-fg-subtle)] px-3">
             IVR, WhatsApp, Instagram, and PMS settings are managed in{" "}
             <a href="/dashboard/settings/integrations" className="text-primary hover:underline font-medium">Integrations →</a>
           </p>
@@ -260,7 +260,7 @@ function WorkspaceSettings() {
                 <div key={day} className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--haip-border)] last:border-0 hover:bg-[var(--haip-surface)]/50">
                   <span className="w-24 text-xs font-medium text-[var(--haip-fg-2)]">{day}</span>
                   <span className="text-xs text-[var(--haip-fg-subtle)]">{idx < 5 ? "09:00 – 21:00" : idx === 5 ? "10:00 – 18:00" : "10:00 – 14:00"}</span>
-                  <span className="ml-auto text-[10px] text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full font-medium">Open</span>
+                  <span className="ml-auto text-[11.5px] text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full font-medium">Open</span>
                 </div>
               ))}
             </div>
@@ -365,12 +365,12 @@ function KillSwitchCard() {
       {/* Emergency stop */}
       <div className={cn(
         "rounded-xl border-2 p-5 transition-colors",
-        stopped ? "border-red-300 bg-red-50" : "border-[var(--haip-border)] bg-white",
+        stopped ? "border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-bg)]" : "border-[var(--haip-border)] bg-white",
       )}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <AlertCircle size={16} className={stopped ? "text-red-600" : "text-[var(--haip-fg-subtle)]"} />
+              <AlertCircle size={16} className={stopped ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]"} />
               <p className="text-sm font-semibold text-[var(--haip-fg)]">
                 {stopped ? "AI is stopped" : "Emergency stop"}
               </p>
@@ -381,7 +381,7 @@ function KillSwitchCard() {
                 : "Immediately stops the AI sending messages to guests on every channel. Drafts keep appearing for your team, so nothing is lost."}
             </p>
             {stopped && safety?.ai_kill_switch_at && (
-              <p className="text-[11px] text-red-700 mt-1.5">
+              <p className="text-[11px] text-[var(--haip-status-danger-fg)] mt-1.5">
                 Stopped {new Date(safety.ai_kill_switch_at).toLocaleString()}
               </p>
             )}
@@ -397,8 +397,8 @@ function KillSwitchCard() {
             className={cn(
               "px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex-shrink-0 disabled:opacity-50",
               stopped
-                ? "bg-white border border-red-300 text-red-700 hover:bg-red-100"
-                : "bg-red-600 text-white hover:bg-red-700",
+                ? "bg-white border border-[var(--haip-status-danger-border)] text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]"
+                : "bg-[var(--haip-status-danger-fg)] text-white hover:bg-[var(--haip-status-danger-fg)]",
             )}
           >
             {toggleKill.isPending ? "…" : stopped ? "Resume AI" : "Stop AI now"}
@@ -433,11 +433,11 @@ function KillSwitchCard() {
         {keywords.length > 0 ? (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {keywords.map(k => (
-              <span key={k} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800">
+              <span key={k} className="inline-flex items-center gap-1 px-2 py-1 bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-lg text-[11px] text-[var(--haip-status-warning-fg)]">
                 {k}
                 <button
                   onClick={() => setKwDraft(keywords.filter(x => x !== k))}
-                  className="text-amber-500 hover:text-amber-700"
+                  className="text-[var(--haip-status-warning-fg)] hover:text-[var(--haip-status-warning-fg)]"
                   title="Remove"
                 >
                   ×
@@ -635,7 +635,7 @@ function AISettings() {
         )}
         <p className="text-xs text-[var(--haip-fg-subtle)] mb-4">Recommended: start with Shadow for 30 days, then switch to Autonomous.</p>
         {aiModeError && (
-          <p className="text-xs text-red-600 mb-2">Couldn&apos;t load current settings — saving may overwrite them.</p>
+          <p className="text-xs text-[var(--haip-status-danger-fg)] mb-2">Couldn&apos;t load current settings — saving may overwrite them.</p>
         )}
         <SaveButton
           saved={savedWA}
@@ -705,9 +705,9 @@ function AISettings() {
       </Card>
 
       {/* Knowledge base note */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-800">
+      <div className="bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)] rounded-xl p-4 text-xs text-[var(--haip-status-info-fg)]">
         <p className="font-semibold mb-1">Before switching to Autonomous</p>
-        <ul className="space-y-0.5 list-disc list-inside text-blue-700">
+        <ul className="space-y-0.5 list-disc list-inside text-[var(--haip-status-info-fg)]">
           <li>Add your FAQs, amenities, add-ons and policies to the knowledge base — the AI can only answer from what it knows</li>
           <li>Use &ldquo;Test what the AI knows&rdquo; on your most common guest questions and confirm each returns the right answer</li>
           <li>Run Shadow mode long enough to see the drafts it produces for real guests</li>
@@ -784,7 +784,7 @@ function PushSubscriptionCard() {
       <div className="flex items-start gap-3">
         <div className={cn(
           "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
-          status === "subscribed" ? "bg-emerald-50 text-emerald-600" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]"
+          status === "subscribed" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]"
         )}>
           {status === "subscribed" ? <BellRing size={16} /> : <BellOff size={16} />}
         </div>
@@ -819,7 +819,7 @@ function PushSubscriptionCard() {
               <button
                 onClick={enable}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-60 flex-shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--haip-brand-panel)] hover:bg-[var(--haip-brand-panel)] disabled:opacity-60 flex-shrink-0"
               >
                 {busy ? <Loader2 size={12} className="animate-spin" /> : <Bell size={12} />}
                 Enable notifications
@@ -827,7 +827,7 @@ function PushSubscriptionCard() {
             </div>
           )}
 
-          {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+          {error && <p className="text-xs text-[var(--haip-status-danger-fg)] mt-1.5">{error}</p>}
         </div>
       </div>
     </Card>
@@ -941,7 +941,7 @@ function NotificationSettings() {
           </div>
         </Card>
       ))}
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--haip-status-danger-fg)]">{error}</p>}
       <SaveButton saved={saved} onClick={handleSave} loading={saving} />
     </div>
   );
@@ -991,11 +991,11 @@ function MFACard() {
   if (stage === "enabled") {
     return (
       <Card title="Two-factor authentication">
-        <div className="flex items-center gap-3 text-sm text-green-700 bg-green-50 rounded-xl p-4 border border-green-200">
+        <div className="flex items-center gap-3 text-sm text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)] rounded-xl p-4 border border-[var(--haip-status-success-border)]">
           <CheckCircle size={18} className="flex-shrink-0" />
           <div>
             <p className="font-semibold">MFA enabled</p>
-            <p className="text-xs text-green-600 mt-0.5">Your account is protected with TOTP authentication.</p>
+            <p className="text-xs text-[var(--haip-status-success-fg)] mt-0.5">Your account is protected with TOTP authentication.</p>
           </div>
         </div>
       </Card>
@@ -1007,7 +1007,7 @@ function MFACard() {
       {stage === "idle" && (
         <div className="space-y-4">
           <p className="text-sm text-[var(--haip-fg-subtle)]">Add an extra layer of security. You'll be prompted for a 6-digit code from your authenticator app on each sign-in.</p>
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-[var(--haip-status-danger-fg)]">{error}</p>}
           <button onClick={startSetup} disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-[var(--haip-primary-hover)] disabled:opacity-50 transition-colors">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
@@ -1036,7 +1036,7 @@ function MFACard() {
             placeholder="000000"
             className="w-full px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] border border-[var(--haip-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-[var(--haip-status-danger-fg)]">{error}</p>}
           <button onClick={verifyCode} disabled={loading || code.length < 6}
             className="w-full py-2.5 bg-primary text-white font-semibold rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[var(--haip-primary-hover)]">
             {loading && <Loader2 size={14} className="animate-spin" />}
@@ -1083,7 +1083,7 @@ function SaveButton({ onClick, saved, loading = false, label = "Save changes" }:
   return (
     <button onClick={onClick} disabled={loading} className={cn(
       "mt-5 px-5 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-60",
-      saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-primary text-white hover:bg-primary"
+      saved ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border border-[var(--haip-status-success-border)]" : "bg-primary text-white hover:bg-primary"
     )}>
       {loading && <Loader2 size={13} className="animate-spin" />}
       {saved ? "✓ Saved" : label}

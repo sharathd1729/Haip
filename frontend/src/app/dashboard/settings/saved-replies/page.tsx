@@ -115,9 +115,9 @@ export default function SavedRepliesPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-sm font-semibold text-[var(--haip-fg)]">{r.title}</p>
                   {r.language && r.language !== "en" && (
-                    <Badge variant="ghost" className="text-[10px] capitalize">{r.language}</Badge>
+                    <Badge variant="ghost" className="text-[11.5px] capitalize">{r.language}</Badge>
                   )}
-                  <span className="text-[10px] text-[var(--haip-fg-subtle)] ml-auto">{r.usage_count} uses</span>
+                  <span className="text-[11.5px] text-[var(--haip-fg-subtle)] ml-auto">{r.usage_count} uses</span>
                 </div>
                 <p className="text-xs text-[var(--haip-fg-subtle)] truncate">{r.body}</p>
               </div>
@@ -130,7 +130,7 @@ export default function SavedRepliesPage() {
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate(r.id)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50 transition-colors"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)] transition-colors"
                 >
                   <Trash2 size={13} />
                 </button>

@@ -105,12 +105,12 @@ export function TemplateEditor({ template, duplicateOf, onClose, onSaved }: {
           <div className="overflow-y-auto p-6 space-y-5">
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Template name <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Template name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <input value={form.name} disabled={editing}
                   onChange={e => patch(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_\s]/g, "").replace(/\s+/g, "_") }))}
                   placeholder="booking_confirmation"
                   className={cn(INPUT, "font-mono", editing && "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]")} />
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Lowercase letters, numbers and underscores. Can't be changed later.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Lowercase letters, numbers and underscores. Can't be changed later.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Language</label>
@@ -129,7 +129,7 @@ export function TemplateEditor({ template, duplicateOf, onClose, onSaved }: {
                     <input type="radio" name="category" value={c.value} checked={form.category === c.value}
                       onChange={() => patch(f => ({ ...f, category: c.value }))} className="sr-only" />
                     <span className="font-semibold text-[var(--haip-fg)] capitalize">{c.value.toLowerCase()}</span>
-                    <span className="text-[10px] text-[var(--haip-fg-subtle)] leading-snug">{c.hint}</span>
+                    <span className="text-[11.5px] text-[var(--haip-fg-subtle)] leading-snug">{c.hint}</span>
                   </label>
                 ))}
               </div>
@@ -158,14 +158,14 @@ export function TemplateEditor({ template, duplicateOf, onClose, onSaved }: {
             <div>
               <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-2">Before you save</p>
               {problems.length === 0 && lint.length === 0 ? (
-                <p className="text-[11px] text-green-600 flex items-center gap-1"><CheckCircle2 size={12} /> Looks good.</p>
+                <p className="text-[11px] text-[var(--haip-status-success-fg)] flex items-center gap-1"><CheckCircle2 size={12} /> Looks good.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {problems.map((p, i) => (
-                    <li key={`p${i}`} className="text-[11px] text-amber-700 flex items-start gap-1.5"><AlertCircle size={11} className="mt-0.5 flex-shrink-0" />{p}</li>
+                    <li key={`p${i}`} className="text-[11px] text-[var(--haip-status-warning-fg)] flex items-start gap-1.5"><AlertCircle size={11} className="mt-0.5 flex-shrink-0" />{p}</li>
                   ))}
                   {lint.map((f, i) => (
-                    <li key={`l${i}`} className={cn("text-[11px] flex items-start gap-1.5", f.level === "error" ? "text-red-600" : "text-amber-700")}>
+                    <li key={`l${i}`} className={cn("text-[11px] flex items-start gap-1.5", f.level === "error" ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-status-warning-fg)]")}>
                       {f.level === "error" ? <XCircle size={11} className="mt-0.5 flex-shrink-0" /> : <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />}{f.message}
                     </li>
                   ))}
@@ -176,7 +176,7 @@ export function TemplateEditor({ template, duplicateOf, onClose, onSaved }: {
         </div>
 
         {error && (
-          <div className="mx-6 mt-3 flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2 flex-shrink-0">
+          <div className="mx-6 mt-3 flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2 flex-shrink-0">
             <AlertCircle size={13} className="flex-shrink-0" /> {error}
           </div>
         )}

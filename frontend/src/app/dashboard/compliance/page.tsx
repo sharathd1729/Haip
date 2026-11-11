@@ -59,18 +59,18 @@ interface Incident {
 type Tab = "audit" | "consents" | "dpdp" | "incidents";
 
 const ACTION_COLORS: Record<string, string> = {
-  login:             "text-blue-600 bg-blue-50",
+  login:             "text-[var(--haip-status-info-fg)] bg-[var(--haip-status-info-bg)]",
   logout:            "text-[var(--haip-fg-muted)] bg-[var(--haip-surface)]",
-  invite:            "text-purple-600 bg-purple-50",
-  role_change:       "text-amber-600 bg-amber-50",
+  invite:            "text-[var(--haip-status-info-fg)] bg-[var(--haip-status-info-bg)]",
+  role_change:       "text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)]",
   qa_override:       "text-primary bg-[var(--haip-primary-tint)]",
-  "dpdp.delete_requested":  "text-red-600 bg-red-50",
-  "dpdp.delete_restored":   "text-green-600 bg-green-50",
-  "retention.purge": "text-orange-600 bg-orange-50",
-  "consent.opt_out": "text-pink-600 bg-pink-50",
-  "consent.opt_in":  "text-green-600 bg-green-50",
-  "incident.created":"text-red-700 bg-red-50",
-  property_create:   "text-green-600 bg-green-50",
+  "dpdp.delete_requested":  "text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)]",
+  "dpdp.delete_restored":   "text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)]",
+  "retention.purge": "text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)]",
+  "consent.opt_out": "text-[var(--haip-status-info-fg)] bg-[var(--haip-status-info-bg)]",
+  "consent.opt_in":  "text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)]",
+  "incident.created":"text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)]",
+  property_create:   "text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)]",
 };
 
 function shortId(id?: string) {
@@ -86,9 +86,9 @@ function formatDate(iso: string) {
 
 const SEVERITY_COLORS: Record<string, string> = {
   low:      "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]",
-  medium:   "bg-amber-100 text-amber-700",
-  high:     "bg-orange-100 text-orange-700",
-  critical: "bg-red-100 text-red-700",
+  medium:   "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]",
+  high:     "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]",
+  critical: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]",
 };
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -172,8 +172,8 @@ export default function CompliancePage() {
       {/* Header */}
       <div className="px-5 py-4 border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
-            <Shield size={18} className="text-blue-600" />
+          <div className="w-9 h-9 rounded-xl bg-[var(--haip-status-info-bg)] flex items-center justify-center">
+            <Shield size={18} className="text-[var(--haip-status-info-fg)]" />
           </div>
           <div>
             <h1 className="haip-page-title">Compliance centre</h1>
@@ -273,7 +273,7 @@ export default function CompliancePage() {
                       <tr key={evt.id} className="hover:bg-[var(--haip-surface)] transition-colors">
                         <td className="px-4 py-2.5">
                           <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-semibold",
+                            "px-2 py-0.5 rounded-full text-[11.5px] font-semibold",
                             ACTION_COLORS[evt.action] ?? "text-[var(--haip-fg-muted)] bg-[var(--haip-status-neutral-bg)]"
                           )}>
                             {evt.action}
@@ -321,12 +321,12 @@ export default function CompliancePage() {
       {tab === "consents" && (
         <div className="flex-1 overflow-y-auto p-5">
           {consentsError && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
-              <AlertTriangle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
+            <div className="mb-4 rounded-xl border border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-bg)] px-4 py-3 flex items-start gap-3">
+              <AlertTriangle size={16} className="text-[var(--haip-status-danger-fg)] mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-semibold text-red-700">Failed to load consent records</p>
+                <p className="text-sm font-semibold text-[var(--haip-status-danger-fg)]">Failed to load consent records</p>
               </div>
-              <button onClick={() => refetchConsents()} className="text-xs text-red-600 hover:underline">Retry</button>
+              <button onClick={() => refetchConsents()} className="text-xs text-[var(--haip-status-danger-fg)] hover:underline">Retry</button>
             </div>
           )}
           {consentsLoading ? <Skeleton className="h-64 rounded-2xl" />
@@ -350,7 +350,7 @@ export default function CompliancePage() {
                     <td className="px-4 py-3">
                       {c.granted
                         ? <span className="flex items-center gap-1 text-xs text-primary"><CheckCircle2 size={12} /> Granted</span>
-                        : <span className="text-xs text-red-500">Revoked</span>}
+                        : <span className="text-xs text-[var(--haip-status-danger-fg)]">Revoked</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-[var(--haip-fg-subtle)]">
                       {c.withdrawn_at ? (
@@ -369,11 +369,11 @@ export default function CompliancePage() {
       {/* ── DPDP deletion queue (D11) ── */}
       {tab === "dpdp" && (
         <div className="flex-1 overflow-y-auto p-5">
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-5">
-            <h3 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
+          <div className="bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)] rounded-2xl p-5 mb-5">
+            <h3 className="text-sm font-semibold text-[var(--haip-status-info-fg)] mb-2 flex items-center gap-2">
               <Shield size={15} /> DPDP Act — Data deletion queue
             </h3>
-            <p className="text-xs text-blue-600 leading-relaxed">
+            <p className="text-xs text-[var(--haip-status-info-fg)] leading-relaxed">
               Guests marked for deletion enter a 30-day grace period before hard-deletion.
               Restore within the window to cancel. After 30 days, all data is permanently removed.
             </p>
@@ -407,9 +407,9 @@ export default function CompliancePage() {
                       <span className={cn(
                         "text-xs font-semibold px-2 py-0.5 rounded-full",
                         (g.days_until_hard_delete ?? 30) <= 3
-                          ? "bg-red-100 text-red-700"
+                          ? "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]"
                           : (g.days_until_hard_delete ?? 30) <= 7
-                          ? "bg-amber-100 text-amber-700"
+                          ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]"
                           : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]"
                       )}>
                         {g.days_until_hard_delete ?? "?"} days
@@ -436,16 +436,16 @@ export default function CompliancePage() {
       {tab === "incidents" && (
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex items-center justify-between mb-4">
-            <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-start gap-3 flex-1 mr-4">
-              <FileWarning size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-red-700">
+            <div className="bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-xl px-4 py-3 flex items-start gap-3 flex-1 mr-4">
+              <FileWarning size={16} className="text-[var(--haip-status-danger-fg)] mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-[var(--haip-status-danger-fg)]">
                 Under DPDP §8(6), personal data breaches must be notified to the Data Protection Board within <strong>72 hours</strong> of discovery.
                 Use this form to document and track incidents.
               </p>
             </div>
             <button
               onClick={() => setShowIncidentForm(v => !v)}
-              className="flex items-center gap-1.5 text-xs bg-red-600 text-white px-3 py-2 rounded-xl font-medium hover:bg-red-700 transition-colors flex-shrink-0"
+              className="flex items-center gap-1.5 text-xs bg-[var(--haip-status-danger-fg)] text-white px-3 py-2 rounded-xl font-medium hover:bg-[var(--haip-status-danger-fg)] transition-colors flex-shrink-0"
             >
               <AlertTriangle size={12} /> Report incident
             </button>
@@ -474,7 +474,7 @@ export default function CompliancePage() {
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
+                        "text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase",
                         SEVERITY_COLORS[inc.severity] ?? "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]"
                       )}>
                         {inc.severity}
@@ -489,9 +489,9 @@ export default function CompliancePage() {
                       )}
                     </div>
                     <span className={cn(
-                      "text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0",
-                      inc.status === "open" ? "bg-red-100 text-red-600"
-                      : inc.status === "contained" ? "bg-amber-100 text-amber-600"
+                      "text-[11.5px] font-medium px-2 py-0.5 rounded-full flex-shrink-0",
+                      inc.status === "open" ? "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]"
+                      : inc.status === "contained" ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]"
                       : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]"
                     )}>
                       {inc.status}
@@ -499,11 +499,11 @@ export default function CompliancePage() {
                   </div>
                   <p className="text-xs text-[var(--haip-fg-muted)] line-clamp-2">{inc.narrative}</p>
                   <div className="mt-2 flex items-center gap-3">
-                    <span className="text-[10px] text-[var(--haip-fg-subtle)]">{formatDate(inc.created_at)}</span>
-                    {inc.scope && <span className="text-[10px] text-[var(--haip-fg-subtle)]">Scope: {inc.scope}</span>}
+                    <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{formatDate(inc.created_at)}</span>
+                    {inc.scope && <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">Scope: {inc.scope}</span>}
                     <Link
                       href={`/dashboard/compliance/incidents/${inc.id}`}
-                      className="ml-auto text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                      className="ml-auto text-[11.5px] text-primary hover:underline flex items-center gap-0.5"
                     >
                       View + generate notification <ExternalLink size={9} />
                     </Link>
@@ -539,17 +539,17 @@ function IncidentForm({
   const set = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
   return (
-    <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-5">
-      <h3 className="text-sm font-bold text-red-900 mb-4 flex items-center gap-2">
+    <div className="bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-2xl p-5 mb-5">
+      <h3 className="text-sm font-bold text-[var(--haip-status-danger-fg)] mb-4 flex items-center gap-2">
         <AlertTriangle size={14} /> Report Security Incident
       </h3>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label className="text-xs font-semibold text-red-800 mb-1 block">Type</label>
+          <label className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-1 block">Type</label>
           <select
             value={form.incident_type}
             onChange={e => set("incident_type", e.target.value)}
-            className="w-full text-sm border border-red-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+            className="w-full text-sm border border-[var(--haip-status-danger-border)] rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--haip-status-danger-fg)]"
           >
             {["data_breach", "unauthorised_access", "loss", "destruction", "alteration", "other"].map(t => (
               <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
@@ -557,11 +557,11 @@ function IncidentForm({
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold text-red-800 mb-1 block">Severity</label>
+          <label className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-1 block">Severity</label>
           <select
             value={form.severity}
             onChange={e => set("severity", e.target.value)}
-            className="w-full text-sm border border-red-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+            className="w-full text-sm border border-[var(--haip-status-danger-border)] rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--haip-status-danger-fg)]"
           >
             {["low", "medium", "high", "critical"].map(s => (
               <option key={s} value={s}>{s}</option>
@@ -569,39 +569,39 @@ function IncidentForm({
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold text-red-800 mb-1 block">Affected records (approx.)</label>
+          <label className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-1 block">Affected records (approx.)</label>
           <input
             type="number"
             value={form.affected_count}
             onChange={e => set("affected_count", parseInt(e.target.value) || 0)}
-            className="w-full text-sm border border-red-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+            className="w-full text-sm border border-[var(--haip-status-danger-border)] rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--haip-status-danger-fg)]"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-red-800 mb-1 block">Scope / Systems affected</label>
+          <label className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-1 block">Scope / Systems affected</label>
           <input
             value={form.scope}
             onChange={e => set("scope", e.target.value)}
             placeholder="e.g. WhatsApp message DB, S3 bucket"
-            className="w-full text-sm border border-red-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+            className="w-full text-sm border border-[var(--haip-status-danger-border)] rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--haip-status-danger-fg)]"
           />
         </div>
       </div>
       <div className="mb-3">
-        <label className="text-xs font-semibold text-red-800 mb-1 block">Incident narrative *</label>
+        <label className="text-xs font-semibold text-[var(--haip-status-danger-fg)] mb-1 block">Incident narrative *</label>
         <textarea
           value={form.narrative}
           onChange={e => set("narrative", e.target.value)}
           rows={4}
           placeholder="Describe what happened, how it was discovered, and initial containment steps…"
-          className="w-full text-sm border border-red-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+          className="w-full text-sm border border-[var(--haip-status-danger-border)] rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--haip-status-danger-fg)] resize-none"
         />
       </div>
       <div className="flex gap-2">
         <button
           onClick={() => onSubmit(form)}
           disabled={isPending || form.narrative.trim().length < 20}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-semibold text-sm rounded-xl transition-colors"
+          className="px-4 py-2 bg-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-fg)] disabled:opacity-40 text-white font-semibold text-sm rounded-xl transition-colors"
         >
           {isPending ? "Saving…" : "Create incident record"}
         </button>

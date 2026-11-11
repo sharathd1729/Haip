@@ -190,14 +190,14 @@ export function NotificationBell({ onDark = false }: { onDark?: boolean } = {}) 
               style={{ borderBottom: "1px solid var(--haip-border)" }}
             >
               <span
-                className="text-[10px] font-semibold uppercase tracking-widest"
+                className="text-[11.5px] font-semibold uppercase tracking-widest"
                 style={{ color: "var(--haip-fg-subtle)" }}
               >
                 Notifications
               </span>
               {unread > 0 && (
                 <span
-                  className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                  className="text-[11.5px] px-2 py-0.5 rounded-full font-semibold"
                   style={{
                     background: "color-mix(in srgb, var(--primary) 10%, transparent)",
                     color: "var(--primary)",
@@ -238,7 +238,7 @@ export function NotificationBell({ onDark = false }: { onDark?: boolean } = {}) 
                   <p className="text-xs leading-relaxed mb-0.5" style={{ color: "var(--haip-fg-2)" }}>
                     {n.body}
                   </p>
-                  <p className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>{timeAgo(n.ts)}</p>
+                  <p className="text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}>{timeAgo(n.ts)}</p>
                 </div>
               ))
             )}
@@ -308,7 +308,7 @@ export function UserMenu({ user, onDark = false }: { user?: TopBarProps["user"];
                 {user?.email}
               </p>
               <span
-                className="inline-flex items-center mt-1.5 text-[10px] px-2 py-0.5 rounded-full font-medium capitalize"
+                className="inline-flex items-center mt-1.5 text-[11.5px] px-2 py-0.5 rounded-full font-medium capitalize"
                 style={{
                   background: "color-mix(in srgb, var(--primary) 10%, transparent)",
                   color: "var(--primary)",

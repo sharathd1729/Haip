@@ -130,7 +130,7 @@ export default function LeadAssignmentPage() {
         </div>
 
         {data.unassigned_open > 0 && (
-          <div className="flex items-start gap-2.5 rounded-xl px-4 py-3 text-sm bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="flex items-start gap-2.5 rounded-xl px-4 py-3 text-sm bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]  ">
             <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
             <span>
               <strong>{data.unassigned_open} open lead{data.unassigned_open === 1 ? "" : "s"}</strong> have no owner right now.
@@ -204,7 +204,7 @@ export default function LeadAssignmentPage() {
             Untick someone who is on leave or shouldn't receive leads. Their current leads stay with them.
           </p>
           {noTakers && (
-            <p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-2">Nobody is ticked, so new leads will stay unassigned.</p>
+            <p className="text-xs font-semibold text-[var(--haip-status-danger-fg)]  mb-2">Nobody is ticked, so new leads will stay unassigned.</p>
           )}
           <ul className="divide-y" style={{ borderColor: "var(--haip-border)" }}>
             {data.agents.map(a => (

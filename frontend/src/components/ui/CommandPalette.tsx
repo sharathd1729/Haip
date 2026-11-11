@@ -189,7 +189,7 @@ export function CommandPalette() {
               placeholder="Search pages, guests, conversations…"
               className="flex-1 text-sm text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] outline-none bg-transparent"
             />
-            <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] rounded px-1.5 py-0.5 font-mono">
+            <kbd className="hidden sm:flex items-center gap-0.5 text-[11.5px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] rounded px-1.5 py-0.5 font-mono">
               Esc
             </kbd>
           </div>
@@ -201,7 +201,7 @@ export function CommandPalette() {
             ) : (
               Object.entries(grouped).map(([group, items]) => (
                 <div key={group}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)] px-4 py-1.5">{group}</p>
+                  <p className="text-[11.5px] font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)] px-4 py-1.5">{group}</p>
                   {items.map(item => {
                     const idx = flatIdx++;
                     const isActive = cursor === idx;
@@ -236,7 +236,7 @@ export function CommandPalette() {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-[var(--haip-border)] flex items-center gap-4 text-[10px] text-[var(--haip-fg-subtle)]">
+          <div className="px-4 py-2.5 border-t border-[var(--haip-border)] flex items-center gap-4 text-[11.5px] text-[var(--haip-fg-subtle)]">
             <span className="flex items-center gap-1"><kbd className="bg-[var(--haip-status-neutral-bg)] rounded px-1 py-0.5 font-mono">↑↓</kbd> navigate</span>
             <span className="flex items-center gap-1"><kbd className="bg-[var(--haip-status-neutral-bg)] rounded px-1 py-0.5 font-mono">↵</kbd> open</span>
             <span className="flex items-center gap-1"><kbd className="bg-[var(--haip-status-neutral-bg)] rounded px-1 py-0.5 font-mono">Esc</kbd> close</span>

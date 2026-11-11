@@ -401,8 +401,8 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                         {phone}
                       </button>
                     ) : (
-                      <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-amber, #d97706)" }}>
-                        <Phone size={11} style={{ color: "var(--haip-amber, #d97706)" }} />
+                      <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-amber, var(--haip-accent-ink))" }}>
+                        <Phone size={11} style={{ color: "var(--haip-amber, var(--haip-accent-ink))" }} />
                         Not on file
                       </span>
                     );

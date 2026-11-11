@@ -38,7 +38,7 @@ function Toast({ msg, type, onDismiss }: { msg: string; type: "success" | "error
   return (
     <div className={cn(
       "fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium",
-      type === "success" ? "bg-primary text-white" : "bg-red-600 text-white"
+      type === "success" ? "bg-primary text-white" : "bg-[var(--haip-status-danger-fg)] text-white"
     )}>
       {type === "success" ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
       {msg}
@@ -90,7 +90,7 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -125,8 +125,8 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       key={cap.key}
                       title={cap.key}
                       className={cn(
-                        "text-[10px] font-medium px-2 py-1 rounded-full",
-                        cap.is_write ? "bg-amber-50 text-amber-700" : "bg-[var(--haip-primary-tint)] text-primary"
+                        "text-[11.5px] font-medium px-2 py-1 rounded-full",
+                        cap.is_write ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]" : "bg-[var(--haip-primary-tint)] text-primary"
                       )}
                     >
                       {cap.label}
@@ -138,7 +138,7 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
             <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">Matches your own role's permissions -- this token can never do more than you can.</p>
           </div>
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-lg px-3 py-2">
               <AlertCircle size={13} /> {error}
             </div>
           )}
@@ -189,7 +189,7 @@ function TokenRevealModal({ token, mcpUrl, onClose }: { token: CreatedToken; mcp
               <button
                 onClick={() => copy(token.token, setCopiedToken)}
                 className={cn("flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0",
-                  copiedToken ? "text-green-600 bg-green-50" : "text-primary hover:bg-[var(--haip-primary-tint)]"
+                  copiedToken ? "text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)]" : "text-primary hover:bg-[var(--haip-primary-tint)]"
                 )}
               >
                 {copiedToken ? <CheckCircle2 size={12} /> : <Copy size={12} />}
@@ -203,7 +203,7 @@ function TokenRevealModal({ token, mcpUrl, onClose }: { token: CreatedToken; mcp
               <button
                 onClick={() => copy(mcpUrl, setCopiedUrl)}
                 className={cn("flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0",
-                  copiedUrl ? "text-green-600 bg-green-50" : "text-primary hover:bg-[var(--haip-primary-tint)]"
+                  copiedUrl ? "text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)]" : "text-primary hover:bg-[var(--haip-primary-tint)]"
                 )}
               >
                 {copiedUrl ? <CheckCircle2 size={12} /> : <Copy size={12} />}
@@ -267,7 +267,7 @@ function TokenRow({ token, onRevoke, revoking }: { token: McpToken; onRevoke: ()
         <button
           onClick={onRevoke}
           disabled={revoking}
-          className="flex items-center gap-1 text-xs font-medium text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+          className="flex items-center gap-1 text-xs font-medium text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)] px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
         >
           {revoking ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
           Revoke

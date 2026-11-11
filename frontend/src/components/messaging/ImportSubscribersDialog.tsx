@@ -61,7 +61,7 @@ export function ImportSubscribersDialog({ onClose, onImported }: { onClose: () =
   const Stat = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
     <div className="rounded-xl bg-[var(--haip-surface)] p-3">
       <p className={cn("text-2xl font-bold tabular-nums", tone)}>{value.toLocaleString()}</p>
-      <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5">{label}</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-0.5">{label}</p>
     </div>
   );
 
@@ -85,7 +85,7 @@ export function ImportSubscribersDialog({ onClose, onImported }: { onClose: () =
                   className="w-full flex flex-col items-center justify-center gap-1.5 py-7 border-2 border-dashed border-[var(--haip-border)] rounded-xl text-[var(--haip-fg-subtle)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)] transition-colors">
                   <Upload size={18} />
                   <span className="text-xs font-medium">{file ? file.name : "Choose a CSV file"}</span>
-                  <span className="text-[10px] text-[var(--haip-fg-subtle)]">{file ? `${(file.size / 1024).toFixed(0)} KB — click to change` : `Up to ${MAX_MB} MB · 20,000 contacts`}</span>
+                  <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">{file ? `${(file.size / 1024).toFixed(0)} KB — click to change` : `Up to ${MAX_MB} MB · 20,000 contacts`}</span>
                 </button>
                 <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--haip-fg-subtle)]">
                   <span>One contact per row. Needs a <strong>phone</strong> column; <strong>name</strong> and <strong>tags</strong> are optional.</span>
@@ -98,28 +98,28 @@ export function ImportSubscribersDialog({ onClose, onImported }: { onClose: () =
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5" htmlFor="import-tag">Tag for this file <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
                 <input id="import-tag" value={tag} maxLength={40} onChange={e => setTag(e.target.value)}
                   className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Everyone in the file gets this tag, so you can pick exactly them as a campaign audience.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Everyone in the file gets this tag, so you can pick exactly them as a campaign audience.</p>
               </div>
 
               <label className={cn("flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs", consent ? "border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)]")}>
                 <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-0.5 accent-primary" />
                 <span className="text-[var(--haip-fg-2)] leading-snug">
                   I confirm these contacts have agreed to receive WhatsApp messages from us.
-                  <span className="block text-[10px] text-[var(--haip-fg-subtle)] mt-0.5">Sending marketing to people who haven't is how numbers get blocked. Anyone who already opted out stays opted out.</span>
+                  <span className="block text-[11.5px] text-[var(--haip-fg-subtle)] mt-0.5">Sending marketing to people who haven't is how numbers get blocked. Anyone who already opted out stays opted out.</span>
                 </span>
               </label>
 
-              {error && <p className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2"><AlertCircle size={13} className="mt-0.5 flex-shrink-0" />{error}</p>}
+              {error && <p className="flex items-start gap-1.5 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2"><AlertCircle size={13} className="mt-0.5 flex-shrink-0" />{error}</p>}
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2 text-sm font-semibold text-green-700"><CheckCircle2 size={16} /> Import finished — {result.total_rows.toLocaleString()} rows read</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-[var(--haip-status-success-fg)]"><CheckCircle2 size={16} /> Import finished — {result.total_rows.toLocaleString()} rows read</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <Stat label="Added" value={result.added} tone="text-primary" />
                 <Stat label="Already on your list, updated" value={result.updated} tone="text-[var(--haip-fg)]" />
-                <Stat label="Skipped: opted out earlier" value={result.opted_out_skipped} tone="text-amber-600" />
+                <Stat label="Skipped: opted out earlier" value={result.opted_out_skipped} tone="text-[var(--haip-status-warning-fg)]" />
                 <Stat label="Repeated in the file" value={result.duplicates_in_file} tone="text-[var(--haip-fg-subtle)]" />
-                <Stat label="Rows with a problem" value={result.invalid_count} tone={result.invalid_count ? "text-red-600" : "text-[var(--haip-fg-subtle)]"} />
+                <Stat label="Rows with a problem" value={result.invalid_count} tone={result.invalid_count ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]"} />
               </div>
               {result.opted_out_skipped > 0 && (
                 <p className="text-[11px] text-[var(--haip-fg-subtle)]">People who opted out are not added back, even if they're in your file.</p>
@@ -133,10 +133,10 @@ export function ImportSubscribersDialog({ onClose, onImported }: { onClose: () =
                   </div>
                   <ul className="border border-[var(--haip-border)] rounded-xl divide-y divide-[var(--haip-border)] max-h-44 overflow-y-auto text-[11px]">
                     {result.invalid.slice(0, 50).map(i => (
-                      <li key={i.row} className="px-3 py-1.5 flex gap-2"><span className="text-[var(--haip-fg-subtle)] w-12 flex-shrink-0">Row {i.row}</span><span className="font-mono text-[var(--haip-fg-2)] truncate">{i.value || "—"}</span><span className="text-red-600 ml-auto text-right">{i.reason}</span></li>
+                      <li key={i.row} className="px-3 py-1.5 flex gap-2"><span className="text-[var(--haip-fg-subtle)] w-12 flex-shrink-0">Row {i.row}</span><span className="font-mono text-[var(--haip-fg-2)] truncate">{i.value || "—"}</span><span className="text-[var(--haip-status-danger-fg)] ml-auto text-right">{i.reason}</span></li>
                     ))}
                   </ul>
-                  {result.invalid_count > 50 && <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Showing the first 50. Download the list for the rest.</p>}
+                  {result.invalid_count > 50 && <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Showing the first 50. Download the list for the rest.</p>}
                 </div>
               )}
               {tag.trim() && result.added + result.updated > 0 && (

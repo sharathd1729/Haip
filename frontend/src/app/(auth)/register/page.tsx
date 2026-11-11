@@ -20,7 +20,7 @@ function PasswordStrength({ password }: { password: string }) {
   ];
   if (!password) return null;
   const score = checks.filter(c => c.ok).length;
-  const colors = ["bg-red-400", "bg-amber-400", "bg-primary"];
+  const colors = ["bg-[var(--haip-status-danger-fg)]", "bg-[var(--haip-amber)]", "bg-primary"];
   const labels = ["Weak", "Fair", "Strong"];
 
   return (
@@ -31,7 +31,7 @@ function PasswordStrength({ password }: { password: string }) {
         ))}
       </div>
       {score > 0 && (
-        <p className={`text-xs font-medium ${score === 3 ? "text-primary" : score === 2 ? "text-amber-500" : "text-red-500"}`}>
+        <p className={`text-xs font-medium ${score === 3 ? "text-primary" : score === 2 ? "text-[var(--haip-status-warning-fg)]" : "text-[var(--haip-status-danger-fg)]"}`}>
           {labels[score - 1]}
         </p>
       )}
@@ -249,10 +249,10 @@ export default function RegisterPage() {
                 value={form.email}
                 onChange={e => { set("email", e.target.value); if (fieldError === "email") setFieldError(undefined); }}
                 placeholder="you@company.com"
-                className={`w-full px-4 py-3 border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:border-transparent transition-shadow ${fieldError === "email" ? "border-red-400 focus:ring-red-400" : "border-border focus:ring-primary"}`}
+                className={`w-full px-4 py-3 border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:border-transparent transition-shadow ${fieldError === "email" ? "border-[var(--haip-status-danger-fg)] focus:ring-[var(--haip-status-danger-fg)]" : "border-border focus:ring-primary"}`}
                 suppressHydrationWarning
               />
-              {fieldError === "email" && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
+              {fieldError === "email" && <p className="mt-1.5 text-xs text-[var(--haip-status-danger-fg)]">{error}</p>}
             </div>
 
             <div>
@@ -294,7 +294,7 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">Workspace URL</label>
-              <div className={`flex items-center border rounded-xl overflow-hidden bg-background focus-within:ring-2 focus-within:border-transparent transition-shadow ${fieldError === "slug" ? "border-red-400 focus-within:ring-red-400" : "border-border focus-within:ring-primary"}`}>
+              <div className={`flex items-center border rounded-xl overflow-hidden bg-background focus-within:ring-2 focus-within:border-transparent transition-shadow ${fieldError === "slug" ? "border-[var(--haip-status-danger-fg)] focus-within:ring-[var(--haip-status-danger-fg)]" : "border-border focus-within:ring-primary"}`}>
                 <span className="px-3 py-3 bg-muted text-muted-foreground text-sm border-r border-border whitespace-nowrap select-none">
                   genhaip.com/
                 </span>
@@ -308,7 +308,7 @@ export default function RegisterPage() {
                 />
               </div>
               {fieldError === "slug" && (
-                <p className="mt-1.5 text-xs text-red-400">{error}</p>
+                <p className="mt-1.5 text-xs text-[var(--haip-status-danger-fg)]">{error}</p>
               )}
             </div>
 
@@ -347,7 +347,7 @@ export default function RegisterPage() {
                 />
                 <label htmlFor="agree" className="text-xs text-muted-foreground cursor-pointer leading-relaxed">
                   <span className="font-semibold text-foreground">Service communications</span>{" "}
-                  <span className="text-red-400 font-semibold text-[10px]">required</span>
+                  <span className="text-[var(--haip-status-danger-fg)] font-semibold text-[11.5px]">required</span>
                   <span className="block text-muted-foreground/70 mt-0.5">Account notifications, billing, security alerts. Required to use HAIP.</span>
                   {" "}
                   <Link href="/terms" target="_blank" className="text-primary hover:underline font-medium">Terms</Link>
@@ -366,7 +366,7 @@ export default function RegisterPage() {
                 />
                 <label htmlFor="consent-marketing" className="text-xs text-muted-foreground cursor-pointer leading-relaxed">
                   <span className="font-semibold text-foreground">Marketing communications</span>{" "}
-                  <span className="text-muted-foreground/50 text-[10px]">optional</span>
+                  <span className="text-muted-foreground/50 text-[11.5px]">optional</span>
                   <span className="block text-muted-foreground/70 mt-0.5">Product updates, tips, and offers from HAIP. You can unsubscribe anytime.</span>
                 </label>
               </div>
@@ -381,14 +381,14 @@ export default function RegisterPage() {
                 />
                 <label htmlFor="consent-analytics" className="text-xs text-muted-foreground cursor-pointer leading-relaxed">
                   <span className="font-semibold text-foreground">Product analytics</span>{" "}
-                  <span className="text-muted-foreground/50 text-[10px]">optional</span>
+                  <span className="text-muted-foreground/50 text-[11.5px]">optional</span>
                   <span className="block text-muted-foreground/70 mt-0.5">Help us improve HAIP by sharing anonymous usage data.</span>
                 </label>
               </div>
             </div>
 
             {error && !fieldError && (
-              <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+              <div className="p-3.5 bg-[var(--haip-status-danger-fg)]/10 border border-[var(--haip-status-danger-fg)]/30 rounded-xl text-[var(--haip-status-danger-fg)] text-sm">
                 {error}
               </div>
             )}

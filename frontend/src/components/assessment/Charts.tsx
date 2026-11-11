@@ -72,10 +72,10 @@ export function OccupancyCurve({ monthly }: { monthly: AssessmentReport["monthly
           <g key={m.month}>
             <rect x={x} y={top + span - hi} width={barW} height={hi} rx={3} className="fill-[var(--mkt-surface)]" />
             <rect x={x} y={top + span - lk} width={barW} height={lk} rx={3} className="fill-[var(--mkt-gold)]" />
-            <text x={x + barW / 2} y={top + span - lk - 4} textAnchor="middle" className="text-[9px] fill-[var(--mkt-muted)] tabular-nums">
+            <text x={x + barW / 2} y={top + span - lk - 4} textAnchor="middle" className="text-[11.5px] fill-[var(--mkt-muted)] tabular-nums">
               {Math.round(m.occupancy.likely * 100)}
             </text>
-            <text x={x + barW / 2} y={H - 6} textAnchor="middle" className="text-[10px] fill-[var(--mkt-muted)]">{m.month}</text>
+            <text x={x + barW / 2} y={H - 6} textAnchor="middle" className="text-[11.5px] fill-[var(--mkt-muted)]">{m.month}</text>
           </g>
         );
       })}

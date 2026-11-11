@@ -41,24 +41,24 @@ interface Invitation {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ROLES = [
-  { value: "owner",        label: "Owner",        description: "Full access to all features and billing", icon: <Crown size={13} className="text-amber-500" /> },
-  { value: "manager",      label: "Manager",       description: "Manage team, guests, and operations", icon: <Shield size={13} className="text-blue-500" /> },
+  { value: "owner",        label: "Owner",        description: "Full access to all features and billing", icon: <Crown size={13} className="text-[var(--haip-status-warning-fg)]" /> },
+  { value: "manager",      label: "Manager",       description: "Manage team, guests, and operations", icon: <Shield size={13} className="text-[var(--haip-status-info-fg)]" /> },
   { value: "concierge",    label: "Concierge",     description: "Handle calls, inbox, and guest requests", icon: <Users size={13} className="text-primary" /> },
-  { value: "reservations", label: "Reservations",  description: "Manage inquiries and guest bookings", icon: <Settings size={13} className="text-purple-500" /> },
-  { value: "marketing",    label: "Marketing",     description: "Campaigns, templates, and messaging", icon: <Mail size={13} className="text-pink-500" /> },
+  { value: "reservations", label: "Reservations",  description: "Manage inquiries and guest bookings", icon: <Settings size={13} className="text-[var(--haip-status-info-fg)]" /> },
+  { value: "marketing",    label: "Marketing",     description: "Campaigns, templates, and messaging", icon: <Mail size={13} className="text-[var(--haip-status-info-fg)]" /> },
   { value: "compliance",   label: "Compliance",    description: "Audit logs and data compliance only", icon: <Eye size={13} className="text-[var(--haip-fg-subtle)]" /> },
   { value: "read_only",    label: "Read Only",     description: "View-only access to all data", icon: <Eye size={13} className="text-[var(--haip-fg-subtle)]" /> },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
-  owner:        "bg-amber-50 text-amber-700 border-amber-200",
-  manager:      "bg-blue-50 text-blue-700 border-blue-200",
+  owner:        "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
+  manager:      "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
   concierge:    "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",
-  reservations: "bg-purple-50 text-purple-700 border-purple-200",
-  marketing:    "bg-pink-50 text-pink-700 border-pink-200",
+  reservations: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
+  marketing:    "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
   compliance:   "bg-[var(--haip-surface)] text-[var(--haip-fg-2)] border-[var(--haip-border)]",
   read_only:    "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]",
-  foh:          "bg-indigo-50 text-indigo-700 border-indigo-200",
+  foh:          "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
 };
 
 // ─── Role badge ───────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ const ROLE_COLORS: Record<string, string> = {
 function RoleBadge({ role }: { role: string }) {
   const cls = ROLE_COLORS[role] ?? "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]";
   return (
-    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize", cls)}>
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11.5px] font-semibold border capitalize", cls)}>
       {role.replace("_", " ")}
     </span>
   );
@@ -77,7 +77,7 @@ function RoleBadge({ role }: { role: string }) {
 function Avatar({ name, size = "md", photoUrl }: { name: string; size?: "sm" | "md"; photoUrl?: string | null }) {
   const initials = avatarInitials(name);
   const color = avatarTintClass(name);
-  const sizeCls = size === "sm" ? "w-7 h-7 text-[10px]" : "w-9 h-9 text-xs";
+  const sizeCls = size === "sm" ? "w-7 h-7 text-[11.5px]" : "w-9 h-9 text-xs";
   const [imgFailed, setImgFailed] = useState(false);
 
   if (photoUrl && !imgFailed) {
@@ -107,9 +107,9 @@ function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error";
   return (
     <div className={cn(
       "fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium max-w-sm",
-      type === "success" ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"
+      type === "success" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]"
     )}>
-      {type === "success" ? <CheckCircle2 size={15} className="text-green-600" /> : <AlertCircle size={15} className="text-red-600" />}
+      {type === "success" ? <CheckCircle2 size={15} className="text-[var(--haip-status-success-fg)]" /> : <AlertCircle size={15} className="text-[var(--haip-status-danger-fg)]" />}
       <span className="flex-1">{msg}</span>
       <button onClick={onClose}><X size={13} className="opacity-60 hover:opacity-100" /></button>
     </div>
@@ -152,7 +152,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Full name <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Full name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
               <input
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -161,7 +161,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Work email <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Work email <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
               <input
                 type="email"
                 value={form.email}
@@ -173,7 +173,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Role <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Role <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <div className="grid grid-cols-1 gap-1.5">
               {ROLES.map(r => (
                 <label
@@ -197,7 +197,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                       {r.icon}
                       <span className="text-xs font-semibold text-[var(--haip-fg)]">{r.label}</span>
                     </div>
-                    <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5">{r.description}</p>
+                    <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-0.5">{r.description}</p>
                   </div>
                 </label>
               ))}
@@ -205,7 +205,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-lg px-3 py-2">
               <AlertCircle size={13} /> {error}
             </div>
           )}
@@ -274,7 +274,7 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
             href={waLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-primary hover:bg-primary text-white text-sm font-semibold transition-colors"
           >
             <MessageSquare size={15} />
             Send via WhatsApp
@@ -287,14 +287,14 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
               <button
                 onClick={copy}
                 className={cn("flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0",
-                  copied ? "text-green-600 bg-green-50" : "text-primary hover:bg-[var(--haip-primary-tint)]"
+                  copied ? "text-[var(--haip-status-success-fg)] bg-[var(--haip-status-success-bg)]" : "text-primary hover:bg-[var(--haip-primary-tint)]"
                 )}
               >
                 {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1.5">
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1.5">
               You can also find this link in the Pending Invitations section below.
             </p>
           </div>
@@ -346,7 +346,7 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
         {loading ? <Loader2 size={11} className="animate-spin" /> : <ChevronDown size={11} />}
       </button>
       {roleError && (
-        <p className="absolute right-0 top-full mt-1 text-[10px] text-red-500 bg-red-50 border border-red-200 rounded-lg px-2 py-1 z-30 whitespace-nowrap shadow">
+        <p className="absolute right-0 top-full mt-1 text-[11.5px] text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-lg px-2 py-1 z-30 whitespace-nowrap shadow">
           {roleError}
         </p>
       )}
@@ -366,7 +366,7 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
                 {r.icon}
                 <div>
                   <div className="font-semibold text-[var(--haip-fg)]">{r.label}</div>
-                  <div className="text-[10px] text-[var(--haip-fg-subtle)]">{r.description}</div>
+                  <div className="text-[11.5px] text-[var(--haip-fg-subtle)]">{r.description}</div>
                 </div>
                 {r.value === currentRole && <CheckCircle2 size={11} className="text-primary ml-auto" />}
               </button>
@@ -557,7 +557,7 @@ export default function TeamPage() {
               <>
                 {activeMembers.length > 0 && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--haip-fg-subtle)] font-bold mb-2">Active ({activeMembers.length})</p>
+                    <p className="text-[11.5px] uppercase tracking-widest text-[var(--haip-fg-subtle)] font-bold mb-2">Active ({activeMembers.length})</p>
                     <div className="space-y-2">
                       {activeMembers.map(member => (
                         <MemberRow
@@ -578,7 +578,7 @@ export default function TeamPage() {
                 )}
                 {inactiveMembers.length > 0 && (
                   <div className="mt-6">
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--haip-fg-subtle)] font-bold mb-2">Deactivated ({inactiveMembers.length})</p>
+                    <p className="text-[11.5px] uppercase tracking-widest text-[var(--haip-fg-subtle)] font-bold mb-2">Deactivated ({inactiveMembers.length})</p>
                     <div className="space-y-2">
                       {inactiveMembers.map(member => (
                         <MemberRow
@@ -635,7 +635,7 @@ export default function TeamPage() {
                 <div className="mt-0.5">{r.icon}</div>
                 <div>
                   <p className="text-xs font-semibold text-[var(--haip-fg)]">{r.label}</p>
-                  <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5 leading-relaxed">{r.description}</p>
+                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-0.5 leading-relaxed">{r.description}</p>
                 </div>
               </div>
             ))}
@@ -741,9 +741,9 @@ function MemberRow({ member, focused, onRoleChanged, onToggleActive, onToggleIvr
                 className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--haip-surface)] flex items-center gap-2 transition-colors"
               >
                 {member.is_active ? (
-                  <><XCircle size={13} className="text-red-400" /> Deactivate</>
+                  <><XCircle size={13} className="text-[var(--haip-status-danger-fg)]" /> Deactivate</>
                 ) : (
-                  <><CheckCircle2 size={13} className="text-green-500" /> Reactivate</>
+                  <><CheckCircle2 size={13} className="text-[var(--haip-status-success-fg)]" /> Reactivate</>
                 )}
               </button>
             </div>
@@ -853,7 +853,7 @@ function NameEditor({ name, memberId, onSave }: { name: string; memberId: string
           disabled={saving}
           className="text-sm font-semibold px-2 py-1 rounded-lg border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] focus:outline-none focus:ring-1 focus:ring-primary w-44"
         />
-        {error && <span className="text-[10px] text-red-500">{error}</span>}
+        {error && <span className="text-[11.5px] text-[var(--haip-status-danger-fg)]">{error}</span>}
       </div>
     );
   }
@@ -921,7 +921,7 @@ function EmailEditor({ email, onSave }: { email: string; onSave: (email: string)
           disabled={saving}
           className="text-xs px-2 py-1 rounded-lg border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] focus:outline-none focus:ring-1 focus:ring-primary w-52"
         />
-        {error && <span className="text-[10px] text-red-500">{error}</span>}
+        {error && <span className="text-[11.5px] text-[var(--haip-status-danger-fg)]">{error}</span>}
       </div>
     );
   }
@@ -953,12 +953,12 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
   };
 
   const statusInfo = invitation.is_accepted
-    ? { label: "Accepted", cls: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={10} /> }
+    ? { label: "Accepted", cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]", icon: <CheckCircle2 size={10} /> }
     : invitation.is_revoked
     ? { label: "Revoked", cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]", icon: <XCircle size={10} /> }
     : isExpired
-    ? { label: "Expired", cls: "bg-red-50 text-red-600 border-red-200", icon: <Clock size={10} /> }
-    : { label: "Pending", cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Clock size={10} /> };
+    ? { label: "Expired", cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]", icon: <Clock size={10} /> }
+    : { label: "Pending", cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]", icon: <Clock size={10} /> };
 
   return (
     <div className="haip-card px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow">
@@ -976,7 +976,7 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
         </div>
       </div>
 
-      <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0", statusInfo.cls)}>
+      <span className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0", statusInfo.cls)}>
         {statusInfo.icon} {statusInfo.label}
       </span>
 
@@ -987,7 +987,7 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
             href={buildWaLink(link, invitation.name, invitation.role)}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-green-50 transition-colors"
+            className="text-xs text-[var(--haip-status-success-fg)] hover:text-[var(--haip-status-success-fg)] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--haip-status-success-bg)] transition-colors"
             title="Share via WhatsApp"
           >
             <MessageSquare size={12} />
@@ -1003,7 +1003,7 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
           </button>
           <button
             onClick={onRevoke}
-            className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+            className="text-xs text-[var(--haip-status-danger-fg)] hover:text-[var(--haip-status-danger-fg)] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--haip-status-danger-bg)] transition-colors"
           >
             <Trash2 size={12} /> Revoke
           </button>

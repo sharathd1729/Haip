@@ -42,7 +42,7 @@ export function AppVersionRow({ dark = false }: { dark?: boolean }) {
   const textColor = dark ? "rgba(255,255,255,0.55)" : "var(--haip-sidebar-fg)";
 
   return (
-    <div className="flex items-center justify-between px-2.5 py-1.5 text-[10.5px]" style={{ color: mutedColor }}>
+    <div className="flex items-center justify-between px-2.5 py-1.5 text-[11.5px]" style={{ color: mutedColor }}>
       <span style={{ color: textColor }}>
         {version ? `v${version}` : "…"}
         {updateAvailable && (

@@ -34,9 +34,9 @@ function StatusDot({ status }: { status: string }) {
   return (
     <span className={cn(
       "inline-block w-2 h-2 rounded-full flex-shrink-0",
-      status === "connected" ? "bg-emerald-500" :
-      status === "pending_pairing" ? "bg-amber-400" :
-      status === "disconnected" ? "bg-red-400" : "bg-[var(--haip-border-strong)]"
+      status === "connected" ? "bg-primary" :
+      status === "pending_pairing" ? "bg-[var(--haip-amber)]" :
+      status === "disconnected" ? "bg-[var(--haip-status-danger-fg)]" : "bg-[var(--haip-border-strong)]"
     )} />
   );
 }
@@ -133,9 +133,9 @@ export default function WhatsAppPersonalPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 max-w-2xl w-full mx-auto space-y-6">
-        <div className="flex gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100">
-          <AlertCircle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-800 leading-relaxed">
+        <div className="flex gap-3 p-4 rounded-xl bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)]">
+          <AlertCircle size={16} className="text-[var(--haip-status-warning-fg)] flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-[var(--haip-status-warning-fg)] leading-relaxed">
             <p className="font-semibold mb-1">Not an official WhatsApp integration</p>
             <p>
               This connects the way WhatsApp Web does, not through WhatsApp&apos;s official Business API.
@@ -216,7 +216,7 @@ export default function WhatsAppPersonalPage() {
               <p className="text-xs text-[var(--haip-fg-subtle)] mt-1 max-w-xs mx-auto">
                 On your phone: WhatsApp → Settings → Linked Devices → Link a Device, then scan this code.
               </p>
-              <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-amber-600">
+              <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-[var(--haip-status-warning-fg)]">
                 <Loader2 size={12} className="animate-spin" /> Waiting for scan…
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function WhatsAppPersonalPage() {
               <p className="text-xs text-[var(--haip-fg-subtle)] mt-1 max-w-xs mx-auto">
                 On your phone: WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead.
               </p>
-              <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-amber-600">
+              <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-[var(--haip-status-warning-fg)]">
                 <Loader2 size={12} className="animate-spin" /> Waiting for confirmation…
               </div>
             </div>
@@ -238,7 +238,7 @@ export default function WhatsAppPersonalPage() {
           {!qr && status === "connected" && (
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] flex items-center justify-center flex-shrink-0">
                   <Phone size={15} />
                 </div>
                 <div>
@@ -267,7 +267,7 @@ export default function WhatsAppPersonalPage() {
               <button
                 onClick={() => pairMutation.mutate(undefined)}
                 disabled={pairMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-60 flex-shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--haip-brand-panel)] hover:bg-[var(--haip-brand-panel)] disabled:opacity-60 flex-shrink-0"
               >
                 {pairMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                 Reconnect
@@ -275,7 +275,7 @@ export default function WhatsAppPersonalPage() {
             </div>
           )}
 
-          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+          {error && <p className="text-xs text-[var(--haip-status-danger-fg)] mt-2">{error}</p>}
         </div>
 
         {isOwnerOrManager && (
@@ -301,9 +301,9 @@ export default function WhatsAppPersonalPage() {
                     </div>
                     <span className={cn(
                       "text-xs font-medium px-2 py-0.5 rounded-full",
-                      s.status === "connected" ? "bg-emerald-50 text-emerald-700" :
-                      s.status === "pending_pairing" ? "bg-amber-50 text-amber-700" :
-                      s.status === "disconnected" ? "bg-red-50 text-red-700" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]"
+                      s.status === "connected" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]" :
+                      s.status === "pending_pairing" ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]" :
+                      s.status === "disconnected" ? "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]"
                     )}>
                       {STATUS_LABEL[s.status] ?? s.status}
                     </span>

@@ -62,19 +62,19 @@ function ProviderIcon({
 }) {
   if (logo === "whatsapp") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={cn("text-green-500", className)}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={cn("text-[var(--haip-status-success-fg)]", className)}>
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
       </svg>
     );
   }
   if (logo === "instagram") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={cn("text-pink-500", className)}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={cn("text-[var(--haip-status-info-fg)]", className)}>
         <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
       </svg>
     );
   }
-  if (logo === "phone") return <Phone size={size} className={cn("text-blue-500", className)} />;
+  if (logo === "phone") return <Phone size={size} className={cn("text-[var(--haip-status-info-fg)]", className)} />;
   if (logo === "ivr") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cn("text-primary", className)}>
@@ -84,7 +84,7 @@ function ProviderIcon({
   }
   if (logo === "hotel") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cn("text-indigo-500", className)}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cn("text-[var(--haip-status-info-fg)]", className)}>
         <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 9h1m5 0h1M9 13h1m5 0h1" />
       </svg>
     );
@@ -98,14 +98,14 @@ function ProviderIcon({
 
 function StatusBadge({ status }: { status: Integration["status"] }) {
   const cfg = {
-    active:       { label: "Connected",     icon: <Wifi size={10} />,        cls: "bg-green-50 text-green-700 border-green-200" },
-    error:        { label: "Error",          icon: <AlertCircle size={10} />, cls: "bg-red-50 text-red-700 border-red-200" },
-    pending:      { label: "Pending",        icon: <Clock size={10} />,       cls: "bg-amber-50 text-amber-700 border-amber-200" },
+    active:       { label: "Connected",     icon: <Wifi size={10} />,        cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+    error:        { label: "Error",          icon: <AlertCircle size={10} />, cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
+    pending:      { label: "Pending",        icon: <Clock size={10} />,       cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]" },
     disconnected: { label: "Not connected",  icon: <WifiOff size={10} />,     cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]" },
   }[status] ?? { label: status, icon: null, cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]" };
 
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
+    <span className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
       {cfg.icon} {cfg.label}
     </span>
   );
@@ -128,7 +128,7 @@ function TokenExpiryBadge({ expiry }: { expiry?: string | null }) {
     <span
       title={`Access token ends ${exp.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
       className={cn(
-        "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+        "inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border",
         expired || daysLeft <= 3
           ? "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]"
           : "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
@@ -148,7 +148,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div>
-      <p className="text-[10px] text-[var(--haip-fg-subtle)] mb-1 font-semibold uppercase tracking-wide">{label}</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mb-1 font-semibold uppercase tracking-wide">{label}</p>
       <div className="flex items-center gap-2 bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2.5 py-1.5">
         <code className="text-[11px] text-[var(--haip-fg-2)] flex-1 break-all font-mono">{value}</code>
         <button
@@ -156,7 +156,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
           className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] flex-shrink-0 transition-colors"
           title="Copy"
         >
-          {copied ? <CheckCircle2 size={13} className="text-green-500" /> : <Copy size={13} />}
+          {copied ? <CheckCircle2 size={13} className="text-[var(--haip-status-success-fg)]" /> : <Copy size={13} />}
         </button>
       </div>
     </div>
@@ -185,7 +185,7 @@ function VerifyTokenRow({ provider, info }: { provider: string; info: WebhookInf
 
   return (
     <div>
-      <p className="text-[10px] text-[var(--haip-fg-subtle)] mb-1 font-semibold uppercase tracking-wide">Verify Token</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mb-1 font-semibold uppercase tracking-wide">Verify Token</p>
       <div className="flex items-center gap-2 bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2.5 py-1.5">
         <code className="text-[11px] text-[var(--haip-fg-2)] flex-1 break-all font-mono">
           {token ?? (info.verify_token_set ? `••••••••••••${info.verify_token_hint ?? ""}` : "Not created yet")}
@@ -195,7 +195,7 @@ function VerifyTokenRow({ provider, info }: { provider: string; info: WebhookInf
             onClick={() => { navigator.clipboard.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
             className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] flex-shrink-0 transition-colors" title="Copy"
           >
-            {copied ? <CheckCircle2 size={13} className="text-green-500" /> : <Copy size={13} />}
+            {copied ? <CheckCircle2 size={13} className="text-[var(--haip-status-success-fg)]" /> : <Copy size={13} />}
           </button>
         )}
       </div>
@@ -214,11 +214,11 @@ function VerifyTokenRow({ provider, info }: { provider: string; info: WebhookInf
           )}
         </div>
       ) : (
-        <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Only the account owner can view or replace the verify token.</p>
+        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Only the account owner can view or replace the verify token.</p>
       )}
-      {failed && <p className="text-[10px] text-red-600 mt-1">{failed}</p>}
+      {failed && <p className="text-[11.5px] text-[var(--haip-status-danger-fg)] mt-1">{failed}</p>}
       {info.can_reveal && info.legacy_token_active && (
-        <p className="text-[10px] text-amber-700 mt-1">An older shared token is still accepted. Once the new token is saved in Meta, ask your administrator to switch the old one off.</p>
+        <p className="text-[11.5px] text-[var(--haip-status-warning-fg)] mt-1">An older shared token is still accepted. Once the new token is saved in Meta, ask your administrator to switch the old one off.</p>
       )}
     </div>
   );
@@ -240,7 +240,7 @@ function WebhookInfoPanel({ provider }: { provider: string }) {
         onClick={() => setOpen(o => !o)}
         className="flex items-center justify-between w-full text-left"
       >
-        <p className="text-[10px] text-primary font-semibold uppercase tracking-wide flex items-center gap-1">
+        <p className="text-[11.5px] text-primary font-semibold uppercase tracking-wide flex items-center gap-1">
           <Info size={10} />
           Configure {providerLabel} Webhook
         </p>
@@ -256,11 +256,11 @@ function WebhookInfoPanel({ provider }: { provider: string }) {
               <CopyField label="Webhook URL" value={data.webhook_url} />
               <VerifyTokenRow provider={provider} info={data} />
               {data.instructions?.length > 0 && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                  <p className="text-[10px] font-semibold text-blue-700 mb-1.5">Setup steps</p>
+                <div className="bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)] rounded-xl p-3">
+                  <p className="text-[11.5px] font-semibold text-[var(--haip-status-info-fg)] mb-1.5">Setup steps</p>
                   <ol className="space-y-1">
                     {data.instructions.map((step, i) => (
-                      <li key={i} className="text-[10px] text-blue-700 flex gap-1.5">
+                      <li key={i} className="text-[11.5px] text-[var(--haip-status-info-fg)] flex gap-1.5">
                         <span className="font-bold flex-shrink-0">{i + 1}.</span>
                         <span>{step}</span>
                       </li>
@@ -270,7 +270,7 @@ function WebhookInfoPanel({ provider }: { provider: string }) {
               )}
             </>
           ) : (
-            <p className="text-[10px] text-[var(--haip-fg-subtle)]">Could not load webhook info.</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">Could not load webhook info.</p>
           )}
         </div>
       )}
@@ -363,17 +363,17 @@ function ConnectModal({
             <>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                  Phone Number ID <span className="text-red-500">*</span>
+                  Phone Number ID <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.phone_number_id ?? ""} onChange={e => set("phone_number_id", e.target.value)} placeholder="e.g. 123456789012345" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Found in Meta Business Suite → WhatsApp → Getting Started.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Found in Meta Business Suite → WhatsApp → Getting Started.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                  WhatsApp Business Account ID (WABA ID) <span className="text-red-500">*</span>
+                  WhatsApp Business Account ID (WABA ID) <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
@@ -382,36 +382,36 @@ function ConnectModal({
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                  Access Token <span className="text-red-500">*</span>
+                  Access Token <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.access_token ?? ""} onChange={e => set("access_token", e.target.value)} placeholder="Permanent or temporary user token" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Use a permanent System User token for production (never expires).</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Use a permanent System User token for production (never expires).</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                  App Secret <span className="text-red-500">*</span>
+                  App Secret <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret (Settings → Basic)" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Needed to receive replies and delivery updates. Without it messages send, but they stay at “sent” and guests' replies never appear. Leave blank to keep the one already saved.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Needed to receive replies and delivery updates. Without it messages send, but they stay at “sent” and guests' replies never appear. Leave blank to keep the one already saved.</p>
               </div>
             </>
           ) : isInstagram ? (
             <>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                  App Secret <span className="text-red-500">*</span>
+                  App Secret <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Required for webhook signature verification and to bootstrap the Instagram Login connection.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Required for webhook signature verification and to bootstrap the Instagram Login connection.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
@@ -421,7 +421,7 @@ function ConnectModal({
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.instagram_business_account_id ?? ""} onChange={e => set("instagram_business_account_id", e.target.value)} placeholder="e.g. 17841234567890123" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Found in Meta Business Suite → Instagram → Account settings.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Found in Meta Business Suite → Instagram → Account settings.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
@@ -456,7 +456,7 @@ function ConnectModal({
               {rwAuthMode === "token" ? (
                 <div>
                   <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                    API Token <span className="text-red-500">*</span>
+                    API Token <span className="text-[var(--haip-status-danger-fg)]">*</span>
                   </label>
                   <div className="relative">
                     <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
@@ -469,19 +469,19 @@ function ConnectModal({
                       className={inputCls}
                     />
                   </div>
-                  <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Provided by your RentalWise Engagement Manager during onboarding.</p>
+                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Provided by your RentalWise Engagement Manager during onboarding.</p>
                 </div>
               ) : (
                 <>
                   <div>
-                    <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Username <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Username <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                     <div className="relative">
                       <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                       <input autoFocus type="text" value={fields.username ?? ""} onChange={e => set("username", e.target.value)} placeholder="Your RentalWise username" className={inputCls} />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Password <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Password <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                     <div className="relative">
                       <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                       <input type="password" value={fields.password ?? ""} onChange={e => set("password", e.target.value)} placeholder="Your RentalWise password" className={inputCls} />
@@ -502,14 +502,14 @@ function ConnectModal({
           ) : isBasicAuth ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Username <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Username <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.username ?? ""} onChange={e => set("username", e.target.value)} placeholder="Username" className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Password <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Password <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.password ?? ""} onChange={e => set("password", e.target.value)} placeholder="Password" className={inputCls} />
@@ -519,27 +519,27 @@ function ConnectModal({
           ) : isVobiz ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Auth ID <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Auth ID <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.api_key ?? ""} onChange={e => set("api_key", e.target.value)} placeholder="e.g. MA_K8PLCAKA" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">From the Vobiz Console → Basic Information → Auth ID.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">From the Vobiz Console → Basic Information → Auth ID.</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Auth Secret <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Auth Secret <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.api_secret ?? ""} onChange={e => set("api_secret", e.target.value)} placeholder="From Vobiz Console → Basic Information → Auth Secret" className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Agent Forwarding Number <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Agent Forwarding Number <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.forward_number ?? ""} onChange={e => set("forward_number", e.target.value)} placeholder="+9198XXXXXXXX" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Every inbound call rings this mobile number while the whole session records. E.164 format.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Every inbound call rings this mobile number while the whole session records. E.164 format.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Vobiz Phone Number (DID)</label>
@@ -547,13 +547,13 @@ function ConnectModal({
                   <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.did_number ?? ""} onChange={e => set("did_number", e.target.value)} placeholder="+9122XXXXXXXX" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">
                   Optional for inbound — required for agents to click-to-call guests. From the Vobiz Console → Numbers.
                 </p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                  Webhook Secret <span className="text-red-500">*</span>
+                  Webhook Secret <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <div className="relative">
                   <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
@@ -574,14 +574,14 @@ function ConnectModal({
           ) : isHostaway ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Account ID <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Account ID <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.account_id ?? ""} onChange={e => set("account_id", e.target.value)} placeholder="Your Hostaway Account ID" className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">API Secret <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">API Secret <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.api_secret ?? ""} onChange={e => set("api_secret", e.target.value)} placeholder="Your Hostaway API Secret" className={inputCls} />
@@ -592,7 +592,7 @@ function ConnectModal({
             <>
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                  API Key <span className="text-red-500">*</span>
+                  API Key <span className="text-[var(--haip-status-danger-fg)]">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
@@ -610,7 +610,7 @@ function ConnectModal({
               {isIvr && (
                 <div>
                   <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
-                    Webhook Secret <span className="text-red-500">*</span>
+                    Webhook Secret <span className="text-[var(--haip-status-danger-fg)]">*</span>
                   </label>
                   <div className="relative">
                     <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
@@ -639,7 +639,7 @@ function ConnectModal({
           </p>
 
           {notes && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+            <div className="bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl p-3 text-xs text-[var(--haip-status-warning-fg)]">
               <p className="font-semibold mb-0.5">Important</p>
               <p>{notes}</p>
             </div>
@@ -673,15 +673,15 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
   return (
     <div className={cn(
       "fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium max-w-sm",
-      type === "success" ? "bg-green-50 text-green-800 border-green-200"
-        : type === "warning" ? "bg-amber-50 text-amber-800 border-amber-200"
-        : "bg-red-50 text-red-800 border-red-200"
+      type === "success" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]"
+        : type === "warning" ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]"
+        : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]"
     )}>
       {type === "success"
-        ? <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
+        ? <CheckCircle2 size={16} className="text-[var(--haip-status-success-fg)] flex-shrink-0" />
         : type === "warning"
-        ? <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
-        : <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+        ? <AlertCircle size={16} className="text-[var(--haip-status-warning-fg)] flex-shrink-0" />
+        : <AlertCircle size={16} className="text-[var(--haip-status-danger-fg)] flex-shrink-0" />
       }
       <span className="flex-1">{message}</span>
       <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100">
@@ -714,23 +714,23 @@ function WebhookUrlCopy({ provider }: { provider: string }) {
 
   return (
     <div className="border-t border-[var(--haip-border)] pt-3">
-      <p className="text-[10px] text-[var(--haip-fg-subtle)] mb-1.5 font-semibold uppercase tracking-wide">Webhook URL</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mb-1.5 font-semibold uppercase tracking-wide">Webhook URL</p>
       {isLoading ? (
-        <p className="text-[10px] text-[var(--haip-fg-subtle)]">Loading…</p>
+        <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">Loading…</p>
       ) : url ? (
         <>
           <div className="flex items-center gap-2 bg-[var(--haip-surface)] rounded-lg px-2.5 py-1.5">
-            <code className="text-[10px] text-[var(--haip-fg-muted)] flex-1 truncate font-mono">{url}</code>
+            <code className="text-[11.5px] text-[var(--haip-fg-muted)] flex-1 truncate font-mono">{url}</code>
             <button onClick={copy} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] transition-colors flex-shrink-0" title="Copy">
-              {copied ? <CheckCircle2 size={11} className="text-green-500" /> : <Copy size={11} />}
+              {copied ? <CheckCircle2 size={11} className="text-[var(--haip-status-success-fg)]" /> : <Copy size={11} />}
             </button>
           </div>
           {data?.instructions?.map((line, i) => (
-            <p key={i} className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">{line}</p>
+            <p key={i} className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">{line}</p>
           ))}
         </>
       ) : (
-        <p className="text-[10px] text-amber-600">
+        <p className="text-[11.5px] text-[var(--haip-status-warning-fg)]">
           {data?.instructions?.[0] ?? `Reconnect ${provider} with a webhook secret to generate this URL.`}
         </p>
       )}
@@ -764,7 +764,7 @@ function VobizDidNumberEditor() {
   return (
     <div className="bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-xl p-3 space-y-2">
       <p className="text-[11px] font-semibold text-[var(--haip-fg-2)]">Vobiz Phone Number (DID)</p>
-      <p className="text-[10px] text-[var(--haip-fg-subtle)] leading-relaxed">
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] leading-relaxed">
         Required for agents to click-to-call guests. Not needed for inbound. From the Vobiz Console → Numbers.
       </p>
       <div className="flex gap-2">
@@ -785,7 +785,7 @@ function VobizDidNumberEditor() {
         </button>
       </div>
       {savedMsg && (
-        <p className={cn("text-[10px]", save.isError ? "text-red-600" : "text-primary")}>{savedMsg}</p>
+        <p className={cn("text-[11.5px]", save.isError ? "text-[var(--haip-status-danger-fg)]" : "text-primary")}>{savedMsg}</p>
       )}
     </div>
   );
@@ -835,12 +835,12 @@ function IntegrationCard({
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
             <span className="text-sm font-bold text-[var(--haip-fg)]">{item.name}</span>
             {item.popular && (
-              <span className="text-[9px] bg-[var(--haip-primary-tint)] text-primary px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">Popular</span>
+              <span className="text-[11.5px] bg-[var(--haip-primary-tint)] text-primary px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">Popular</span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={status} />
-            <span className="text-[10px] text-[var(--haip-fg-subtle)] capitalize">{item.category}</span>
+            <span className="text-[11.5px] text-[var(--haip-fg-subtle)] capitalize">{item.category}</span>
             <TokenExpiryBadge expiry={integration?.config?.token_expires_at ?? integration?.config?.token_expiry} />
           </div>
         </div>
@@ -860,7 +860,7 @@ function IntegrationCard({
           )}
           {integration.config.verified_name && (
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={11} className="text-green-500" />
+              <CheckCircle2 size={11} className="text-[var(--haip-status-success-fg)]" />
               <span>{integration.config.verified_name}</span>
             </div>
           )}
@@ -884,7 +884,7 @@ function IntegrationCard({
           )}
           {integration.config.waba_id && (
             <div className="flex items-center gap-2 text-[var(--haip-fg-subtle)]">
-              <span className="font-mono text-[10px]">WABA: {integration.config.waba_id}</span>
+              <span className="font-mono text-[11.5px]">WABA: {integration.config.waba_id}</span>
             </div>
           )}
           {integration.last_health_at && (
@@ -900,7 +900,7 @@ function IntegrationCard({
       {isConnected && item.provider === "whatsapp_meta" && (
         <a
           href="/dashboard/settings/integrations/meta-quality"
-          className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+          className="flex items-center justify-between px-3 py-2 bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)] rounded-xl text-xs font-medium text-[var(--haip-status-info-fg)] hover:bg-[var(--haip-status-info-bg)] transition-colors"
         >
           <span className="flex items-center gap-1.5">
             <Wifi size={11} />
@@ -912,7 +912,7 @@ function IntegrationCard({
 
       {/* Error message */}
       {status === "error" && integration?.config?.last_error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700 flex gap-2">
+        <div className="bg-[var(--haip-status-danger-bg)] border border-[var(--haip-status-danger-border)] rounded-lg p-2.5 text-xs text-[var(--haip-status-danger-fg)] flex gap-2">
           <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
           <span>{integration.config.last_error}</span>
         </div>
@@ -920,7 +920,7 @@ function IntegrationCard({
 
       {/* Notes (before connected) */}
       {item.notes && !isConnected && (
-        <p className="text-[10px] text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5 leading-relaxed">
+        <p className="text-[11.5px] text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] rounded-lg px-2.5 py-1.5 leading-relaxed">
           {item.notes}
         </p>
       )}
@@ -940,7 +940,7 @@ function IntegrationCard({
               reconnect attempts, every one a pasted token, inbound and
               outbound both dead for days. Offer the real flow here. */}
           {item.provider === "instagram" && integration?.config?.auth_mode === "meta_business" && (
-            <p className="text-[10px] text-[var(--haip-fg-subtle)]">
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">
               Messages run on the Meta Business token. Manage it on{" "}
               <Link href="/dashboard/marketing" className="underline hover:text-[var(--haip-fg-muted)]">Marketing</Link>.
             </p>
@@ -975,7 +975,7 @@ function IntegrationCard({
             <button
               onClick={() => onDisconnect(item.provider)}
               disabled={isDisconnecting}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-red-200 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-[var(--haip-status-danger-border)] rounded-xl text-xs font-medium text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)] transition-colors disabled:opacity-50"
             >
               {isDisconnecting ? <Loader2 size={12} className="animate-spin" /> : <Unplug size={12} />}
               Disconnect
@@ -991,13 +991,13 @@ function IntegrationCard({
               <Plug size={13} />
               Connect via Instagram Login
             </button>
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center">
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] text-center">
               First time connecting? An App Secret must be saved first —{" "}
               <button onClick={() => onConnect(item.provider)} className="underline hover:text-[var(--haip-fg-muted)]">
                 save credentials manually
               </button>.
             </p>
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center">
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] text-center">
               Have a Meta Business (System User) token instead? Connect it on{" "}
               <Link href="/dashboard/marketing" className="underline hover:text-[var(--haip-fg-muted)]">Marketing</Link>.
             </p>
@@ -1201,9 +1201,9 @@ export default function IntegrationsPage() {
             </p>
           </div>
           {connectedCount > 0 && (
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
-              <CheckCircle2 size={14} className="text-green-600" />
-              <span className="text-xs font-semibold text-green-700">{connectedCount} active</span>
+            <div className="flex items-center gap-2 bg-[var(--haip-status-success-bg)] border border-[var(--haip-status-success-border)] rounded-xl px-3 py-1.5">
+              <CheckCircle2 size={14} className="text-[var(--haip-status-success-fg)]" />
+              <span className="text-xs font-semibold text-[var(--haip-status-success-fg)]">{connectedCount} active</span>
             </div>
           )}
         </div>
@@ -1221,7 +1221,7 @@ export default function IntegrationsPage() {
             >
               {cat === "all" ? "All integrations" : cat}
               {cat !== "all" && (
-                <span className="ml-1.5 text-[10px] opacity-70">({catalog.filter(c => c.category === cat).length})</span>
+                <span className="ml-1.5 text-[11.5px] opacity-70">({catalog.filter(c => c.category === cat).length})</span>
               )}
             </button>
           ))}

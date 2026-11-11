@@ -127,7 +127,7 @@ function ConsentCard() {
   return (
     <div className="w-full max-w-md rounded-2xl p-6 sm:p-8 flex flex-col gap-6" style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)" }}>
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-teal-50 text-teal-600">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]">
           <Bot size={20} />
         </div>
         <div className="min-w-0">
@@ -150,7 +150,7 @@ function ConsentCard() {
             {/* The screen always uses whoever is signed in to HAIP in this
                 browser -- this is how an owner connects from a shared
                 machine an agent last used. */}
-            <button type="button" onClick={reauthenticate} className="font-medium text-teal-700 underline underline-offset-2">
+            <button type="button" onClick={reauthenticate} className="font-medium text-[var(--haip-status-success-fg)] underline underline-offset-2">
               Use a different HAIP account
             </button>
           </p>
@@ -162,7 +162,7 @@ function ConsentCard() {
             "Bookings, revenue and team scorecards",
           ].map(item => (
             <li key={item} className="flex items-start gap-2">
-              <Check size={14} className="text-teal-600 mt-0.5 flex-shrink-0" />
+              <Check size={14} className="text-[var(--haip-status-success-fg)] mt-0.5 flex-shrink-0" />
               <span>{item}</span>
             </li>
           ))}
@@ -193,7 +193,7 @@ function ConsentCard() {
               value={value}
               checked={access === value}
               onChange={() => setAccess(value)}
-              className="mt-1 accent-teal-600"
+              className="mt-1 accent-primary"
             />
             <span className="flex flex-col">
               <span className="text-sm font-medium" style={{ color: "var(--haip-fg)" }}>{label}</span>
@@ -204,7 +204,7 @@ function ConsentCard() {
       </fieldset>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm bg-red-50 text-red-700">
+        <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]">
           <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
           <span className="flex flex-col gap-1.5 items-start">
             <span>{error}</span>
@@ -231,7 +231,7 @@ function ConsentCard() {
           type="button"
           onClick={() => decide("approve")}
           disabled={!!submitting || isLoading}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary text-white hover:bg-primary disabled:opacity-50"
         >
           {submitting === "approve" ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
           Allow access

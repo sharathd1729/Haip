@@ -105,7 +105,7 @@ export function ResponseTimeBadge({ seconds, status }: { seconds?: number | null
     : { bg: "rgba(244,63,94,0.12)", fg: "#e11d48" };
   return (
     <span
-      className="rounded-full px-1.5 py-0.5 text-[11px] sm:text-[9px] font-semibold whitespace-nowrap"
+      className="rounded-full px-1.5 py-0.5 text-[11px] sm:text-[11.5px] font-semibold whitespace-nowrap"
       style={{ background: tone.bg, color: tone.fg }}
       title={waiting ? "Guest is waiting for a reply" : "Time to first reply"}
     >
@@ -119,7 +119,7 @@ export function AutopilotBadge({ move }: { move?: AutopilotMoveBadge | null }) {
   if (!move) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[var(--haip-primary-tint)] px-1.5 py-0.5 text-[11px] font-semibold text-primary sm:text-[9px]"
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[var(--haip-primary-tint)] px-1.5 py-0.5 text-[11px] font-semibold text-primary sm:text-[11.5px]"
       title={`Moved to ${move.to_stage_label ?? "this stage"} by autopilot: ${move.reason}`}
     >
       <Bot size={9} />
@@ -132,7 +132,7 @@ export function NeedsFollowupBadge({ reason }: { reason?: string | null }) {
   if (!reason) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] sm:text-[9px] font-semibold whitespace-nowrap"
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] sm:text-[11.5px] font-semibold whitespace-nowrap"
       style={{ background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)", color: "var(--haip-amber)" }}
       title={`AI replied automatically -- needs your follow-up: ${reason}`}
     >
@@ -390,7 +390,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           <AutopilotBadge move={lead.autopilot_move} />
           <ValidityBadge validity={lead.validity} />
           {lead.lead_type && lead.lead_type !== "guest" && (
-            <span className="whitespace-nowrap rounded-full bg-[var(--haip-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--haip-fg-2)]">{LEAD_TYPE_LABEL[lead.lead_type] ?? lead.lead_type}</span>
+            <span className="whitespace-nowrap rounded-full bg-[var(--haip-surface)] px-1.5 py-0.5 text-[11.5px] font-semibold text-[var(--haip-fg-2)]">{LEAD_TYPE_LABEL[lead.lead_type] ?? lead.lead_type}</span>
           )}
           <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
           <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />

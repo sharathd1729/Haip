@@ -32,10 +32,10 @@ type Template = FullTemplate;
 
 const STATUS_CFG = {
   draft:     { label: "Draft",     cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]",    icon: <Eye size={10} /> },
-  scheduled: { label: "Scheduled", cls: "bg-blue-50 text-blue-700 border-blue-200",    icon: <Clock size={10} /> },
+  scheduled: { label: "Scheduled", cls: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",    icon: <Clock size={10} /> },
   running:   { label: "Running",   cls: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",    icon: <Play size={10} /> },
-  completed: { label: "Completed", cls: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={10} /> },
-  paused:    { label: "Paused",    cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Pause size={10} /> },
+  completed: { label: "Completed", cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]", icon: <CheckCircle2 size={10} /> },
+  paused:    { label: "Paused",    cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]", icon: <Pause size={10} /> },
 };
 
 function rate(num: string, den: string): string {
@@ -48,8 +48,8 @@ function rate(num: string, den: string): string {
 function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
   return (
     <div className={cn("fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium max-w-sm",
-      type === "success" ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200")}>
-      {type === "success" ? <CheckCircle2 size={15} className="text-green-600" /> : <AlertCircle size={15} className="text-red-600" />}
+      type === "success" ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]")}>
+      {type === "success" ? <CheckCircle2 size={15} className="text-[var(--haip-status-success-fg)]" /> : <AlertCircle size={15} className="text-[var(--haip-status-danger-fg)]" />}
       <span className="flex-1">{msg}</span>
       <button onClick={onClose}><X size={13} className="opacity-60" /></button>
     </div>
@@ -137,8 +137,8 @@ function AudienceFilterBuilder({
             <button key={s} onClick={() => toggleSource(s)}
               className={cn("text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors",
                 filter.source.includes(s)
-                  ? "bg-blue-500 text-white border-blue-500"
-                  : "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)] hover:border-blue-300")}>
+                  ? "bg-primary text-white border-primary"
+                  : "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)] hover:border-[var(--haip-status-info-border)]")}>
               {s.replace("_", " ")}
             </button>
           ))}
@@ -147,9 +147,9 @@ function AudienceFilterBuilder({
 
       {/* Estimated reach */}
       <div className={cn("rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs",
-        isEmpty ? "bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" : "bg-blue-50 border border-blue-100")}>
-        <Users size={13} className={isEmpty ? "text-primary" : "text-blue-600"} />
-        <span className={isEmpty ? "text-primary" : "text-blue-700"}>
+        isEmpty ? "bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" : "bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)]")}>
+        <Users size={13} className={isEmpty ? "text-primary" : "text-[var(--haip-status-info-fg)]"} />
+        <span className={isEmpty ? "text-primary" : "text-[var(--haip-status-info-fg)]"}>
           {subscriberCount === null ? (
             <span className="flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Calculating…</span>
           ) : isEmpty ? (
@@ -260,7 +260,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
         <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
           {/* Name */}
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Campaign name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Campaign name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Diwali 2025 Offer"
               className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
@@ -268,9 +268,9 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
 
           {/* Template */}
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Message template <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Message template <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
             {approvedTemplates.length === 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+              <div className="p-3 bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl text-xs text-[var(--haip-status-warning-fg)]">
                 No approved templates yet. <a href="/dashboard/messaging/templates" className="underline font-medium">Create and submit a template</a> first.
               </div>
             ) : (
@@ -324,11 +324,11 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
             <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Schedule for later <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
             <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
               className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Leave blank to save as a draft and launch it yourself. Times are in your local time.</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Leave blank to save as a draft and launch it yourself. Times are in your local time.</p>
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2">
               <AlertCircle size={13} /> {error}
             </div>
           )}
@@ -367,7 +367,7 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-bold text-[var(--haip-fg)] truncate">{campaign.name}</h3>
-            <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0", sc.cls)}>
+            <span className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0", sc.cls)}>
               {sc.icon} {sc.label}
             </span>
           </div>
@@ -398,7 +398,7 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
             </button>
           )}
           <button onClick={() => { if (confirm("Delete this campaign?")) onDelete(campaign.id); }}
-            className="text-[var(--haip-fg-subtle)] hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
+            className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] transition-colors p-1.5 rounded-lg hover:bg-[var(--haip-status-danger-bg)]">
             <Trash2 size={14} />
           </button>
         </div>
@@ -409,21 +409,21 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
         <div className="grid grid-cols-4 gap-3 pt-3 border-t border-[var(--haip-border)]">
           {[
             { label: "Sent", value: sent, icon: <Send size={12} className="text-[var(--haip-fg-subtle)]" /> },
-            { label: "Delivered", value: delivered, sub: rate(campaign.delivered_count, campaign.sent_count), icon: <CheckCircle2 size={12} className="text-blue-400" /> },
+            { label: "Delivered", value: delivered, sub: rate(campaign.delivered_count, campaign.sent_count), icon: <CheckCircle2 size={12} className="text-primary" /> },
             { label: "Read", value: read, sub: rate(campaign.read_count, campaign.sent_count), icon: <Eye size={12} className="text-primary" /> },
-            { label: "Failed", value: parseInt(campaign.failed_count) || 0, icon: <AlertCircle size={12} className="text-red-400" /> },
+            { label: "Failed", value: parseInt(campaign.failed_count) || 0, icon: <AlertCircle size={12} className="text-[var(--haip-status-danger-fg)]" /> },
           ].map(stat => (
             <div key={stat.label} className="text-center">
               <div className="flex items-center justify-center gap-1 mb-0.5">{stat.icon}</div>
               <p className="text-base font-bold text-[var(--haip-fg)]">{stat.value.toLocaleString()}</p>
-              {stat.sub && <p className="text-[10px] text-[var(--haip-fg-subtle)]">{stat.sub}</p>}
-              <p className="text-[10px] text-[var(--haip-fg-subtle)]">{stat.label}</p>
+              {stat.sub && <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">{stat.sub}</p>}
+              <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">{stat.label}</p>
             </div>
           ))}
         </div>
       )}
       {campaign.status === "paused" && (
-        <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3">
+        <p className="text-[11px] text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] rounded-lg px-3 py-2 mt-3">
           Paused after repeated failures — usually the WhatsApp connection or the template. Open the report to see why, fix it, then Resume; guests already messaged won't be messaged again.
         </p>
       )}
@@ -505,13 +505,13 @@ export default function CampaignsPage() {
             {[
               { label: "Total sent", value: totalSent.toLocaleString(), icon: <Send size={14} className="text-[var(--haip-fg-subtle)]" /> },
               { label: "Total read", value: totalRead.toLocaleString(), icon: <Eye size={14} className="text-primary" /> },
-              { label: "Read rate", value: rate(totalRead.toString(), totalSent.toString()), icon: <TrendingUp size={14} className="text-blue-500" /> },
+              { label: "Read rate", value: rate(totalRead.toString(), totalSent.toString()), icon: <TrendingUp size={14} className="text-[var(--haip-status-info-fg)]" /> },
             ].map(s => (
               <div key={s.label} className="bg-[var(--haip-surface)] rounded-xl p-3 flex items-center gap-3">
                 {s.icon}
                 <div>
                   <p className="text-lg font-bold text-[var(--haip-fg)]">{s.value}</p>
-                  <p className="text-[10px] text-[var(--haip-fg-subtle)]">{s.label}</p>
+                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">{s.label}</p>
                 </div>
               </div>
             ))}
@@ -522,7 +522,7 @@ export default function CampaignsPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {isError ? (
           <div className="py-20 text-center">
-            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <AlertCircle size={32} className="text-[var(--haip-status-danger-fg)] mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load campaigns</p>
             <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">The server didn't respond — this isn't your saved campaign history.</p>
             <button

@@ -55,7 +55,7 @@ export function FilterControl({
             className={cn(
               "px-3 py-1 rounded-md text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
               current === v
-                ? v === "true" ? "bg-primary text-white" : v === "false" ? "bg-gray-700 text-white" : "bg-white text-[var(--haip-fg)] shadow-sm"
+                ? v === "true" ? "bg-primary text-white" : v === "false" ? "bg-[var(--haip-fg-2)] text-white" : "bg-white text-[var(--haip-fg)] shadow-sm"
                 : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]",
             )}
           >

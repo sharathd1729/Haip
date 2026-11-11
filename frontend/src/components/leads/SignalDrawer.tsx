@@ -93,7 +93,7 @@ export function SignalDrawer({ inquiryId, onClose, onSuccess }: Props) {
         {/* DPDP consent notice */}
         <div className="flex items-start gap-2 bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-lg p-2.5 mb-4">
           <Shield size={13} className="text-primary flex-shrink-0 mt-0.5" />
-          <p className="text-[10px] text-primary leading-relaxed">
+          <p className="text-[11.5px] text-primary leading-relaxed">
             By adding this signal, you confirm the guest has consented to data collection. A consent record will be created automatically per DPDP compliance.
           </p>
         </div>
@@ -130,7 +130,7 @@ export function SignalDrawer({ inquiryId, onClose, onSuccess }: Props) {
               placeholder={PLACEHOLDERS[signalType]}
               className="w-full text-[13px] border border-[var(--haip-border)] rounded-lg px-3 py-2 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            {error && <p className="text-[11px] text-red-500 mt-1">{error}</p>}
+            {error && <p className="text-[11px] text-[var(--haip-status-danger-fg)] mt-1">{error}</p>}
           </div>
 
           {/* Submit */}

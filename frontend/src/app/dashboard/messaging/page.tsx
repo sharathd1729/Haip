@@ -44,16 +44,16 @@ function Stat({ label, value, href }: { label: string; value: string; href?: str
   const inner = (
     <div className="rounded-xl bg-[var(--haip-surface)] px-3 py-2">
       <p className="text-lg font-bold text-[var(--haip-fg)] tabular-nums leading-tight">{value}</p>
-      <p className="text-[10px] text-[var(--haip-fg-muted)]">{label}</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-muted)]">{label}</p>
     </div>
   );
   return href ? <Link href={href} className="hover:opacity-80">{inner}</Link> : inner;
 }
 
 const RATING: Record<string, { label: string; cls: string }> = {
-  GREEN: { label: "Quality: good", cls: "bg-green-50 text-green-700 border-green-200" },
-  YELLOW: { label: "Quality: at risk", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  RED: { label: "Quality: poor", cls: "bg-red-50 text-red-700 border-red-200" },
+  GREEN: { label: "Quality: good", cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+  YELLOW: { label: "Quality: at risk", cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]" },
+  RED: { label: "Quality: poor", cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export default function MessagingOverviewPage() {
         {data && (
           <div className="flex flex-wrap items-center gap-2 mt-4 text-xs">
             <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-medium",
-              data.health.connected ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200")}>
+              data.health.connected ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]")}>
               {data.health.connected ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
               {data.health.connected ? "WhatsApp connected" : "WhatsApp not connected"}
             </span>
@@ -134,7 +134,7 @@ export default function MessagingOverviewPage() {
         <WhatsAppHealthCard />
         {isError && !data ? (
           <div className="py-20 text-center">
-            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <AlertCircle size={32} className="text-[var(--haip-status-danger-fg)] mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg)] font-medium">Couldn't load the overview</p>
             <button onClick={() => refetch()} disabled={isFetching} className="mt-4 text-xs font-semibold text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] px-3 py-1.5 rounded-lg">{isFetching ? "Retrying…" : "Retry"}</button>
           </div>
@@ -149,7 +149,7 @@ export default function MessagingOverviewPage() {
           </div>
         ) : data && t && p && (
           <>
-            {data.truncated && <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2">Very large period — only the first 300,000 messages are counted. Choose a shorter range for exact numbers.</p>}
+            {data.truncated && <p className="text-xs text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] rounded-xl px-3 py-2">Very large period — only the first 300,000 messages are counted. Choose a shorter range for exact numbers.</p>}
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <Tile label="Sent" value={fmt(t.sent)} sub={`across ${fmt(t.campaigns)} campaign${t.campaigns === 1 ? "" : "s"}`} icon={<Send size={13} />} delta={change(t.sent, p.sent, "count")} />

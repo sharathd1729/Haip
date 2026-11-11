@@ -29,7 +29,7 @@ function formatInline(text: string): ReactNode[] {
 function withMarkers(text: string): ReactNode[] {
   return text.split(/(\{\{\d+\}\})/g).map((part, i) =>
     /^\{\{\d+\}\}$/.test(part)
-      ? <span key={i} className="rounded bg-amber-100 px-1 text-amber-800">{part}</span>
+      ? <span key={i} className="rounded bg-[var(--haip-status-warning-bg)] px-1 text-[var(--haip-status-warning-fg)]">{part}</span>
       : <Fragment key={i}>{formatInline(part)}</Fragment>
   );
 }
@@ -47,7 +47,7 @@ function MediaHeader({ kind, url }: { kind: HeaderKind; url: string | null }) {
       {kind === "image" && <ImageIcon size={22} />}
       {kind === "video" && <Play size={22} />}
       {kind === "document" && <FileText size={22} />}
-      <span className="text-[10px] capitalize">{kind === "document" ? "PDF document" : `${kind} header`}</span>
+      <span className="text-[11.5px] capitalize">{kind === "document" ? "PDF document" : `${kind} header`}</span>
     </div>
   );
 }
@@ -84,7 +84,7 @@ export function WhatsAppPreview({ form, className }: { form: TemplateForm; class
             <p className="text-[13px] italic leading-snug text-[var(--haip-fg-subtle)]/70">Your message appears here as you type…</p>
           )}
           {form.footer.trim() && <p className="mt-1.5 text-[11px] leading-snug text-[var(--haip-fg-subtle)]">{form.footer}</p>}
-          <p className="mt-1 text-right text-[10px] text-[var(--haip-fg-subtle)]">10:42 AM</p>
+          <p className="mt-1 text-right text-[11.5px] text-[var(--haip-fg-subtle)]">10:42 AM</p>
         </div>
         {buttons.length > 0 && (
           <div className="mt-1 space-y-1">
@@ -92,7 +92,7 @@ export function WhatsAppPreview({ form, className }: { form: TemplateForm; class
           </div>
         )}
         {empty && buttons.length === 0 && (
-          <p className="mt-2 text-center text-[10px] text-[var(--haip-fg-subtle)]">This is how guests will see the message.</p>
+          <p className="mt-2 text-center text-[11.5px] text-[var(--haip-fg-subtle)]">This is how guests will see the message.</p>
         )}
       </div>
     </div>

@@ -30,8 +30,8 @@ function Pill({ text, good }: { text: string; good: boolean | null }) {
   return (
     <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums",
       good == null ? "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] dark:bg-[var(--haip-card)] dark:text-[var(--haip-fg)]"
-        : good ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-          : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300")}>
+        : good ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]  "
+          : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]  ")}>
       {text}
     </span>
   );

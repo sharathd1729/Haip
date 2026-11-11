@@ -76,7 +76,7 @@ function CodeLine({ text }: { text: string }) {
       <code className="text-[11px] text-[var(--haip-fg-2)] flex-1 overflow-x-auto whitespace-nowrap font-mono">{text}</code>
       <button
         onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-        className={cn("flex-shrink-0 p-1 rounded-lg", copied ? "text-green-600" : "text-primary hover:bg-[var(--haip-primary-tint)]")}
+        className={cn("flex-shrink-0 p-1 rounded-lg", copied ? "text-[var(--haip-status-success-fg)]" : "text-primary hover:bg-[var(--haip-primary-tint)]")}
         aria-label="Copy"
       >
         {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
@@ -179,7 +179,7 @@ export function McpConnectPanel({ mcpUrl, onToast }: { mcpUrl: string; onToast: 
               <button
                 onClick={() => disconnect.mutate(g.id)}
                 disabled={disconnect.isPending && disconnect.variables === g.id}
-                className="flex items-center gap-1 text-xs font-medium text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
+                className="flex items-center gap-1 text-xs font-medium text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)] px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
               >
                 {disconnect.isPending && disconnect.variables === g.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                 Disconnect

@@ -49,7 +49,7 @@ export function CallLogCard({ call }: { call: CallTimelineItem }) {
 
   return (
     <div className="my-2 max-w-2xl mx-auto w-full">
-      <div className="p-3.5 rounded-2xl border bg-white shadow-sm" style={{ borderColor: "var(--haip-border, #e5e7eb)" }}>
+      <div className="p-3.5 rounded-2xl border bg-white shadow-sm" style={{ borderColor: "var(--haip-border, var(--haip-border))" }}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="p-1.5 rounded-lg bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] flex-shrink-0">

@@ -75,9 +75,9 @@ function Variance({ value }: { value: number | null }) {
       className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums"
       style={{
         background: good
-          ? "color-mix(in srgb, var(--haip-green, #16a34a) 13%, transparent)"
-          : "color-mix(in srgb, var(--haip-red, #dc2626) 13%, transparent)",
-        color: good ? "var(--haip-green, #16a34a)" : "var(--haip-red, #dc2626)",
+          ? "color-mix(in srgb, var(--haip-green, var(--primary)) 13%, transparent)"
+          : "color-mix(in srgb, var(--haip-red, var(--haip-status-danger-fg)) 13%, transparent)",
+        color: good ? "var(--haip-green, var(--primary))" : "var(--haip-red, var(--haip-status-danger-fg))",
       }}
     >
       {good ? "+" : "−"}{inr(Math.abs(value))}
@@ -98,7 +98,7 @@ function Bar({ pct }: { pct: number | null }) {
           className="h-full rounded-full"
           style={{
             width: `${clamped}%`,
-            background: hit ? "var(--haip-green, #16a34a)" : "var(--primary)",
+            background: hit ? "var(--haip-green, var(--primary))" : "var(--primary)",
           }}
         />
       </div>
@@ -253,7 +253,7 @@ export default function TargetsPage() {
           {pickup.isLoading ? (
             <Skeleton className="h-28 rounded-xl" />
           ) : pickup.isError ? (
-            <div className="haip-card p-4 flex items-center gap-3" style={{ color: "var(--haip-red, #dc2626)" }}>
+            <div className="haip-card p-4 flex items-center gap-3" style={{ color: "var(--haip-red, var(--haip-status-danger-fg))" }}>
               <AlertCircle size={16} /> <span className="text-sm font-medium">Couldn&apos;t load targets.</span>
             </div>
           ) : p && (
@@ -262,11 +262,11 @@ export default function TargetsPage() {
                 <div
                   className="rounded-xl p-4 flex items-start gap-3"
                   style={{
-                    background: "color-mix(in srgb, var(--haip-amber, #d97706) 10%, transparent)",
-                    border: "1px solid color-mix(in srgb, var(--haip-amber, #d97706) 30%, transparent)",
+                    background: "color-mix(in srgb, var(--haip-amber, var(--haip-accent-ink)) 10%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--haip-amber, var(--haip-accent-ink)) 30%, transparent)",
                   }}
                 >
-                  <Target size={16} style={{ color: "var(--haip-amber, #d97706)", marginTop: 2 }} />
+                  <Target size={16} style={{ color: "var(--haip-amber, var(--haip-accent-ink))", marginTop: 2 }} />
                   <div className="text-sm" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>
                     <b>No target set for {monthLabel(month)}.</b>{" "}
                     {canEdit
@@ -278,7 +278,7 @@ export default function TargetsPage() {
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 <div className="haip-card p-3.5">
-                  <p className="text-[10.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Monthly target</p>
+                  <p className="text-[11.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Monthly target</p>
                   <div className="text-xl font-extrabold tabular-nums mt-1.5">
                     <TargetCell
                       scopeType="tenant" scopeId={null} month={month}
@@ -290,16 +290,16 @@ export default function TargetsPage() {
                   </p>
                 </div>
                 <div className="haip-card p-3.5">
-                  <p className="text-[10.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Picked up</p>
+                  <p className="text-[11.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Picked up</p>
                   <p className="text-xl font-extrabold tabular-nums mt-1.5">{inr(p.picked_up)}</p>
                   <p className="text-[11px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
                     {p.achieved_pct !== null ? `${Math.round(p.achieved_pct)}% of target` : "—"}
                   </p>
                 </div>
                 <div className="haip-card p-3.5">
-                  <p className="text-[10.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Variance</p>
+                  <p className="text-[11.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Variance</p>
                   <p className="text-xl font-extrabold tabular-nums mt-1.5"
-                     style={{ color: p.variance >= 0 ? "var(--haip-green, #16a34a)" : "var(--haip-red, #dc2626)" }}>
+                     style={{ color: p.variance >= 0 ? "var(--haip-green, var(--primary))" : "var(--haip-red, var(--haip-status-danger-fg))" }}>
                     {p.variance >= 0 ? "+" : "−"}{inr(Math.abs(p.variance))}
                   </p>
                   <p className="text-[11px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
@@ -307,7 +307,7 @@ export default function TargetsPage() {
                   </p>
                 </div>
                 <div className="haip-card p-3.5">
-                  <p className="text-[10.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Booked forward</p>
+                  <p className="text-[11.5px] uppercase tracking-wide font-bold" style={{ color: "var(--haip-fg-subtle)" }}>Booked forward</p>
                   <p className="text-xl font-extrabold tabular-nums mt-1.5">{inr(p.split.next_month + p.split.future)}</p>
                   <p className="text-[11px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>for later months</p>
                 </div>
@@ -419,7 +419,7 @@ export default function TargetsPage() {
                         <tr style={{ borderTop: "1px solid var(--haip-border)" }}>
                           <td className="px-3 py-2.5" style={{ color: "var(--haip-fg-subtle)" }}>
                             Unattributed
-                            <span className="block text-[10.5px]">bookings with no lead owner</span>
+                            <span className="block text-[11.5px]">bookings with no lead owner</span>
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: "var(--haip-fg-muted)" }}>{inr(agents.data.unattributed)}</td>
                           <td className="px-3 py-2.5 text-right" style={{ color: "var(--haip-fg-subtle)" }}>—</td>

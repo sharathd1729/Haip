@@ -46,21 +46,21 @@ export function timeAgo(dateStr: string | null | undefined): string {
 }
 
 export const DISPOSITION_COLORS: Record<string, string> = {
-  hot: "bg-red-100 text-red-700",
-  quoted: "bg-blue-100 text-blue-700",
-  booked: "bg-green-100 text-green-700",
+  hot: "bg-[var(--haip-accent-light)] text-[var(--haip-accent-ink)]",
+  quoted: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)]",
+  booked: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
   lost: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]",
-  callback: "bg-amber-100 text-amber-700",
-  no_answer: "bg-slate-100 text-slate-600",
-  voicemail: "bg-purple-100 text-purple-700",
+  callback: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]",
+  no_answer: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-2)]",
+  voicemail: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)]",
 };
 
 export const STAGE_COLORS: Record<string, string> = {
-  new: "bg-blue-100 text-blue-700",
-  responding: "bg-amber-100 text-amber-700",
-  quoted: "bg-purple-100 text-purple-700",
-  site_visit: "bg-orange-100 text-orange-700",
-  booked: "bg-green-100 text-green-700",
-  lost: "bg-red-100 text-red-700",
+  new: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)]",
+  responding: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]",
+  quoted: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)]",
+  site_visit: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]",
+  booked: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
+  lost: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]",
   ghosted: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]",
 };

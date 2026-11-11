@@ -36,10 +36,10 @@ interface LeadsActivityResponse {
 }
 
 const STATUS_STYLE: Record<string, { label: string; color: string }> = {
-  booked: { label: "Booked", color: "var(--haip-green, #10B981)" },
+  booked: { label: "Booked", color: "var(--haip-green, var(--primary))" },
   quoted: { label: "Quoted", color: "var(--haip-blue, #2563EB)" },
-  progress: { label: "Awaiting reply", color: "var(--haip-amber, #F59E0B)" },
-  lost: { label: "Lost", color: "var(--haip-red, #EF4444)" },
+  progress: { label: "Awaiting reply", color: "var(--haip-amber, var(--haip-accent-ink))" },
+  lost: { label: "Lost", color: "var(--haip-red, var(--haip-status-danger-fg))" },
 };
 
 const CHANNEL_FILTERS = [
@@ -59,7 +59,7 @@ function StatusBadge({ status }: { status: string }) {
   const s = STATUS_STYLE[status] ?? { label: status, color: "var(--haip-fg-subtle)" };
   return (
     <span
-      className="text-[10.5px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full flex-shrink-0"
+      className="text-[11.5px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full flex-shrink-0"
       style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 14%, transparent)` }}
     >
       {s.label}
@@ -115,7 +115,7 @@ function LeadCard({ lead }: { lead: Lead }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3" style={{ borderTop: "1px solid var(--haip-border)" }}>
           {fields.map(f => (
             <div key={f.label}>
-              <p className="text-[9.5px] font-bold uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>{f.label}</p>
+              <p className="text-[11.5px] font-bold uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>{f.label}</p>
               <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--haip-fg)" }}>{f.value}</p>
             </div>
           ))}
@@ -127,14 +127,14 @@ function LeadCard({ lead }: { lead: Lead }) {
           className="flex items-start gap-2 mt-2.5 p-2.5 rounded-lg text-xs"
           style={{
             background: lead.upsell_accepted
-              ? "color-mix(in srgb, var(--haip-green, #10B981) 12%, transparent)"
-              : "color-mix(in srgb, var(--haip-amber, #F59E0B) 12%, transparent)",
+              ? "color-mix(in srgb, var(--haip-green, var(--primary)) 12%, transparent)"
+              : "color-mix(in srgb, var(--haip-amber, var(--haip-accent-ink)) 12%, transparent)",
             color: "var(--haip-fg-2, var(--haip-fg))",
           }}
         >
           <span
             className="w-4.5 h-4.5 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold"
-            style={{ width: 18, height: 18, background: lead.upsell_accepted ? "var(--haip-green, #10B981)" : "var(--haip-amber, #F59E0B)" }}
+            style={{ width: 18, height: 18, background: lead.upsell_accepted ? "var(--haip-green, var(--primary))" : "var(--haip-amber, var(--haip-accent-ink))" }}
           >
             {lead.upsell_accepted ? "✓" : "?"}
           </span>
@@ -151,7 +151,7 @@ function LeadCard({ lead }: { lead: Lead }) {
         >
           <Sparkles size={13} style={{ color: "#5B5BCE", flexShrink: 0, marginTop: 1 }} />
           <div>
-            <p className="text-[9.5px] font-bold uppercase tracking-wide" style={{ color: "#6A6AD6" }}>AI analysis</p>
+            <p className="text-[11.5px] font-bold uppercase tracking-wide" style={{ color: "#6A6AD6" }}>AI analysis</p>
             <p className="mt-0.5" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>{lead.ai_lead_analysis}</p>
           </div>
         </div>

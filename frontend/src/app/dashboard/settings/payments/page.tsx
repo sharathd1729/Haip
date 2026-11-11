@@ -77,11 +77,11 @@ export default function PaymentsSettingsPage() {
       {isLoading ? <Skeleton className="h-40 rounded-xl" /> : (
         <>
           {connected && (
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-sm text-emerald-900">
-              <CheckCircle2 size={16} className="text-emerald-600" />
+            <div className="flex items-center gap-2 bg-[var(--haip-status-success-bg)] border border-[var(--haip-status-success-border)] rounded-xl px-4 py-3 text-sm text-[var(--haip-status-success-fg)]">
+              <CheckCircle2 size={16} className="text-[var(--haip-status-success-fg)]" />
               <span>Connected to Razorpay ({data?.mode} mode, key ending {data?.key_id_hint}).</span>
               <button onClick={() => { if (confirm("Disconnect Razorpay? Existing payment links stop updating bookings.")) disconnect.mutate(); }}
-                className="ml-auto text-xs font-semibold text-red-700 hover:underline">Disconnect</button>
+                className="ml-auto text-xs font-semibold text-[var(--haip-status-danger-fg)] hover:underline">Disconnect</button>
             </div>
           )}
 
@@ -100,7 +100,7 @@ export default function PaymentsSettingsPage() {
           )}
 
           {fresh && (
-            <div className="haip-card p-4 space-y-3 border-amber-200">
+            <div className="haip-card p-4 space-y-3 border-[var(--haip-status-warning-border)]">
               <p className="text-sm font-semibold text-[var(--haip-fg)]">One more step: add the webhook in Razorpay</p>
               <ol className="text-xs text-[var(--haip-fg-muted)] list-decimal pl-4 space-y-1">
                 <li>Open Razorpay Dashboard, then Account &amp; Settings, then Webhooks, then Add New Webhook.</li>

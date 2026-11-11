@@ -154,13 +154,13 @@ function CallRoutingSection() {
           wrong. This makes the current pool impossible to miss. */}
       {data && data.ivr_routing_strategy !== "single" && (
         data.eligible_agents.length === 0 ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
-            <AlertCircle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-amber-800 leading-relaxed">
+          <div className="bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl p-3 flex items-start gap-2.5">
+            <AlertCircle size={14} className="text-[var(--haip-status-warning-fg)] mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-[var(--haip-status-warning-fg)] leading-relaxed">
               No one's in the routing pool yet, so calls still ring your
               single Vobiz number — this strategy isn't doing anything until
               someone is. Go to{" "}
-              <Link href="/dashboard/settings/team" className="underline font-medium hover:text-amber-900">
+              <Link href="/dashboard/settings/team" className="underline font-medium hover:text-[var(--haip-status-warning-fg)]">
                 Settings → Team
               </Link>
               {" "}and turn on "IVR calls" for each agent (they need a phone
@@ -323,7 +323,7 @@ function AudioSlotEditor({
           </div>
           <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">{description}</p>
           {uploadError && (
-            <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+            <p className="text-xs text-[var(--haip-status-danger-fg)] mt-1 flex items-center gap-1">
               <AlertCircle size={12} /> {uploadError}
             </p>
           )}
@@ -369,7 +369,7 @@ function AudioSlotEditor({
             </p>
           )}
           {ttsError && (
-            <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+            <p className="text-xs text-[var(--haip-status-danger-fg)] mt-1 flex items-center gap-1">
               <AlertCircle size={12} /> {ttsError}
             </p>
           )}
@@ -406,7 +406,7 @@ function PlayAudioButton({ slot }: { slot: "greeting" | "voicemail" }) {
         Play
       </button>
       {audioUrl && <audio src={audioUrl} controls autoPlay className="h-8" style={{ maxWidth: 220 }} />}
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-[var(--haip-status-danger-fg)]">{error}</span>}
     </div>
   );
 }

@@ -477,7 +477,7 @@ export default function CallDetailPage() {
   setEditingNote(idx);
   setNoteInput(coachingNotes[idx] ?? "");
   }}
-  className="text-[var(--haip-status-info-fg)] hover:text-[var(--haip-status-info-fg)] text-[10px]">edit</button>
+  className="text-[var(--haip-status-info-fg)] hover:text-[var(--haip-status-info-fg)] text-[11.5px]">edit</button>
   <button
   onClick={() => setCoachingNotes(prev => { const n = { ...prev }; delete n[idx]; return n; })}
   className="text-[var(--haip-status-info-fg)] hover:text-[var(--haip-status-danger-fg)] transition-colors"
@@ -496,7 +496,7 @@ export default function CallDetailPage() {
   onChange={e => setNoteInput(e.target.value)}
   placeholder="Add a coaching note for this turn…"
   rows={2}
-  className="w-full text-xs px-3 py-2 border border-[var(--haip-status-info-border)] rounded-xl bg-[var(--haip-status-info-bg)] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+  className="w-full text-xs px-3 py-2 border border-[var(--haip-status-info-border)] rounded-xl bg-[var(--haip-status-info-bg)] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--haip-status-info-border)] resize-none"
   onKeyDown={e => {
   if (e.key === "Enter" && !e.shiftKey) {
   e.preventDefault();
@@ -647,7 +647,7 @@ export default function CallDetailPage() {
   <div className="mt-4 pt-4 border-t border-[var(--haip-border)] grid grid-cols-2 gap-3">
   {call.score.agent_strengths?.length ? (
   <div>
-  <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1.5">Strengths</p>
+  <p className="text-[11.5px] font-bold uppercase tracking-wider text-primary mb-1.5">Strengths</p>
   <ul className="space-y-1">
   {call.score.agent_strengths.slice(0, 3).map((s, i) => (
   <li key={i} className="text-xs text-[var(--haip-fg-2)] flex items-start gap-1.5">
@@ -659,7 +659,7 @@ export default function CallDetailPage() {
   ) : null}
   {call.score.agent_growth_areas?.length ? (
   <div>
-  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--haip-status-warning-fg)] mb-1.5">Improve</p>
+  <p className="text-[11.5px] font-bold uppercase tracking-wider text-[var(--haip-status-warning-fg)] mb-1.5">Improve</p>
   <ul className="space-y-1">
   {call.score.agent_growth_areas.slice(0, 3).map((s, i) => (
   <li key={i} className="text-xs text-[var(--haip-fg-2)] flex items-start gap-1.5">
@@ -821,8 +821,8 @@ export default function CallDetailPage() {
   className="w-full text-left px-3 py-2 rounded-xl bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] hover:bg-[var(--haip-accent-line)] transition-colors group"
   >
   <div className="flex items-center justify-between mb-0.5">
-  <span className="text-[10px] font-mono font-semibold text-[var(--haip-status-warning-fg)]">{timeStr}</span>
-  <span className="text-[10px] text-[var(--haip-status-warning-fg)] capitalize">{turn.speaker}</span>
+  <span className="text-[11.5px] font-mono font-semibold text-[var(--haip-status-warning-fg)]">{timeStr}</span>
+  <span className="text-[11.5px] text-[var(--haip-status-warning-fg)] capitalize">{turn.speaker}</span>
   </div>
   <p className="text-xs text-[var(--haip-fg-2)] line-clamp-2">{turn.text}</p>
   </button>
@@ -906,7 +906,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <Layers size={14} className="text-primary" />
   </div>
   <h2 className="text-sm font-semibold text-foreground">Intent & Outcome</h2>
-  <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full">
+  <span className="ml-auto text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full">
   Layer 2 AI
   </span>
   </div>
@@ -918,7 +918,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-center gap-3 flex-1">
   <ConversionRing probability={layer2.conversion_probability} />
   <div>
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
   Conversion probability
   </p>
   <p className={cn(
@@ -949,7 +949,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-center gap-2.5 py-2 border-t border-border">
   <Target size={13} className="text-muted-foreground flex-shrink-0" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Decision stage
   </p>
   <p className={cn("text-sm font-semibold mt-0.5", decisionStage.color)}>
@@ -964,7 +964,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-start gap-2.5 py-2 border-t border-border">
   <TrendingUp size={13} className="text-muted-foreground flex-shrink-0 mt-0.5" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Budget signal
   </p>
   <p className="text-sm text-foreground mt-0.5 italic">
@@ -979,7 +979,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-start gap-2.5 py-2 border-t border-border">
   <AlertTriangle size={13} className="text-[var(--haip-accent-ink)] flex-shrink-0 mt-0.5" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Competitor mentioned
   </p>
   <p className="text-sm font-semibold text-[var(--haip-accent-ink)] mt-0.5">
@@ -994,7 +994,7 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-start gap-2.5 py-2 border-t border-border">
   <AlertCircle size={13} className="text-[var(--haip-status-danger-fg)] flex-shrink-0 mt-0.5" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Lost reason
   </p>
   <p className="text-sm font-semibold text-[var(--haip-status-danger-fg)] mt-0.5">
@@ -1009,13 +1009,13 @@ function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
   <div className="flex items-center gap-2.5 py-2 border-t border-border">
   <Globe size={13} className="text-muted-foreground flex-shrink-0" />
   <div className="flex-1">
-  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
   Language
   </p>
   <p className="text-sm text-foreground mt-0.5">
   {layer2.detected_language.toUpperCase()}
   {layer2.is_code_mixed && (
-  <span className="ml-2 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+  <span className="ml-2 text-[11.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
   code-mixed
   </span>
   )}

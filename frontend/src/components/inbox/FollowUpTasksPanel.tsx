@@ -43,9 +43,9 @@ export function FollowUpTasksPanel({ conversationId }: { conversationId: string 
   const doneCount = tasks.filter(t => t.is_done).length;
 
   const PRIORITY_COLOR: Record<string, string> = {
-    high: "#ef4444",
-    medium: "#f59e0b",
-    low: "#6b7280",
+    high: "var(--haip-status-danger-fg)",
+    medium: "var(--haip-accent-ink)",
+    low: "var(--haip-fg-subtle)",
   };
 
   return (

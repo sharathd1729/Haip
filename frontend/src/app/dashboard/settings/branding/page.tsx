@@ -57,7 +57,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
               >
                 {logoText}
               </div>
-              <span className="text-white text-[10px] font-bold truncate">
+              <span className="text-white text-[11.5px] font-bold truncate">
                 {t.companyName || "HAIP"}
               </span>
             </div>
@@ -69,7 +69,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
           {navItems.map(item => (
             <div
               key={item.label}
-              className="flex items-center gap-1.5 px-1.5 py-1 text-[9px]"
+              className="flex items-center gap-1.5 px-1.5 py-1 text-[11.5px]"
               style={{
                 backgroundColor: item.active ? primaryRgba(0.15) : "transparent",
                 color: item.active ? "#fff" : "rgba(255,255,255,0.45)",
@@ -93,7 +93,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
             >
               S
             </div>
-            <span className="text-[8px] text-white/50 truncate">Sharath</span>
+            <span className="text-[11.5px] text-white/50 truncate">Sharath</span>
           </div>
         </div>
       </div>
@@ -105,7 +105,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
           className="rounded flex items-center justify-between px-2 py-1"
           style={{ backgroundColor: t.sidebarColor, borderRadius: radius }}
         >
-          <span className="text-[8px] text-white/50">Dashboard</span>
+          <span className="text-[11.5px] text-white/50">Dashboard</span>
           <div
             className="px-1.5 py-0.5 rounded text-[7px] font-semibold"
             style={{
@@ -132,7 +132,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
 
         {/* Primary button */}
         <button
-          className="text-[8px] font-semibold px-2 py-1 w-full"
+          className="text-[11.5px] font-semibold px-2 py-1 w-full"
           style={{
             backgroundColor: t.primaryColor,
             color: bright ? "#111" : "#fff",
@@ -183,7 +183,7 @@ function ColorSwatch({
       onClick={onClick}
       className={cn(
         "w-8 h-8 rounded-xl transition-all flex items-center justify-center",
-        selected ? "ring-2 ring-offset-2 ring-gray-700 scale-110" : "hover:scale-105"
+        selected ? "ring-2 ring-offset-2 ring-[var(--haip-border-strong)] scale-110" : "hover:scale-105"
       )}
       style={{ backgroundColor: color }}
     >
@@ -287,7 +287,7 @@ export default function BrandingPage() {
               className={cn(
                 "flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors",
                 saved
-                  ? "bg-green-50 text-green-700 border border-green-200"
+                  ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border border-[var(--haip-status-success-border)]"
                   : "bg-primary text-white hover:bg-primary disabled:opacity-50"
               )}
               style={!saved ? { backgroundColor: local.primaryColor, color: bright ? "#111" : "#fff" } : {}}
@@ -314,7 +314,7 @@ export default function BrandingPage() {
                     onClick={() => update({ primaryColor: p.primaryColor, sidebarColor: p.sidebarColor })}
                     className={cn(
                       "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-all",
-                      isActive ? "border-gray-700 shadow-sm" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)] bg-white"
+                      isActive ? "border-[var(--haip-border-strong)] shadow-sm" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)] bg-white"
                     )}
                   >
                     {/* Mini dual swatch */}
@@ -343,7 +343,7 @@ export default function BrandingPage() {
                       <img src={local.logoUrl} alt="Logo" className="max-h-10 max-w-full object-contain" />
                       <button
                         onClick={() => update({ logoUrl: "" })}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-100 text-red-600 rounded-full text-[10px] flex items-center justify-center hover:bg-red-200"
+                        className="absolute top-1 right-1 w-5 h-5 bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] rounded-full text-[10px] flex items-center justify-center hover:bg-[var(--haip-status-danger-border)]"
                       >✕</button>
                     </div>
                   ) : (
@@ -352,7 +352,7 @@ export default function BrandingPage() {
                       className="w-full h-16 border-2 border-dashed border-[var(--haip-border)] rounded-xl flex flex-col items-center justify-center gap-1 hover:border-primary transition-colors"
                     >
                       <Upload size={14} className="text-[var(--haip-fg-subtle)]" />
-                      <span className="text-[10px] text-[var(--haip-fg-subtle)]">Upload PNG/SVG</span>
+                      <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">Upload PNG/SVG</span>
                     </button>
                   )}
                   <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
@@ -371,7 +371,7 @@ export default function BrandingPage() {
                       <img src={local.logoDarkUrl} alt="Dark logo" className="max-h-10 max-w-full object-contain" />
                       <button
                         onClick={() => update({ logoDarkUrl: "" })}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-800/50 text-red-300 rounded-full text-[10px] flex items-center justify-center hover:bg-red-800"
+                        className="absolute top-1 right-1 w-5 h-5 bg-[var(--haip-status-danger-fg)]/50 text-[var(--haip-status-danger-fg)] rounded-full text-[10px] flex items-center justify-center hover:bg-[var(--haip-status-danger-fg)]"
                       >✕</button>
                     </div>
                   ) : (
@@ -385,7 +385,7 @@ export default function BrandingPage() {
                       className="w-full h-16 border-2 border-dashed border-[var(--haip-border)] rounded-xl flex flex-col items-center justify-center gap-1 hover:border-primary transition-colors"
                     >
                       <Upload size={14} className="text-[var(--haip-fg-subtle)]" />
-                      <span className="text-[10px] text-[var(--haip-fg-subtle)]">Upload for dark bg</span>
+                      <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">Upload for dark bg</span>
                     </button>
                   )}
                 </div>
@@ -472,7 +472,7 @@ export default function BrandingPage() {
                     return (
                       <div key={label} className="flex-1 text-center">
                         <div className="w-full h-6 rounded-lg" style={{ backgroundColor: makeColor(mix) }} />
-                        <p className="text-[9px] text-[var(--haip-fg-subtle)] mt-1">{label}</p>
+                        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">{label}</p>
                       </div>
                     );
                   })}
@@ -521,7 +521,7 @@ export default function BrandingPage() {
                   className={cn(
                     "px-4 py-3 rounded-xl border-2 text-left transition-all",
                     local.fontFamily === font
-                      ? "border-gray-700 bg-[var(--haip-surface)] shadow-sm"
+                      ? "border-[var(--haip-border-strong)] bg-[var(--haip-surface)] shadow-sm"
                       : "border-[var(--haip-border)] bg-white hover:border-[var(--haip-border-strong)]"
                   )}
                   style={{ fontFamily: `"${font}", ui-sans-serif, system-ui, sans-serif` }}
@@ -532,7 +532,7 @@ export default function BrandingPage() {
               ))}
             </div>
             {local.fontFamily !== "Inter" && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex gap-2">
+              <div className="mt-3 p-3 bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)] rounded-xl text-xs text-[var(--haip-status-info-fg)] flex gap-2">
                 <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
                 The font will load from Google Fonts on next page refresh.
               </div>
@@ -553,7 +553,7 @@ export default function BrandingPage() {
                   className={cn(
                     "flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all",
                     local.radiusScale === opt.id
-                      ? "border-gray-700 bg-[var(--haip-surface)]"
+                      ? "border-[var(--haip-border-strong)] bg-[var(--haip-surface)]"
                       : "border-[var(--haip-border)] bg-white hover:border-[var(--haip-border-strong)]"
                   )}
                 >
@@ -599,7 +599,7 @@ export default function BrandingPage() {
           <div className="px-4 py-3 border-b border-[var(--haip-border)] flex items-center gap-2">
             <Eye size={14} className="text-[var(--haip-fg-subtle)]" />
             <p className="text-xs font-semibold text-[var(--haip-fg-2)]">Live preview</p>
-            <span className="ml-auto text-[10px] text-[var(--haip-fg-subtle)]">Updates in real time</span>
+            <span className="ml-auto text-[11.5px] text-[var(--haip-fg-subtle)]">Updates in real time</span>
           </div>
           <div className="flex-1 p-4">
             <div className="rounded-2xl overflow-hidden border border-[var(--haip-border)] shadow-sm h-full" style={{ minHeight: "460px" }}>
@@ -619,7 +619,7 @@ export default function BrandingPage() {
                 "Font across all pages",
               ].map(item => (
                 <div key={item} className="flex items-center gap-2">
-                  <Check size={9} className="text-green-500 flex-shrink-0" />
+                  <Check size={9} className="text-[var(--haip-status-success-fg)] flex-shrink-0" />
                   {item}
                 </div>
               ))}

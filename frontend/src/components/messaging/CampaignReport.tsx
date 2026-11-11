@@ -32,10 +32,10 @@ const FILTERS = [
 
 const STATUS_STYLE: Record<Recipient["status"], { label: string; cls: string }> = {
   queued:    { label: "Waiting",   cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]" },
-  sent:      { label: "Accepted",  cls: "bg-blue-50 text-blue-700 border-blue-200" },
+  sent:      { label: "Accepted",  cls: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]" },
   delivered: { label: "Delivered", cls: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" },
-  read:      { label: "Read",      cls: "bg-green-50 text-green-700 border-green-200" },
-  failed:    { label: "Failed",    cls: "bg-red-50 text-red-600 border-red-200" },
+  read:      { label: "Read",      cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+  failed:    { label: "Failed",    cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
 };
 
 const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
@@ -46,7 +46,7 @@ function Tile({ label, value, sub, icon, tone }: { label: string; value: number;
     <div className="rounded-xl bg-[var(--haip-surface)] p-3">
       <div className={cn("flex items-center gap-1.5 text-[11px] font-medium", tone)}>{icon}{label}</div>
       <p className="text-2xl font-bold text-[var(--haip-fg)] mt-1 tabular-nums">{value.toLocaleString()}</p>
-      {sub && <p className="text-[10px] text-[var(--haip-fg-subtle)]">{sub}</p>}
+      {sub && <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">{sub}</p>}
     </div>
   );
 }
@@ -116,7 +116,7 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {isError && (
             <div className="py-10 text-center">
-              <AlertCircle size={28} className="text-red-300 mx-auto mb-2" />
+              <AlertCircle size={28} className="text-[var(--haip-status-danger-fg)] mx-auto mb-2" />
               <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load the report</p>
               <button onClick={() => refetch()} className="mt-3 text-xs font-semibold text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] px-3 py-1.5 rounded-lg">Retry</button>
             </div>
@@ -126,11 +126,11 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
           {s && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <Tile label="Accepted" value={s.sent} sub={s.total ? `by WhatsApp, of ${s.total.toLocaleString()} guests` : undefined} icon={<Send size={12} />} tone="text-blue-600" />
+                <Tile label="Accepted" value={s.sent} sub={s.total ? `by WhatsApp, of ${s.total.toLocaleString()} guests` : undefined} icon={<Send size={12} />} tone="text-[var(--haip-status-info-fg)]" />
                 <Tile label="Delivered" value={s.delivered} sub={`${pct(s.delivery_rate)} of accepted`} icon={<CheckCircle2 size={12} />} tone="text-primary" />
-                <Tile label="Read" value={s.read} sub={`${pct(s.read_rate)} of delivered`} icon={<Eye size={12} />} tone="text-green-600" />
-                <Tile label="Replied" value={s.replied} sub={`${pct(s.reply_rate)} of accepted, within 7 days`} icon={<MessageSquare size={12} />} tone="text-violet-600" />
-                <Tile label="Failed" value={s.failed} sub={s.failed ? `${pct(s.failure_rate)} of attempts` : "none"} icon={<AlertCircle size={12} />} tone="text-red-500" />
+                <Tile label="Read" value={s.read} sub={`${pct(s.read_rate)} of delivered`} icon={<Eye size={12} />} tone="text-[var(--haip-status-success-fg)]" />
+                <Tile label="Replied" value={s.replied} sub={`${pct(s.reply_rate)} of accepted, within 7 days`} icon={<MessageSquare size={12} />} tone="text-[var(--haip-status-info-fg)]" />
+                <Tile label="Failed" value={s.failed} sub={s.failed ? `${pct(s.failure_rate)} of attempts` : "none"} icon={<AlertCircle size={12} />} tone="text-[var(--haip-status-danger-fg)]" />
               </div>
               <p className="text-[11px] text-[var(--haip-fg-subtle)] -mt-3">
                 Each step includes the ones after it: everything read was also delivered, and everything delivered was accepted. Failed messages are counted
@@ -146,8 +146,8 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
                   <h3 className="text-xs font-semibold text-[var(--haip-fg-2)] mb-2">Why messages failed</h3>
                   <ul className="space-y-2">
                     {data!.failures.map((f, i) => (
-                      <li key={`${f.code}-${i}`} className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50/40 p-3">
-                        <span className="text-sm font-bold text-red-600 tabular-nums w-10 text-right flex-shrink-0">{f.count}</span>
+                      <li key={`${f.code}-${i}`} className="flex items-start gap-3 rounded-xl border border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-fg)]/40 p-3">
+                        <span className="text-sm font-bold text-[var(--haip-status-danger-fg)] tabular-nums w-10 text-right flex-shrink-0">{f.count}</span>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-[var(--haip-fg)]">{f.group_label}</p>
                           <p className="text-xs text-[var(--haip-fg-muted)]">{f.reason}</p>
@@ -175,7 +175,7 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
                     <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Search name or number"
                       className="w-full pl-8 pr-3 min-h-11 sm:min-h-0 sm:py-2 border border-[var(--haip-border)] rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
                   </div>
-                  {exportError && <span className="text-[11px] text-red-600">{exportError}</span>}
+                  {exportError && <span className="text-[11px] text-[var(--haip-status-danger-fg)]">{exportError}</span>}
                 </div>
 
                 <div className="border border-[var(--haip-border)] rounded-xl overflow-x-auto">
@@ -198,17 +198,17 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
                           <tr key={r.id}>
                             <td className="px-3 py-2">
                               <p className="font-medium text-[var(--haip-fg)]">{r.name || "—"}</p>
-                              <p className="text-[10px] text-[var(--haip-fg-subtle)] font-mono">{r.phone}</p>
+                              <p className="text-[11.5px] text-[var(--haip-fg-subtle)] font-mono">{r.phone}</p>
                             </td>
-                            <td className="px-3 py-2"><span className={cn("inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border", st.cls)}>{st.label}</span></td>
+                            <td className="px-3 py-2"><span className={cn("inline-block text-[11.5px] font-semibold px-2 py-0.5 rounded-full border", st.cls)}>{st.label}</span></td>
                             <td className="px-3 py-2 text-[var(--haip-fg-subtle)] hidden sm:table-cell whitespace-nowrap">{when(r.sent_at)}</td>
                             <td className="px-3 py-2 whitespace-nowrap">
                               {r.replied
-                                ? <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200" title={`Replied ${when(r.replied_at)}`}>Replied {when(r.replied_at)}</span>
+                                ? <span className="inline-block text-[11.5px] font-semibold px-2 py-0.5 rounded-full border bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]" title={`Replied ${when(r.replied_at)}`}>Replied {when(r.replied_at)}</span>
                                 : <span className="text-[var(--haip-fg-subtle)]/70">—</span>}
                             </td>
                             <td className="px-3 py-2 text-[var(--haip-fg-muted)]">
-                              {r.status === "failed" ? <span className="text-red-600">{r.error_reason ?? "Failed"}</span>
+                              {r.status === "failed" ? <span className="text-[var(--haip-status-danger-fg)]">{r.error_reason ?? "Failed"}</span>
                                 : r.status === "read" ? `Read ${when(r.read_at)}`
                                 : r.status === "delivered" ? `Delivered ${when(r.delivered_at)}` : ""}
                             </td>

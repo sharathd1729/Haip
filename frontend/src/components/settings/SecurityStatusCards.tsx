@@ -76,7 +76,7 @@ export function SecurityStatusCards() {
               : <CheckCircle size={13} className={k.status === "set" ? "flex-shrink-0 text-[var(--haip-status-success-fg)]" : "flex-shrink-0 text-[var(--haip-fg-subtle)]"} />}
             <code className="flex-1 text-xs text-[var(--haip-fg-2)]">{k.name}</code>
             <span className="hidden text-[11px] text-[var(--haip-fg-subtle)] sm:inline">{k.note}</span>
-            <span className="text-[10px] font-semibold text-[var(--haip-fg-muted)]">{KEY_LABEL[k.status]}</span>
+            <span className="text-[11.5px] font-semibold text-[var(--haip-fg-muted)]">{KEY_LABEL[k.status]}</span>
           </div>
         ))}
         {data.legacy_webhook_verify_token_allowed && (

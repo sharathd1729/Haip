@@ -360,7 +360,7 @@ export default function CallsPage() {
   ) : (
   groups.map(g => (
   <div key={g.label}>
-  <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>{g.label}</p>
+  <p className="px-4 pt-3 pb-1 text-[11.5px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>{g.label}</p>
   {g.items.map(c => (
   <CallRow key={c.id} call={c} selected={c.id === activeCallId}
   onSelect={() => open(c.id)} onPlay={() => open(c.id, true)}

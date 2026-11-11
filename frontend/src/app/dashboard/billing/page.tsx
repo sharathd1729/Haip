@@ -117,13 +117,13 @@ function UsageMeter({ label, icon, used, limit, color }: {
           <span className="text-[var(--haip-fg-subtle)]">{icon}</span>
           {label}
         </div>
-        <span className={cn("text-xs font-semibold", isHigh ? "text-red-600" : "text-[var(--haip-fg-subtle)]")}>
+        <span className={cn("text-xs font-semibold", isHigh ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]")}>
           {used.toLocaleString()} / {limit.toLocaleString()}
         </span>
       </div>
       <div className="h-2 bg-[var(--haip-status-neutral-bg)] rounded-full overflow-hidden">
         <div
-          className={cn("h-full rounded-full transition-all", isHigh ? "bg-red-400" : color)}
+          className={cn("h-full rounded-full transition-all", isHigh ? "bg-[var(--haip-status-danger-fg)]" : color)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -193,7 +193,7 @@ function Overview() {
             <p className="text-sm text-[var(--haip-fg-subtle)] mt-1">₹6,999 / month · Renews 1 June 2026</p>
           </div>
           <div className="text-right">
-            <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
+            <div className="flex items-center gap-2 text-[var(--haip-status-success-fg)] text-sm font-semibold">
               <CheckCircle size={14} />
               Active
             </div>
@@ -206,9 +206,9 @@ function Overview() {
         <div className="mt-5 pt-4 border-t border-[var(--haip-border)]">
           <p className="text-xs font-bold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-4">Usage this cycle</p>
           <div className="space-y-5">
-            <UsageMeter label="Calls"                    icon={<Phone size={14} />}        used={847}   limit={1500}  color="bg-blue-400" />
-            <UsageMeter label="WhatsApp conversations"   icon={<MessageSquare size={14} />} used={2341}  limit={4500}  color="bg-green-400" />
-            <UsageMeter label="Team members"             icon={<Users size={14} />}         used={3}     limit={5}     color="bg-violet-400" />
+            <UsageMeter label="Calls"                    icon={<Phone size={14} />}        used={847}   limit={1500}  color="bg-primary" />
+            <UsageMeter label="WhatsApp conversations"   icon={<MessageSquare size={14} />} used={2341}  limit={4500}  color="bg-primary" />
+            <UsageMeter label="Team members"             icon={<Users size={14} />}         used={3}     limit={5}     color="bg-primary" />
           </div>
         </div>
       </div>
@@ -226,7 +226,7 @@ function Overview() {
           </div>
           <button className="ml-auto text-xs text-primary hover:underline font-medium">Update</button>
         </div>
-        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-start gap-2">
+        <div className="mt-4 p-3 bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl text-xs text-[var(--haip-status-warning-fg)] flex items-start gap-2">
           <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
           <span>All payments are processed securely via Razorpay. HAIP never stores your card details.</span>
         </div>
@@ -256,7 +256,7 @@ function Overview() {
 function Plans() {
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-2 max-w-3xl">
+      <div className="bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)] rounded-xl p-4 text-sm text-[var(--haip-status-info-fg)] flex items-start gap-2 max-w-3xl">
         <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
         <span>
           Plan changes take effect on your next billing date. To upgrade immediately or negotiate annual pricing,{" "}
@@ -274,7 +274,7 @@ function Plans() {
             )}
           >
             {plan.badge && (
-              <span className="self-start text-[10px] bg-[var(--haip-primary-tint)] text-primary font-bold px-2 py-0.5 rounded-full uppercase tracking-wide mb-3">
+              <span className="self-start text-[11.5px] bg-[var(--haip-primary-tint)] text-primary font-bold px-2 py-0.5 rounded-full uppercase tracking-wide mb-3">
                 {plan.badge}
               </span>
             )}
@@ -366,10 +366,10 @@ function Invoices() {
               <div key={inv.id} className="flex items-center gap-4 px-5 py-4">
                 <div className={cn(
                   "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
-                  inv.status === "paid" ? "bg-green-50" : inv.status === "failed" ? "bg-red-50" : "bg-amber-50"
+                  inv.status === "paid" ? "bg-[var(--haip-status-success-bg)]" : inv.status === "failed" ? "bg-[var(--haip-status-danger-bg)]" : "bg-[var(--haip-status-warning-bg)]"
                 )}>
                   <CheckCircle size={15} className={cn(
-                    inv.status === "paid" ? "text-green-500" : inv.status === "failed" ? "text-red-400" : "text-amber-400"
+                    inv.status === "paid" ? "text-[var(--haip-status-success-fg)]" : inv.status === "failed" ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-status-warning-fg)]"
                   )} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -378,10 +378,10 @@ function Invoices() {
                 </div>
                 <p className="text-sm font-semibold text-[var(--haip-fg)]">₹{inv.amount.toLocaleString()}</p>
                 <span className={cn(
-                  "text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase border",
-                  inv.status === "paid"    ? "bg-green-50 text-green-700 border-green-200" :
-                  inv.status === "failed"  ? "bg-red-50 text-red-700 border-red-200" :
-                                             "bg-amber-50 text-amber-700 border-amber-200"
+                  "text-[11.5px] px-2 py-0.5 rounded-full font-semibold uppercase border",
+                  inv.status === "paid"    ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" :
+                  inv.status === "failed"  ? "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" :
+                                             "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]"
                 )}>
                   {inv.status}
                 </span>

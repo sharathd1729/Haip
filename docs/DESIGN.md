@@ -128,7 +128,8 @@ Chosen by the owner from mock-ups (Home, parts sheet, My day, Leads). Applied th
 - Warnings are coral too (`--haip-status-warning-*`, `--haip-banner-warn-*`; `--haip-amber` is deep coral #A23A1C so it reads as text and under white text). Red stays for real errors and delete.
 - Calls: `--clx-*` point at the theme (no navy, teal or blue); booked = green, hot lead = coral, every occasion chip is the same green.
 - Calendar: every outside channel is one deep green (`--haip-cal-channel`), told apart by the tag on the bar.
-- Not yet moved: chart series (`--viz-*`).
+- Every other app page (Settings, Messaging, Compliance, Reports, Automations, Profile, Billing, Properties, auth pages): raw Tailwind colour classes and inline grey/status hexes were mapped to the tokens in one pass (greens and blues -> success/info/primary, reds -> danger, ambers -> coral warning, greys -> neutral tokens); `dark:` colour variants were dropped because the tokens carry dark values. Text below 11.5px was lifted except in fixed small boxes (count bubbles, initials, day cells).
+- Left as they are: brand marks (WhatsApp, Instagram, Facebook, booking-site dots), the tenant colour pickers (Branding, pipeline stages), the public marketing site, and chart series (`--viz-*`).
 
 ### Palette (tokens in `globals.css`; never hex in components)
 Green carries almost all colour; ONE warm accent, terracotta, used sparingly. No pink, coral, bright yellow or orange as theme colours.
