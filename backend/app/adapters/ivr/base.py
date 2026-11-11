@@ -17,7 +17,8 @@ class CallWebhookPayload:
     ended_at: str               # ISO datetime
     provider: str               # callerdesk / acefone
     raw: dict                   # Original payload for audit
-    ivr_dial_status: str = ""   # completed/busy/failed/cancel/timeout/no-answer -- Vobiz Dial callbackUrl only
+    ivr_dial_status: str = ""   # completed/busy/failed/cancel/timeout/no-answer -- Vobiz Dial callbackUrl, Calls app
+    agent_id: str = ""          # HAIP user known at source (Calls app: the device's user); else the click-to-call cache
 
 
 class IVRAdapter(ABC):

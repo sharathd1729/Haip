@@ -246,7 +246,7 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 # direction -- a miss (non-Vobiz provider, or nothing
                 # matched) still correctly resolves to None, unchanged from
                 # before for every call this new signal doesn't reach.
-                agent_id=_lookup_click_to_call_agent(tenant_id, normalized.ivr_call_id),
+                agent_id=normalized.agent_id or _lookup_click_to_call_agent(tenant_id, normalized.ivr_call_id),
                 ivr_provider=normalized.provider,
                 ivr_call_id=normalized.ivr_call_id,
                 direction=normalized.direction,
@@ -304,13 +304,14 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 from app.workers.tasks.lead_playbooks import queue_on_call
                 queue_on_call(tenant_id, call.id)
 
-            # Queue recording fetch + transcription
-            fetch_and_store_recording.delay(
-                call_id=call.id,
-                recording_url=normalized.recording_url,
-                tenant_id=tenant_id,
-                ivr_provider=ivr_provider,
-            )
+            # Queue recording fetch + transcription. The Calls app has nothing to fetch: its device uploads the file.
+            if ivr_provider != "mobile_app":
+                fetch_and_store_recording.delay(
+                    call_id=call.id,
+                    recording_url=normalized.recording_url,
+                    tenant_id=tenant_id,
+                    ivr_provider=ivr_provider,
+                )
 
             return {"call_id": call.id, "status": "created"}
 

@@ -89,7 +89,7 @@ def main() -> int:
         defs = conn.execute(text(
             "SELECT p.proname, pg_get_userbyid(p.proowner) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace "
             "WHERE n.nspname='public' AND p.prosecdef ORDER BY 1")).all()
-        print("SECURITY DEFINER functions (run as their owner, ignore the caller's tenant; expected: api_key_lookup, ical_feed_tenant):")
+        print("SECURITY DEFINER functions (run as their owner, ignore the caller's tenant; expected: api_key_lookup, ical_feed_tenant, mobile_device_lookup):")
         for d in defs:
             print(f"  {d[0]}  runs as {d[1]}")
 

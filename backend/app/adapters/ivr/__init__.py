@@ -3,6 +3,7 @@ from app.adapters.ivr.callerdesk import CallerDeskAdapter
 from app.adapters.ivr.acefone import AcefoneAdapter
 from app.adapters.ivr.mcube import McubeAdapter
 from app.adapters.ivr.vobiz import VobizAdapter
+from app.adapters.ivr.mobile_app import MobileAppAdapter
 
 
 def get_ivr_adapter(provider: str) -> IVRAdapter:
@@ -11,6 +12,7 @@ def get_ivr_adapter(provider: str) -> IVRAdapter:
         "acefone": AcefoneAdapter,
         "mcube": McubeAdapter,
         "vobiz": VobizAdapter,
+        "mobile_app": MobileAppAdapter,
     }
     cls = adapters.get(provider.lower())
     if not cls:
