@@ -56,6 +56,9 @@ jobs:
             echo "BUILD_TYPE=debug" >> "$GITHUB_ENV"
           fi
 
+      - name: Unit tests (call mapping, privacy filter, recording matching)
+        run: gradle --no-daemon testDebugUnitTest
+
       - name: Build APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
