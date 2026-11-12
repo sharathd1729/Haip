@@ -3,6 +3,7 @@ step with the LLM mocked, autonomy (asks-first never publishes), Get found steps
 call to another platform, no paid-link wording), the kill switch, the Monday rule, the AI Executive's SEO1, the API
 (happy, wrong role, cross-tenant) and tenant isolation."""
 
+import hashlib
 from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
@@ -70,7 +71,7 @@ def _gsc(db, tid, query, clicks, imps, day, page="https://x.example/"):
             clicks=clicks,
             impressions=imps,
             position=5.0,
-            row_key=f"{tid}{query}{day}{page}",
+            row_key=hashlib.sha256(f"{tid}|{query}|{day}|{page}".encode()).hexdigest(),  # VARCHAR(64), as the sync writes it
         )
     )
 
