@@ -44,9 +44,10 @@ class RecordingStatus(str, enum.Enum):
 class Call(Base, TimestampMixin, TenantMixin):
     __tablename__ = "calls"
 
-    # Calls HAIP records itself (a recording uploaded on the Calls page or a lead, a call logged by hand) come from no
-    # IVR, so they stay visible whichever IVR is the tenant's active one. Only a disconnected IVR's history is hidden.
-    OWN_PROVIDERS = ("manual", "upload")
+    # Calls HAIP records itself (a recording uploaded on the Calls page or a lead, a call logged by hand, a staff phone's
+    # call log from the Calls app) come from no IVR, so they stay visible whichever IVR is the tenant's active one. Only a
+    # disconnected IVR's history is hidden.
+    OWN_PROVIDERS = ("manual", "upload", "mobile_app")
 
     @classmethod
     def shown_for(cls, active_provider: str):

@@ -66,6 +66,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "lead-autopilot": "Lead autopilot",
   "lead-rules":   "Lead rules",
   gps:          "GPS trackers",
+  "calls-app":  "Calls app phones",
   workflows:    "Lead workflows",
   "platform-leads": "Website leads",
   "leads-activity": "Lead activity",

@@ -15,6 +15,7 @@ celery_app = Celery(
     include=[
         # Legacy (keep for backward compat)
         "app.workers.tasks.call_ingest",
+        "app.workers.tasks.mobile_calls",
         "app.workers.tasks.transcription",
         "app.workers.tasks.ai_scoring",
         "app.workers.tasks.whatsapp",
@@ -239,6 +240,9 @@ celery_app.conf.update(
         "tasks.wrap_up":                             {"queue": "ai_scoring"},
         "ai_scoring.score_call":                     {"queue": "ai_scoring"},
         "call_ingest.process":                       {"queue": "call_ingest"},
+        "mobile_calls.purge_stale_pending":          {"queue": "call_ingest"},
+        "mobile_calls.requeue_stuck":                {"queue": "call_ingest"},
+        "calls.requeue_queued_transcriptions":       {"queue": "call_ingest"},
         "transcription.transcribe_call":             {"queue": "transcription"},
         "sync_hostaway":                             {"queue": "call_ingest"},
         "sync_hostaway_all_tenants":                 {"queue": "call_ingest"},
@@ -606,6 +610,21 @@ celery_app.conf.beat_schedule = {
     "dpdp-purge-daily": {
         "task": "tasks.dpdp_purge",
         "schedule": crontab(hour=2, minute=0),
+    },
+    # Calls app: recordings whose call never arrived (ingest failed for good) are deleted after 2 days. 02:45 IST.
+    "mobile-calls-purge-stale-pending": {
+        "task": "mobile_calls.purge_stale_pending",
+        "schedule": crontab(hour=2, minute=45),
+    },
+    # Calls app: a phone call whose call_ingest task was lost is queued again (15 min after, up to 5 times).
+    "mobile-calls-requeue-stuck": {
+        "task": "mobile_calls.requeue_stuck",
+        "schedule": crontab(minute="7,22,37,52"),
+    },
+    # Any call left transcription "queued" (its tasks.transcribe dispatch was lost) is queued again after 30 minutes.
+    "transcription-requeue-15min": {
+        "task": "calls.requeue_queued_transcriptions",
+        "schedule": crontab(minute="3,18,33,48"),
     },
     "retention-purge-nightly": {
         "task": "app.workers.tasks.retention_purge.nightly_purge",

@@ -123,6 +123,15 @@ def _erase_one(db: Session, tenant_id: str, guest_id: str, counts: dict, files: 
     if call_ids:
         files += [k for (k,) in db.query(Call.recording_s3_key).filter(Call.id.in_(call_ids),
                                                                       Call.recording_s3_key.isnot(None)).all() if k]
+        # Calls-app recordings still waiting to be attached to one of these calls (mobile_call_pending, migration 203).
+        from app.models.mobile_device import MobileCallPending
+        app_ids = [i for (i,) in db.query(Call.ivr_call_id).filter(Call.id.in_(call_ids), Call.ivr_provider == "mobile_app").all()]
+        if app_ids:
+            files += [k for (k,) in db.query(MobileCallPending.recording_key).filter(
+                MobileCallPending.tenant_id == tenant_id, MobileCallPending.ivr_call_id.in_(app_ids),
+                MobileCallPending.recording_key.isnot(None)).all()]
+            delete(MobileCallPending, MobileCallPending.tenant_id == tenant_id, MobileCallPending.ivr_call_id.in_(app_ids),
+                   name="mobile_call_pending")
 
     # Conversations and messages.
     if conv_ids:

@@ -1,0 +1,95 @@
+# HAIP Calls app (Android): build and sign the APK on every push to feat/calls-app, upload it as a run artifact.
+# No Android Studio or SDK on anyone's laptop: the runner's Android SDK + Gradle build it (android/).
+#
+# Signing: with the four ANDROID_* secrets set, the RELEASE build is signed with HAIP's own key (stable across builds,
+# so a new APK installs over the old one). Without them it falls back to a DEBUG build signed with this runner's
+# throwaway debug key: installable for testing, but each new run's APK must replace the old one by uninstalling first.
+#   ANDROID_KEYSTORE_BASE64   base64 of the .jks file
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+name: Calls app APK
+
+on:
+  push:
+    branches: [feat/calls-app]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: calls-app-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -eo pipefail
+          if [ -n "$KEYSTORE_B64" ]; then
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "BUILD_TYPE=release" >> "$GITHUB_ENV"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set: building a DEBUG APK signed with this runner's debug key."
+            echo "BUILD_TYPE=debug" >> "$GITHUB_ENV"
+          fi
+
+      - name: Unit tests (call mapping, privacy filter, recording matching)
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Build APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 0.1.${{ github.run_number }}
+        run: |
+          set -eo pipefail
+          task="assemble${BUILD_TYPE^}"
+          gradle --no-daemon --stacktrace "$task"
+
+      - name: Verify signature and name the file
+        run: |
+          set -eo pipefail
+          apk=$(ls app/build/outputs/apk/"$BUILD_TYPE"/*.apk | head -1)
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$apksigner" verify --verbose --print-certs "$apk"
+          out="haip-calls-0.1.${{ github.run_number }}-${BUILD_TYPE}.apk"
+          mkdir -p dist && cp "$apk" "dist/$out"
+          echo "APK_NAME=$out" >> "$GITHUB_ENV"
+          echo "### HAIP Calls ${out}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Signed with the **${BUILD_TYPE}** key. Download it from this run's Artifacts." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: android/dist/${{ env.APK_NAME }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove the key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"

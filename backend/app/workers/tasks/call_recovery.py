@@ -139,3 +139,75 @@ def recover_stalled_call_scoring_all_tenants():
         recover_stalled_call_scoring.delay(tid)
     log.info("call_scoring_recovery_queued", tenants=len(tenant_ids))
     return {"tenants_queued": len(tenant_ids)}
+
+
+# ── Transcriptions stuck "queued" ────────────────────────────────────────────
+# queue_transcription (and the lead-evidence upload) set transcription_status="queued", commit, then dispatch
+# tasks.transcribe. If that dispatch was lost (broker down, worker restarted with the message), nothing ever moved the call
+# again: transcribe's first write is "processing". Queued again after TRANSCRIBE_STALL, at most once per TRANSCRIBE_STALL
+# per call, only for calls from the last TRANSCRIBE_LOOKBACK. A copy that does run after all is harmless: transcribe skips
+# a call that is already "done".
+TRANSCRIBE_STALL = timedelta(minutes=30)
+TRANSCRIBE_LOOKBACK = timedelta(days=2)
+
+
+def requeue_queued_transcriptions(db, tenant_id: str, send, now: datetime | None = None, limit: int = 100) -> int:
+    """send(call) each of this workspace's calls stuck "queued"; the caller commits. Stops at the first failed send (broker
+    still down), so nothing is marked. Returns how many were sent."""
+    from app.core.config import settings
+
+    if settings.TRANSCRIPTION_PAUSED:
+        return 0
+    now = now or datetime.now(timezone.utc)
+    calls = (
+        db.query(Call)
+        .filter(
+            Call.tenant_id == tenant_id,
+            Call.transcription_status == "queued",
+            Call.recording_s3_key.isnot(None),
+            Call.updated_at < now - TRANSCRIBE_STALL,
+            Call.created_at >= now - TRANSCRIBE_LOOKBACK,
+        )
+        .order_by(Call.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    sent = 0
+    for call in calls:
+        try:
+            send(call)
+        except Exception as exc:  # noqa: BLE001 -- broker still down: the next run retries
+            log.error("transcription_requeue_send_failed", tenant_id=tenant_id, error=str(exc)[:200])
+            break
+        call.updated_at = now  # spaces the next attempt TRANSCRIBE_STALL from this one
+        sent += 1
+    if sent:
+        log.warning("transcriptions_requeued", tenant_id=tenant_id, count=sent)
+    return sent
+
+
+@shared_task(name="calls.requeue_queued_transcriptions")
+def requeue_queued_transcriptions_all_tenants() -> dict:
+    """Beat "transcription-requeue-15min": every active workspace, one transaction each."""
+    from app.workers.tasks.transcribe import transcribe
+
+    db = SessionLocal()
+    try:
+        tenant_ids = [t for (t,) in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
+    finally:
+        db.close()
+    total = 0
+    for tenant_id in tenant_ids:
+        db = SessionLocal()
+        try:
+            set_tenant_context(db, tenant_id)
+            total += requeue_queued_transcriptions(
+                db, tenant_id, lambda c: transcribe.delay(call_id=c.id, tenant_id=c.tenant_id)
+            )
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 -- one workspace failing must not stop the others
+            db.rollback()
+            log.error("transcription_requeue_failed", tenant_id=tenant_id, error=str(exc)[:300])
+        finally:
+            db.close()
+    return {"requeued": total}

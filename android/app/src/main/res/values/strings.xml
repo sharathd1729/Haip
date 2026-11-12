@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HAIP Calls</string>
+    <string name="menu_setup">Calls app settings</string>
+    <string name="menu_reload">Reload</string>
+    <string name="cannot_open_link">No app on this phone can open that link.</string>
+
+    <string name="linked">This phone is now linked to HAIP. Calls will sync in the background.</string>
+    <string name="no_connection">No connection to HAIP. It will try again.</string>
+    <string name="revoked">This phone was removed from HAIP. Open HAIP and sign in again, or ask your manager.</string>
+    <string name="calls_refused">HAIP refused some calls: %1$s</string>
+    <string name="server_busy">HAIP is busy (error %1$d). It will try again.</string>
+    <string name="recording_refused">A recording was not accepted: %1$s</string>
+
+    <string name="setup_title">Calls app settings</string>
+    <string name="status_linked">Linked to HAIP</string>
+    <string name="status_not_linked">Not linked yet. Open HAIP and sign in.</string>
+    <string name="status_last_sync">Last synced %1$s</string>
+    <string name="status_never_synced">Not synced yet</string>
+    <string name="status_sent_today">Calls sent today: %1$d</string>
+    <string name="status_paused">Tracking is paused</string>
+    <string name="status_problem">Last problem: %1$s</string>
+
+    <string name="step_call_log">1. Allow call log</string>
+    <string name="step_call_log_body">HAIP needs to read your call log to add guest calls to their lead page.</string>
+    <string name="allow_call_log">Allow call log</string>
+    <string name="restricted_hint">If Android says this setting is restricted: open App info for HAIP Calls, tap the ⋮ menu, choose "Allow restricted settings", then try again.</string>
+    <string name="done_allowed">Done: call log allowed.</string>
+
+    <string name="step_folder">2. Pick the recordings folder</string>
+    <string name="step_folder_body">If your phone records calls, pick the folder where it saves them. HAIP reads only that folder.</string>
+    <string name="folder_chosen">Folder: %1$s</string>
+    <string name="pick_folder">Pick folder</string>
+    <string name="change_folder">Change folder</string>
+    <string name="folder_hint">Usually: Samsung "Recordings/Call", Xiaomi "MIUI/sound_recorder/call_rec", OnePlus, Oppo or Realme "Recordings" or "Music/Recordings/Call Recordings". The Google Phone app cannot record calls; use Samsung Phone or a recording dialer.</string>
+
+    <string name="step_battery">3. Battery</string>
+    <string name="step_battery_body">Set battery use for HAIP Calls to "Unrestricted" so calls keep syncing in the background.</string>
+    <string name="open_battery">Open battery settings</string>
+    <string name="done_battery">Done: battery is unrestricted.</string>
+    <string name="wifi_calling_hint">Turn off Wi-Fi calling in your phone settings: on many phones it stops calls being recorded.</string>
+
+    <string name="step_unknown">4. Numbers that are not guests yet</string>
+    <string name="unknown_working_hours">Treat them as enquiries during my working hours only</string>
+    <string name="unknown_always">Always treat them as enquiries</string>
+    <string name="unknown_never">Never send them</string>
+    <string name="hours_start">Working hours start (HH:MM)</string>
+    <string name="hours_end">Working hours end (HH:MM)</string>
+    <string name="hours_invalid">Use 24-hour times like 09:00 and 19:00, or leave both empty.</string>
+    <string name="save_settings">Save</string>
+    <string name="settings_saved">Saved.</string>
+
+    <string name="step_personal">5. Personal numbers</string>
+    <string name="step_personal_body">Calls with these numbers are never sent to HAIP. The list stays on this phone.</string>
+    <string name="personal_hint">Phone number</string>
+    <string name="add_personal">Add personal number</string>
+    <string name="personal_invalid">Enter a full phone number.</string>
+    <string name="remove">Remove</string>
+
+    <string name="step_pause">6. Pause</string>
+    <string name="pause_switch">Pause tracking (nothing is sent while on)</string>
+
+    <string name="what_is_sent_title">What HAIP receives</string>
+    <string name="what_is_sent">For each call: the number, incoming or outgoing, start time, length, and whether it was answered. If you picked a folder, the recording of that call. Never: personal numbers, contact names, messages, or any other file.</string>
+
+    <string name="sync_now">Sync now</string>
+    <string name="sync_started">Syncing…</string>
+    <string name="unlink">Unlink this phone</string>
+    <string name="unlinked">Unlinked. To remove it from HAIP completely, ask your manager.</string>
+</resources>

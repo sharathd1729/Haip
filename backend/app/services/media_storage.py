@@ -173,6 +173,18 @@ def _put(s3_key: str, content: bytes, content_type: str) -> None:
     _s3_client().put_object(**put_kwargs)
 
 
+def upload_call_recording(s3_key: str, content: bytes, content_type: str) -> None:
+    """Store a call recording a staff phone uploaded (Calls app). Same bucket, key prefix ("{tenant_id}/calls/") and
+    encryption rule as an IVR recording (call_ingest._do_fetch_recording: SSE-KMS whenever this is real AWS S3), so the
+    same playback, transcription and DPDP erasure apply."""
+    put_kwargs = dict(Bucket=settings.S3_BUCKET_NAME, Key=s3_key, Body=content, ContentType=content_type)
+    if not settings.AWS_S3_ENDPOINT_URL:
+        put_kwargs["ServerSideEncryption"] = "aws:kms"
+        if settings.KMS_KEY_ID:
+            put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+    _s3_client().put_object(**put_kwargs)
+
+
 def upload_lead_evidence(tenant_id: str, import_id: str, name: str, content: bytes, content_type: str) -> str:
     """Store one file a person uploaded onto a lead (a call recording, or a photo/voice note from a WhatsApp chat export
     zip; lead_evidence_service), return the key. Tenant-prefixed, one folder per upload, file name reduced to safe
