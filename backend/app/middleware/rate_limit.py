@@ -40,6 +40,10 @@ _WEBHOOK_LIMIT  : Tuple[int, int] = (300, 60)   # 300/min per IP — webhook end
 # the token itself, not IP, since one office NATs to one IP and would
 # otherwise throttle every legitimate user there together.
 _MCP_LIMIT      : Tuple[int, int] = (120, 60)   # 120/min per PAT
+# Calls app (Android): per device token, not per IP -- every phone on the office Wi-Fi shares one IP, and a phone's
+# first sync after install sends a backlog of call batches and recordings.
+_DEVICE_PREFIXES = ("/api/v1/device-calls", "/api/v1/devices/settings")
+_DEVICE_LIMIT   : Tuple[int, int] = (120, 60)   # 120/min per device token
 
 # Routes with tighter per-IP limits (fail-CLOSED: Redis outage blocks these)
 _STRICT_PREFIXES = (
@@ -199,6 +203,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     if not allowed:
                         log.warning("rate_limit_exceeded", path=path, key=key)
                         return _rate_limit_response(retry_after)
+            return await call_next(request)
+
+        # ── Calls app: per device token (fail-open, like the other keyed tiers) ─
+        if path.startswith(_DEVICE_PREFIXES):
+            if r is not None:
+                auth_header = request.headers.get("authorization", "")
+                raw_token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
+                who = hashlib.sha256(raw_token.encode()).hexdigest()[:16] if raw_token else f"ip:{ip}"
+                limit, window = _DEVICE_LIMIT
+                key = f"rl:device:{who}"
+                allowed, retry_after = _check_limit(r, key, limit, window, strict=False)
+                if not allowed:
+                    log.warning("rate_limit_exceeded", path=path, key=key)
+                    return _rate_limit_response(retry_after)
             return await call_next(request)
 
         # ── Client websites (website builder): per-IP, fail-open ──────────────

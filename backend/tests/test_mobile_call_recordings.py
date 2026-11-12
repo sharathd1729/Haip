@@ -3,6 +3,12 @@
 Storage is captured (media_storage.upload_call_recording) and so is the transcription dispatch (tasks.transcribe.delay);
 calls are made by the real call_ingest task on the test's connection, as in test_mobile_devices.py.
 """
+import io
+import math
+import shutil
+import struct
+import subprocess
+import wave
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -14,6 +20,9 @@ from app.services import identity_service, media_storage, mobile_device_service
 from app.services.mobile_device_service import sniff_audio
 from tests.test_mobile_devices import KNOWN, UNKNOWN, _auth, _call, _other_tenant, _register, _run_ingest, _tid, _user, queued  # noqa: F401
 
+REAL_TO_MP3 = mobile_device_service.to_mp3
+MP3_OUT = b"ID3\x04\x00\x00converted" + b"\x00" * 50   # what the faked ffmpeg returns
+needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
 M4A = b"\x00\x00\x00\x20ftypM4A \x00\x00\x00\x00" + b"\x00" * 200
 SAMPLES = {
     "m4a": (M4A, "audio/mp4"),
@@ -34,6 +43,12 @@ def _no_rate_limit(monkeypatch):
     sends more than that, which would make the next file's requests 429."""
     from app.middleware import rate_limit
     monkeypatch.setattr(rate_limit, "_check_limit", lambda *a, **k: (True, 0))
+
+
+@pytest.fixture(autouse=True)
+def _fake_ffmpeg(monkeypatch):
+    """The samples here are magic bytes only, not decodable audio; the real conversion has its own tests below."""
+    monkeypatch.setattr(mobile_device_service, "to_mp3", lambda data: MP3_OUT)
 
 
 @pytest.fixture()
@@ -97,12 +112,14 @@ def test_recording_after_call_attaches_and_starts_transcription(client, db, tena
     db.refresh(call)
     assert r.json() == {"status": "attached", "call_id": call.id} and call.guest_id == guest_id
     [(key, size, ctype)] = stored
-    assert key.startswith(f"{tid}/calls/mobile_app/{dev['id']}/") and size == len(M4A) and ctype == "audio/mp4"
+    assert key.startswith(f"{tid}/calls/mobile_app/{dev['id']}/") and size == len(MP3_OUT) and ctype == "audio/mpeg"
+    assert key.endswith("/recording.mp3")
     assert call.recording_s3_key == key and call.recording_status == RecordingStatus.AVAILABLE
     assert call.transcription_status == "queued" and transcribed == [{"call_id": call.id, "tenant_id": tid}]
     assert db.query(MobileCallPending).filter_by(tenant_id=tid).count() == 0
     audit = db.query(AuditEvent).filter_by(tenant_id=tid, action="call.recording_uploaded").one()
     assert audit.target_id == call.id and audit.actor_user_id == staff.id and KNOWN not in str(audit.payload)
+    assert audit.payload["content_type"] == "audio/mp4"   # what the phone sent; stored as MP3
 
 
 def test_duplicate_upload_is_ignored(client, db, tenant_and_user, queued, monkeypatch, stored, transcribed):
@@ -125,7 +142,7 @@ def test_recording_before_call_waits_and_is_linked_by_ingest(client, db, tenant_
     r = _post(client, dev["token"])
     assert r.status_code == 202 and r.json() == {"status": "waiting", "call_id": None}
     row = db.query(MobileCallPending).filter_by(tenant_id=tid).one()
-    assert row.recording_key == stored[0][0] and row.recording_type == "audio/mp4" and transcribed == []
+    assert row.recording_key == stored[0][0] and row.recording_type == "audio/mpeg" and transcribed == []
     dup = _post(client, dev["token"])                      # a resend while waiting is still one recording
     assert dup.status_code == 200 and dup.json()["status"] == "duplicate" and len(stored) == 1
 
@@ -277,3 +294,51 @@ def test_stale_waiting_rows_are_swept_with_their_file(client, db, tenant_and_use
     assert deleted == [(tid, [old_key])]
     db.expire_all()
     assert [r.ivr_call_id for r in db.query(MobileCallPending).filter_by(tenant_id=tid)] == [f"mobile_app:{dev['id']}:new"]
+
+
+# ─── MP3 conversion (real ffmpeg) ────────────────────────────────────────────
+
+
+def _wav(seconds=1.0, rate=8000):
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        n = int(seconds * rate)
+        w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * 440 * i / rate))) for i in range(n)))
+    return buf.getvalue()
+
+
+@needs_ffmpeg
+def test_to_mp3_converts_a_real_recording():
+    out = REAL_TO_MP3(_wav())
+    assert sniff_audio(out) == "audio/mpeg" and len(out) > 1000
+
+
+@needs_ffmpeg
+def test_to_mp3_refuses_audio_it_cannot_read():
+    with pytest.raises(mobile_device_service.RecordingRefused) as e:
+        REAL_TO_MP3(M4A)   # m4a magic bytes, no real audio
+    assert e.value.status_code == 422
+
+
+def test_to_mp3_without_ffmpeg_asks_the_phone_to_retry(monkeypatch):
+    def missing(*a, **k):
+        raise FileNotFoundError("ffmpeg")
+    monkeypatch.setattr(subprocess, "run", missing)
+    with pytest.raises(mobile_device_service.RecordingRefused) as e:
+        REAL_TO_MP3(_wav(0.1))
+    assert e.value.status_code == 503
+
+
+def test_unreadable_upload_is_422_and_nothing_stored(client, db, tenant_and_user, queued, monkeypatch, stored, transcribed):
+    def unreadable(data):
+        raise mobile_device_service.RecordingRefused(422, "The recording could not be read.")
+    monkeypatch.setattr(mobile_device_service, "to_mp3", unreadable)
+    tid = _tid(tenant_and_user)
+    _known_guest(db, tid)
+    _, staff_h = _user(db, tid)
+    dev = _register(client, staff_h)
+    _upload_call(client, dev)
+    assert _post(client, dev["token"]).status_code == 422 and stored == [] and transcribed == []

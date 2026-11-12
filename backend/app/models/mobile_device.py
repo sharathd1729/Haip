@@ -43,3 +43,6 @@ class MobileCallPending(Base, TimestampMixin, TenantMixin):
     recording_key = Column(Text, nullable=True)  # storage key, under "{tenant_id}/calls/"
     recording_type = Column(String(20), nullable=True)  # content type from the file's magic bytes
     recording_bytes = Column(Integer, nullable=True)
+    # The call_ingest payload, kept so a call whose ingest task never ran is queued again (migration 204).
+    payload = Column(JSON, nullable=True)
+    requeue_attempts = Column(Integer, nullable=False, default=0, server_default="0")

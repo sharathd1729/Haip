@@ -20,14 +20,24 @@ the IVR recordings' bucket and prefix (media_storage.upload_call_recording, key 
 sets the same calls.recording_s3_key, so playback, transcription -> AI (call_ingest.queue_transcription) and DPDP erasure
 are the IVR ones. upload_calls writes a mobile_call_pending row per queued call; a recording that arrives before ingest
 has made the call waits on that row and call_ingest attaches it (link_pending). One recording per call: guarded UPDATEs.
+Every upload is re-encoded to MP3 (to_mp3, ffmpeg) before it is stored: the transcription providers send the bytes as
+"audio.mp3", and phones record m4a / AMR / ogg.
+
+Stuck calls: upload_calls keeps each queued call's ingest payload on its waiting row, so a call whose call_ingest task never
+ran (broker down, worker lost) is queued again by workers/tasks/mobile_calls.py (beat "mobile-calls-requeue-stuck"); the
+phone's own sync has moved past it and will not send it again.
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
+import subprocess
+import tempfile
 from datetime import UTC, datetime, timedelta
 
+import structlog
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -43,6 +53,9 @@ PROVIDER = "mobile_app"
 _TOUCH_EVERY = timedelta(minutes=1)
 MAX_RECORDING_BYTES = 50 * 1024 * 1024
 PENDING_MAX_AGE = timedelta(days=2)  # a call whose ingest never finished by then is not coming
+FFMPEG_TIMEOUT = 120  # seconds; a 50 MB phone recording converts in a few seconds
+
+log = structlog.get_logger()
 
 
 def hash_token(raw: str) -> str:
@@ -254,21 +267,29 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
                 status = "queued"
         seen.add(ivr_call_id)  # a repeat inside the same batch is a duplicate
         results.append({"device_call_id": c.device_call_id, "status": status})
-    # A waiting row per queued call, so its recording can arrive before ingest makes the call (attach_recording).
+    # A waiting row per queued call, so its recording can arrive before ingest makes the call (attach_recording), holding
+    # the ingest payload so a lost ingest task is queued again (requeue_stuck).
     new_ids = [p["ivr_call_id"] for p in to_queue]
     waiting = (
         {
-            r[0]
-            for r in db.query(MobileCallPending.ivr_call_id)
+            r.ivr_call_id: r
+            for r in db.query(MobileCallPending)
             .filter(MobileCallPending.tenant_id == tenant_id, MobileCallPending.ivr_call_id.in_(new_ids))
             .all()
         }
         if new_ids
-        else set()
+        else {}
     )
-    for ivr_call_id in new_ids:
-        if ivr_call_id not in waiting:
-            db.add(MobileCallPending(tenant_id=tenant_id, device_pk=device.id, ivr_call_id=ivr_call_id))
+    for payload in to_queue:
+        row = waiting.get(payload["ivr_call_id"])
+        if row is None:
+            db.add(
+                MobileCallPending(
+                    tenant_id=tenant_id, device_pk=device.id, ivr_call_id=payload["ivr_call_id"], payload=payload
+                )
+            )
+        else:
+            row.payload = payload
     device.last_seen_at = datetime.now(UTC)
     db.commit()  # signals attached above must be visible to the ingest tasks
     set_tenant_context(db, tenant_id)
@@ -301,10 +322,35 @@ def sniff_audio(data: bytes) -> str | None:
     return None
 
 
+def to_mp3(data: bytes) -> bytes:
+    """Re-encode a phone recording to MP3 (mono, 16 kHz, 48 kbps: speech, what the speech-to-text models take).
+    Temp files, not pipes: an m4a often keeps its index at the end, which ffmpeg cannot reach on a pipe.
+    RecordingRefused 422 = ffmpeg cannot read it; 503 = ffmpeg missing or too slow (the phone retries later)."""
+    with tempfile.TemporaryDirectory(prefix="haip-rec-") as tmp:
+        src, out = os.path.join(tmp, "in"), os.path.join(tmp, "out.mp3")
+        with open(src, "wb") as f:
+            f.write(data)
+        args = ["ffmpeg", "-nostdin", "-y", "-v", "error", "-i", src, "-vn", "-map_metadata", "-1",
+                "-ac", "1", "-ar", "16000", "-b:a", "48k", out]  # fmt: skip
+        try:
+            proc = subprocess.run(args, capture_output=True, timeout=FFMPEG_TIMEOUT, check=False)
+        except FileNotFoundError:
+            log.error("recording_convert_ffmpeg_missing")
+            raise RecordingRefused(503, "Recordings cannot be processed right now. Try again later.") from None
+        except subprocess.TimeoutExpired:
+            log.error("recording_convert_timeout", bytes=len(data))
+            raise RecordingRefused(503, "Recordings cannot be processed right now. Try again later.") from None
+        if proc.returncode != 0 or not os.path.exists(out) or os.path.getsize(out) == 0:
+            log.warning("recording_convert_failed", stderr=proc.stderr.decode("utf-8", "replace")[-300:])
+            raise RecordingRefused(422, "The recording could not be read.")
+        with open(out, "rb") as f:
+            return f.read()
+
+
 def recording_key(device: MobileDevice, device_call_id: str) -> str:
     # One key per call: a repeat upload overwrites the same object instead of leaving a second one behind.
     digest = hashlib.sha256(device_call_id.encode()).hexdigest()[:32]
-    return f"{device.tenant_id}/calls/{PROVIDER}/{device.id}/{digest}/recording"
+    return f"{device.tenant_id}/calls/{PROVIDER}/{device.id}/{digest}/recording.mp3"
 
 
 def link_pending(db: Session, call: Call) -> bool:
@@ -364,6 +410,7 @@ def attach_recording(db: Session, device: MobileDevice, device_call_id: str, dat
     if (call is not None and call.recording_s3_key) or (row is not None and row.recording_key):
         return duplicate
 
+    original_type, data, kind = kind, to_mp3(data), "audio/mpeg"
     key = recording_key(device, device_call_id)
     if upload is None:
         from app.services.media_storage import upload_call_recording as upload
@@ -408,7 +455,7 @@ def attach_recording(db: Session, device: MobileDevice, device_call_id: str, dat
                 "device_pk": device.id,
                 "device_call_id": device_call_id,
                 "status": status,
-                "content_type": kind,
+                "content_type": original_type,
                 "bytes": len(data),
             },
         )
