@@ -4,6 +4,7 @@ A phone's recording can arrive before call_ingest has made its call; it waits in
 If that ingest failed for good, the row would keep a stranger's audio forever, so rows older than
 mobile_device_service.PENDING_MAX_AGE are deleted with their file. One workspace per transaction; files after commit.
 """
+
 import structlog
 
 from app.core.database import SessionLocal, set_tenant_context

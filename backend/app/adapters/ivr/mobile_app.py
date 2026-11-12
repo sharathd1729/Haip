@@ -3,6 +3,7 @@
 Not a webhook provider: mobile_device_service builds the payload below from an authenticated device upload (number already
 normalised to E.164) and queues call_ingest.process with ivr_provider "mobile_app". Recordings arrive separately (spec step 2).
 """
+
 from app.adapters.ivr.base import CallWebhookPayload, IVRAdapter
 
 PROVIDER = "mobile_app"
@@ -10,7 +11,7 @@ PROVIDER = "mobile_app"
 
 class MobileAppAdapter(IVRAdapter):
     def verify_webhook_signature(self, payload: bytes, headers: dict) -> bool:
-        return False   # never a webhook: uploads are authenticated by device token in the endpoint
+        return False  # never a webhook: uploads are authenticated by device token in the endpoint
 
     def parse_call_webhook(self, payload: dict) -> CallWebhookPayload:
         answered = bool(payload["answered"])

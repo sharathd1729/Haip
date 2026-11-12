@@ -21,20 +21,19 @@ sets the same calls.recording_s3_key, so playback, transcription -> AI (call_ing
 are the IVR ones. upload_calls writes a mobile_call_pending row per queued call; a recording that arrives before ingest
 has made the call waits on that row and call_ingest attaches it (link_pending). One recording per call: guarded UPDATEs.
 """
+
 from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.audit import append_audit
 from app.core.database import set_tenant_context
-from app.models.call import Call
-from app.models.call import RecordingStatus
+from app.models.call import Call, RecordingStatus
 from app.models.mobile_device import MobileCallPending, MobileDevice
 from app.models.user import User
 from app.schemas.mobile_device import DeviceCallBatch, DeviceRegister, DeviceSettings
@@ -43,7 +42,7 @@ TOKEN_PREFIX = "haip_dev_"
 PROVIDER = "mobile_app"
 _TOUCH_EVERY = timedelta(minutes=1)
 MAX_RECORDING_BYTES = 50 * 1024 * 1024
-PENDING_MAX_AGE = timedelta(days=2)   # a call whose ingest never finished by then is not coming
+PENDING_MAX_AGE = timedelta(days=2)  # a call whose ingest never finished by then is not coming
 
 
 def hash_token(raw: str) -> str:
@@ -65,6 +64,7 @@ def ivr_call_id_for(device: MobileDevice, device_call_id: str) -> str:
 
 
 # ─── Settings ────────────────────────────────────────────────────────────────
+
 
 def apply_settings(db: Session, device: MobileDevice, new: DeviceSettings) -> None:
     device.settings = {
@@ -95,10 +95,11 @@ def unknown_numbers_on(device: MobileDevice, started_at: datetime, tz) -> bool:
     now_m, start, end = local.hour * 60 + local.minute, _minutes(hours["start"]), _minutes(hours["end"])
     if start <= end:
         return start <= now_m < end
-    return now_m >= start or now_m < end   # overnight shift
+    return now_m >= start or now_m < end  # overnight shift
 
 
 # ─── Register / authenticate / revoke ────────────────────────────────────────
+
 
 def register(db: Session, user: User, body: DeviceRegister) -> tuple[MobileDevice, str]:
     """Create the device, or re-register it (same app install id in this workspace): a new token replaces the old one.
@@ -123,27 +124,44 @@ def register(db: Session, user: User, body: DeviceRegister) -> tuple[MobileDevic
     device.token_hash = hash_token(raw)
     device.revoked_at = None
     device.model, device.android_version, device.app_version = body.model, body.android_version, body.app_version
-    device.last_seen_at = datetime.now(timezone.utc)
+    device.last_seen_at = datetime.now(UTC)
     if body.settings is not None:
         apply_settings(db, device, body.settings)
     db.flush()
-    append_audit(db, tenant_id=user.tenant_id, actor_user_id=user.id, action="mobile_device.registered",
-                 target_type="mobile_device", target_id=device.id,
-                 payload={"device_id": device.device_id, "model": device.model, "app_version": device.app_version,
-                          "re_registered": again, "previous_user_id": previous_user if again else None})
+    append_audit(
+        db,
+        tenant_id=user.tenant_id,
+        actor_user_id=user.id,
+        action="mobile_device.registered",
+        target_type="mobile_device",
+        target_id=device.id,
+        payload={
+            "device_id": device.device_id,
+            "model": device.model,
+            "app_version": device.app_version,
+            "re_registered": again,
+            "previous_user_id": previous_user if again else None,
+        },
+    )
     return device, raw
 
 
 def revoke(db: Session, device: MobileDevice, actor: User) -> None:
     if device.revoked_at is not None:
         return
-    device.revoked_at = datetime.now(timezone.utc)
-    append_audit(db, tenant_id=device.tenant_id, actor_user_id=actor.id, action="mobile_device.revoked",
-                 target_type="mobile_device", target_id=device.id,
-                 payload={"device_id": device.device_id, "device_user_id": device.user_id})
+    device.revoked_at = datetime.now(UTC)
+    append_audit(
+        db,
+        tenant_id=device.tenant_id,
+        actor_user_id=actor.id,
+        action="mobile_device.revoked",
+        target_type="mobile_device",
+        target_id=device.id,
+        payload={"device_id": device.device_id, "device_user_id": device.user_id},
+    )
 
 
-def _lookup(db: Session, token_hash: str) -> Optional[tuple[str, str]]:
+def _lookup(db: Session, token_hash: str) -> tuple[str, str] | None:
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         row = db.execute(text("SELECT device_pk, tenant_id FROM mobile_device_lookup(:h)"), {"h": token_hash}).first()
         return (row[0], row[1]) if row else None
@@ -151,7 +169,7 @@ def _lookup(db: Session, token_hash: str) -> Optional[tuple[str, str]]:
     return (row[0], row[1]) if row else None
 
 
-def authenticate(db: Session, raw: str) -> Optional[MobileDevice]:
+def authenticate(db: Session, raw: str) -> MobileDevice | None:
     """The live device for this token, with the tenant context set; None when unknown, revoked, or its user is no longer an
     active member of the workspace."""
     if not raw or not raw.startswith(TOKEN_PREFIX) or len(raw) > 120:
@@ -164,13 +182,17 @@ def authenticate(db: Session, raw: str) -> Optional[MobileDevice]:
     device = db.query(MobileDevice).filter_by(id=device_pk, tenant_id=tenant_id).first()
     if device is None or device.revoked_at is not None:
         return None
-    if not db.query(User.id).filter_by(id=device.user_id, tenant_id=tenant_id, is_active=True, is_deleted=False).first():
+    if (
+        not db.query(User.id)
+        .filter_by(id=device.user_id, tenant_id=tenant_id, is_active=True, is_deleted=False)
+        .first()
+    ):
         return None
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     last = device.last_seen_at
     if last is not None and last.tzinfo is None:
-        last = last.replace(tzinfo=timezone.utc)
-    if last is None or now - last >= _TOUCH_EVERY:     # avoid a write on every request
+        last = last.replace(tzinfo=UTC)
+    if last is None or now - last >= _TOUCH_EVERY:  # avoid a write on every request
         device.last_seen_at = now
         db.commit()
         set_tenant_context(db, tenant_id)
@@ -178,6 +200,7 @@ def authenticate(db: Session, raw: str) -> Optional[MobileDevice]:
 
 
 # ─── Call upload ─────────────────────────────────────────────────────────────
+
 
 def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> list[dict]:
     """Queue each new call into call_ingest. Per call status: queued | duplicate | skipped_unknown_number |
@@ -190,8 +213,12 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
     region = phone_identity.region_for_tenant(db, tenant_id)
     tz = tenant_tz(db, tenant_id)
     ids = {c.device_call_id: ivr_call_id_for(device, c.device_call_id) for c in batch.calls}
-    seen = {r[0] for r in db.query(Call.ivr_call_id).filter(Call.tenant_id == tenant_id,
-                                                              Call.ivr_call_id.in_(list(ids.values()))).all()}
+    seen = {
+        r[0]
+        for r in db.query(Call.ivr_call_id)
+        .filter(Call.tenant_id == tenant_id, Call.ivr_call_id.in_(list(ids.values())))
+        .all()
+    }
     results, to_queue = [], []
     for c in batch.calls:
         ivr_call_id = ids[c.device_call_id]
@@ -199,7 +226,7 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
         if ivr_call_id in seen:
             status = "duplicate"
         elif not e164:
-            status = "invalid_number"          # withheld / private / malformed
+            status = "invalid_number"  # withheld / private / malformed
         else:
             guest_id = identity_service.find_person_by_phone(db, tenant_id, e164)
             if guest_id is None and not unknown_numbers_on(device, c.started_at, tz):
@@ -210,30 +237,40 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
                     # lands on this same person instead of creating a second guest.
                     identity_service.resolve_person_by_phone(db, tenant_id, e164, source=PROVIDER)
                 inbound = c.direction == "in"
-                started = c.started_at.astimezone(timezone.utc)
-                to_queue.append({
-                    "ivr_call_id": ivr_call_id,
-                    "direction": "inbound" if inbound else "outbound",
-                    "from_number": e164 if inbound else "",
-                    "to_number": "" if inbound else e164,
-                    "duration_sec": c.duration_sec,
-                    "answered": c.answered,
-                    "started_at": started.isoformat(),
-                    "ended_at": (started + timedelta(seconds=c.duration_sec)).isoformat(),
-                    "agent_id": device.user_id,
-                })
+                started = c.started_at.astimezone(UTC)
+                to_queue.append(
+                    {
+                        "ivr_call_id": ivr_call_id,
+                        "direction": "inbound" if inbound else "outbound",
+                        "from_number": e164 if inbound else "",
+                        "to_number": "" if inbound else e164,
+                        "duration_sec": c.duration_sec,
+                        "answered": c.answered,
+                        "started_at": started.isoformat(),
+                        "ended_at": (started + timedelta(seconds=c.duration_sec)).isoformat(),
+                        "agent_id": device.user_id,
+                    }
+                )
                 status = "queued"
-        seen.add(ivr_call_id)   # a repeat inside the same batch is a duplicate
+        seen.add(ivr_call_id)  # a repeat inside the same batch is a duplicate
         results.append({"device_call_id": c.device_call_id, "status": status})
     # A waiting row per queued call, so its recording can arrive before ingest makes the call (attach_recording).
     new_ids = [p["ivr_call_id"] for p in to_queue]
-    waiting = {r[0] for r in db.query(MobileCallPending.ivr_call_id).filter(
-        MobileCallPending.tenant_id == tenant_id, MobileCallPending.ivr_call_id.in_(new_ids)).all()} if new_ids else set()
+    waiting = (
+        {
+            r[0]
+            for r in db.query(MobileCallPending.ivr_call_id)
+            .filter(MobileCallPending.tenant_id == tenant_id, MobileCallPending.ivr_call_id.in_(new_ids))
+            .all()
+        }
+        if new_ids
+        else set()
+    )
     for ivr_call_id in new_ids:
         if ivr_call_id not in waiting:
             db.add(MobileCallPending(tenant_id=tenant_id, device_pk=device.id, ivr_call_id=ivr_call_id))
-    device.last_seen_at = datetime.now(timezone.utc)
-    db.commit()   # signals attached above must be visible to the ingest tasks
+    device.last_seen_at = datetime.now(UTC)
+    db.commit()  # signals attached above must be visible to the ingest tasks
     set_tenant_context(db, tenant_id)
     for payload in to_queue:
         ingest_call.delay(payload, tenant_id, PROVIDER)
@@ -242,14 +279,15 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
 
 # ─── Recordings (step 2) ─────────────────────────────────────────────────────
 
-def sniff_audio(data: bytes) -> Optional[str]:
+
+def sniff_audio(data: bytes) -> str | None:
     """Content type from the file's magic bytes (never the file name or the request's Content-Type); None = not one of
     m4a, mp3, amr, aac, wav, ogg."""
     b = data[:16]
     if b[4:8] == b"ftyp":
-        return "audio/mp4"                      # m4a / 3gp container
+        return "audio/mp4"  # m4a / 3gp container
     if b.startswith(b"#!AMR"):
-        return "audio/amr"                      # AMR-NB and AMR-WB
+        return "audio/amr"  # AMR-NB and AMR-WB
     if b.startswith(b"OggS"):
         return "audio/ogg"
     if b[:4] == b"RIFF" and b[8:12] == b"WAVE":
@@ -257,9 +295,9 @@ def sniff_audio(data: bytes) -> Optional[str]:
     if b.startswith(b"ID3"):
         return "audio/mpeg"
     if b.startswith(b"ADIF") or (len(b) > 1 and b[0] == 0xFF and (b[1] & 0xF6) == 0xF0):
-        return "audio/aac"                      # ADIF, or the ADTS sync word (layer bits 00)
+        return "audio/aac"  # ADIF, or the ADTS sync word (layer bits 00)
     if len(b) > 1 and b[0] == 0xFF and (b[1] & 0xE0) == 0xE0 and (b[1] & 0x06):
-        return "audio/mpeg"                     # MPEG audio frame sync, layer I-III
+        return "audio/mpeg"  # MPEG audio frame sync, layer I-III
     return None
 
 
@@ -280,10 +318,21 @@ def link_pending(db: Session, call: Call) -> bool:
         return False
     key = row.recording_key
     db.query(MobileCallPending).filter_by(id=row.id).delete(synchronize_session=False)
-    won = bool(key) and db.query(Call).filter(
-        Call.id == call.id, Call.tenant_id == call.tenant_id, Call.recording_s3_key.is_(None)).update(
-        {Call.recording_s3_key: key, Call.recording_fetched: True, Call.recording_status: RecordingStatus.AVAILABLE,
-         Call.recording_error: None}, synchronize_session=False) == 1
+    won = (
+        bool(key)
+        and db.query(Call)
+        .filter(Call.id == call.id, Call.tenant_id == call.tenant_id, Call.recording_s3_key.is_(None))
+        .update(
+            {
+                Call.recording_s3_key: key,
+                Call.recording_fetched: True,
+                Call.recording_status: RecordingStatus.AVAILABLE,
+                Call.recording_error: None,
+            },
+            synchronize_session=False,
+        )
+        == 1
+    )
     db.commit()
     set_tenant_context(db, call.tenant_id)
     db.refresh(call)
@@ -320,14 +369,18 @@ def attach_recording(db: Session, device: MobileDevice, device_call_id: str, dat
         from app.services.media_storage import upload_call_recording as upload
     upload(key, data, kind)
     fields = {"recording_key": key, "recording_type": kind, "recording_bytes": len(data)}
-    claimed = row is not None and db.query(MobileCallPending).filter(
-        MobileCallPending.id == row.id, MobileCallPending.recording_key.is_(None)).update(
-        fields, synchronize_session=False) == 1
+    claimed = (
+        row is not None
+        and db.query(MobileCallPending)
+        .filter(MobileCallPending.id == row.id, MobileCallPending.recording_key.is_(None))
+        .update(fields, synchronize_session=False)
+        == 1
+    )
     if not claimed:
         if row is not None and db.query(MobileCallPending.id).filter_by(id=row.id).first():
             db.rollback()
             set_tenant_context(db, tid)
-            return duplicate                    # the same file sent twice at once
+            return duplicate  # the same file sent twice at once
         # The call exists and its waiting row is gone (ingest finished): wait on a fresh row, linked just below.
         db.add(MobileCallPending(tenant_id=tid, device_pk=device.id, ivr_call_id=ivr_call_id, **fields))
     try:
@@ -338,26 +391,39 @@ def attach_recording(db: Session, device: MobileDevice, device_call_id: str, dat
         return duplicate
     set_tenant_context(db, tid)
 
-    call = call or db.query(Call).filter_by(tenant_id=tid, ivr_call_id=ivr_call_id).first()   # ingest may have run
+    call = call or db.query(Call).filter_by(tenant_id=tid, ivr_call_id=ivr_call_id).first()  # ingest may have run
     status = "waiting"
     if call is not None:
-        link_pending(db, call)   # whoever links (this request or ingest), the call now holds the recording
+        link_pending(db, call)  # whoever links (this request or ingest), the call now holds the recording
         status = "attached" if call.recording_s3_key == key else "duplicate"
     if status != "duplicate":
-        append_audit(db, tenant_id=tid, actor_user_id=device.user_id, action="call.recording_uploaded",
-                     target_type="call" if call else "mobile_device", target_id=call.id if call else device.id,
-                     payload={"device_pk": device.id, "device_call_id": device_call_id, "status": status,
-                              "content_type": kind, "bytes": len(data)})
+        append_audit(
+            db,
+            tenant_id=tid,
+            actor_user_id=device.user_id,
+            action="call.recording_uploaded",
+            target_type="call" if call else "mobile_device",
+            target_id=call.id if call else device.id,
+            payload={
+                "device_pk": device.id,
+                "device_call_id": device_call_id,
+                "status": status,
+                "content_type": kind,
+                "bytes": len(data),
+            },
+        )
         db.commit()
         set_tenant_context(db, tid)
     return {"status": status, "call_id": call.id if call else None}
 
 
-def purge_stale_pending(db: Session, tenant_id: str, now: Optional[datetime] = None) -> list[str]:
+def purge_stale_pending(db: Session, tenant_id: str, now: datetime | None = None) -> list[str]:
     """Waiting rows older than PENDING_MAX_AGE (the call never arrived: its ingest failed for good). Deletes them; returns
     their files for the caller to delete after commit (media_storage.delete_tenant_objects)."""
-    cutoff = (now or datetime.now(timezone.utc)) - PENDING_MAX_AGE
-    q = db.query(MobileCallPending).filter(MobileCallPending.tenant_id == tenant_id, MobileCallPending.created_at < cutoff)
+    cutoff = (now or datetime.now(UTC)) - PENDING_MAX_AGE
+    q = db.query(MobileCallPending).filter(
+        MobileCallPending.tenant_id == tenant_id, MobileCallPending.created_at < cutoff
+    )
     keys = [k for (k,) in q.with_entities(MobileCallPending.recording_key).all() if k]
     q.delete(synchronize_session=False)
     return keys
