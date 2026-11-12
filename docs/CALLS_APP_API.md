@@ -213,8 +213,9 @@ user session.
 
 ### `GET /devices` (user token, owner/manager)
 
-Lists every staff device in the workspace (same fields as the register response, without `token`). For the web app's
-admin screen, not the phone.
+Lists every staff device in the workspace (same fields as the register response, without `token`), plus the phone's
+last 30 days: `calls_30d`, `recordings_30d`, `last_call_at`, `last_recording_at`. For the web app's "Calls app phones"
+screen (Settings > Workspace), not the phone.
 
 ## Rate limit
 

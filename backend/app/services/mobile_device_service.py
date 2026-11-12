@@ -86,6 +86,29 @@ def apply_settings(db: Session, device: MobileDevice, new: DeviceSettings) -> No
     }
 
 
+def activity(db: Session, tenant_id: str, days: int = 30) -> dict[str, dict]:
+    """Per device row id, its calls in the last `days`: {"calls", "recordings", "last_call_at", "last_recording_at"} (one
+    query; the device is read from the ivr_call_id "mobile_app:<device pk>:<device_call_id>"). For the owner's screen."""
+    since = datetime.now(UTC) - timedelta(days=days)
+    rows = (
+        db.query(Call.ivr_call_id, Call.created_at, Call.recording_s3_key.isnot(None))
+        .filter(Call.tenant_id == tenant_id, Call.ivr_provider == PROVIDER, Call.created_at >= since)
+        .all()
+    )
+    out: dict[str, dict] = {}
+    for ivr_call_id, created_at, has_recording in rows:
+        pk = (ivr_call_id or "").split(":")[1] if (ivr_call_id or "").count(":") >= 2 else None
+        if not pk:
+            continue
+        a = out.setdefault(pk, {"calls": 0, "recordings": 0, "last_call_at": None, "last_recording_at": None})
+        a["calls"] += 1
+        a["last_call_at"] = max(filter(None, [a["last_call_at"], created_at]))
+        if has_recording:
+            a["recordings"] += 1
+            a["last_recording_at"] = max(filter(None, [a["last_recording_at"], created_at]))
+    return out
+
+
 def settings_out(device: MobileDevice) -> dict:
     s = device.settings or {}
     return {"unknown_numbers": s.get("unknown_numbers", "working_hours"), "working_hours": s.get("working_hours")}

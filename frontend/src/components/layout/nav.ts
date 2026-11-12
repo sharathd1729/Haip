@@ -10,7 +10,7 @@ import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
   AtSign, BadgeCheck, BellRing, Bot, BookmarkIcon, BookOpen, Building, Building2, Calculator, Calendar, CalendarClock, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
-  FlaskConical, ListChecks, MapPin, Megaphone, MessageCircle, Palette, Send, Shield, Shuffle, Sparkles, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
+  FlaskConical, ListChecks, MapPin, Megaphone, MessageCircle, Palette, Phone, Send, Shield, Shuffle, Sparkles, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
@@ -99,6 +99,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Settings", href: "/dashboard/settings", icon: I["/dashboard/settings"], resource: "settings" },
     { label: "Integrations", href: "/dashboard/settings/integrations", icon: Link2, resource: "integrations" },
     { label: "Team", href: "/dashboard/settings/team", icon: UsersRound, resource: "users" },
+    { label: "Calls app phones", href: "/dashboard/settings/calls-app", icon: Phone, resource: "users", onlyRoles: ["owner", "manager"] },
     { label: "Automations", href: "/dashboard/automations", icon: Zap, resource: "settings" },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },

@@ -3,7 +3,7 @@
   POST   /devices/register   logged-in user: register this phone, returns the device token ONCE (moving a phone to another
                              person or reviving a revoked one: owner/manager only, else 409 / 403)
   PUT    /devices/settings   device token: unknown-number rule, working hours (personal numbers stay on the phone)
-  GET    /devices            owner/manager: every staff device in the workspace
+  GET    /devices            owner/manager: every staff device in the workspace, with its last 30 days (calls, recordings)
   DELETE /devices/{id}       revoke: your own device, or any device for owner/manager (audited)
   POST   /device-calls       device token: up to 200 call-log entries, idempotent on (device, device_call_id)
   POST   /device-calls/{device_call_id}/recording
@@ -16,6 +16,8 @@ Device-token requests send "Authorization: Bearer haip_dev_..."; unknown or revo
 """
 
 from __future__ import annotations
+
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response, status
 from sqlalchemy.orm import Session
@@ -47,6 +49,11 @@ def current_device(authorization: str = Header(default=""), db: Session = Depend
     return device
 
 
+def _iso(dt: datetime | None) -> str | None:
+    # Always with a zone: a naive value (SQLite) would be read as the viewer's local time.
+    return (dt if dt.tzinfo else dt.replace(tzinfo=UTC)).isoformat() if dt else None
+
+
 def _out(d: MobileDevice, user_name: str | None = None) -> dict:
     return {
         "id": d.id,
@@ -56,8 +63,8 @@ def _out(d: MobileDevice, user_name: str | None = None) -> dict:
         "model": d.model,
         "android_version": d.android_version,
         "app_version": d.app_version,
-        "last_seen_at": d.last_seen_at.isoformat() if d.last_seen_at else None,
-        "created_at": d.created_at.isoformat() if d.created_at else None,
+        "last_seen_at": _iso(d.last_seen_at),
+        "created_at": _iso(d.created_at),
         "revoked": d.revoked_at is not None,
         "settings": mobile_device_service.settings_out(d),
     }
@@ -97,7 +104,21 @@ def list_devices(current_user: User = Depends(require_roles(*_MANAGERS)), db: Se
         .order_by(MobileDevice.created_at.desc())
         .all()
     )
-    return {"devices": [_out(d, name) for d, name in rows]}
+    stats = mobile_device_service.activity(db, current_user.tenant_id)
+    empty = {"calls": 0, "recordings": 0, "last_call_at": None, "last_recording_at": None}
+    devices = []
+    for d, name in rows:
+        a = stats.get(d.id, empty)
+        devices.append(
+            {
+                **_out(d, name),
+                "calls_30d": a["calls"],
+                "recordings_30d": a["recordings"],
+                "last_call_at": _iso(a["last_call_at"]),
+                "last_recording_at": _iso(a["last_recording_at"]),
+            }
+        )
+    return {"devices": devices}
 
 
 @router.delete("/{device_pk}", status_code=204)

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session as SASession
 from app.middleware import rate_limit
 from app.models.call import Call, CallDirection, RecordingStatus
 from app.models.mobile_device import MobileCallPending
+from app.services import mobile_device_service
 from app.workers.tasks import call_recovery, mobile_calls
 from tests.test_mobile_devices import KNOWN, _call, _other_tenant, _register, _run_ingest, _tid, _user, queued  # noqa: F401
 
@@ -99,6 +100,30 @@ def test_requeue_never_touches_another_workspace(client, db, tenant_and_user, qu
     sent = []
     assert mobile_calls.requeue_stuck(db, other.id, sent.append, now=LATER) == 0 and sent == []
     assert db.query(MobileCallPending).filter_by(tenant_id=tid).one().requeue_attempts == 0
+
+
+# ─── Owner's device screen: last 30 days per phone ───────────────────────────
+
+
+def test_device_list_shows_each_phones_calls_and_recordings(client, db, tenant_and_user, queued, monkeypatch):
+    from tests.test_mobile_devices import _auth as _user_auth
+
+    tid = _tid(tenant_and_user)
+    _known_guest(db, tid)
+    _, staff_h = _user(db, tid)
+    a, b = _register(client, staff_h), _register(client, staff_h)
+    client.post("/api/v1/device-calls", json={"calls": [_call(), _call()]}, headers=_auth(a))
+    _run_ingest(monkeypatch, db, queued)
+    first = db.query(Call).filter(Call.tenant_id == tid, Call.ivr_call_id.like(f"mobile_app:{a['id']}:%")).first()
+    first.recording_s3_key = f"{tid}/calls/mobile_app/x/recording.mp3"
+    db.commit()
+    owner_h = _user_auth(tenant_and_user["access_token"])
+    listed = {d["id"]: d for d in client.get("/api/v1/devices", headers=owner_h).json()["devices"]}
+    assert (listed[a["id"]]["calls_30d"], listed[a["id"]]["recordings_30d"]) == (2, 1)
+    assert listed[a["id"]]["last_call_at"] and listed[a["id"]]["last_recording_at"]
+    assert (listed[b["id"]]["calls_30d"], listed[b["id"]]["last_call_at"]) == (0, None)
+    other = _other_tenant(db)
+    assert mobile_device_service.activity(db, other.id) == {}  # another workspace sees none of it
 
 
 # ─── Transcriptions stuck "queued" (any provider) ────────────────────────────
