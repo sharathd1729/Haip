@@ -17,7 +17,7 @@ android {
         targetSdk = 35
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0-dev"
-        buildConfigField("String", "HAIP_BASE_URL", "\"${System.getenv("HAIP_BASE_URL") ?: "https://genhaip.com"}\"")
+        buildConfigField("String", "HAIP_BASE_URL", "\"${System.getenv("HAIP_BASE_URL") ?: "https://www.genhaip.com"}\"")
     }
 
     signingConfigs {
