@@ -422,6 +422,6 @@ def test_owner_brief_adds_ops_lines_only_when_there_is_something_to_say(db):
 
 
 def test_owner_brief_skips_ops_for_businesses_without_an_ops_pack(db):
-    t = _t(db, "hotel")
+    t = _t(db, "travel_agency")  # hotels have a pack since [192]
     _item(db, t, created=_utc_ist(D, 10), ack_min=12, p=prop(db, t.id))
     assert owner_brief_service._ops_lines(db, t, date(2026, 11, 7)) == []
