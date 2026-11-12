@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
     private var linking = false
     private var refused = false
-    private val host: String? = Uri.parse(Api.base).host
+    private val site: String = (Uri.parse(Api.base).host ?: "").removePrefix("www.")
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +37,8 @@ class MainActivity : ComponentActivity() {
         web.settings.userAgentString = web.settings.userAgentString + " HAIPCalls/" + BuildConfig.VERSION_NAME
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                if (request.url.host == host) return false
+                // genhaip.com and www.genhaip.com are both HAIP (the bare domain redirects to www).
+                if (request.url.host?.removePrefix("www.") == site) return false
                 // WhatsApp, tel:, maps and other sites open in their own apps.
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, request.url))

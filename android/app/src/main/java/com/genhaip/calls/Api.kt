@@ -26,7 +26,11 @@ data class Resp(val code: Int, val body: String) {
 object Api {
     val base: String = BuildConfig.HAIP_BASE_URL.trimEnd('/')
     private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
+    // Never follow redirects: across hosts OkHttp drops the Authorization header, HAIP would answer 401 and the app would
+    // unlink itself. A redirect is an error to retry (and a sign that HAIP_BASE_URL is the wrong host).
     private val http = OkHttpClient.Builder()
+        .followRedirects(false)
+        .followSslRedirects(false)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(180, TimeUnit.SECONDS)

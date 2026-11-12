@@ -9,7 +9,8 @@ ingest path as IVR calls, and runs transcription, summary and QA itself.
 
 ## Base URL
 
-`https://genhaip.com/api/v1` (the web app's origin; Next.js forwards `/api/v1/*` to the backend). Keep it a build
+`https://www.genhaip.com/api/v1` (the web app's origin; the bare `genhaip.com` redirects here, and a redirect drops the
+`Authorization` header, so always use the `www` host; Next.js forwards `/api/v1/*` to the backend). Keep it a build
 setting in the app (`HAIP_BASE_URL`), so a staging build can point elsewhere.
 
 All bodies are JSON (UTF-8) except the recording upload (multipart). Times are ISO 8601 **with a zone offset**
@@ -35,8 +36,8 @@ it in Android Keystore-backed storage (`EncryptedSharedPreferences`). Losing it 
 The app shows the HAIP web app in a WebView and does not handle passwords itself. Once the WebView has signed in (it is
 on a `/dashboard` page):
 
-1. Read the WebView's cookies for the origin: `CookieManager.getInstance().getCookie("https://genhaip.com")`.
-2. `GET https://genhaip.com/api/auth/session` with header `Cookie: <those cookies>`. The NextAuth session JSON contains
+1. Read the WebView's cookies for the origin: `CookieManager.getInstance().getCookie("https://www.genhaip.com")`.
+2. `GET https://www.genhaip.com/api/auth/session` with header `Cookie: <those cookies>`. The NextAuth session JSON contains
    `accessToken` (the backend JWT). No `accessToken` = not signed in yet.
 3. Call `POST /devices/register` with `Authorization: Bearer <accessToken>` straight away (it expires in 15 minutes).
 
