@@ -6,7 +6,7 @@ import { CallDetail } from "@/components/personal/CallDetail";
 export default function YaadCallPage() {
   const { id } = useParams<{ id: string }>();
   return (
-    <div className="yaad -mx-4 -my-5 min-h-[calc(100dvh-112px)] px-4 py-4 sm:-mx-6 sm:px-6 md:min-h-[calc(100dvh-64px)]">
+    <div className="yaad min-h-full px-4 py-4 sm:px-6">
       <CallDetail id={id} backHref="/dashboard/me" />
     </div>
   );

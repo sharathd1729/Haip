@@ -44,7 +44,7 @@ function Body({ call, backHref }: { call: Detail; backHref?: string }) {
         {m?.title ?? call.contact}
       </h1>
       <p className="mt-2 text-[15px] text-[var(--y-ink-2)]">
-        {m ? `With ${call.contact}` : call.number}
+        {m ? `With ${call.contact}` : call.contact !== call.number ? call.number : call.direction === "in" ? "Incoming call" : "Outgoing call"}
       </p>
 
       {m && (m.category || m.tags.length > 0) && (

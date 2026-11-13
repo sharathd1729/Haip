@@ -28,7 +28,9 @@ function Home() {
   const wide = useWide();
   const router = useRouter();
   const params = useSearchParams();
-  const first = useCallsPages().data?.pages[0]?.calls[0]?.id ?? null;
+  // Open the newest summarised call by default; a call still being processed has nothing to read yet.
+  const firstPage = useCallsPages().data?.pages[0]?.calls ?? [];
+  const first = (firstPage.find(c => c.status === "ready") ?? firstPage[0])?.id ?? null;
   const selected = params.get("call") ?? first;
 
   const open = (id: string) => {
@@ -37,7 +39,7 @@ function Home() {
   };
 
   return (
-    <div className="yaad -mx-4 -my-5 min-h-[calc(100dvh-112px)] px-4 py-5 sm:-mx-6 sm:px-6 md:min-h-[calc(100dvh-64px)]">
+    <div className="yaad min-h-full px-4 py-5 sm:px-6">
       <div className="mx-auto max-w-[1180px]">
         <div className="mb-5 hidden items-center justify-between gap-3 min-[600px]:flex">
           <YaadWordmark />

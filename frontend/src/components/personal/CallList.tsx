@@ -100,7 +100,7 @@ function UpcomingStrip({ items, onSelect }: { items: Upcoming[]; onSelect: (id: 
   return (
     <section aria-label="Upcoming" className="grid gap-2.5">
       <h2 className="px-1 text-[13px] font-semibold text-[var(--y-ink-2)]">Upcoming</h2>
-      <ul className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+      <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {items.map((u, i) => {
           const d = new Date(`${u.date}T00:00:00Z`);
           return (

@@ -28,7 +28,7 @@ export default function YaadRemindersPage() {
   const items = all.filter(r => who === "all" || (who === "mine") === isMine(r.owner));
 
   return (
-    <div className="yaad -mx-4 -my-5 min-h-[calc(100dvh-112px)] px-4 py-5 sm:-mx-6 sm:px-6 md:min-h-[calc(100dvh-64px)]">
+    <div className="yaad min-h-full px-4 py-5 sm:px-6">
       <div className="mx-auto max-w-[680px]">
         <div className="mb-5 hidden min-[600px]:block"><YaadWordmark /></div>
         <h1 className="text-[26px] font-semibold tracking-[-0.02em]">Reminders</h1>
