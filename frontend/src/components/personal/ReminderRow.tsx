@@ -1,9 +1,9 @@
 "use client";
 // One reminder (an action item from a call): a large check target, the task, who owns it, and when it is due.
 import Link from "next/link";
-import { Check } from "@/lib/icons";
+import { Calendar, Check } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import { dueLabel, isMine, ownerLabel, type ActionItem } from "@/lib/personal";
+import { calendarLink, dueLabel, isMine, ownerLabel, type ActionItem } from "@/lib/personal";
 import { useToggleReminder } from "./hooks";
 
 export function ReminderRow({ item, callId, source }: {
@@ -50,6 +50,17 @@ export function ReminderRow({ item, callId, source }: {
             )}>
               {due.text}
             </span>
+          )}
+          {item.due && !done && (
+            <a
+              href={calendarLink({ title: item.text, date: item.due, details: item.context })}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Add "${item.text}" to Google Calendar`}
+              className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[var(--y-line)] px-2 py-0.5 font-semibold text-[var(--y-ink-2)] hover:border-[var(--y-line-strong)]"
+            >
+              <Calendar size={12} aria-hidden /> Add to calendar
+            </a>
           )}
         </div>
         {item.context && <p className="mt-1.5 text-[13px] leading-snug text-[var(--y-ink-2)]">{item.context}</p>}

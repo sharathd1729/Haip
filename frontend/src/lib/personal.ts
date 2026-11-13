@@ -130,6 +130,24 @@ export const STATUS_TEXT: Record<CallStatus, string> = {
   failed: "Couldn't summarise this call",
 };
 
+/** A Google Calendar "new event" link, prefilled (no sign-in to Yaad needed; Google asks the person to save it).
+ *  With a time: a one-hour event in IST. Without: an all-day event. */
+export function calendarLink(e: { title: string; date: string; time?: string; place?: string; details?: string }): string {
+  const ymd = e.date.replace(/-/g, "");
+  let dates: string;
+  if (e.time && /^\d{2}:\d{2}$/.test(e.time)) {
+    const [h, m] = e.time.split(":").map(Number);
+    const end = `${String(Math.min(h + 1, 23)).padStart(2, "0")}${String(h + 1 > 23 ? 59 : m).padStart(2, "0")}`;
+    dates = `${ymd}T${e.time.replace(":", "")}00/${ymd}T${end}00`;
+  } else {
+    dates = `${ymd}/${addDays(e.date, 1).replace(/-/g, "")}`;
+  }
+  const q = new URLSearchParams({ action: "TEMPLATE", text: e.title, dates, ctz: TZ });
+  if (e.place) q.set("location", e.place);
+  if (e.details) q.set("details", e.details);
+  return `https://calendar.google.com/calendar/render?${q.toString()}`;
+}
+
 /** Group rows by IST day, newest day first (rows arrive newest first). */
 export function groupByDay<T extends { at: string | null }>(rows: T[]): { day: string; rows: T[] }[] {
   const groups: { day: string; rows: T[] }[] = [];

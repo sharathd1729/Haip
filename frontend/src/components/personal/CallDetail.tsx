@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronDown, Copy, Loader2, PhoneIncoming, PhoneOutgoing, Send, Sparkles } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-import { STATUS_TEXT, dayLabel, durationLabel, istDay, timeLabel, type CallDetail as Detail } from "@/lib/personal";
+import { STATUS_TEXT, calendarLink, dayLabel, durationLabel, istDay, timeLabel, type CallDetail as Detail } from "@/lib/personal";
 import { useCallDetail } from "./hooks";
 import { ReminderRow } from "./ReminderRow";
 
@@ -105,10 +105,18 @@ function Body({ call, backHref }: { call: Detail; backHref?: string }) {
             {m.upcoming.map((u, i) => (
               <li key={i} className="flex items-start gap-3 rounded-[14px] border border-[var(--y-line)] bg-[var(--y-card)] p-3">
                 <Calendar size={18} className="mt-0.5 shrink-0 text-[var(--y-brand)]" aria-hidden />
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="block text-[15px] font-medium">{u.what}</span>
                   <span className="text-[13px] text-[var(--y-ink-2)]">{[dayLabel(u.date), u.time, u.place].filter(Boolean).join(" · ")}</span>
                 </span>
+                <a
+                  href={calendarLink({ title: u.what, date: u.date, time: u.time, place: u.place, details: `From your call with ${call.contact}` })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="y-press inline-flex min-h-11 shrink-0 items-center rounded-full border border-[var(--y-line-strong)] px-3 text-[13px] font-semibold text-[var(--y-ink)]"
+                >
+                  Add to calendar
+                </a>
               </li>
             ))}
           </ul>
