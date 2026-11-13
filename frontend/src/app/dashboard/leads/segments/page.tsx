@@ -54,7 +54,7 @@ export default function SegmentsPage() {
                         <p className="mt-0.5 text-xs text-[var(--haip-fg-subtle)]">{p.description}</p>
                         <p className="mt-3 font-[family-name:var(--font-display)] text-2xl font-semibold tabular-nums text-[var(--haip-fg)]">{n(p.people)}</p>
                         <p className="text-xs text-[var(--haip-fg-muted)]">{n(p.reachable)} can get a WhatsApp{p.opted_out ? ` · ${n(p.opted_out)} opted out` : ""}</p>
-                        <Link href="/dashboard/messaging/campaigns" className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-primary">Message them in a campaign</Link>
+                        <Link href={`/dashboard/messaging/campaigns?segment=${encodeURIComponent(p.id)}`} className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-primary">Message them in a campaign</Link>
                       </li>
                     ))}
                   </ul>
