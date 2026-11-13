@@ -423,6 +423,7 @@ celery_app.conf.update(
         "analyst.tick":                               {"queue": "ai_scoring"},
         "analyst.run_report":                         {"queue": "ai_scoring"},
         "analyst.answer_followup":                    {"queue": "ai_scoring"},
+        "analyst.ask_haip":                           {"queue": "ai_scoring"},
         # AI Executive (chief_tasks.py): detection reads shared sources (default); explanations call the LLM router.
         "chief.detect_all_tenants":                   {"queue": "default"},
         "chief.detect_tenant":                        {"queue": "default"},
