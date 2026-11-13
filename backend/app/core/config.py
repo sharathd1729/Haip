@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     # (scripts/compare_sarvam_models.py). SARVAM_KEYTERMS = comma-separated names/brands to bias v4 toward (max 50; v4 only).
     SARVAM_STT_MODEL: str = "saaras:v3"
     SARVAM_KEYTERMS: str = ""
+    # Folder holding the Android APKs and their version files for the in-app update (endpoints/app_releases.py).
+    APP_DOWNLOADS_DIR: str = "downloads"
     # Operational kill switch: when true, new call recordings are stored but
     # NOT enqueued for transcription. Existing in-flight jobs are unaffected.
     TRANSCRIPTION_PAUSED: bool = False

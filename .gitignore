@@ -62,3 +62,6 @@ agent_bench_reports/
 .local-data/
 *.dump
 !backend/.env.local.example
+
+# Android APKs served for the in-app update (VPS only)
+/downloads/

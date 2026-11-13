@@ -7,6 +7,8 @@
          recordings folder is granted once through the system folder picker. -->
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- In-app update: hand a downloaded new version of this same app to the system installer (UpdateChecker). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".HaipApp"

@@ -19,6 +19,8 @@ services:
       - "8000:8000"
     volumes:
       - uploads:/app/uploads
+      # Android APKs for the in-app update (HAIP Calls, Yaad): scripts/publish_android_release.py writes here.
+      - ./downloads:/app/downloads
     depends_on:
       redis:
         condition: service_healthy

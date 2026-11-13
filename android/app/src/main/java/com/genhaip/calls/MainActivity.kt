@@ -61,6 +61,11 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(Api.base + BuildConfig.START_PATH)
     }
 
+    override fun onResume() {
+        super.onResume()
+        UpdateChecker.maybeCheck(this)
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         web.saveState(outState)

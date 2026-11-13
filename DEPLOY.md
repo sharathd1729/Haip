@@ -229,7 +229,25 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate api worker work
 | Website builder (migration 158) | `docs/website-builder/DEPLOY.md` |
 | Guest replies on their own worker (Phase 1 Step 3) | New container `worker_replies` (queue `replies`): build and start it in the SAME deploy as the code, or no guest gets an AI draft. Check the database connection budget first ("Database connections" below). |
 
+| In-app update for the Android apps (HAIP Calls, Yaad) | `docker-compose.prod.yml` mounts `./downloads` into `api`: recreate `api` once (`up -d api`). Then publish each new APK with the steps in "Publishing an Android app update". |
+
 Add a row here whenever a release needs more than "pull, build, migrate, up".
+
+## Publishing an Android app update (HAIP Calls, Yaad)
+
+The apps check `/api/v1/app/android/version` when they open (at most every 6 hours) and offer "Update available" when a newer
+version is published. Only native changes need this (call sync, recordings, notifications); screen changes ship with the website.
+
+1. Download the APK from the GitHub Actions run (Artifacts: `yaad-0.1.<N>-release.apk` or `haip-calls-0.1.<N>-release.apk`).
+2. Copy it to the VPS, e.g. `scp yaad-0.1.<N>-release.apk root@<vps>:/root/`.
+3. On the VPS, in `/opt/haip`:
+
+```bash
+python3 backend/scripts/publish_android_release.py --flavor yaad --apk /root/yaad-0.1.<N>-release.apk --version-code <N> --notes "What changed, in one line"
+```
+
+`<N>` is the number at the end of the file name. The script refuses an older version or a file that is not an APK. Phones
+see the update the next time the app opens.
 
 ---
 

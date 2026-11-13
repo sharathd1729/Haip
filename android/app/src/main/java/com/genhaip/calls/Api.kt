@@ -41,6 +41,16 @@ object Api {
 
     private fun v1(path: String) = "$base/api/v1$path"
 
+    data class Release(val versionCode: Int, val versionName: String, val notes: String, val url: String)
+
+    /** Latest published version of this app (calls | yaad), or null when none is published. Public endpoint. */
+    fun latestVersion(flavor: String): Release? {
+        val r = send(Request.Builder().url(v1("/app/android/version?flavor=$flavor")).get().build())
+        val j = r.json()
+        if (r.code != 200 || !j.optBoolean("available")) return null
+        return Release(j.optInt("version_code"), j.optString("version_name"), j.optString("notes"), j.optString("url"))
+    }
+
     /** NextAuth session of the WebView's login: contains accessToken (the backend JWT) when signed in. */
     fun session(cookies: String): Resp =
         send(Request.Builder().url("$base/api/auth/session").header("Cookie", cookies).get().build())

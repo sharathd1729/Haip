@@ -66,5 +66,12 @@
     <string name="sync_now">Sync now</string>
     <string name="sync_started">Syncing…</string>
     <string name="unlink">Unlink this phone</string>
+    <string name="update_title">Update available: %1$s</string>
+    <string name="update_body">A new version is ready. It installs over this one and keeps your sign-in.</string>
+    <string name="update_now">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading the update…</string>
+    <string name="update_allow">Allow installing updates from this app, then come back and tap Update.</string>
+    <string name="update_failed">The update did not download. It will offer again later.</string>
     <string name="unlinked">Unlinked. To remove it from HAIP completely, ask your manager.</string>
 </resources>
