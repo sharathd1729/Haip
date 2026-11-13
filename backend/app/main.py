@@ -14,6 +14,7 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.router import api_router
 from app.public_api.app import app as public_api_app
 import app.services.webhook_events  # noqa: F401  (registers webhook event listeners)
+import app.services.channex_push_hook  # noqa: F401  (pushes availability to Channex soon after a booking change)
 from app.mcp.server import router as mcp_router
 from app.mcp.oauth import router as mcp_oauth_router
 import structlog

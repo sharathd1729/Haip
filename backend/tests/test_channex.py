@@ -234,3 +234,30 @@ def test_connect_map_and_status(client, db, tenant_and_user):
     assert "good-key-123" not in json.dumps(st)
     with patch("app.workers.tasks.channex_sync.sync_tenant.delay") as q:
         assert client.post("/api/v1/channex/sync", headers=h).status_code == 202 and q.call_count == 1
+
+
+# ─── Push soon after a HAIP booking change ───────────────────────────────────
+
+
+def test_a_haip_booking_change_queues_one_push_for_connected_workspaces_only(db):
+    from app.models.integration import Integration
+
+    t, p, m = _world(db)
+    db.add(Integration(tenant_id=t.id, kind="channex", status="active", config={}))
+    plain, p2, _ = _world(db, name="No channex villa")
+    db.commit()
+    queued = []
+    with patch("app.workers.tasks.channex_sync.push_soon.apply_async", side_effect=lambda args, countdown: queued.append(args[0])), \
+         patch("app.core.cache.idem_check_and_set", side_effect=lambda key, ttl: key not in [k for k in seen] and not seen.append(key)):
+        seen: list = []
+        g = _guest(db, t.id)
+        db.add(Stay(tenant_id=t.id, guest_id=g.id, property_id=p.id, check_in=date(2026, 12, 20), check_out=date(2026, 12, 22),
+                    status="confirmed"))
+        g2 = _guest(db, plain.id)
+        db.add(Stay(tenant_id=plain.id, guest_id=g2.id, property_id=p2.id, check_in=date(2026, 12, 20),
+                    check_out=date(2026, 12, 22), status="confirmed"))
+        db.commit()
+        stay = db.query(Stay).filter_by(tenant_id=t.id).first()
+        stay.status = "cancelled"
+        db.commit()                                    # within the minute: debounced, no second push
+    assert queued == [t.id]

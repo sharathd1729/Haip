@@ -38,6 +38,24 @@ def sync_tenant(tenant_id: str) -> dict:
         db.close()
 
 
+@celery_app.task(name="channex.push_soon")
+def push_soon(tenant_id: str) -> dict:
+    """A booking changed in HAIP (services/channex_push_hook.py): push availability now, not at the next 15-min sync."""
+    from app.adapters.pms.channex import ChannexError
+    from app.services import channex_service as svc
+
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        try:
+            out = svc.push_tenant(db, tenant_id)
+        except (svc.NotConnected, ChannexError) as exc:
+            return {"tenant_id": tenant_id, "status": "skipped", "detail": str(exc)}
+        return {"tenant_id": tenant_id, "status": "ok", "units": out["units"], "failed": out["failed"]}
+    finally:
+        db.close()
+
+
 @celery_app.task(name="channex.sync_all_tenants")
 def sync_all_tenants() -> dict:
     from app.models.integration import Integration

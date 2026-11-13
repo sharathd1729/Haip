@@ -246,6 +246,7 @@ celery_app.conf.update(
         "calls.requeue_queued_transcriptions":       {"queue": "call_ingest"},
         "channex.sync_tenant":                       {"queue": "default"},
         "channex.sync_all_tenants":                  {"queue": "default"},
+        "channex.push_soon":                         {"queue": "default"},
         "transcription.transcribe_call":             {"queue": "transcription"},
         "sync_hostaway":                             {"queue": "call_ingest"},
         "sync_hostaway_all_tenants":                 {"queue": "call_ingest"},
@@ -873,6 +874,7 @@ celery_app.conf.beat_schedule = {
 # Registers the model listeners that turn booking/payment/message changes into webhook events,
 # so a change made inside a Celery worker (e.g. a message delivery state) is caught too.
 import app.services.webhook_events  # noqa: E402,F401
+import app.services.channex_push_hook  # noqa: E402,F401
 
 # Local test mode (EXTERNAL_SERVICES=fake): the worker sends WhatsApp/Instagram/email etc. too, so fake them here as well.
 from app.core import fake_services  # noqa: E402
