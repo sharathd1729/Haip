@@ -13,6 +13,8 @@ export interface WorkspaceContext {
   flags: Record<string, boolean>;
   plan: string;
   business_type: BusinessType | null;
+  /** "personal" = one person's own calls (backend services/personal_calls.py); everything else is "business". */
+  mode?: "business" | "personal";
 }
 
 const Ctx = createContext<WorkspaceContext | null>(null);
@@ -45,6 +47,11 @@ export function useFlag(key: string): boolean {
 
 /** Tenant's business vertical, chosen at signup. null while loading or for
  *  pre-existing tenants not yet backfilled — callers must hide nothing on null. */
+/** True in a personal call workspace (only Calls and Reminders). False while loading, so nothing flashes away. */
+export function usePersonalMode(): boolean {
+  return useWorkspace()?.mode === "personal";
+}
+
 export function useBusinessType(): BusinessType | null {
   const ctx = useWorkspace();
   return ctx?.business_type ?? null;

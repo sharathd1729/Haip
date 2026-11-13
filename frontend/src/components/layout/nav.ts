@@ -17,7 +17,7 @@ import { ROUTE_ICONS as I } from "./PageIcon";
 import { OPS_READ_ROLES } from "@/lib/ops";
 import { SOPS_READ_ROLES } from "@/lib/sops";
 import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
-import { useBusinessType } from "@/components/providers/WorkspaceProvider";
+import { useBusinessType, usePersonalMode } from "@/components/providers/WorkspaceProvider";
 import { OPS_BUSINESS_TYPES } from "@/lib/segments";
 import { useInboxStore } from "@/store/inbox";
 
@@ -130,6 +130,21 @@ export const PRIMARY_TABS: { href: string; wide?: boolean }[] = [
 export const PHONE_TABS = ["/dashboard", "/dashboard/inbox", "/dashboard/leads", "/dashboard/portfolio/calendar"];
 export const NOW_HREF = "/dashboard/my-day";
 
+// Personal workspace (one person's own calls, services/personal_calls.py): only Calls and Reminders, no company screens.
+export const PERSONAL_HOME = "/dashboard/me";
+export const PERSONAL_SECTIONS: NavSection[] = [
+  { title: "Calls", links: [
+    { label: "Calls", href: PERSONAL_HOME, icon: Phone, resource: "profile" },
+    { label: "Reminders", href: "/dashboard/me/reminders", icon: ListChecks, resource: "profile" },
+  ] },
+  { title: "Settings", links: [
+    { label: "Calls app phones", href: "/dashboard/settings/calls-app", icon: Phone, resource: "users", onlyRoles: ["owner", "manager"] },
+    { label: "Profile", href: "/dashboard/profile", icon: UserCircle, resource: "profile" },
+    { label: "Help & support", href: "/dashboard/help", icon: HelpCircle, resource: "help" },
+  ] },
+];
+const PERSONAL_TABS = [PERSONAL_HOME, "/dashboard/me/reminders"];
+
 export function isVisible(link: NavLink, role: string, businessType: string | null | undefined): boolean {
   return canSeeNav(role, link.resource)
     && (!link.onlyRoles || link.onlyRoles.includes(role))
@@ -141,15 +156,17 @@ export function isVisible(link: NavLink, role: string, businessType: string | nu
 export function linkActive(pathname: string, href: string): boolean {
   const path = href.split("?")[0];
   if (path === "/dashboard") return pathname === "/dashboard";
+  if (path === PERSONAL_HOME) return pathname === PERSONAL_HOME || pathname.startsWith(PERSONAL_HOME + "/calls");
   return pathname === path || pathname.startsWith(path + "/");
 }
 
 /** Everything the shell needs: visible sections, a lookup by href, live badge counts and the active test. */
 export function useNav(role: string) {
   const businessType = useBusinessType();
+  const personal = usePersonalMode();
   const pathname = usePathname() ?? "";
   const { conversations } = useInboxStore();
-  const canSeeMyDay = canSeeNav(role, "inbox");
+  const canSeeMyDay = canSeeNav(role, "inbox") && !personal;
   // Same source and query key as My day, so the badge and the list always agree.
   const { data: queue } = useQuery<{ total: number; people_waiting?: number; severity?: { stale?: number } }>({
     queryKey: ["work-queue", ""],
@@ -158,7 +175,7 @@ export function useNav(role: string) {
     refetchInterval: 60_000,
     enabled: canSeeMyDay,
   });
-  const sections = NAV_SECTIONS
+  const sections = (personal ? PERSONAL_SECTIONS : NAV_SECTIONS)
     .map(s => ({ ...s, links: s.links.filter(l => isVisible(l, role, businessType)) }))
     .filter(s => s.links.length > 0);
   const byHref = new Map(sections.flatMap(s => s.links).map(l => [l.href, l]));
@@ -167,5 +184,10 @@ export function useNav(role: string) {
   // `people_waiting`. Home's "Waiting on the team" tile and the phone's Now button read this same number.
   const waiting = queue?.people_waiting ?? Math.max(0, (queue?.total ?? 0) - (queue?.severity?.stale ?? 0));
   const badge = (href: string): number => (href === "/dashboard/inbox" ? unread : href === NOW_HREF ? waiting : 0);
-  return { sections, byHref, badge, waiting, isActive: (href: string) => linkActive(pathname, href), pathname };
+  // The bottom bar, its raised "Now" button and the desktop tabs follow the workspace mode.
+  const phoneTabs = personal ? PERSONAL_TABS : PHONE_TABS;
+  const nowHref = personal ? null : NOW_HREF;
+  const primaryTabs: { href: string; wide?: boolean }[] = personal ? PERSONAL_TABS.map(href => ({ href })) : PRIMARY_TABS;
+  return { sections, byHref, badge, waiting, phoneTabs, nowHref, primaryTabs, personal,
+    isActive: (href: string) => linkActive(pathname, href), pathname };
 }
