@@ -5,6 +5,9 @@
   GET   /me/calls/{call_id}                      the call's memory, recording link, transcript and WhatsApp share text
   GET   /me/reminders?status=open|done           action items across calls (last 120 days)
   PATCH /me/calls/{call_id}/reminders/{rid}      {"done": bool}
+  POST  /me/ask, GET /me/ask/{id}                Ask Yaad (services/personal_ask.py)
+  GET   /me/settings, PUT /me/settings           custom words + email/notification switches (services/personal_settings.py)
+  DELETE /me/account                             owner, {"confirm": "DELETE"}: erase the workspace (services/personal_account.py)
 
 Personal workspaces only (403 elsewhere); any signed-in user of the workspace (it has one person).
 """
@@ -244,3 +247,56 @@ def ask_result(job_id: str, user: User = Depends(personal_user)):
     if job is None:
         raise HTTPException(status_code=404, detail="That question has expired. Ask it again.")
     return {"id": job_id, **{k: v for k, v in job.items() if k != "model_used"}}
+
+
+# ─── Settings and account ────────────────────────────────────────────────────
+
+
+class SettingsBody(BaseModel):
+    custom_words: list[str] | None = Field(default=None, max_length=200)
+    daily_email: bool | None = None
+    notify_summary: bool | None = None
+    notify_due: bool | None = None
+    notify_day: bool | None = None
+
+
+class DeleteAccountBody(BaseModel):
+    confirm: str
+
+
+def _tenant(db: Session, user: User):
+    from app.models.tenant import Tenant
+
+    return db.query(Tenant).filter_by(id=user.tenant_id).first()
+
+
+@router.get("/settings")
+def get_settings(user: User = Depends(personal_user), db: Session = Depends(get_db)):
+    from app.services import personal_settings
+
+    return personal_settings.get(_tenant(db, user), user)
+
+
+@router.put("/settings")
+def put_settings(body: SettingsBody, user: User = Depends(personal_user), db: Session = Depends(get_db)):
+    """Only the fields sent change. Custom words: the workspace's own list; switches: this person's."""
+    from app.services import personal_settings
+
+    try:
+        return personal_settings.update(db, _tenant(db, user), user, body.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.delete("/account")
+def delete_account(body: DeleteAccountBody, user: User = Depends(personal_user), db: Session = Depends(get_db)):
+    """Erase the whole personal workspace (calls, recordings, contacts) and sign everyone out. Owner only; the body
+    must say {"confirm": "DELETE"}. Not undoable."""
+    from app.models.user import UserRole
+    from app.services import personal_account
+
+    if user.role != UserRole.OWNER:
+        raise HTTPException(status_code=403, detail="Only the account owner can delete it.")
+    if body.confirm.strip() != personal_account.CONFIRM:
+        raise HTTPException(status_code=422, detail='Type DELETE to confirm.')
+    return {"deleted": True, **personal_account.delete_account(db, _tenant(db, user), user)}

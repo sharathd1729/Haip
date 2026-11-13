@@ -142,8 +142,15 @@ def _remember(db, call: Call, turns: list, tenant_id: str) -> None:
     owner = db.query(User).filter_by(id=call.agent_id, tenant_id=tenant_id).first() if call.agent_id else None
     guest = db.query(Guest).filter_by(id=call.guest_id, tenant_id=tenant_id).first() if call.guest_id else None
     contact = guest.name if guest and guest.name and guest.name != "Unknown Guest" else None
+    from app.models.tenant import Tenant
+    from app.services.personal_settings import custom_words
+
     system, user = personal_calls.build_prompts(
-        call=call, turns=turns, owner_name=owner.name if owner and owner.name else "the phone's owner", contact=contact
+        call=call,
+        turns=turns,
+        owner_name=owner.name if owner and owner.name else "the phone's owner",
+        contact=contact,
+        custom_words=custom_words(db.query(Tenant).filter_by(id=tenant_id).first()),
     )
     result = personal_calls.analyse(tenant_id=tenant_id, call_id=call.id, system=system, user=user)
     personal_calls.store(call, personal_calls.normalise(result, previous=personal_calls.memory_of(call)))

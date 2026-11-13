@@ -9,7 +9,10 @@ side is the caller or the person called; use their name when the conversation sa
 
 The call may mix English with Indian languages (Kannada, Hindi, Telugu, Tamil...). Write everything in English. Keep a
 short phrase in the original language only when it carries meaning a translation would lose.
-
+{% if custom_words %}
+Custom words: {{ owner_name }}'s own list of names, places and terms that the transcriber may mishear. When the
+transcript has a word that sounds like one of these, write it exactly as listed: {{ custom_words | join(", ") }}.
+{% endif %}
 Rules
 - Use ONLY what was said in this call. Never invent names, numbers, amounts, dates or decisions. If something was
   unclear, say it is unclear, or leave it out.

@@ -97,8 +97,10 @@ def is_personal(db, tenant_id: str) -> bool:
 # ─── The read ────────────────────────────────────────────────────────────────
 
 
-def build_prompts(*, call, turns: list, owner_name: str, contact: str | None) -> tuple[str, str]:
-    system = _env.get_template("personal_call.jinja").render(owner_name=owner_name)
+def build_prompts(
+    *, call, turns: list, owner_name: str, contact: str | None, custom_words: list[str] | None = None
+) -> tuple[str, str]:
+    system = _env.get_template("personal_call.jinja").render(owner_name=owner_name, custom_words=custom_words or [])
     direction = call.direction.value if hasattr(call.direction, "value") else call.direction
     called = (call.created_at or datetime.now(UTC)).date().isoformat()
     user = "\n".join(
