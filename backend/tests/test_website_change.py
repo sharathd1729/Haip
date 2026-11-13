@@ -103,3 +103,40 @@ def test_owner_text_can_be_added_written_and_given_a_photo():
     sec = next(s for s in out["pages"][0]["sections"] if s["type"] == "text")
     assert out["pages"][0]["sections"][-1]["type"] == "contact"           # added before contact, never after it
     assert sec["slots"]["heading"] == "House rules" and sec["slots"]["media"] == f"asset:{photo}" and len(sec["slots"]["body"]) > 300
+
+
+# ─── Pages beyond the home page (website-change-v3) ──────────────────────────
+
+
+def test_a_new_page_is_added_filled_and_reachable_in_the_menu(client, db, wsite, script):  # noqa: F811
+    _made(client, wsite)
+    job = _change(client, db, wsite, script, "Add a page about our story: we started in 2015 with one villa", [{
+        "reply": "Added an Our story page to your menu.",
+        "ops": [{"op": "add_page", "page": "/our-story", "value": "Our story"},
+                {"op": "set_text", "section_id": "our-story", "field": "body", "value": "We started in 2015 with one villa."},
+                {"op": "add_section", "page": "/our-story", "section_type": "reviews", "variant": "grid"}]}])
+    assert job.status == "ready", job.error
+    doc = db.get(SiteVersion, job.result_version_id).doc
+    page = next(p for p in doc["pages"] if p["slug"] == "/our-story")
+    assert page["title"] == "Our story" and page["nav"] is True
+    assert page["sections"][0]["slots"]["body"] == "We started in 2015 with one villa."
+    assert [s["type"] for s in page["sections"]] == ["text", "reviews"]
+
+
+def test_page_edits_are_validated(client, db, wsite, script):  # noqa: F811
+    from app.schemas.site_builder import ChangeOp
+    from app.services import website_change as wc
+
+    doc = _made(client, wsite)
+    for bad in ([ChangeOp(op="add_page", page="Our Story", value="x")],            # not an address
+                [ChangeOp(op="add_page", page="/x", value="")],                     # no title
+                [ChangeOp(op="remove_page", page="/")],                             # never the home page
+                [ChangeOp(op="add_section", page="/nope", section_type="reviews")]):
+        try:
+            wc.apply_ops(doc, bad, set())
+            raise AssertionError(f"accepted {bad}")
+        except ValueError:
+            pass
+    added = wc.apply_ops(doc, [ChangeOp(op="add_page", page="/faq-page", value="Questions")], set())
+    gone = wc.apply_ops(added, [ChangeOp(op="remove_page", page="/faq-page")], set())
+    assert [p["slug"] for p in gone["pages"]] == [p["slug"] for p in doc["pages"]]

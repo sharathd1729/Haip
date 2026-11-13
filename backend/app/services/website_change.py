@@ -41,6 +41,12 @@ Edits you can make (ops):
 - set_contact: field = phone, whatsapp, email or address, value = the new value exactly as the owner gave it.
 - set_look: palette and/or display (heading font) and/or radius, only names from the lists.
 - set_photo: value = a photo id from PHOTOS for the hero section, or for a "text" section (its with-photo layout shows it).
+- add_page: a new page in the site menu. page = its address ('/our-story': lowercase words joined by '-'), value = its title
+  (a few words). It starts with one "text" section whose id is the address without the leading '/' and with '-' for '/'
+  (e.g. /our-story -> our-story); fill it in the same answer with set_text (heading, body) using the owner's own words, and
+  add more sections to it with add_section page = that address.
+- remove_page: page = the address of a page you added before (never '/', the home page).
+Sections are named by their id wherever they are; add_section uses page (default '/').
 
 Rules: change only what was asked. Never invent facts, awards, prices, ratings or offers; never type a price (prices only
 come from HAIP's price rules). If the request can't be done with these edits (e.g. "take payments", "add a blog"), make no
@@ -71,15 +77,31 @@ def request(db: Session, site: Site, actor: User, text: str) -> SiteAiJob:
     return job
 
 
-def _sections(doc: dict) -> list[dict]:
-    return doc["pages"][0]["sections"]
+MAX_PAGES = 12   # SiteSpec allows 12 pages
+
+
+def _page(doc: dict, slug: str = "/") -> dict:
+    p = next((p for p in doc["pages"] if p["slug"] == (slug or "/")), None)
+    if p is None:
+        raise ValueError(f"no page '{slug}' on the site ({', '.join(x['slug'] for x in doc['pages'])})")
+    return p
+
+
+def _sections(doc: dict, slug: str = "/") -> list[dict]:
+    return _page(doc, slug)["sections"]
+
+
+def _owner(doc: dict, section_id: str) -> tuple[dict, list[dict]]:
+    """(section, the section list of the page it is on); section ids are unique across the whole site."""
+    for p in doc["pages"]:
+        for s in p["sections"]:
+            if s["id"] == section_id:
+                return s, p["sections"]
+    raise ValueError(f"no section '{section_id}' on the site")
 
 
 def _find(doc: dict, section_id: str) -> dict:
-    s = next((s for s in _sections(doc) if s["id"] == section_id), None)
-    if not s:
-        raise ValueError(f"no section '{section_id}' on the page")
-    return s
+    return _owner(doc, section_id)[0]
 
 
 def _new_id(doc: dict, stype: str) -> str:
@@ -91,13 +113,34 @@ def _new_id(doc: dict, stype: str) -> str:
     return out
 
 
-def _cta_index(doc: dict) -> int:
-    secs = _sections(doc)
+def _cta_index(doc: dict, slug: str = "/") -> int:
+    secs = _sections(doc, slug)
     return next((i for i, s in enumerate(secs) if s["type"] in ("booking-cta", "contact")), len(secs))
 
 
+def _add_page(out: dict, slug: str, title: str) -> None:
+    import re
+
+    from app.schemas.site_spec import SLUG_RE
+
+    slug = (slug or "").strip().lower()
+    if slug in ("", "/") or not re.match(SLUG_RE, slug):
+        raise ValueError("add_page needs an address like '/our-story' (lowercase words joined by '-')")
+    if any(p["slug"] == slug for p in out["pages"]):
+        raise ValueError(f"the site already has a page '{slug}'")
+    if len(out["pages"]) >= MAX_PAGES:
+        raise ValueError(f"a site can have at most {MAX_PAGES} pages")
+    title = (title or "").strip()[:60]
+    if not title:
+        raise ValueError("add_page needs a title (value)")
+    wanted = slug.strip("/").replace("/", "-")
+    sid = wanted if wanted not in {s["id"] for p in out["pages"] for s in p["sections"]} else _new_id(out, "text")
+    out["pages"].append({"slug": slug, "title": title, "nav": True,
+                         "sections": [{"id": sid, "type": "text", "variant": "plain", "slots": {"heading": title}}]})
+
+
 def apply_ops(doc: dict, ops: list[ChangeOp], photo_ids: set[str]) -> dict:
-    """A validated copy of `doc` with every edit applied (home page). Raises ValueError / WebsiteError naming the problem."""
+    """A validated copy of `doc` with every edit applied (any page). Raises ValueError / WebsiteError naming the problem."""
     cat = catalogue()
     out = json.loads(json.dumps(doc))
     if len(ops) > MAX_OPS:
@@ -113,17 +156,29 @@ def apply_ops(doc: dict, ops: list[ChangeOp], photo_ids: set[str]) -> dict:
             if not sec:
                 raise ValueError(f"unknown section type '{op.section_type}'")
             variant = op.variant if op.variant in sec["variants"] else sec["variants"][0]
-            pos = _cta_index(out) if op.position < 0 else min(op.position, len(_sections(out)))
-            _sections(out).insert(pos, {"id": _new_id(out, op.section_type), "type": op.section_type, "variant": variant, "slots": {}})
+            page = op.page or "/"
+            pos = _cta_index(out, page) if op.position < 0 else min(op.position, len(_sections(out, page)))
+            _sections(out, page).insert(pos, {"id": _new_id(out, op.section_type), "type": op.section_type, "variant": variant,
+                                              "slots": {}})
         elif op.op == "remove_section":
-            s = _find(out, op.section_id)
-            if s["type"] == "contact" and sum(1 for x in _sections(out) if x["type"] == "contact") == 1:
-                raise ValueError("the page must keep its contact section")
-            _sections(out).remove(s)
+            s, secs = _owner(out, op.section_id)
+            home = _sections(out, "/")
+            if secs is home and s["type"] == "contact" and sum(1 for x in home if x["type"] == "contact") == 1:
+                raise ValueError("the home page must keep its contact section")
+            if len(secs) == 1:
+                raise ValueError("a page needs at least one section; remove the page instead")
+            secs.remove(s)
         elif op.op == "move_section":
-            s = _find(out, op.section_id)
-            _sections(out).remove(s)
-            _sections(out).insert(max(0, min(op.position if op.position >= 0 else _cta_index(out), len(_sections(out)))), s)
+            s, secs = _owner(out, op.section_id)
+            secs.remove(s)
+            end = next((i for i, x in enumerate(secs) if x["type"] in ("booking-cta", "contact")), len(secs))
+            secs.insert(max(0, min(op.position if op.position >= 0 else end, len(secs))), s)
+        elif op.op == "add_page":
+            _add_page(out, op.page, op.value)
+        elif op.op == "remove_page":
+            if (op.page or "/") == "/":
+                raise ValueError("the home page can't be removed")
+            out["pages"].remove(_page(out, op.page))
         elif op.op == "set_layout":
             s = _find(out, op.section_id)
             if op.variant not in cat["sections"][s["type"]]["variants"]:
@@ -153,11 +208,13 @@ def apply_ops(doc: dict, ops: list[ChangeOp], photo_ids: set[str]) -> dict:
 
 def _user(doc: dict, photos: list, text: str) -> str:
     cat = catalogue()
-    secs = [{"id": s["id"], "type": s["type"], "layout": s["variant"], "texts": {k: v for k, v in s["slots"].items() if k in TEXT_SLOTS and v}}
-            for s in _sections(doc)]
+    pages = [{"page": p["slug"], "title": p.get("title"),
+              "sections": [{"id": s["id"], "type": s["type"], "layout": s["variant"],
+                            "texts": {k: v for k, v in s["slots"].items() if k in TEXT_SLOTS and v}} for s in p["sections"]]}
+             for p in doc["pages"]]
     lines = [
         f"OWNER'S REQUEST: {text}",
-        f"PAGE SECTIONS (top to bottom): {json.dumps(secs, ensure_ascii=False)}",
+        f"PAGES (each with its sections, top to bottom): {json.dumps(pages, ensure_ascii=False)}",
         f"CONTACT: {json.dumps(doc['site']['contact'], ensure_ascii=False)}",
         f"LOOK: palette {doc['tokens']['palette'].get('name') if isinstance(doc['tokens']['palette'], dict) else doc['tokens']['palette']}, "
         f"heading font {doc['tokens']['display']}, corners {doc['tokens']['radius']}",
