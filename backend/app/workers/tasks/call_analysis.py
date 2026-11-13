@@ -64,6 +64,13 @@ def _analyse(task, db, call_id: str, tenant_id: str):
             log.info("call_analysis_skipped_no_transcript", call_id=call_id, has_row=bool(transcript))
             return None
 
+        from app.services import personal_calls
+
+        if personal_calls.is_personal(db, tenant_id):
+            # One person's own calls: a NeoSapien-style memory, no QA score, no sales effects (after_analysis).
+            _remember(db, call, turns, tenant_id)
+            return None
+
         _clear_unconfirmed_agent(call, turns)
         call.ai_score_status = "processing"
         call.ai_score_attempts = (call.ai_score_attempts or 0) + 1
@@ -121,6 +128,28 @@ def _analyse(task, db, call_id: str, tenant_id: str):
         except MaxRetriesExceededError:
             log.error("call_analysis_retries_exhausted", call_id=call_id)
         return None
+
+
+def _remember(db, call: Call, turns: list, tenant_id: str) -> None:
+    """Personal workspace: write the call's memory (services/personal_calls.py). Same statuses as the QA read, so
+    call_recovery resumes a failed one and the outer handler retries it; the kept answer means no second model call."""
+    from app.models.guest import Guest
+    from app.services import personal_calls
+
+    call.ai_score_status = "processing"
+    call.ai_score_attempts = (call.ai_score_attempts or 0) + 1
+    db.commit()
+    owner = db.query(User).filter_by(id=call.agent_id, tenant_id=tenant_id).first() if call.agent_id else None
+    guest = db.query(Guest).filter_by(id=call.guest_id, tenant_id=tenant_id).first() if call.guest_id else None
+    contact = guest.name if guest and guest.name and guest.name != "Unknown Guest" else None
+    system, user = personal_calls.build_prompts(
+        call=call, turns=turns, owner_name=owner.name if owner and owner.name else "the phone's owner", contact=contact
+    )
+    result = personal_calls.analyse(tenant_id=tenant_id, call_id=call.id, system=system, user=user)
+    personal_calls.store(call, personal_calls.normalise(result, previous=personal_calls.memory_of(call)))
+    call.ai_score_status = "done"
+    db.commit()
+    log.info("personal_call_remembered", call_id=call.id, **stamp("personal_call", model=result.get("model_used")))
 
 
 def _clear_unconfirmed_agent(call: Call, turns: list) -> None:

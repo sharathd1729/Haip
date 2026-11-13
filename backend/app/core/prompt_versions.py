@@ -37,6 +37,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # merged into ONE tool call; the rubric/auto-fail rules and the wrap-up/actionable wording are unchanged.
     # call_scores.analysis_version stores this string (one score row per call per version).
     "call_analysis":   "call-analysis-v6",      # call_analysis.jinja
+    # Personal workspaces (one person's own phone calls, NeoSapien-style read instead of the hospitality QA + wrap-up).
+    "personal_call":   "personal-call-v1",      # personal_call.jinja
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied

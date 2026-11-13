@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.services.workspace_context import load_workspace_context
+from app.services.personal_calls import is_personal_tenant
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
 
@@ -23,6 +24,7 @@ class WorkspaceContextResponse(BaseModel):
     workspace_id: str
     plan: str
     business_type: str | None = None   # caravan / villa_resort / homestay / hotel
+    mode: str = "business"             # "personal" = one person's own calls (services/personal_calls.py)
     active_modules: list[str]
     flags: dict[str, bool]
 
@@ -46,6 +48,7 @@ def get_workspace_context(
         workspace_id=current_user.tenant_id,
         plan=ctx.plan,
         business_type=tenant.business_type if tenant else None,
+        mode="personal" if is_personal_tenant(tenant) else "business",
         active_modules=ctx.active_modules,
         flags=ctx.flags,
     )
