@@ -10,7 +10,7 @@ import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
   AtSign, BadgeCheck, BellRing, Bot, BookmarkIcon, BookOpen, Building, Building2, Calculator, Calendar, CalendarClock, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
-  FlaskConical, ListChecks, MapPin, Megaphone, AskBubble, MessageCircle, Palette, Phone, Send, Shield, Shuffle, Sparkles, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
+  FlaskConical, ListChecks, MapPin, Megaphone, AskBubble, MessageCircle, Palette, Phone, Send, Settings, Shield, Shuffle, Sparkles, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
@@ -139,6 +139,7 @@ export const PERSONAL_SECTIONS: NavSection[] = [
     { label: "Ask Yaad", href: "/dashboard/me/ask", icon: AskBubble, resource: "profile" },
   ] },
   { title: "Settings", links: [
+    { label: "Yaad settings", href: "/dashboard/me/settings", icon: Settings, resource: "profile" },
     { label: "Calls app phones", href: "/dashboard/settings/calls-app", icon: Phone, resource: "users", onlyRoles: ["owner", "manager"] },
     { label: "Profile", href: "/dashboard/profile", icon: UserCircle, resource: "profile" },
     { label: "Help & support", href: "/dashboard/help", icon: HelpCircle, resource: "help" },
