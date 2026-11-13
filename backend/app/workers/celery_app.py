@@ -16,6 +16,7 @@ celery_app = Celery(
         # Legacy (keep for backward compat)
         "app.workers.tasks.call_ingest",
         "app.workers.tasks.mobile_calls",
+        "app.workers.tasks.personal_ask",
         "app.workers.tasks.transcription",
         "app.workers.tasks.ai_scoring",
         "app.workers.tasks.whatsapp",
@@ -242,6 +243,7 @@ celery_app.conf.update(
         "call_ingest.process":                       {"queue": "call_ingest"},
         "mobile_calls.purge_stale_pending":          {"queue": "call_ingest"},
         "mobile_calls.requeue_stuck":                {"queue": "call_ingest"},
+        "personal.ask":                              {"queue": "default"},
         "calls.requeue_queued_transcriptions":       {"queue": "call_ingest"},
         "transcription.transcribe_call":             {"queue": "transcription"},
         "sync_hostaway":                             {"queue": "call_ingest"},

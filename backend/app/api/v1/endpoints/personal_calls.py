@@ -15,7 +15,7 @@ import json
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
@@ -24,6 +24,7 @@ from app.models.call import Call, CallDirection
 from app.models.guest import Guest
 from app.models.transcript import Transcript
 from app.models.user import User
+from app.services import personal_ask
 from app.services import personal_calls as pc
 
 router = APIRouter(prefix="/me", tags=["personal"])
@@ -205,3 +206,41 @@ def update_reminder(
         raise HTTPException(status_code=404, detail="Reminder not found")
     db.commit()
     return changed
+
+
+# ─── Ask Yaad ────────────────────────────────────────────────────────────────
+
+
+class AskBody(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/ask", status_code=202)
+def ask(body: AskBody, user: User = Depends(personal_user)):
+    """Queue a question; poll GET /me/ask/{id}. The answer comes from the person's own call memories only."""
+    from app.workers.tasks.personal_ask import ask as ask_task
+
+    question = body.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Type a question.")
+    job_id = personal_ask.start_job(user.tenant_id, question)
+    if job_id is None:
+        raise HTTPException(status_code=429, detail="You have asked a lot today. Ask again tomorrow.")
+    try:
+        ask_task.delay(user.tenant_id, job_id, user.id)
+    except Exception:  # noqa: BLE001 -- queue down: say so instead of leaving a job that never finishes
+        personal_ask.finish_job(
+            user.tenant_id,
+            job_id,
+            {"status": "failed", "question": question, "error": "Yaad couldn't start on that. Try again in a minute."},
+        )
+        raise HTTPException(status_code=503, detail="Yaad couldn't start on that. Try again in a minute.") from None
+    return {"id": job_id, "status": "pending"}
+
+
+@router.get("/ask/{job_id}")
+def ask_result(job_id: str, user: User = Depends(personal_user)):
+    job = personal_ask.get_job(user.tenant_id, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="That question has expired. Ask it again.")
+    return {"id": job_id, **{k: v for k, v in job.items() if k != "model_used"}}

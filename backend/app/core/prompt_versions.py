@@ -39,6 +39,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     "call_analysis":   "call-analysis-v6",      # call_analysis.jinja
     # Personal workspaces (one person's own phone calls, NeoSapien-style read instead of the hospitality QA + wrap-up).
     "personal_call":   "personal-call-v1",      # personal_call.jinja
+    "personal_ask":    "personal-ask-v1",       # personal_ask.jinja (Ask Yaad)
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied
