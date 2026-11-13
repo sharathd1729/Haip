@@ -129,7 +129,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v10 (2026-10-24): message lines name their author ([guest], [us: team member|AI assistant|automated message|campaign
     # broadcast]); trip facts come only from [guest] lines and call notes, and a headcount only we wrote is dropped in code
     # (message_author.keep_guest_headcount). Live: a campaign's "8 guests each" was stored as the lead's adults.
-    "leads360_summary":       "leads360-summary-v10",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    "leads360_summary":       "leads360-summary-v11",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",

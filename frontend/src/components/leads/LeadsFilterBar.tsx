@@ -32,6 +32,35 @@ export interface LeadsFilters {
   came_from?: string;
   // valid | invalid (a person's review, else the workspace's valid-lead rule) | not_reviewed (GET /leads?validity=)
   validity?: string;
+  // one AI lead tag (services/lead_tags.py vocabulary, GET /leads/tags): GET /leads?tag=
+  tag?: string;
+}
+
+type TagGroups = { groups: { label: string; tags: string[] }[] };
+
+/** AI tag filter: the vocabulary comes from the backend so the list never drifts from what the AI may write. */
+function TagSelect({ value, onChange, className }: { value?: string; onChange: (v: string) => void; className?: string }) {
+  const { data } = useQuery<TagGroups>({
+    queryKey: ["lead-tag-vocabulary"],
+    queryFn: () => api.get("/leads/tags").then(r => r.data),
+    staleTime: 60 * 60_000,
+  });
+  return (
+    <select
+      aria-label="Tag"
+      className={cn("text-[11px] rounded-lg px-2 py-1 flex-shrink-0", className)}
+      style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
+      value={value ?? ""}
+      onChange={e => onChange(e.target.value)}
+    >
+      <option value="">Tag</option>
+      {(data?.groups ?? []).map(g => (
+        <optgroup key={g.label} label={g.label}>
+          {g.tags.map(t => <option key={t} value={t}>{t}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
 }
 
 const ENQUIRY_PRESETS = [
@@ -179,6 +208,8 @@ export function FilterControls({
         placeholder="Valid?"
         className={fieldCls}
       />
+
+      <TagSelect value={filters.tag} onChange={v => set({ tag: v || undefined })} className={fieldCls} />
 
       <Select
         value={filters.came_from}

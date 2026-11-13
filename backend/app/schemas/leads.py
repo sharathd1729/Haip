@@ -97,6 +97,7 @@ class LeadCardSchema(BaseModel):
     # Trip intent
     occasion: Optional[str] = None
     group_type: Optional[str] = None   # alias for intent_tag
+    tags: List[str] = []               # inquiries.tags: AI tags from the lead summary (services/lead_tags.py) + a person's
     check_in: Optional[str] = None
     check_out: Optional[str] = None
     adults: Optional[int] = None
