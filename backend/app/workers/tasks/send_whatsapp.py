@@ -127,6 +127,21 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
         db.close()
 
 
+def _marketing_opted_out(db, tenant_id: str, message, guest_id: str) -> bool:
+    """A MARKETING template to a guest whose WhatsApp marketing consent is withdrawn (opt_out_responder: STOP keyword).
+    Utility templates (booking, payment notices) are transactional and still go. An email unsubscribe does not count."""
+    from app.api.v1.endpoints.messaging import TemplateCategory, WATemplate
+    from app.models.consent import Consent
+
+    template_id = (message.channel_metadata or {}).get("template_id")
+    tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=tenant_id).first() if template_id else None
+    category = getattr(getattr(tmpl, "category", None), "value", getattr(tmpl, "category", None))
+    if str(category or "").upper() != TemplateCategory.MARKETING.value.upper():
+        return False
+    rows = db.query(Consent).filter_by(tenant_id=tenant_id, guest_id=guest_id, scope="marketing").all()
+    return any(c.granted is False and (c.channel or "whatsapp") == "whatsapp" for c in rows)
+
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="tasks.send_whatsapp_template")
 def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name: str, language_code: str, variables: list):
     """
@@ -178,6 +193,10 @@ def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name:
         bad = _bad_number_reason(guest.phone)
         if bad:
             _mark_failed(db, message, bad)
+            return
+
+        if _marketing_opted_out(db, tenant_id, message, guest.id):
+            _mark_failed(db, message, "Not sent: the guest opted out of marketing messages on WhatsApp.")
             return
 
         adapter = get_wa_adapter(phone_number_id, access_token)

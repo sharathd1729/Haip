@@ -55,6 +55,7 @@ _STRICT_PREFIXES = (
     "/api/v1/auth/otp/verify",
     "/api/v1/auth/forgot-password",
     "/api/v1/auth/reset-password",
+    "/api/v1/auth/change-password",
 )
 
 # HAIP's own public website (no login): lead forms + the property assessment. Fail-OPEN on a Redis outage so a

@@ -674,6 +674,35 @@ async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_
     return _GENERIC_RESPONSE
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password", status_code=200)
+def change_password(req: ChangePasswordRequest, token: str = Depends(_oauth2_scheme), db: Session = Depends(get_db)):
+    """Profile > Change password: the signed-in user proves the current password and sets a new one. Every other
+    session (refresh token) is revoked; audited ``auth.password_changed`` (no password in the payload)."""
+    from app.api.v1.deps import get_current_user  # deps <-> auth import cycle: resolved at call time
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    current_user = get_current_user(token=token, db=db)  # access tokens only (not an MFA challenge), active users
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if not current_user.hashed_password or not verify_password(req.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Your current password is not right.")
+    if verify_password(req.new_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Choose a password different from your current one.")
+    current_user.hashed_password = get_password_hash(req.new_password)
+    db.query(RefreshToken).filter_by(user_id=current_user.id, is_revoked=False).update({"is_revoked": True})
+    append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id, action="auth.password_changed",
+                 target_type="user", target_id=current_user.id)
+    db.commit()
+    log.info("password_changed", user_id=current_user.id)
+    return {"message": "Password changed. Other devices will need to sign in again."}
+
+
 @router.post("/reset-password", status_code=200)
 def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     """

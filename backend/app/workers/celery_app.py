@@ -73,6 +73,7 @@ celery_app = Celery(
         "app.workers.tasks.agent_worklist_email",
         # Recovers calls whose classify->judge chain-dispatch silently stalled
         "app.workers.tasks.call_recovery",
+        "app.workers.tasks.scheduled_messages",
         # Safety net: a guest message that never got an AI reply is handed to the concierge again
         "app.workers.tasks.reply_recovery",
         # Closes AI drafts nobody acted on ("expired"; see services/ai_draft_expiry.py)
@@ -243,6 +244,7 @@ celery_app.conf.update(
         "mobile_calls.purge_stale_pending":          {"queue": "call_ingest"},
         "mobile_calls.requeue_stuck":                {"queue": "call_ingest"},
         "calls.requeue_queued_transcriptions":       {"queue": "call_ingest"},
+        "scheduled_messages.send_due":               {"queue": "whatsapp"},
         "transcription.transcribe_call":             {"queue": "transcription"},
         "sync_hostaway":                             {"queue": "call_ingest"},
         "sync_hostaway_all_tenants":                 {"queue": "call_ingest"},
@@ -622,6 +624,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="7,22,37,52"),
     },
     # Any call left transcription "queued" (its tasks.transcribe dispatch was lost) is queued again after 30 minutes.
+    # Inbox messages an agent scheduled for later (conversations.py scheduled_for): sent when due, once.
+    "scheduled-messages-1min": {
+        "task": "scheduled_messages.send_due",
+        "schedule": 60.0,
+    },
     "transcription-requeue-15min": {
         "task": "calls.requeue_queued_transcriptions",
         "schedule": crontab(minute="3,18,33,48"),
