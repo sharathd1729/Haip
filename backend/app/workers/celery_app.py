@@ -73,6 +73,7 @@ celery_app = Celery(
         "app.workers.tasks.agent_worklist_email",
         # Recovers calls whose classify->judge chain-dispatch silently stalled
         "app.workers.tasks.call_recovery",
+        "app.workers.tasks.channex_sync",
         # Safety net: a guest message that never got an AI reply is handed to the concierge again
         "app.workers.tasks.reply_recovery",
         # Closes AI drafts nobody acted on ("expired"; see services/ai_draft_expiry.py)
@@ -243,6 +244,8 @@ celery_app.conf.update(
         "mobile_calls.purge_stale_pending":          {"queue": "call_ingest"},
         "mobile_calls.requeue_stuck":                {"queue": "call_ingest"},
         "calls.requeue_queued_transcriptions":       {"queue": "call_ingest"},
+        "channex.sync_tenant":                       {"queue": "default"},
+        "channex.sync_all_tenants":                  {"queue": "default"},
         "transcription.transcribe_call":             {"queue": "transcription"},
         "sync_hostaway":                             {"queue": "call_ingest"},
         "sync_hostaway_all_tenants":                 {"queue": "call_ingest"},
@@ -622,6 +625,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="7,22,37,52"),
     },
     # Any call left transcription "queued" (its tasks.transcribe dispatch was lost) is queued again after 30 minutes.
+    # Channel manager via Channex: pull OTA bookings, push availability/rates (only workspaces with Channex connected).
+    "channex-sync-15min": {
+        "task": "channex.sync_all_tenants",
+        "schedule": crontab(minute="*/15"),
+    },
     "transcription-requeue-15min": {
         "task": "calls.requeue_queued_transcriptions",
         "schedule": crontab(minute="3,18,33,48"),

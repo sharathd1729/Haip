@@ -102,6 +102,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Calls app phones", href: "/dashboard/settings/calls-app", icon: Phone, resource: "users", onlyRoles: ["owner", "manager"] },
     { label: "Automations", href: "/dashboard/automations", icon: Zap, resource: "settings" },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
+    { label: "Channel manager", href: "/dashboard/settings/channel-manager", icon: Calendar, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "GPS trackers", href: "/dashboard/settings/gps", icon: MapPin, resource: "settings", onlyRoles: ["owner", "manager"], onlyForBusinessTypes: ["caravan"] },
