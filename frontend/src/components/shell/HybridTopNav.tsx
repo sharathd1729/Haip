@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Search } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
-import { PRIMARY_TABS, useNav } from "@/components/layout/nav";
+import { useNav } from "@/components/layout/nav";
 import { MORE_ICON } from "@/components/layout/PageIcon";
 import { GlobalSearch, NotificationBell, ThemeToggle, UserMenu } from "./TopBar";
 
@@ -44,7 +44,7 @@ function MoreMenu({ nav }: { nav: ReturnType<typeof useNav> }) {
     window.addEventListener("mousedown", onDown);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("mousedown", onDown); };
   }, [open]);
-  const activeElsewhere = nav.sections.some(s => s.links.some(l => nav.isActive(l.href) && !PRIMARY_TABS.some(t => t.href === l.href)));
+  const activeElsewhere = nav.sections.some(s => s.links.some(l => nav.isActive(l.href) && !nav.primaryTabs.some(t => t.href === l.href)));
   const MoreIcon = MORE_ICON;
   return (
     // Not `relative`: the menu positions against the sticky header so it spans the bar, not the button's edge.
@@ -91,7 +91,7 @@ export function HybridTopNav({ user }: Props) {
   const role = user?.role ?? "";
   const nav = useNav(role);
   const { theme } = useBrandTheme();
-  const tabs = PRIMARY_TABS.map(t => ({ ...t, link: nav.byHref.get(t.href) })).filter(t => t.link);
+  const tabs = nav.primaryTabs.map(t => ({ ...t, link: nav.byHref.get(t.href) })).filter(t => t.link);
   const darkLogo = isOwnLogo(theme.logoDarkUrl) ? theme.logoDarkUrl : null;
   const plateLogo = !darkLogo && isOwnLogo(theme.logoUrl) ? theme.logoUrl : null;
 

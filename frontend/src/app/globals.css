@@ -1546,3 +1546,57 @@
     font-size: 16px !important;
   }
 }
+
+/* ── Yaad: the personal call workspace (Mango theme, chosen 14 Nov 2026) ─────────────────────────────────────────────
+   Scoped to .yaad so HAIP's own screens never change. Ink carries actions and the logo tile; mango is the brand colour
+   (logo bubble, due chips, highlights); tomato marks what is late. Dark mode flips: mango becomes the action colour. */
+.yaad {
+  --y-canvas: #FFF8E7;
+  --y-card: #FFFFFF;
+  --y-ink: #16130C;
+  --y-ink-2: #5E5440;
+  --y-ink-3: #75694F;
+  --y-line: #F1E4C3;
+  --y-line-strong: #E3CF98;
+  --y-brand: #16130C;
+  --y-brand-hover: #2E2818;
+  --y-on-brand: #FFC233;
+  --y-soft: #FFEDB3;
+  --y-soft-ink: #4A3800;
+  --y-due: #FFC233;
+  --y-on-due: #16130C;
+  --y-mark-line: #C8321A; /* the logo's second note line: deep tomato, readable on the mango bubble */
+  --y-late: #C8321A;
+  --y-late-soft: #FDE7E1;
+  --y-shadow: 0 1px 2px rgb(22 19 12 / 0.05), 0 4px 16px -8px rgb(140 100 0 / 0.22);
+  background: var(--y-canvas);
+  color: var(--y-ink);
+}
+.dark .yaad {
+  --y-canvas: #14110A;
+  --y-card: #1F1A10;
+  --y-ink: #FFF4D6;
+  --y-ink-2: #CDBF99;
+  --y-ink-3: #A89A74;
+  --y-line: #3A3220;
+  --y-line-strong: #4D432B;
+  --y-brand: #FFC233;
+  --y-brand-hover: #FFD066;
+  --y-on-brand: #16130C;
+  --y-soft: #2E2512;
+  --y-soft-ink: #FFD979;
+  --y-due: #FFC233;
+  --y-on-due: #16130C;
+  --y-mark-line: #E8452A;
+  --y-late: #FF8A75;
+  --y-late-soft: #3A1A12;
+  --y-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 18px -10px rgb(0 0 0 / 0.6);
+}
+/* The phone's bottom bar in a personal workspace takes Yaad's colours. */
+.yaad-shell { --haip-tabbar-active-bg: #FFEDB3; --haip-tabbar-active-fg: #16130C; }
+.dark .yaad-shell { --haip-tabbar-active-bg: #2E2512; --haip-tabbar-active-fg: #FFD979; }
+.yaad ::selection { background: var(--y-due); color: var(--y-on-due); }
+.yaad :focus-visible { outline: 2px solid var(--y-brand); outline-offset: 2px; }
+.yaad .y-press { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.yaad .y-press:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { .yaad .y-press { transition: none; } .yaad .y-press:active { transform: none; } }

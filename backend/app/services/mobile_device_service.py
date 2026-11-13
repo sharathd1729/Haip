@@ -1,8 +1,7 @@
 """HAIP Calls app (Android), step 1: device tokens, device settings and call-log upload (docs/MOBILE_CALL_TRACKING_SPEC.md).
 
 Device token: random, returned once at registration, only its SHA-256 stored (the api_key_service pattern). On PostgreSQL the
-table is under RLS and a device request has no tenant yet, so the lookup goes through the SECURITY DEFINER function
-mobile_device_lookup (migration 202).
+table is under RLS and a device request has no tenant yet: lookup via SECURITY DEFINER mobile_device_lookup (mig. 202).
 
 Uploaded calls are not written here. Each one becomes a call_ingest.process task with ivr_provider "mobile_app" (the same
 ingest IVR calls use): guest resolved through identity_service, voice conversation, inquiry, missed-call / no-answer logic.
@@ -47,6 +46,7 @@ from app.models.call import Call, RecordingStatus
 from app.models.mobile_device import MobileCallPending, MobileDevice
 from app.models.user import User
 from app.schemas.mobile_device import DeviceCallBatch, DeviceRegister, DeviceSettings
+from app.services.personal_calls import is_personal
 
 TOKEN_PREFIX = "haip_dev_"
 PROVIDER = "mobile_app"
@@ -248,6 +248,7 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
     tenant_id = device.tenant_id
     region = phone_identity.region_for_tenant(db, tenant_id)
     tz = tenant_tz(db, tenant_id)
+    keep_all = is_personal(db, tenant_id)  # a personal workspace keeps every call; personal numbers never leave the phone
     ids = {c.device_call_id: ivr_call_id_for(device, c.device_call_id) for c in batch.calls}
     seen = {
         r[0]
@@ -265,7 +266,7 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
             status = "invalid_number"  # withheld / private / malformed
         else:
             guest_id = identity_service.find_person_by_phone(db, tenant_id, e164)
-            if guest_id is None and not unknown_numbers_on(device, c.started_at, tz):
+            if guest_id is None and not keep_all and not unknown_numbers_on(device, c.started_at, tz):
                 status = "skipped_unknown_number"
             else:
                 if guest_id is not None:

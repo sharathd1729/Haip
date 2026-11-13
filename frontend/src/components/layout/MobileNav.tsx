@@ -12,24 +12,26 @@ import { cn } from "@/lib/utils";
 import { AppVersionRow } from "@/components/AppVersionRow";
 import { UserAvatar } from "@/components/crm/UserAvatar";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
-import { NOW_HREF, PHONE_TABS, useNav } from "./nav";
+import { useNav } from "./nav";
 
 interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
 }
 
 const SHORT: Record<string, string> = { "/dashboard": "Home", "/dashboard/portfolio/calendar": "Calendar" };
+const NOW_FALLBACK = "/dashboard/my-day";
 
 export function MobileNav({ user }: MobileNavProps) {
   const nav = useNav(user?.role ?? "");
-  const tabs = PHONE_TABS.map(h => nav.byHref.get(h)).filter(Boolean) as NonNullable<ReturnType<typeof nav.byHref.get>>[];
-  const now = nav.byHref.get(NOW_HREF);
+  const tabs = nav.phoneTabs.map(h => nav.byHref.get(h)).filter(Boolean) as NonNullable<ReturnType<typeof nav.byHref.get>>[];
+  const NOW_HREF = nav.nowHref ?? NOW_FALLBACK;
+  const now = nav.nowHref ? nav.byHref.get(nav.nowHref) : undefined;
   const slots: (typeof tabs[number] | "now")[] = now ? [...tabs.slice(0, 2), "now", ...tabs.slice(2)] : tabs;
   const nowActive = nav.isActive(NOW_HREF);
 
   return (
     <nav aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-50 flex items-stretch border-t border-[var(--haip-border)] bg-[var(--haip-card)] md:hidden"
+      className={cn("fixed inset-x-0 bottom-0 z-50 flex items-stretch border-t border-[var(--haip-border)] bg-[var(--haip-card)] md:hidden", nav.personal && "yaad-shell")}
       style={{ paddingBottom: "env(safe-area-inset-bottom)", paddingLeft: "env(safe-area-inset-left)", paddingRight: "env(safe-area-inset-right)" }}>
       {slots.map(slot => {
         if (slot === "now") {

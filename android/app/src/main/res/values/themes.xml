@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.HaipCalls" parent="android:Theme.Material.Light.DarkActionBar">
-        <item name="android:colorPrimary">@color/haip_green</item>
-        <item name="android:colorPrimaryDark">@color/haip_green_dark</item>
-        <item name="android:colorAccent">@color/haip_green</item>
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorPrimaryDark">@color/brand_dark</item>
+        <item name="android:colorAccent">@color/brand_accent</item>
     </style>
 </resources>

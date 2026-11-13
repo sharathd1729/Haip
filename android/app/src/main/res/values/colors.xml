@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="haip_green">#1E7A5A</color>
-    <color name="haip_green_dark">#155C43</color>
+    <!-- Overridden per app flavor (src/yaad/res/values/colors.xml). -->
+    <color name="brand">#1E7A5A</color>
+    <color name="brand_dark">#155C43</color>
+    <color name="brand_accent">#1E7A5A</color>
 </resources>
