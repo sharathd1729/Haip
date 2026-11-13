@@ -16,6 +16,7 @@ from app.core.database import SessionLocal, set_tenant_context
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.services import owner_brief_email, owner_brief_service
+from app.services.personal_calls import is_personal_tenant
 
 log = structlog.get_logger()
 
@@ -82,7 +83,8 @@ def daily_owner_report_all_tenants(kind: str = "morning"):
         return {"tenants_queued": 0, "reason": "no_email_key"}
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        # Personal (Yaad) workspaces get their own evening email (tasks personal.daily_digest), not the hotel brief.
+        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all() if not is_personal_tenant(t)]
     finally:
         db.close()
     for tid in tenant_ids:

@@ -100,10 +100,27 @@ def _block(n: int, call, contact: str, memory: dict) -> str:
     return "\n".join(lines)[:1500]
 
 
+def contact_namer(db, tenant_id: str, calls: list):
+    """call -> the saved guest name, else the phone number (one query for all the calls)."""
+    from app.models.guest import Guest
+
+    ids = {c.guest_id for c in calls if c.guest_id}
+    names = (
+        dict(db.query(Guest.id, Guest.name).filter(Guest.tenant_id == tenant_id, Guest.id.in_(ids)).all())
+        if ids
+        else {}
+    )
+
+    def contact(c) -> str:
+        n = names.get(c.guest_id)
+        return n if n and n != "Unknown Guest" else (c.from_number or c.to_number or "unknown number")
+
+    return contact
+
+
 def build_context(db, tenant_id: str, question: str, now: datetime | None = None) -> tuple[str, list[dict]]:
     """(notes text, refs) where refs[n-1] describes call [n]. Calls whose person the question names come first."""
     from app.models.call import Call
-    from app.models.guest import Guest
 
     now = now or datetime.now(UTC)
     calls = (
@@ -116,17 +133,8 @@ def build_context(db, tenant_id: str, question: str, now: datetime | None = None
         .all()
     )
     calls = [c for c in calls if pc.memory_of(c)]
-    ids = {c.guest_id for c in calls if c.guest_id}
-    names = (
-        dict(db.query(Guest.id, Guest.name).filter(Guest.tenant_id == tenant_id, Guest.id.in_(ids)).all())
-        if ids
-        else {}
-    )
+    contact = contact_namer(db, tenant_id, calls)
     asked = _words(question)
-
-    def contact(c) -> str:
-        n = names.get(c.guest_id)
-        return n if n and n != "Unknown Guest" else (c.from_number or c.to_number or "unknown number")
 
     def names_person(c) -> bool:
         people = " ".join([contact(c)] + [p.get("name", "") for p in pc.memory_of(c).get("participants") or []])
