@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Yaad flavor: the same app, in Yaad's words. Strings not listed here come from src/main. -->
+<resources>
+    <string name="app_name">Yaad</string>
+    <string name="menu_setup">Yaad settings</string>
+    <string name="setup_title">Yaad settings</string>
+
+    <string name="linked">This phone is now linked. Your calls will appear in Yaad a few minutes after they end.</string>
+    <string name="no_connection">No connection to Yaad. It will try again.</string>
+    <string name="revoked">This phone was unlinked from Yaad. Open Yaad and sign in again.</string>
+    <string name="calls_refused">Yaad refused some calls: %1$s</string>
+    <string name="server_busy">Yaad is busy (error %1$d). It will try again.</string>
+
+    <string name="status_linked">Linked to Yaad</string>
+    <string name="status_not_linked">Not linked yet. Open Yaad and sign in.</string>
+
+    <string name="step_call_log_body">Yaad reads your call log to keep a summary of each call: what was said, what was decided, and what to do next.</string>
+    <string name="restricted_hint">If Android says this setting is restricted: open App info for Yaad, tap the ⋮ menu, choose "Allow restricted settings", then try again.</string>
+    <string name="step_folder_body">Pick the folder where your phone saves call recordings. Yaad reads only that folder.</string>
+    <string name="step_battery_body">Set battery use for Yaad to "Unrestricted" so calls keep syncing in the background.</string>
+
+    <string name="step_personal">4. Personal numbers</string>
+    <string name="step_personal_body">Calls with these numbers are never sent to Yaad. The list stays on this phone.</string>
+    <string name="step_pause">5. Pause</string>
+
+    <string name="what_is_sent_title">What Yaad receives</string>
+    <string name="unlinked">Unlinked. Sign in again in Yaad to link this phone.</string>
+</resources>

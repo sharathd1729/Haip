@@ -95,8 +95,11 @@ class SetupActivity : ComponentActivity() {
         }
         text(getString(R.string.wifi_calling_hint))
 
-        heading(R.string.step_unknown)
-        unknownNumbers()
+        if (!BuildConfig.PERSONAL) {
+            // A personal workspace (Yaad) keeps every call, so the unknown-number rule does not apply there.
+            heading(R.string.step_unknown)
+            unknownNumbers()
+        }
 
         heading(R.string.step_personal)
         personalNumbers()

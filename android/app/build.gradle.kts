@@ -31,6 +31,24 @@ android {
         }
     }
 
+    // Two apps from one codebase: HAIP Calls (a business's staff phones) and Yaad (one person's own calls, opens at their
+    // calls; its workspace is a personal one, see backend services/personal_calls.py). Same sync, same API.
+    flavorDimensions += "brand"
+    productFlavors {
+        create("calls") {
+            dimension = "brand"
+            applicationId = "com.genhaip.calls"
+            buildConfigField("String", "START_PATH", "\"/dashboard\"")
+            buildConfigField("boolean", "PERSONAL", "false")
+        }
+        create("yaad") {
+            dimension = "brand"
+            applicationId = "com.genhaip.yaad"
+            buildConfigField("String", "START_PATH", "\"/dashboard/me\"")
+            buildConfigField("boolean", "PERSONAL", "true")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

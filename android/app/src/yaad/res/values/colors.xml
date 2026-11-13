@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Yaad, Mango theme: ink bar, mango accents. -->
+    <color name="brand">#16130C</color>
+    <color name="brand_dark">#000000</color>
+    <color name="brand_accent">#C8961F</color>
+    <color name="yaad_mango">#FFC233</color>
+    <color name="yaad_tomato">#C8321A</color>
+</resources>

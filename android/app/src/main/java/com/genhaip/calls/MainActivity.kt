@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
                 if (web.canGoBack()) web.goBack() else finish()
             }
         })
-        if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl("${Api.base}/dashboard")
+        if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(Api.base + BuildConfig.START_PATH)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

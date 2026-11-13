@@ -1,4 +1,5 @@
-# HAIP Calls app (Android): build and sign the APK on every push to feat/calls-app, upload it as a run artifact.
+# HAIP Calls + Yaad (Android, two flavors of one app): build and sign both APKs on every push to the app branches, upload
+# each as a run artifact.
 # No Android Studio or SDK on anyone's laptop: the runner's Android SDK + Gradle build it (android/).
 #
 # Signing: with the four ANDROID_* secrets set, the RELEASE build is signed with HAIP's own key (stable across builds,
@@ -12,7 +13,7 @@ name: Calls app APK
 
 on:
   push:
-    branches: [feat/calls-app]
+    branches: [feat/calls-app, feat/personal-calls]
   workflow_dispatch:
 
 permissions:
@@ -57,7 +58,7 @@ jobs:
           fi
 
       - name: Unit tests (call mapping, privacy filter, recording matching)
-        run: gradle --no-daemon testDebugUnitTest
+        run: gradle --no-daemon testCallsDebugUnitTest
 
       - name: Build APK
         env:
@@ -71,22 +72,33 @@ jobs:
           task="assemble${BUILD_TYPE^}"
           gradle --no-daemon --stacktrace "$task"
 
-      - name: Verify signature and name the file
+      - name: Verify signatures and name the files
         run: |
           set -eo pipefail
-          apk=$(ls app/build/outputs/apk/"$BUILD_TYPE"/*.apk | head -1)
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
-          "$apksigner" verify --verbose --print-certs "$apk"
-          out="haip-calls-0.1.${{ github.run_number }}-${BUILD_TYPE}.apk"
-          mkdir -p dist && cp "$apk" "dist/$out"
-          echo "APK_NAME=$out" >> "$GITHUB_ENV"
-          echo "### HAIP Calls ${out}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Signed with the **${BUILD_TYPE}** key. Download it from this run's Artifacts." >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p dist
+          for flavor in calls yaad; do
+            apk=$(ls app/build/outputs/apk/"$flavor"/"$BUILD_TYPE"/*.apk | head -1)
+            "$apksigner" verify --verbose --print-certs "$apk"
+            name=$([ "$flavor" = calls ] && echo haip-calls || echo yaad)
+            out="${name}-0.1.${{ github.run_number }}-${BUILD_TYPE}.apk"
+            cp "$apk" "dist/$out"
+            echo "${flavor^^}_APK=$out" >> "$GITHUB_ENV"
+            echo "- ${out}" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo "Signed with the **${BUILD_TYPE}** key. Download from this run's Artifacts." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APK_NAME }}
-          path: android/dist/${{ env.APK_NAME }}
+          name: ${{ env.CALLS_APK }}
+          path: android/dist/${{ env.CALLS_APK }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.YAAD_APK }}
+          path: android/dist/${{ env.YAAD_APK }}
           if-no-files-found: error
           retention-days: 30
 
