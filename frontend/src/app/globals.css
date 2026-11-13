@@ -1547,50 +1547,54 @@
   }
 }
 
-/* ── Yaad: the personal call workspace (Klein theme, chosen 14 Nov 2026) ─────────────────────────────────────────────
-   Scoped to .yaad so HAIP's own screens never change. Ultramarine carries the brand and actions; chartreuse marks what
-   is due; everything else is cool ink on a faint blue canvas. */
+/* ── Yaad: the personal call workspace (Mango theme, chosen 14 Nov 2026) ─────────────────────────────────────────────
+   Scoped to .yaad so HAIP's own screens never change. Ink carries actions and the logo tile; mango is the brand colour
+   (logo bubble, due chips, highlights); tomato marks what is late. Dark mode flips: mango becomes the action colour. */
 .yaad {
-  --y-canvas: #F3F4FF;
+  --y-canvas: #FFF8E7;
   --y-card: #FFFFFF;
-  --y-ink: #0D0E2B;
-  --y-ink-2: #4A4D78;
-  --y-ink-3: #6B6E96;
-  --y-line: #DDE0FB;
-  --y-line-strong: #C5CAF5;
-  --y-brand: #1F1FD1;
-  --y-brand-hover: #1818B0;
-  --y-on-brand: #FFFFFF;
-  --y-soft: #E7E9FF;
-  --y-soft-ink: #1A1A9E;
-  --y-due: #D4F23A;
-  --y-on-due: #10140A;
-  --y-mark-line: #6FA300; /* the logo's second note line: deeper chartreuse, readable on the white bubble */
-  --y-late: #B42318;
-  --y-late-soft: #FDECEA;
-  --y-shadow: 0 1px 2px rgb(13 14 43 / 0.05), 0 4px 16px -8px rgb(31 31 209 / 0.18);
+  --y-ink: #16130C;
+  --y-ink-2: #5E5440;
+  --y-ink-3: #75694F;
+  --y-line: #F1E4C3;
+  --y-line-strong: #E3CF98;
+  --y-brand: #16130C;
+  --y-brand-hover: #2E2818;
+  --y-on-brand: #FFC233;
+  --y-soft: #FFEDB3;
+  --y-soft-ink: #4A3800;
+  --y-due: #FFC233;
+  --y-on-due: #16130C;
+  --y-mark-line: #C8321A; /* the logo's second note line: deep tomato, readable on the mango bubble */
+  --y-late: #C8321A;
+  --y-late-soft: #FDE7E1;
+  --y-shadow: 0 1px 2px rgb(22 19 12 / 0.05), 0 4px 16px -8px rgb(140 100 0 / 0.22);
   background: var(--y-canvas);
   color: var(--y-ink);
 }
 .dark .yaad {
-  --y-canvas: #0A0B22;
-  --y-card: #141638;
-  --y-ink: #ECEDFF;
-  --y-ink-2: #A9ACDA;
-  --y-ink-3: #868AC0;
-  --y-line: #252A5E;
-  --y-line-strong: #343A7A;
-  --y-brand: #6E6EFF;
-  --y-brand-hover: #8585FF;
-  --y-on-brand: #07082A;
-  --y-soft: #1D2155;
-  --y-soft-ink: #C9CBFF;
-  --y-due: #D4F23A;
-  --y-on-due: #10140A;
-  --y-late: #FF8A80;
-  --y-late-soft: #3A1520;
+  --y-canvas: #14110A;
+  --y-card: #1F1A10;
+  --y-ink: #FFF4D6;
+  --y-ink-2: #CDBF99;
+  --y-ink-3: #A89A74;
+  --y-line: #3A3220;
+  --y-line-strong: #4D432B;
+  --y-brand: #FFC233;
+  --y-brand-hover: #FFD066;
+  --y-on-brand: #16130C;
+  --y-soft: #2E2512;
+  --y-soft-ink: #FFD979;
+  --y-due: #FFC233;
+  --y-on-due: #16130C;
+  --y-mark-line: #E8452A;
+  --y-late: #FF8A75;
+  --y-late-soft: #3A1A12;
   --y-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 18px -10px rgb(0 0 0 / 0.6);
 }
+/* The phone's bottom bar in a personal workspace takes Yaad's colours. */
+.yaad-shell { --haip-tabbar-active-bg: #FFEDB3; --haip-tabbar-active-fg: #16130C; }
+.dark .yaad-shell { --haip-tabbar-active-bg: #2E2512; --haip-tabbar-active-fg: #FFD979; }
 .yaad ::selection { background: var(--y-due); color: var(--y-on-due); }
 .yaad :focus-visible { outline: 2px solid var(--y-brand); outline-offset: 2px; }
 .yaad .y-press { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }

@@ -163,8 +163,9 @@ export function linkActive(pathname: string, href: string): boolean {
 /** Everything the shell needs: visible sections, a lookup by href, live badge counts and the active test. */
 export function useNav(role: string) {
   const businessType = useBusinessType();
-  const personal = usePersonalMode();
   const pathname = usePathname() ?? "";
+  // Yaad's own pages are personal by definition: no flash of the business tabs while the workspace context loads.
+  const personal = usePersonalMode() || pathname === PERSONAL_HOME || pathname.startsWith(PERSONAL_HOME + "/");
   const { conversations } = useInboxStore();
   const canSeeMyDay = canSeeNav(role, "inbox") && !personal;
   // Same source and query key as My day, so the badge and the list always agree.

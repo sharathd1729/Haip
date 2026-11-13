@@ -31,7 +31,7 @@ export function MobileNav({ user }: MobileNavProps) {
 
   return (
     <nav aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-50 flex items-stretch border-t border-[var(--haip-border)] bg-[var(--haip-card)] md:hidden"
+      className={cn("fixed inset-x-0 bottom-0 z-50 flex items-stretch border-t border-[var(--haip-border)] bg-[var(--haip-card)] md:hidden", nav.personal && "yaad-shell")}
       style={{ paddingBottom: "env(safe-area-inset-bottom)", paddingLeft: "env(safe-area-inset-left)", paddingRight: "env(safe-area-inset-right)" }}>
       {slots.map(slot => {
         if (slot === "now") {
