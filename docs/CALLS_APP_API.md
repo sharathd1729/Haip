@@ -206,6 +206,21 @@ Response: `{"status": "attached" | "waiting" | "duplicate", "call_id": "c-789" |
 | 422 | empty file, missing `file` field, or HAIP could not read the audio | mark failed, do not retry |
 | 503 | HAIP cannot process recordings right now | retry with backoff |
 
+### `GET /devices/updates?since=<ISO time>` (device token, Yaad app)
+
+What to show as phone notifications (the app is a WebView and cannot receive web push). Called after each good sync.
+
+```json
+{"now": "2026-11-14T17:00:00+00:00",
+ "notifications": [{"id": "sum:<call id>", "title": "Wedding venues", "body": "Summary ready · Meera", "path": "/dashboard/me/calls/<id>"},
+                   {"id": "due:2026-11-14", "title": "2 reminders due today", "body": "Book the venue · ...", "path": "/dashboard/me/reminders"},
+                   {"id": "day:2026-11-14", "title": "Your day at a glance", "body": "3 calls today. ...", "path": "/dashboard/me"}]}
+```
+
+Send `now` back as `since` next time (no `since` = the last hour). Ids are stable: skip ids already shown. Kinds are
+behind the person's switches in Yaad settings; "due" appears from 09:00 IST, "day" from 22:00 IST. Business workspaces
+always get an empty list.
+
 ### `DELETE /devices/{id}` (user token)
 
 Revokes a device: its token stops working at once (any further call = 401). Staff can revoke their own phone; owners

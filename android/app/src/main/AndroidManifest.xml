@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <!-- In-app update: hand a downloaded new version of this same app to the system installer (UpdateChecker). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Yaad: "summary ready", "due today" and "your day" notifications (Notifier), Android 13+ asks the person. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".HaipApp"
@@ -19,6 +21,7 @@
         android:theme="@style/Theme.HaipCalls">
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true">
             <intent-filter>

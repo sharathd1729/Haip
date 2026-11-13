@@ -64,6 +64,18 @@ class Prefs(context: Context) {
         get() = sp.getString("last_error", null)
         set(v) = sp.edit().putString("last_error", v).apply()
 
+    /** Yaad notifications: the server time of the last check (sent back as ?since=) and the ids already shown, oldest
+     *  first, newline-separated (Notifier keeps the last 200). */
+    var notifySince: String?
+        get() = sp.getString("notify_since", null)
+        set(v) = sp.edit().putString("notify_since", v).apply()
+
+    var shownNotifications: List<String>
+        get() = (sp.getString("notify_shown", "") ?: "").split("
+").filter { it.isNotBlank() }
+        set(v) = sp.edit().putString("notify_shown", v.joinToString("
+")).apply()
+
     /** Numbers marked personal, as Logic.key(). Never leave the phone. */
     var personalKeys: Set<String>
         get() = sp.getStringSet("personal", emptySet())!!.toSet()

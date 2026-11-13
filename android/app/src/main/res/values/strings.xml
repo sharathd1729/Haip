@@ -74,4 +74,5 @@
     <string name="update_allow">Allow installing updates from this app, then come back and tap Update.</string>
     <string name="update_failed">The update did not download. It will offer again later.</string>
     <string name="unlinked">Unlinked. To remove it from HAIP completely, ask your manager.</string>
+    <string name="notify_channel">Call notes and reminders</string>
 </resources>

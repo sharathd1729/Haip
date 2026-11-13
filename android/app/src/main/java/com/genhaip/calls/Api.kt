@@ -65,6 +65,12 @@ object Api {
             .put(body.toString().toRequestBody(JSON_TYPE)).build()
     )
 
+    /** Yaad: phone notifications since the last check (GET /devices/updates). */
+    fun updates(token: String, since: String?): Resp {
+        val q = if (since.isNullOrBlank()) "" else "?since=" + Uri.encode(since)
+        return send(Request.Builder().url(v1("/devices/updates$q")).header("Authorization", "Bearer $token").get().build())
+    }
+
     fun postCalls(token: String, body: JSONObject): Resp = send(
         Request.Builder().url(v1("/device-calls")).header("Authorization", "Bearer $token")
             .post(body.toString().toRequestBody(JSON_TYPE)).build()
