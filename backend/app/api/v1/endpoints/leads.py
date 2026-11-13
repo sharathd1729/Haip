@@ -164,6 +164,18 @@ def list_leads(
     return res
 
 
+@router.get("/segments")
+def lead_segments(refresh: bool = Query(False), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Ready-made segments (the campaign presets, same counts a campaign would reach) and open leads per AI tag
+    (services/lead_segments.py). Owner / manager: counts across the whole team. Declared before /{inquiry_id}."""
+    from app.models.user import UserRole
+    from app.services import lead_segments
+
+    if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+        raise HTTPException(status_code=403, detail="Segments are for owners and managers.")
+    return lead_segments.overview(db, current_user.tenant_id, use_cache=not refresh)
+
+
 @router.get("/tags")
 def lead_tag_vocabulary(current_user: User = Depends(get_current_user)):
     """The tags the AI may put on a lead (and a filter may ask for), grouped. Declared before /{inquiry_id}."""

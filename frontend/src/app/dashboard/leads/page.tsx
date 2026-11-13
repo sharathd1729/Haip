@@ -406,6 +406,11 @@ function DesktopLeads() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [filters, setFilters] = useState<LeadsFilters>({});
+  // A segment link (Leads > Segments) opens the list on one AI tag: /dashboard/leads?tag=anniversary
+  useEffect(() => {
+    const tag = new URLSearchParams(window.location.search).get("tag");
+    if (tag) setFilters(f => ({ ...f, tag }));
+  }, []);
   const [stageMeta, setStageMeta] = useState<Record<string, StageMetaEntry>>({});
   const [scope, setScope] = useState<LeadsApiPage["scope"]>(undefined);
   const queryClient = useQueryClient();
