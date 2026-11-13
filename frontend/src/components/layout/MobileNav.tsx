@@ -18,7 +18,7 @@ interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
 }
 
-const SHORT: Record<string, string> = { "/dashboard": "Home", "/dashboard/portfolio/calendar": "Calendar" };
+const SHORT: Record<string, string> = { "/dashboard": "Home", "/dashboard/portfolio/calendar": "Calendar", "/dashboard/me/ask": "Ask" };
 const NOW_FALLBACK = "/dashboard/my-day";
 
 export function MobileNav({ user }: MobileNavProps) {

@@ -10,7 +10,7 @@ import {
   BellIcon, BellSlashIcon, BoltIcon, BookOpenIcon,
   BookmarkIcon as HeroBookmarkIcon, BuildingOffice2Icon, BuildingOfficeIcon, CalculatorIcon,
   CalendarDateRangeIcon, CalendarDaysIcon, CameraIcon, ChartBarIcon,
-  ChatBubbleLeftIcon, ChatBubbleLeftRightIcon, CheckBadgeIcon, CheckCircleIcon,
+  ChatBubbleBottomCenterTextIcon, ChatBubbleLeftIcon, ChatBubbleLeftRightIcon, CheckBadgeIcon, CheckCircleIcon,
   CheckIcon, ChevronDownIcon as HeroChevronDownIcon, ChevronLeftIcon as HeroChevronLeftIcon, ChevronRightIcon as HeroChevronRightIcon,
   ChevronUpIcon as HeroChevronUpIcon, CircleStackIcon, ClipboardDocumentListIcon, ClockIcon,
   CloudArrowDownIcon, CodeBracketIcon, Cog6ToothIcon, Cog8ToothIcon,
@@ -157,6 +157,7 @@ export const MapPin = withSize(MapPinIcon);
 export const Megaphone = withSize(MegaphoneIcon);
 export const Menu = withSize(Bars3Icon);
 export const MessageCircle = withSize(ChatBubbleLeftIcon);
+export const AskBubble = withSize(ChatBubbleBottomCenterTextIcon);
 export const MessageSquare = withSize(ChatBubbleLeftRightIcon);
 export const MessagesSquare = withSize(ChatBubbleLeftRightIcon);
 export const Mic2 = withSize(MicrophoneIcon);
