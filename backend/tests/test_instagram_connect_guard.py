@@ -101,3 +101,15 @@ def test_wrong_role_cannot_connect(client, tenant_and_user, db):
     db.commit()
     res = client.post(URL, json={"app_secret": "s"}, headers=_auth(tenant_and_user))
     assert res.status_code == 403
+
+
+def test_oauth_start_sends_the_scope_with_raw_commas(client, tenant_and_user, monkeypatch):
+    """Instagram rejected "instagram_business_basic%2C..." as one invalid scope (Jade, 14 Nov); plain commas work."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "INSTAGRAM_APP_ID", "1403250691718848")
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://genhaip.com")
+    res = client.get("/api/v1/integrations/instagram/oauth-start",
+                     params={"token": tenant_and_user["access_token"]}, follow_redirects=False)
+    loc = res.headers["location"]
+    assert "scope=instagram_business_basic,instagram_business_manage_messages," in loc and "%2C" not in loc
+    assert "redirect_uri=https%3A%2F%2Fgenhaip.com%2Fapi%2Fv1%2Fintegrations%2Finstagram%2Foauth-callback&" in loc
