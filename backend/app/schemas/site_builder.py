@@ -138,7 +138,10 @@ class ChangeIn(_Strict):
 
 
 class ChangeOp(_Strict):
-    op: Literal["set_text", "add_section", "remove_section", "move_section", "set_layout", "set_contact", "set_look", "set_photo"]
+    op: Literal["set_text", "add_section", "remove_section", "move_section", "set_layout", "set_contact", "set_look", "set_photo",
+                "add_page", "remove_page"]
+    page: str = Field("/", max_length=80, description="A page address ('/' = home, e.g. '/our-story'): add_section adds to this "
+                                                     "page; add_page creates it; remove_page removes it")
     section_id: str = Field("", max_length=40, description="Which section (its id), for every op except set_contact and set_look")
     field: str = Field("", max_length=40, description="set_text: the text slot (eyebrow, heading, headline, subhead, intro, text, "
                                                       "body, cta_label). set_contact: phone, whatsapp, email or address")

@@ -8,7 +8,7 @@ import { webError } from "@/lib/website";
 import { builderApi, type ChangeArtifact, type Job } from "@/lib/websiteBuilder";
 
 const IDEAS = ["Use a night photo at the top", "Change my WhatsApp number to …", "Add our guest reviews", "Make the colours calmer",
-  "Show the caravans first", "Remove the questions section"];
+  "Show the caravans first", "Remove the questions section", "Add an Our story page: …"];
 
 interface Done { id: string; text: string; reply: string; canUndo: boolean; failed?: boolean }
 
