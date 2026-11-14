@@ -67,10 +67,18 @@ def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
     Without this call Meta sends no DMs for the account even though the token works. Returns (ok, error text);
     never raises, so a failed subscribe never undoes a successful connect.
     """
+    ok, err = _subscribe(access_token, WEBHOOK_FIELDS)
+    if not ok and "live_comments" in WEBHOOK_FIELDS:
+        # Live comments are optional: if Meta refuses that field, still subscribe to the ones DMs need.
+        ok, err = _subscribe(access_token, WEBHOOK_FIELDS.replace(",live_comments", ""))
+    return ok, err
+
+
+def _subscribe(access_token: str, fields: str) -> tuple[bool, str]:
     try:
         resp = httpx.post(
             f"{GRAPH_BASE}/me/subscribed_apps",
-            data={"subscribed_fields": WEBHOOK_FIELDS},
+            data={"subscribed_fields": fields},
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=15,
         )

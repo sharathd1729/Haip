@@ -276,3 +276,19 @@ def test_tracked_link_counts_the_click_and_redirects_only_known_codes(client, db
     assert client.get(f"/api/v1/l/{t.slug}/nope", follow_redirects=False).status_code == 404
     other = _tenant(db)
     assert client.get(f"/api/v1/l/{other.slug}/abc123", follow_redirects=False).status_code == 404
+
+
+def test_connect_still_subscribes_dms_if_meta_refuses_live_comments(monkeypatch):
+    import httpx
+    from types import SimpleNamespace
+    from app.adapters.instagram import meta_graph
+    sent = []
+
+    def post(url, data=None, **k):
+        sent.append(data["subscribed_fields"])
+        ok = "live_comments" not in data["subscribed_fields"]
+        return SimpleNamespace(status_code=200 if ok else 400, content=b"x",
+                               json=lambda: {"success": True} if ok else {"error": {"message": "Invalid field"}})
+    monkeypatch.setattr(httpx, "post", post)
+    assert meta_graph.subscribe_webhooks("IGtok") == (True, "")
+    assert sent == [meta_graph.WEBHOOK_FIELDS, "messages,messaging_postbacks,messaging_referral,comments"]
