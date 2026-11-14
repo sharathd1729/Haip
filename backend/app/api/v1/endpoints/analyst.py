@@ -5,6 +5,9 @@ GET  /analyst/reports/{id}             one report: brief, facts, health + eviden
 POST /analyst/reports/run              {kind} queue a (re)computation of that kind's latest period (Celery)       202
 POST /analyst/reports/{id}/recommendations/{i}/assign  {user_id} give a recommendation to a person (pushed, audited)
 POST /analyst/ask                      {report_id, question} queue a follow-up answered from the report's facts     202
+POST /analyst/ask-haip                 {question} owner only, module ask_haip: queue a free-form question (Ask HAIP)  202
+GET  /analyst/ask-haip/recent          owner: the workspace's last questions that were answered
+GET  /analyst/ask-haip/{job_id}        owner: pending | done (narrative, rows, chart, sql) | failed (error)
 GET  /analyst/settings                 brand_config.analyst (+ defaults)
 PUT  /analyst/settings                 owner only, audited ``analyst.settings_changed``
 POST /analyst/templates                add the WhatsApp delivery template as a DRAFT (owner/manager; nothing is submitted)
@@ -17,11 +20,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import require_roles
+from app.api.v1.deps import require_module, require_roles
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.schemas.analyst import KINDS, AnalystSettings, AskIn, AssignRecIn, RunIn
+from app.schemas.analyst import KINDS, AnalystSettings, AskHaipIn, AskIn, AssignRecIn, RunIn
 from app.services.analyst import ask as ask_svc
 from app.services.analyst import reports as reports_svc
 from app.services.analyst import settings as settings_svc
@@ -90,6 +93,56 @@ def ask(body: AskIn, current_user: User = Depends(_readers), db: Session = Depen
     from app.workers.tasks.analyst_tasks import answer_followup
     answer_followup.delay(current_user.tenant_id, r.id, item["id"])
     return item
+
+
+_owner = require_roles(UserRole.OWNER)  # the free-form analyst is owner-only (mcp/tools.py _ask_haip, same decision)
+
+
+@router.post("/ask-haip", status_code=202, dependencies=[Depends(require_module("ask_haip"))])
+def ask_haip(body: AskHaipIn, current_user: User = Depends(_owner)):
+    from app.services.analyst import ask_haip_jobs as jobs
+    from app.workers.tasks.analyst_tasks import ask_haip as task
+
+    question = body.question.strip()
+    job_id = jobs.start(current_user.tenant_id, question)
+    if job_id is None:
+        raise HTTPException(status_code=429, detail="That's a lot of questions today. Ask again tomorrow.")
+    try:
+        task.delay(current_user.tenant_id, job_id, current_user.id)
+    except Exception:  # noqa: BLE001 -- queue down: say so instead of leaving a job that never finishes
+        jobs.finish(current_user.tenant_id, job_id, {"status": "failed", "question": question,
+                                                     "error": "HAIP couldn't start on that. Try again in a minute."})
+        raise HTTPException(status_code=503, detail="HAIP couldn't start on that. Try again in a minute.") from None
+    return {"id": job_id, "status": "pending"}
+
+
+@router.get("/ask-haip/recent", dependencies=[Depends(require_module("ask_haip"))])
+def ask_haip_recent(current_user: User = Depends(_owner), db: Session = Depends(get_db)):
+    from app.models.ask_haip import AskHaipFreeformQuery
+
+    rows = (
+        db.query(AskHaipFreeformQuery.question, AskHaipFreeformQuery.created_at)
+        .filter(AskHaipFreeformQuery.tenant_id == current_user.tenant_id, AskHaipFreeformQuery.status == "ok")
+        .order_by(AskHaipFreeformQuery.created_at.desc())
+        .limit(30)
+        .all()
+    )
+    seen, out = set(), []
+    for q, at in rows:
+        if q.lower() not in seen:
+            seen.add(q.lower())
+            out.append({"question": q, "at": at.isoformat() if at else None})
+    return {"questions": out[:10]}
+
+
+@router.get("/ask-haip/{job_id}", dependencies=[Depends(require_module("ask_haip"))])
+def ask_haip_result(job_id: str, current_user: User = Depends(_owner)):
+    from app.services.analyst import ask_haip_jobs as jobs
+
+    job = jobs.get(current_user.tenant_id, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="That question has expired. Ask it again.")
+    return {"id": job_id, **job}
 
 
 @router.get("/settings")

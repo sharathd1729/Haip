@@ -51,6 +51,10 @@ class AskIn(_Strict):
     question: str = Field(min_length=3, max_length=500)
 
 
+class AskHaipIn(_Strict):
+    question: str = Field(min_length=3, max_length=500)
+
+
 class AssignRecIn(_Strict):
     user_id: str = Field(min_length=1, max_length=64)
 
