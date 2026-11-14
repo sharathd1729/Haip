@@ -535,7 +535,7 @@ def start_instagram_oauth(token: str, db: Session = Depends(get_db)):
         "response_type": "code",
         "scope": scope,
         "state": state,
-    })
+    }, safe=",")  # commas in `scope` stay raw: Instagram rejects "%2C" as one invalid scope (Jade, 14 Nov)
     return RedirectResponse(auth_url)
 
 
