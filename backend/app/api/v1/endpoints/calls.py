@@ -525,6 +525,79 @@ async def upload_call_recording(
     }
 
 
+_AGENT_LABELS = {"agent", "staff", "host", "sales", "me", "executive", "reservations"}
+_GUEST_LABELS = {"guest", "customer", "caller", "client", "visitor", "lead"}
+
+
+def _turns_from_text(text: str) -> list[dict]:
+    """Pasted transcript -> turns. "Agent: ..." / "Guest: ..." lines (other names kept as they are); a line without a
+    label continues the previous turn. No timings are known, so each turn gets its line number as t0."""
+    import re
+
+    turns: list[dict] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = re.match(r"^([A-Za-z][A-Za-z .'-]{0,24}):\s*(.+)$", line)
+        if m:
+            label = m.group(1).strip().lower()
+            speaker = "agent" if label in _AGENT_LABELS else "guest" if label in _GUEST_LABELS else label
+            turns.append({"speaker": speaker, "t0": float(len(turns)), "t1": float(len(turns)), "text": m.group(2).strip()})
+        elif turns:
+            turns[-1]["text"] += " " + line
+        else:
+            turns.append({"speaker": "unknown", "t0": 0.0, "t1": 0.0, "text": line})
+    return turns
+
+
+@router.post("/transcript")
+def analyze_pasted_transcript(
+    transcript: str = Form(..., min_length=20, max_length=60_000),
+    agent_name: str = Form(""),
+    guest_phone: str = Form("+910000000000"),
+    direction: str = Form("inbound"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Calls > Upload > Paste transcript: a call with no recording, analysed from pasted text. Stores the text as the
+    call's transcript and queues the normal AI read (tasks.analyze_call); nothing calls a model here."""
+    from app.services.transcription_service import store_transcript
+    from app.workers.tasks.call_ingest import _dedup_guest, _find_or_create_inquiry
+
+    turns = _turns_from_text(transcript)
+    if not turns:
+        raise HTTPException(status_code=422, detail="Paste the conversation, one line per person speaking.")
+    tenant_id = current_user.tenant_id
+    call_id = str(uuid.uuid4())
+    now_iso = datetime.now(timezone.utc).isoformat()
+    guest = _dedup_guest(db, tenant_id, guest_phone or "+910000000000")
+    inquiry = _find_or_create_inquiry(db, tenant_id, guest)
+    call = Call(
+        id=call_id, tenant_id=tenant_id, guest_id=guest.id, inquiry_id=inquiry.id if inquiry else None,
+        ivr_provider="manual", ivr_call_id=f"manual-{call_id}",
+        direction=CallDirection.INBOUND if direction == "inbound" else CallDirection.OUTBOUND,
+        from_number=guest_phone or "+910000000000", to_number="manual", duration_seconds=0,
+        started_at=now_iso, ended_at=now_iso, transcription_status="done", ai_score_status="pending",
+    )
+    db.add(call)
+    db.flush()
+    store_transcript(db, call_id=call_id, tenant_id=tenant_id, turns=turns, raw_text=transcript,
+                     provider="pasted", language=None)
+    call.transcript_json = turns
+    db.commit()
+    log.info("pasted_transcript_call_created", call_id=call_id, tenant=tenant_id, turns=len(turns))
+    try:
+        from app.workers.tasks.call_analysis import analyze_call
+
+        analyze_call.delay(call_id=call_id, tenant_id=tenant_id)
+        status = "queued"
+    except Exception as exc:  # noqa: BLE001 -- the call and its text are saved; call_recovery queues the read later
+        log.warning("pasted_transcript_analysis_not_queued", call_id=call_id, error=str(exc)[:200])
+        status = "saved_pipeline_offline"
+    return {"call_id": call_id, "status": status, "turns": len(turns)}
+
+
 @router.post("/click-to-call")
 async def click_to_call(
     req: ClickToCallRequest,

@@ -61,6 +61,39 @@ def upsert_guest(
     return guest
 
 
+@router.get("/consents")
+def list_consents(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.COMPLIANCE)),
+    db: Session = Depends(get_db),
+):
+    """Compliance Center > Consents: the workspace's consent records, newest first (phone masked to its last 4 digits).
+    Declared before /{guest_id}, which would otherwise take "consents" for a guest id."""
+    from app.models.consent import Consent
+
+    rows = (
+        db.query(Consent, Guest.phone)
+        .join(Guest, Guest.id == Consent.guest_id)
+        .filter(Consent.tenant_id == current_user.tenant_id, Guest.tenant_id == current_user.tenant_id)
+        .order_by(Consent.recorded_at.desc())
+        .limit(500)
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "guest_phone": f"•••• {phone[-4:]}" if phone else "—",
+            "scope": c.scope,
+            "granted": bool(c.granted),
+            "channel": c.channel,
+            "created_at": c.recorded_at,
+            "expires_at": c.expires_at,
+            "withdrawn_at": c.withdrawn_at,
+            "withdrawal_reason": c.withdrawal_reason,
+        }
+        for c, phone in rows
+    ]
+
+
 @router.get("/{guest_id}", response_model=GuestOut)
 def get_guest(
     guest_id: str,

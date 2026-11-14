@@ -152,6 +152,31 @@ def test_transcription_stuck_queued_is_queued_again_once_per_window(db, tenant_a
     assert call_recovery.requeue_queued_transcriptions(db, tid, sent.append) == 0  # its clock restarted
 
 
+def test_dead_worker_and_finished_failures_are_recovered_but_a_broken_file_is_not_paid_for_forever(db, tenant_and_user, monkeypatch):
+    from unittest.mock import patch
+
+    tid = _tid(tenant_and_user)
+    died = _stuck_call(db, tid, minutes_ago=90, status="processing")
+    running = _stuck_call(db, tid, minutes_ago=20, status="processing")      # still inside a normal job
+    failed = _stuck_call(db, tid, minutes_ago=4 * 60, status="failed")
+    retrying = _stuck_call(db, tid, minutes_ago=10, status="failed")         # Celery's own retries still pending
+    counts = {}
+
+    def incr(key, ttl=0):
+        counts[key] = counts.get(key, 0) + 1
+        return counts[key]
+
+    with patch("app.core.cache.incr", side_effect=incr):
+        sent = []
+        assert call_recovery.requeue_queued_transcriptions(db, tid, sent.append) == 2
+        assert set(sent) == {died, failed} and running not in sent and retrying not in sent
+        later = datetime.now(timezone.utc) + timedelta(hours=4)
+        for _ in range(3):  # the failed call keeps failing: re-queued twice in all, then left alone
+            call_recovery.requeue_queued_transcriptions(db, tid, sent.append, now=later)
+            later += timedelta(hours=4)
+    assert sent.count(failed) == call_recovery.FAILED_REQUEUES
+
+
 def test_transcription_requeue_stays_in_its_workspace(db, tenant_and_user):
     _stuck_call(db, _tid(tenant_and_user))
     other = _other_tenant(db)

@@ -329,7 +329,6 @@ def _send_template(db, t, msg_id):
     return adapter, db.get(Message, msg_id)
 
 
-@PR(2, "a marketing template must not be delivered to a guest who withdrew marketing consent")
 def test_a_marketing_template_is_not_sent_to_a_guest_who_opted_out(db):
     from app.api.v1.endpoints.messaging import TemplateCategory
     t, mid = _template_world(db, TemplateCategory.MARKETING)
@@ -360,7 +359,6 @@ def test_control_scheduling_a_message_stores_it_and_sends_nothing_now(db, client
     assert stored.scheduled_for and stored.delivery_state is None
 
 
-@PR(4, "a due scheduled message must be sent by a beat task; none exists today")
 def test_a_sender_for_scheduled_messages_exists():
     import importlib.util
     assert importlib.util.find_spec("app.workers.tasks.scheduled_messages") is not None

@@ -77,7 +77,7 @@ export function UploadModal({ onClose, onSuccess }: UploadModalProps) {
       const fd = new FormData();
       fd.append("transcript", transcript);
       fd.append("agent_name", agentNameTxt || "Unknown Agent");
-      const res = await api.post("/analyze/transcript", fd, {
+      const res = await api.post("/calls/transcript", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setCallId(res.data?.call_id ?? "queued");

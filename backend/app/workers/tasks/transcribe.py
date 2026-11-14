@@ -22,7 +22,7 @@ def _run_async(coro):
     finally:
         loop.close()
 from app.workers.celery_app import celery_app
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, set_tenant_context
 from app.core.config import settings
 from app.models.call import Call
 from app.adapters.transcription import get_transcription_adapter
@@ -45,6 +45,7 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
 
     db = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         call = db.query(Call).filter_by(id=call_id, tenant_id=tenant_id).first()
         if not call or not call.recording_s3_key:
             log.error("transcribe_call_not_found", call_id=call_id)

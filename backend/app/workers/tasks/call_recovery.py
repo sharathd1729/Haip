@@ -149,11 +149,21 @@ def recover_stalled_call_scoring_all_tenants():
 # a call that is already "done".
 TRANSCRIBE_STALL = timedelta(minutes=30)
 TRANSCRIBE_LOOKBACK = timedelta(days=2)
+# A worker killed mid-job leaves "processing" behind; a Sarvam batch job takes minutes, so an hour means it died.
+PROCESSING_STALL = timedelta(hours=1)
+# "failed" is written on every error, also while Celery's own retries (about 16 min in all) are still pending: 3 hours
+# means they are over. A failed call is re-queued at most FAILED_REQUEUES times, so a broken file is not paid for forever.
+FAILED_STALL = timedelta(hours=3)
+FAILED_REQUEUES = 2
 
 
 def requeue_queued_transcriptions(db, tenant_id: str, send, now: datetime | None = None, limit: int = 100) -> int:
-    """send(call) each of this workspace's calls stuck "queued"; the caller commits. Stops at the first failed send (broker
-    still down), so nothing is marked. Returns how many were sent."""
+    """send(call) each of this workspace's calls stuck "queued", stuck "processing" (the worker died) or "failed" after
+    all retries (at most FAILED_REQUEUES times per call); the caller commits. Stops at the first failed send (broker still
+    down), so nothing is marked. Returns how many were sent."""
+    from sqlalchemy import and_, or_
+
+    from app.core import cache
     from app.core.config import settings
 
     if settings.TRANSCRIPTION_PAUSED:
@@ -163,9 +173,12 @@ def requeue_queued_transcriptions(db, tenant_id: str, send, now: datetime | None
         db.query(Call)
         .filter(
             Call.tenant_id == tenant_id,
-            Call.transcription_status == "queued",
+            or_(
+                and_(Call.transcription_status == "queued", Call.updated_at < now - TRANSCRIBE_STALL),
+                and_(Call.transcription_status == "processing", Call.updated_at < now - PROCESSING_STALL),
+                and_(Call.transcription_status == "failed", Call.updated_at < now - FAILED_STALL),
+            ),
             Call.recording_s3_key.isnot(None),
-            Call.updated_at < now - TRANSCRIBE_STALL,
             Call.created_at >= now - TRANSCRIBE_LOOKBACK,
         )
         .order_by(Call.created_at.desc())
@@ -174,6 +187,10 @@ def requeue_queued_transcriptions(db, tenant_id: str, send, now: datetime | None
     )
     sent = 0
     for call in calls:
+        if call.transcription_status == "failed":
+            tries = cache.incr(f"haip:transcribe_requeue:{call.id}", ttl=int(TRANSCRIBE_LOOKBACK.total_seconds()) + 86400)
+            if tries is not None and tries > FAILED_REQUEUES:
+                continue
         try:
             send(call)
         except Exception as exc:  # noqa: BLE001 -- broker still down: the next run retries
