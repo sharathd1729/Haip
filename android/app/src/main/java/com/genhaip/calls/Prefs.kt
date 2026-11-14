@@ -71,10 +71,8 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putString("notify_since", v).apply()
 
     var shownNotifications: List<String>
-        get() = (sp.getString("notify_shown", "") ?: "").split("
-").filter { it.isNotBlank() }
-        set(v) = sp.edit().putString("notify_shown", v.joinToString("
-")).apply()
+        get() = (sp.getString("notify_shown", "") ?: "").split("\n").filter { it.isNotBlank() }
+        set(v) = sp.edit().putString("notify_shown", v.joinToString("\n")).apply()
 
     /** Numbers marked personal, as Logic.key(). Never leave the phone. */
     var personalKeys: Set<String>
