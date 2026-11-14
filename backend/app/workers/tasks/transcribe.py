@@ -50,6 +50,12 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
         if not call or not call.recording_s3_key:
             log.error("transcribe_call_not_found", call_id=call_id)
             return
+        from app.services.calls_ai_pause import is_paused
+
+        if is_paused(db, tenant_id):
+            # This workspace's call AI is paused: leave the call waiting (the sweep picks it up after a resume).
+            log.info("transcribe_skipped_paused", call_id=call_id)
+            return
         if call.transcription_status == "done":
             # A second copy of this task (the stuck-"queued" sweep re-queued it, then the first copy ran): no second
             # provider call. Nothing re-transcribes a finished call on purpose.

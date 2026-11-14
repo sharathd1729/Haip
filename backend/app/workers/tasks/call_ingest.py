@@ -25,6 +25,12 @@ import uuid
 from datetime import datetime, timezone, timedelta
 
 
+
+def _calls_ai_paused(db, tenant_id) -> bool:
+    from app.services.calls_ai_pause import is_paused  # one workspace's AI paused (services/calls_ai_pause.py)
+
+    return is_paused(db, tenant_id)
+
 def _phone_token(phone: str) -> str:
     """One-way hash for log correlation without exposing PII phone numbers."""
     return hashlib.sha256(phone.encode()).hexdigest()[:12]
@@ -524,7 +530,7 @@ def queue_transcription(db: Session, call: Call) -> None:
         call.ai_score_status = "skipped_short_call"
         db.commit()
         log.info("recording_stored_call_too_short_for_ai", call_id=call.id, duration_seconds=call.duration_seconds)
-    elif settings.TRANSCRIPTION_PAUSED:
+    elif settings.TRANSCRIPTION_PAUSED or _calls_ai_paused(db, call.tenant_id):
         call.transcription_status = "pending"
         db.commit()
         log.info("recording_stored_transcription_paused", call_id=call.id, s3_key=call.recording_s3_key)

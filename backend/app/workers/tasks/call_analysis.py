@@ -54,6 +54,11 @@ def _analyse(task, db, call_id: str, tenant_id: str):
         if not call:
             log.error("call_analysis_missing_call", call_id=call_id)
             return None
+        from app.services.calls_ai_pause import is_paused
+
+        if is_paused(db, tenant_id):
+            log.info("call_analysis_skipped_paused", call_id=call_id)  # this workspace's call AI is paused
+            return None
         transcript = db.query(Transcript).filter_by(call_id=call_id, tenant_id=tenant_id).first()
         turns = json.loads(transcript.turns or "[]") if transcript else []
         if not transcript or not analysis.has_speech(turns):
