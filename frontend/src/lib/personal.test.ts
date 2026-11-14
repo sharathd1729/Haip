@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayLabel, dueLabel, durationLabel, groupByDay, istDay, ownerLabel } from "./personal";
+import { calendarLink, dayLabel, dueLabel, durationLabel, groupByDay, istDay, ownerLabel } from "./personal";
 
 // 14 Nov 2026, 01:30 IST = 13 Nov 20:00 UTC: the IST day differs from the UTC day, which is the case that breaks.
 const NOW = new Date("2026-11-13T20:00:00Z");
@@ -27,6 +27,15 @@ describe("personal call helpers", () => {
     expect(durationLabel(3900)).toBe("1 h 5 min");
     expect(ownerLabel("me")).toBe("You");
     expect(ownerLabel("Prashant")).toBe("Prashant");
+  });
+
+  it("builds Google Calendar links", () => {
+    const timed = new URL(calendarLink({ title: "Catering tasting", date: "2026-11-16", time: "16:00", place: "Indiranagar" }));
+    expect(timed.searchParams.get("dates")).toBe("20261116T160000/20261116T170000");
+    expect(timed.searchParams.get("ctz")).toBe("Asia/Kolkata");
+    expect(timed.searchParams.get("location")).toBe("Indiranagar");
+    const allDay = new URL(calendarLink({ title: "Send the guest count", date: "2026-11-30" }));
+    expect(allDay.searchParams.get("dates")).toBe("20261130/20261201");
   });
 
   it("groups calls by IST day, newest first", () => {

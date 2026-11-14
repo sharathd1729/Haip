@@ -16,6 +16,8 @@ celery_app = Celery(
         # Legacy (keep for backward compat)
         "app.workers.tasks.call_ingest",
         "app.workers.tasks.mobile_calls",
+        "app.workers.tasks.personal_ask",
+        "app.workers.tasks.personal_digest",
         "app.workers.tasks.transcription",
         "app.workers.tasks.ai_scoring",
         "app.workers.tasks.whatsapp",
@@ -242,6 +244,9 @@ celery_app.conf.update(
         "call_ingest.process":                       {"queue": "call_ingest"},
         "mobile_calls.purge_stale_pending":          {"queue": "call_ingest"},
         "mobile_calls.requeue_stuck":                {"queue": "call_ingest"},
+        "personal.ask":                              {"queue": "default"},
+        "personal.daily_digest":                     {"queue": "default"},
+        "personal.daily_digest_all_tenants":         {"queue": "default"},
         "calls.requeue_queued_transcriptions":       {"queue": "call_ingest"},
         "transcription.transcribe_call":             {"queue": "transcription"},
         "sync_hostaway":                             {"queue": "call_ingest"},
@@ -805,6 +810,11 @@ celery_app.conf.beat_schedule = {
         "task": "reports.daily_owner_report_all_tenants",
         "schedule": crontab(hour=19, minute=0),
         "kwargs": {"kind": "evening"},
+    },
+    # Yaad (personal workspaces): "Your day at a glance" email, 22:00 IST, only on days with calls.
+    "personal-daily-digest": {
+        "task": "personal.daily_digest_all_tenants",
+        "schedule": crontab(hour=22, minute=0),
     },
     "owner-report-morning": {
         "task": "reports.daily_owner_report_all_tenants",

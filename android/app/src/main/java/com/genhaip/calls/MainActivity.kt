@@ -1,9 +1,11 @@
 package com.genhaip.calls
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -14,6 +16,7 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,6 +28,8 @@ class MainActivity : ComponentActivity() {
     private var linking = false
     private var refused = false
     private val site: String = (Uri.parse(Api.base).host ?: "").removePrefix("www.")
+    // Yaad: ask once for permission to show notifications (Android 13+); the answer is the person's to give.
+    private val askNotify = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,7 +63,34 @@ class MainActivity : ComponentActivity() {
                 if (web.canGoBack()) web.goBack() else finish()
             }
         })
-        if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(Api.base + BuildConfig.START_PATH)
+        val tapped = pathFrom(intent)
+        if (tapped != null) web.loadUrl(Api.base + tapped)
+        else if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(Api.base + BuildConfig.START_PATH)
+        maybeAskNotify()
+    }
+
+    /** A tapped notification while the app is open: go to its page. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pathFrom(intent)?.let { web.loadUrl(Api.base + it) }
+    }
+
+    /** Only HAIP's own app pages may be opened from a notification. */
+    private fun pathFrom(intent: Intent?): String? =
+        intent?.getStringExtra(EXTRA_PATH)?.takeIf { it.startsWith("/dashboard/") && !it.contains("//") }
+
+    private fun maybeAskNotify() {
+        if (!BuildConfig.PERSONAL || Build.VERSION.SDK_INT < 33 || Notifier.allowed(this)) return
+        val sp = getSharedPreferences("ui", MODE_PRIVATE)
+        if (sp.getBoolean("asked_notify", false)) return
+        sp.edit().putBoolean("asked_notify", true).apply()
+        askNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        UpdateChecker.maybeCheck(this)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -105,6 +137,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        const val EXTRA_PATH = "path"
         private const val MENU_SETUP = 1
         private const val MENU_RELOAD = 2
     }

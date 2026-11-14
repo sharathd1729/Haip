@@ -3,6 +3,7 @@
   POST   /devices/register   logged-in user: register this phone, returns the device token ONCE (moving a phone to another
                              person or reviving a revoked one: owner/manager only, else 409 / 403)
   PUT    /devices/settings   device token: unknown-number rule, working hours (personal numbers stay on the phone)
+  GET    /devices/updates    device token, Yaad app: phone notifications since ?since= (summary ready, due today, day)
   GET    /devices            owner/manager: every staff device in the workspace, with its last 30 days (calls, recordings)
   DELETE /devices/{id}       revoke: your own device, or any device for owner/manager (audited)
   POST   /device-calls       device token: up to 200 call-log entries, idempotent on (device, device_call_id)
@@ -19,7 +20,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
@@ -93,6 +94,25 @@ def update_settings(
     db.commit()
     set_tenant_context(db, device.tenant_id)
     return mobile_device_service.settings_out(device)
+
+
+@router.get("/updates")
+def device_updates(
+    since: datetime | None = Query(default=None),
+    device: MobileDevice = Depends(current_device),
+    db: Session = Depends(get_db),
+):
+    """Yaad app: what to show as phone notifications since it last asked (services/personal_notify.py). The app stores
+    `now` and sends it back as `since` next time, and keeps the ids it showed."""
+    from app.models.tenant import Tenant
+    from app.services import personal_notify
+
+    set_tenant_context(db, device.tenant_id)
+    now = datetime.now(UTC)
+    tenant = db.query(Tenant).filter_by(id=device.tenant_id).first()
+    user = db.query(User).filter_by(id=device.user_id, tenant_id=device.tenant_id).first()
+    items = personal_notify.updates(db, tenant, user, since, now) if user else []
+    return {"now": now.isoformat(), "notifications": items}
 
 
 @router.get("")

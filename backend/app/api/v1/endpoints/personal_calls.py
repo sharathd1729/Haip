@@ -5,6 +5,9 @@
   GET   /me/calls/{call_id}                      the call's memory, recording link, transcript and WhatsApp share text
   GET   /me/reminders?status=open|done           action items across calls (last 120 days)
   PATCH /me/calls/{call_id}/reminders/{rid}      {"done": bool}
+  POST  /me/ask, GET /me/ask/{id}                Ask Yaad (services/personal_ask.py)
+  GET   /me/settings, PUT /me/settings           custom words + email/notification switches (services/personal_settings.py)
+  DELETE /me/account                             owner, {"confirm": "DELETE"}: erase the workspace (services/personal_account.py)
 
 Personal workspaces only (403 elsewhere); any signed-in user of the workspace (it has one person).
 """
@@ -15,7 +18,7 @@ import json
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
@@ -24,6 +27,7 @@ from app.models.call import Call, CallDirection
 from app.models.guest import Guest
 from app.models.transcript import Transcript
 from app.models.user import User
+from app.services import personal_ask
 from app.services import personal_calls as pc
 
 router = APIRouter(prefix="/me", tags=["personal"])
@@ -205,3 +209,94 @@ def update_reminder(
         raise HTTPException(status_code=404, detail="Reminder not found")
     db.commit()
     return changed
+
+
+# ─── Ask Yaad ────────────────────────────────────────────────────────────────
+
+
+class AskBody(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/ask", status_code=202)
+def ask(body: AskBody, user: User = Depends(personal_user)):
+    """Queue a question; poll GET /me/ask/{id}. The answer comes from the person's own call memories only."""
+    from app.workers.tasks.personal_ask import ask as ask_task
+
+    question = body.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Type a question.")
+    job_id = personal_ask.start_job(user.tenant_id, question)
+    if job_id is None:
+        raise HTTPException(status_code=429, detail="You have asked a lot today. Ask again tomorrow.")
+    try:
+        ask_task.delay(user.tenant_id, job_id, user.id)
+    except Exception:  # noqa: BLE001 -- queue down: say so instead of leaving a job that never finishes
+        personal_ask.finish_job(
+            user.tenant_id,
+            job_id,
+            {"status": "failed", "question": question, "error": "Yaad couldn't start on that. Try again in a minute."},
+        )
+        raise HTTPException(status_code=503, detail="Yaad couldn't start on that. Try again in a minute.") from None
+    return {"id": job_id, "status": "pending"}
+
+
+@router.get("/ask/{job_id}")
+def ask_result(job_id: str, user: User = Depends(personal_user)):
+    job = personal_ask.get_job(user.tenant_id, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="That question has expired. Ask it again.")
+    return {"id": job_id, **{k: v for k, v in job.items() if k != "model_used"}}
+
+
+# ─── Settings and account ────────────────────────────────────────────────────
+
+
+class SettingsBody(BaseModel):
+    custom_words: list[str] | None = Field(default=None, max_length=200)
+    daily_email: bool | None = None
+    notify_summary: bool | None = None
+    notify_due: bool | None = None
+    notify_day: bool | None = None
+
+
+class DeleteAccountBody(BaseModel):
+    confirm: str
+
+
+def _tenant(db: Session, user: User):
+    from app.models.tenant import Tenant
+
+    return db.query(Tenant).filter_by(id=user.tenant_id).first()
+
+
+@router.get("/settings")
+def get_settings(user: User = Depends(personal_user), db: Session = Depends(get_db)):
+    from app.services import personal_settings
+
+    return personal_settings.get(_tenant(db, user), user)
+
+
+@router.put("/settings")
+def put_settings(body: SettingsBody, user: User = Depends(personal_user), db: Session = Depends(get_db)):
+    """Only the fields sent change. Custom words: the workspace's own list; switches: this person's."""
+    from app.services import personal_settings
+
+    try:
+        return personal_settings.update(db, _tenant(db, user), user, body.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.delete("/account")
+def delete_account(body: DeleteAccountBody, user: User = Depends(personal_user), db: Session = Depends(get_db)):
+    """Erase the whole personal workspace (calls, recordings, contacts) and sign everyone out. Owner only; the body
+    must say {"confirm": "DELETE"}. Not undoable."""
+    from app.models.user import UserRole
+    from app.services import personal_account
+
+    if user.role != UserRole.OWNER:
+        raise HTTPException(status_code=403, detail="Only the account owner can delete it.")
+    if body.confirm.strip() != personal_account.CONFIRM:
+        raise HTTPException(status_code=422, detail='Type DELETE to confirm.')
+    return {"deleted": True, **personal_account.delete_account(db, _tenant(db, user), user)}

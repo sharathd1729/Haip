@@ -34,6 +34,14 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             prefs.lastError = e.message
             Outcome.OK
         }
+        // Yaad: after a good sync, ask what to show as notifications. Never fails the sync.
+        if (outcome == Outcome.OK && BuildConfig.PERSONAL) {
+            try {
+                Notifier.check(applicationContext, prefs, token)
+            } catch (e: Exception) {
+                // offline or a bad answer: the next sync asks again
+            }
+        }
         when (outcome) {
             Outcome.OK -> Result.success()
             Outcome.RETRY -> Result.retry()

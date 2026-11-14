@@ -10,7 +10,7 @@ import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
   AtSign, BadgeCheck, BellRing, Bot, BookmarkIcon, BookOpen, Building, Building2, Calculator, Calendar, CalendarClock, CreditCard, FileText, Globe, HelpCircle, Key, Link2,
-  FlaskConical, ListChecks, MapPin, Megaphone, MessageCircle, Palette, Phone, Send, Shield, Shuffle, Sparkles, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
+  FlaskConical, ListChecks, MapPin, Megaphone, AskBubble, MessageCircle, Palette, Phone, Send, Settings, Shield, Shuffle, Sparkles, TrendingUp, UserCircle, UsersRound, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
@@ -136,14 +136,16 @@ export const PERSONAL_SECTIONS: NavSection[] = [
   { title: "Calls", links: [
     { label: "Calls", href: PERSONAL_HOME, icon: Phone, resource: "profile" },
     { label: "Reminders", href: "/dashboard/me/reminders", icon: ListChecks, resource: "profile" },
+    { label: "Ask Yaad", href: "/dashboard/me/ask", icon: AskBubble, resource: "profile" },
   ] },
   { title: "Settings", links: [
+    { label: "Yaad settings", href: "/dashboard/me/settings", icon: Settings, resource: "profile" },
     { label: "Calls app phones", href: "/dashboard/settings/calls-app", icon: Phone, resource: "users", onlyRoles: ["owner", "manager"] },
     { label: "Profile", href: "/dashboard/profile", icon: UserCircle, resource: "profile" },
     { label: "Help & support", href: "/dashboard/help", icon: HelpCircle, resource: "help" },
   ] },
 ];
-const PERSONAL_TABS = [PERSONAL_HOME, "/dashboard/me/reminders"];
+const PERSONAL_TABS = [PERSONAL_HOME, "/dashboard/me/ask", "/dashboard/me/reminders"];
 
 export function isVisible(link: NavLink, role: string, businessType: string | null | undefined): boolean {
   return canSeeNav(role, link.resource)
