@@ -13,6 +13,7 @@ import { AppVersionRow } from "@/components/AppVersionRow";
 import { UserAvatar } from "@/components/crm/UserAvatar";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
 import { useNav } from "./nav";
+import { YaadWordmark } from "@/components/personal/YaadMark";
 
 interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
@@ -76,13 +77,15 @@ export function MobileMenuSheet({ open, onClose, user }: { open: boolean; onClos
     <div className="fixed inset-0 z-[60] flex md:hidden">
       <button type="button" aria-label="Close menu" onClick={onClose} className="absolute inset-0 bg-[rgb(28_25_23/0.45)] backdrop-blur-[2px]" />
       <div role="dialog" aria-modal="true" aria-label="Menu"
-        className="relative flex h-full w-[min(21rem,88vw)] flex-col overflow-y-auto overscroll-contain bg-[var(--haip-card)] shadow-[var(--haip-shadow-lg)] animate-in slide-in-from-left duration-200"
+        className={cn("relative flex h-full w-[min(21rem,88vw)] flex-col overflow-y-auto overscroll-contain bg-[var(--haip-card)] shadow-[var(--haip-shadow-lg)] animate-in slide-in-from-left duration-200", nav.personal && "yaad yaad-shell")}
         style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <div className="flex items-center justify-between bg-[var(--haip-nav-bg)] px-5 py-3 text-[var(--haip-nav-fg)]">
+          {nav.personal ? <YaadWordmark /> : (
           <span className="flex items-center gap-2.5 font-[family-name:var(--font-display)] text-[18px] font-semibold">
             <span aria-hidden className="flex size-8 items-center justify-center rounded-lg bg-[var(--haip-logo-bg)] text-[15px] font-bold text-[var(--haip-logo-fg)]">{(theme.companyName ?? "H").slice(0, 1).toUpperCase()}</span>
             {theme.companyName ?? "HAIP"}
           </span>
+          )}
           <button type="button" onClick={onClose} aria-label="Close menu" className="flex size-11 items-center justify-center rounded-xl text-[var(--haip-nav-fg-dim)] hover:bg-[var(--haip-nav-hover)]"><X size={19} /></button>
         </div>
         <nav aria-label="All pages" className="flex-1 px-3 pb-3">
@@ -110,7 +113,7 @@ export function MobileMenuSheet({ open, onClose, user }: { open: boolean; onClos
             <UserAvatar name={user?.name} photoUrl={me?.avatar_url} size="md" className="size-10" />
             <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-semibold">{user?.name ?? "User"}</p><p className="truncate text-[12.5px] text-[var(--haip-fg-subtle)]">{user?.email ?? ""}</p></div>
           </div>
-          <button type="button" onClick={() => { clearTokenCache(); signOut({ callbackUrl: "/login" }); }}
+          <button type="button" onClick={() => { clearTokenCache(); signOut({ callbackUrl: nav.personal ? "/yaad/login" : "/login" }); }}
             className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-[15px] font-semibold text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]">
             <LogOut size={17} />Sign out
           </button>

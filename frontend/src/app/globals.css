@@ -1616,8 +1616,8 @@
   color: var(--y-ink);
 }
 /* The phone's bottom bar in a personal workspace takes Yaad's colours. */
-.yaad-shell { --haip-tabbar-active-bg: #FFEDB3; --haip-tabbar-active-fg: #16130C; }
-.dark .yaad-shell { --haip-tabbar-active-bg: #2E2512; --haip-tabbar-active-fg: #FFD979; }
+.yaad-shell { --haip-tabbar-active-bg: #FFEDB3; --haip-tabbar-active-fg: #16130C; --color-primary: #16130C; --haip-nav-bg: transparent; --haip-card: var(--y-canvas, #FFF8E7); }
+.dark .yaad-shell { --haip-tabbar-active-bg: #2E2512; --haip-tabbar-active-fg: #FFD979; --color-primary: #FFC233; }
 .yaad ::selection { background: var(--y-due); color: var(--y-on-due); }
 .yaad :focus-visible { outline: 2px solid var(--y-brand); outline-offset: 2px; }
 .yaad .y-press { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
