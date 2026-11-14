@@ -78,6 +78,10 @@ def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
     db = SessionLocal()
     try:
         set_tenant_context(db, tenant_id)
+        from app.services.calls_ai_pause import is_paused
+
+        if is_paused(db, tenant_id):
+            return {"tenant_id": tenant_id, "recovered": 0, "paused": True}
         now = datetime.now(timezone.utc)
         cutoff = (now - timedelta(minutes=STALL_THRESHOLD_MINUTES)).isoformat()
         failed_since = (now - timedelta(days=FAILED_LOOKBACK_DAYS)).isoformat()
@@ -166,7 +170,9 @@ def requeue_queued_transcriptions(db, tenant_id: str, send, now: datetime | None
     from app.core import cache
     from app.core.config import settings
 
-    if settings.TRANSCRIPTION_PAUSED:
+    from app.services.calls_ai_pause import is_paused
+
+    if settings.TRANSCRIPTION_PAUSED or is_paused(db, tenant_id):
         return 0
     now = now or datetime.now(timezone.utc)
     calls = (
