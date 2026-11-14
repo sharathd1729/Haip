@@ -312,7 +312,7 @@ def apply_flags(db: Session, tenant_id: str, items: list, now: datetime, today: 
 # ── The contact rule (shared with work_queue_service.human_touch and lead_journey_tracker) ─────────────────────────────
 
 # Outbound messages that are never a person's contact: our own automatic sends and mirrored history.
-NOT_CONTACT_KINDS = ("playbook", "system", "campaign", "bridge_history", "ai_auto")
+NOT_CONTACT_KINDS = ("playbook", "system", "campaign", "bridge_history", "ai_auto", "automation")
 
 
 def _aware_dt(dt: Optional[datetime]) -> Optional[datetime]:

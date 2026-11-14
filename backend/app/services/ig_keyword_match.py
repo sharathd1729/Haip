@@ -38,57 +38,79 @@ def _contains_keyword(text: str, keywords: list[str]) -> bool:
     return any(re.search(r"\b" + re.escape(kw) + r"\b", lowered) for kw in keywords)
 
 
+def _scope(rule: AutomationRule) -> str:
+    cfg = rule.trigger_config or {}
+    return cfg.get("scope") or ("post" if cfg.get("media_id") else "any")
+
+
 def find_matching_rule(
     db: Session,
     tenant_id: str,
-    trigger: str,  # "ig_dm_received" | "ig_comment_received"
+    trigger: str,  # ig_comment_received | ig_live_comment_received | ig_dm_received | ig_story_reply_received | ...
     text: str,
     media_id: Optional[str] = None,
+    ad_id: Optional[str] = None,
 ) -> Optional[AutomationRule]:
     """
     Return the first matching active automation_rules row for this
     trigger/text, or None. Does not dispatch anything or log to
     automation_runs -- callers own the send + audit step (T2.3) and the
     decision to skip the AI fallback when a rule matches (T3.1).
+
+    Comments: ad-scoped rules first (comment on that ad), then rules for this post (a "next post" rule once bound to it),
+    then account-wide ("any post") rules; within each, "any comment" (reply_all) before keywords. Other triggers:
+    reply_all or keyword, first match wins.
     """
     rules = (
         db.query(AutomationRule)
         .filter_by(tenant_id=tenant_id, trigger=trigger, action=_ACTION, is_active=True)
+        .order_by(AutomationRule.created_at)
         .all()
     )
-    if not rules or not text:
+    if not rules:
         return None
+    text = text or ""
 
     def excluded(rule: AutomationRule) -> bool:
         exclude = _keyword_list((rule.trigger_config or {}).get("exclude_keywords"))
         return _contains_keyword(text, exclude)
 
-    def keywords_match(rule: AutomationRule) -> bool:
-        keywords = _keyword_list((rule.trigger_config or {}).get("keywords"))
-        return _contains_keyword(text, keywords)
+    def hit(rule: AutomationRule) -> bool:
+        cfg = rule.trigger_config or {}
+        if excluded(rule):
+            return False
+        return bool(cfg.get("reply_all")) or _contains_keyword(text, _keyword_list(cfg.get("keywords")))
 
-    if trigger == "ig_comment_received" and media_id:
-        # Priority: post-specific reply_all -> post-specific keyword -> global keyword.
-        post_scoped = [r for r in rules if (r.trigger_config or {}).get("media_id") == media_id]
-        global_rules = [r for r in rules if not (r.trigger_config or {}).get("media_id")]
+    def first(group: list[AutomationRule]) -> Optional[AutomationRule]:
+        for r in group:                      # reply_all wins over keywords inside a group
+            if (r.trigger_config or {}).get("reply_all") and hit(r):
+                return r
+        return next((r for r in group if hit(r)), None)
 
-        for r in post_scoped:
-            if not excluded(r) and (r.trigger_config or {}).get("reply_all"):
-                return r
-        for r in post_scoped:
-            if not excluded(r) and keywords_match(r):
-                return r
-        for r in global_rules:
-            if not excluded(r) and keywords_match(r):
-                return r
+    if trigger in ("ig_comment_received", "ig_live_comment_received"):
+        groups = []
+        if ad_id:
+            groups.append([r for r in rules if (r.trigger_config or {}).get("ad_id") == ad_id])
+        if media_id:
+            groups.append([r for r in rules if _scope(r) in ("post", "next_post")
+                           and (r.trigger_config or {}).get("media_id") == media_id])
+        groups.append([r for r in rules if _scope(r) == "any" and not (r.trigger_config or {}).get("ad_id")])
+        for group in groups:
+            found = first(group)
+            if found:
+                return found
         return None
 
-    # DMs (and comments without a resolvable media_id): keyword match on
-    # active rules for the tenant, first match wins, no post-scoping concept.
-    for r in rules:
-        if not excluded(r) and keywords_match(r):
-            return r
-    return None
+    if trigger == "ig_ad_chat_started":
+        # Welcome for a chat opened from an ad: a rule for that ad first, then one for any ad. No keyword needed.
+        for group in ([r for r in rules if ad_id and (r.trigger_config or {}).get("ad_id") == ad_id],
+                      [r for r in rules if not (r.trigger_config or {}).get("ad_id")]):
+            found = next((r for r in group if not excluded(r)), None)
+            if found:
+                return found
+        return None
+
+    return first(rules)
 
 
 # ── Throwaway comments (no AI call) ──────────────────────────────────────────────────────────────────────────────────

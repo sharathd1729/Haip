@@ -234,14 +234,17 @@ def process_instagram_comment(self, payload: dict) -> dict:
         matched_rule = None
         if text and text.strip():
             from app.services.ig_keyword_match import find_matching_rule
-            matched_rule = find_matching_rule(db, tenant_id, "ig_comment_received", text, media_id=media_id)
+            trigger = "ig_live_comment_received" if payload.get("live") else "ig_comment_received"
+            from app.services.ig_automation import bind_next_post
+            bind_next_post(db, tenant_id, media_id)
+            matched_rule = find_matching_rule(db, tenant_id, trigger, text, media_id=media_id, ad_id=media_ad_id or None)
 
         if matched_rule:
             from app.services.ig_quick_reply import dispatch_quick_reply
             dispatch_quick_reply(
                 db, tenant_id, matched_rule,
                 recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
-                comment_id=comment_id,
+                comment_id=comment_id, media_id=media_id,
             )
         elif text and text.strip() and ai_mode_service.resolve_mode(integration.tenant, conversation) != "off":
             from app.services.ig_keyword_match import is_throwaway_comment

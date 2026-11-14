@@ -131,6 +131,8 @@ VALID_TRIGGERS = {
     # fire_trigger, but this registration keeps CRUD validation and
     # automation_runs auditability consistent.
     "ig_dm_received",
+    # Instagram automations (services/ig_automation.py): Live comments, story replies, story mentions, ad-started chats.
+    "ig_live_comment_received", "ig_story_reply_received", "ig_story_mention_received", "ig_ad_chat_started",
 }
 
 VALID_ACTIONS = {
@@ -173,6 +175,21 @@ def _validate(trigger: str, action: str):
         raise HTTPException(status_code=422, detail=f"Unknown action: {action}")
 
 
+def _ig_configs(trigger: str, action: str, trigger_config: dict, action_config: dict) -> tuple[dict, dict]:
+    """Instagram automation rules: validated + normalised configs (schemas/ig_automation.py); others pass through."""
+    if action != "send_instagram_quick_reply" or not trigger.startswith("ig_"):
+        return trigger_config, action_config
+    from pydantic import ValidationError
+    from app.schemas.ig_automation import validate_ig_rule
+    try:
+        return validate_ig_rule(trigger, trigger_config, action_config)
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        raise HTTPException(status_code=422, detail=str(first.get("msg", "Invalid automation")).removeprefix("Value error, "))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 # ─── Rules endpoints ──────────────────────────────────────────────────────────
 
 @router.get("", response_model=List[RuleOut])
@@ -196,15 +213,16 @@ def create_rule(
     db: Session = Depends(get_db),
 ):
     _validate(body.trigger, body.action)
+    trigger_config, action_config = _ig_configs(body.trigger, body.action, body.trigger_config or {}, body.action_config or {})
     rule = AutomationRule(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
         name=body.name.strip(),
         description=body.description,
         trigger=body.trigger,
-        trigger_config=body.trigger_config or {},
+        trigger_config=trigger_config,
         action=body.action,
-        action_config=body.action_config or {},
+        action_config=action_config,
         is_active=body.is_active,
         run_count=0,
     )
@@ -229,6 +247,11 @@ def update_rule(
     trigger = update_data.get("trigger", rule.trigger)
     action = update_data.get("action", rule.action)
     _validate(trigger, action)
+    if "trigger_config" in update_data or "action_config" in update_data or "trigger" in update_data:
+        tc, ac = _ig_configs(trigger, action, update_data.get("trigger_config", rule.trigger_config or {}),
+                             update_data.get("action_config", rule.action_config or {}))
+        if action == "send_instagram_quick_reply" and trigger.startswith("ig_"):
+            update_data["trigger_config"], update_data["action_config"] = tc, ac
 
     for field, value in update_data.items():
         setattr(rule, field, value)

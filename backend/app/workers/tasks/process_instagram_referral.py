@@ -65,6 +65,13 @@ def process_instagram_referral(self, payload: dict) -> dict:
         if conversation.inquiry_id:
             attribution_service.link_attribution_to_inquiry(db, tenant_id, conversation.id, conversation.inquiry_id)
         db.commit()
+        # A chat opened from an ad with no message yet: the ad welcome automation, if one is set (once per person).
+        from app.services.ig_keyword_match import find_matching_rule
+        rule = find_matching_rule(db, tenant_id, "ig_ad_chat_started", "", ad_id=f["ad_id"] or None)
+        if rule is not None:
+            from app.services.ig_quick_reply import dispatch_quick_reply
+            dispatch_quick_reply(db, tenant_id, rule, recipient_id=sender_id, guest_id=guest_id,
+                                 conversation_id=conversation.id)
         return {"status": "recorded", "ad_id": f["ad_id"]}
     except Exception as exc:
         db.rollback()
