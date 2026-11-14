@@ -993,15 +993,26 @@ def _serialize_call_detail(call: Call, db) -> dict:
     if score_row:
         # Reshape criterion_scores → frontend expects [{criterion, score, max_score, evidence}]
         raw_criteria = score_row.criterion_scores or []
+        # The rubric the call was scored with: names and scales (YES_NO / AUTO_FAIL = 0-1, ZERO_THREE = 0-3)
+        rubric = {r.get("id"): r for r in (score_row.rubric_snapshot or []) if isinstance(r, dict)}             if isinstance(score_row.rubric_snapshot, list) else {}
         criteria_out = []
         for c in raw_criteria:
+            cid = c.get("id", c.get("criterion_id", c.get("name", "unknown")))
+            method = (rubric.get(cid) or {}).get("method")
             criteria_out.append({
-                "criterion":  c.get("id", c.get("criterion_id", c.get("name", "unknown"))),
+                "criterion":  cid,
+                "id":         cid,
+                "name":       (rubric.get(cid) or {}).get("name"),
+                "method":     method,
                 "score":      c.get("score", 0),
-                "max_score":  c.get("max_score", 3),
+                "max_score":  c.get("max_score") or (3 if method == "ZERO_THREE" else 1 if method else 3),
                 "evidence":   c.get("evidence_span", c.get("evidence", "")),
+                "overridden": bool(c.get("overridden")),
             })
         score_data = {
+            "score_id":              score_row.id,
+            "is_overridden":         bool(score_row.is_overridden),
+            "override_reason":       score_row.override_reason,
             "total_score":           float(score_row.total_score) if score_row.total_score else 0,
             "max_score":             float(score_row.max_score) if score_row.max_score else 100,
             "confidence":            float(score_row.ai_confidence) if score_row.ai_confidence else 0,

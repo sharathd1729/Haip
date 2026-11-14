@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { CorrectScore } from "@/components/calls/CorrectScore";
 import Link from "next/link";
 import { ArrowLeft, Phone, Clock, User, ChevronDown, ChevronRight, CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy, Star, BookmarkIcon, MessageSquare, X, Heart, TrendingUp, Target, AlertTriangle, Globe, Layers } from "@/lib/icons";
 import api from "@/lib/api";
@@ -30,6 +31,10 @@ interface Turn {
 
 interface CriterionScore {
   criterion: string;
+  id?: string;
+  name?: string | null;
+  method?: string | null;
+  overridden?: boolean;
   score: number;
   max_score: number;
   evidence: string;
@@ -67,6 +72,9 @@ interface CallDetail {
   transcript?: { turns: Turn[] } | null;
   layer2?: Layer2 | null;
   score?: {
+  score_id?: string;
+  is_overridden?: boolean;
+  override_reason?: string | null;
   total_score: number;
   max_score: number;
   confidence: number;
@@ -597,7 +605,7 @@ export default function CallDetailPage() {
   {isExpanded
   ? <ChevronDown size={12} className="text-[var(--haip-fg-subtle)] flex-shrink-0" />
   : <ChevronRight size={12} className="text-[var(--haip-fg-subtle)] flex-shrink-0" />}
-  <span className="text-xs text-[var(--haip-fg-2)] font-medium capitalize flex-1">{c.criterion.replace(/_/g, " ")}</span>
+  <span className="text-xs text-[var(--haip-fg-2)] font-medium capitalize flex-1">{(c.name ?? c.criterion).replace(/_/g, " ")}{c.overridden ? " · corrected" : ""}</span>
   <span className="text-xs text-[var(--haip-fg-subtle)] font-mono flex-shrink-0">{c.score}/{c.max_score}</span>
   </button>
   <div className="px-3 pb-2">
@@ -640,6 +648,13 @@ export default function CallDetailPage() {
   {showAllCriteria ? "Show less" : `+${criteria.length - 5} more criteria`}
   <ChevronDown size={12} className={cn("transition-transform", showAllCriteria && "rotate-180")} />
   </button>
+  )}
+
+  {call.score.is_overridden && (
+  <p className="mt-3 text-[11px] text-[var(--haip-fg-subtle)]">Corrected by a person{call.score.override_reason ? `: ${call.score.override_reason}` : ""}</p>
+  )}
+  {call.score.score_id && ["owner", "manager", "compliance"].includes(String(session?.user?.role)) && (
+  <CorrectScore scoreId={call.score.score_id} criteria={criteria} onDone={() => queryClient.invalidateQueries({ queryKey: ["call", id] })} />
   )}
 
   {/* Strengths & growth areas */}

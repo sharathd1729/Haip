@@ -32,15 +32,24 @@ def override_qa_score(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
     db: Session = Depends(get_db),
 ):
-    score = override_score(
-        db, current_user.tenant_id, score_id,
-        criterion_scores=body.criterion_scores,
-        reason=body.reason,
-        overridden_by=current_user.id,
-    )
+    from app.services.qa_service import OverrideError
+
+    try:
+        score = override_score(
+            db, current_user.tenant_id, score_id,
+            criterion_scores=body.criterion_scores,
+            reason=body.reason,
+            overridden_by=current_user.id,
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Score not found") from None
+    except OverrideError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
     append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id,
                  action="score.override", target_type="call_score", target_id=score_id,
-                 payload={"reason": body.reason})
+                 payload={"reason": score.override_reason, "human": score.override_scores.get("human"),
+                          "ai_percentage": score.override_scores["ai_original"].get("percentage"),
+                          "percentage": float(score.percentage)})
     db.commit()
     db.refresh(score)
     return score
