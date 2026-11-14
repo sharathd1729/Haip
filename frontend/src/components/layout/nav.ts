@@ -56,6 +56,7 @@ export const NAV_SECTIONS: NavSection[] = [
   ] },
   { title: "Sales", links: [
     { label: "Leads", href: "/dashboard/leads", icon: I["/dashboard/leads"], resource: "guests" },
+    { label: "Segments", href: "/dashboard/leads/segments", icon: UsersRound, resource: "guests", onlyRoles: ["owner", "manager"] },
     { label: "Calendar", href: "/dashboard/portfolio/calendar", icon: I["/dashboard/portfolio/calendar"], resource: "properties" },
     { label: "Bookings", href: "/dashboard/bookings", icon: I["/dashboard/bookings"], resource: "guests", onlyRoles: BOOKING_READ_ROLES },
     { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests", onlyRoles: REVENUE_READ_ROLES },

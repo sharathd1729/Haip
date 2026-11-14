@@ -93,5 +93,5 @@ class TestLeadSummaryV8:
 
     def test_prompt_asks_for_the_block_and_is_versioned(self):
         assert '"next_best_action"' in gas.SYSTEM_PROMPT and "__ACTIONABLE__" not in gas.SYSTEM_PROMPT
-        assert get_version("leads360_summary") == "leads360-summary-v10"
+        assert get_version("leads360_summary") == "leads360-summary-v11"
         assert get_version("call_analysis") == "call-analysis-v6"

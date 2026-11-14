@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Megaphone, Plus, Play, Pause, Clock, CheckCircle2, Users, TrendingUp, X, Loader2, AlertCircle, Calendar, Send, Eye, Trash2, Tag, Filter } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -165,10 +165,11 @@ function AudienceFilterBuilder({
 
 // ─── Create Campaign Modal ────────────────────────────────────────────────────
 
-function CreateCampaignModal({ templates, onClose, onCreated }: {
+function CreateCampaignModal({ templates, onClose, onCreated, initialSegment }: {
   templates: Template[];
   onClose: () => void;
   onCreated: () => void;
+  initialSegment?: string | null;   // a preset id from Leads > Segments (?segment=hot): starts the audience there
 }) {
   const [form, setForm] = useState({ name: "", template_id: "", scheduled_at: "" });
   const [variableMap, setVariableMap] = useState<VariableMap>({});
@@ -177,6 +178,20 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
   const [leadFilter, setLeadFilter] = useState<LeadFilter>({ not_messaged_days: 14 });
   const [leadConsent, setLeadConsent] = useState(false);
   const [leadPreview, setLeadPreview] = useState<Preview | undefined>(undefined);
+  const { data: audienceOpts } = useQuery<{ presets: { id: string; filter: LeadFilter }[] }>({
+    queryKey: ["wa-audience-options"],
+    queryFn: () => api.get("/messaging/campaigns/audience-options").then(r => r.data),
+    staleTime: 60_000,
+    enabled: !!initialSegment,
+  });
+  const [segmentApplied, setSegmentApplied] = useState(false);
+  useEffect(() => {
+    const preset = audienceOpts?.presets.find(p => p.id === initialSegment);
+    if (preset && !segmentApplied) {
+      setLeadFilter({ ...preset.filter, not_messaged_days: 14 });
+      setSegmentApplied(true);
+    }
+  }, [audienceOpts, initialSegment, segmentApplied]);
   const [audienceFilter, setAudienceFilter] = useState<{ tags: string[]; source: string[] }>({ tags: [], source: [] });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -441,6 +456,11 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
 export default function CampaignsPage() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [segment, setSegment] = useState<string | null>(null);
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get("segment");
+    if (s) { setSegment(s); setShowCreate(true); }
+  }, []);
   const [reportFor, setReportFor] = useState<Campaign | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -564,7 +584,8 @@ export default function CampaignsPage() {
       {showCreate && (
         <CreateCampaignModal
           templates={templates as Template[]}
-          onClose={() => setShowCreate(false)}
+          onClose={() => { setShowCreate(false); setSegment(null); }}
+          initialSegment={segment}
           onCreated={() => { queryClient.invalidateQueries({ queryKey: ["wa-campaigns"] }); showToast("Campaign created!", "success"); }}
         />
       )}

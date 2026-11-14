@@ -33,6 +33,7 @@ const ROUTE_LABELS: Record<string, string> = {
   inbox:        "Inbox",
   calls:        "Calls",
   leads:        "Leads",
+  segments:     "Segments",
   inquiries:    "Inquiries",
   guests:       "Bookings",
   bookings:     "Bookings",

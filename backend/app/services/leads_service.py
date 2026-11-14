@@ -699,6 +699,7 @@ def _build_lead_card(
         sla_breached=_sla_breached(response_time),
         occasion=inquiry.occasion,
         group_type=inquiry.intent_tag,
+        tags=[t for t in (inquiry.tags or []) if isinstance(t, str)],
         check_in=inquiry.check_in,
         check_out=inquiry.check_out,
         adults=inquiry.adults,
@@ -744,6 +745,7 @@ def get_leads_pipeline(
     autopilot: Optional[str] = None,
     lead_type: Optional[str] = None, came_from: Optional[str] = None,   # lead_list_extras (CRM reporting, 22 Oct 2026)
     validity: Optional[str] = None,                                       # lead_validity (23 Oct 2026)
+    tag: Optional[str] = None,                                            # lead_tags vocabulary (AI tags, 14 Nov 2026)
 ) -> LeadsListResponse:
     """
     Paginated pipeline query. One row per inquiry.
@@ -821,6 +823,9 @@ def get_leads_pipeline(
         q = q.filter(Inquiry.source == source)
     if occasion:
         q = q.filter(Inquiry.occasion.ilike(f"%{occasion}%"))
+    if tag:
+        from app.services.lead_tags import has_tag
+        q = q.filter(has_tag(Inquiry.tags, tag))
     start, end = _ist_bounds(date_from, date_to)
     if start:
         q = q.filter(Inquiry.created_at >= start)
@@ -897,7 +902,7 @@ def get_leads_pipeline(
         occasion=occasion, date_from=date_from, date_to=date_to,
         checkin_date_from=checkin_date_from, checkin_date_to=checkin_date_to,
         booked_date_from=booked_date_from, booked_date_to=booked_date_to, lead_type=lead_type, came_from=came_from,
-        validity=validity,
+        validity=validity, tag=tag,
     )
 
     return LeadsListResponse(
@@ -979,6 +984,7 @@ def _build_stage_summary(
     booked_date_from: Optional[str] = None,
     booked_date_to: Optional[str] = None,
     lead_type: Optional[str] = None, came_from: Optional[str] = None, validity: Optional[str] = None,
+    tag: Optional[str] = None,
 ) -> dict[str, PipelineStageMetaSchema]:
     """Compute count + potential_revenue per stage across all matching inquiries.
 
@@ -1020,6 +1026,9 @@ def _build_stage_summary(
     # (they used to be ignored, so with a date range set a stage chip said 40 while the column held 12).
     if occasion:
         q = q.filter(Inq.occasion.ilike(f"%{occasion}%"))
+    if tag:
+        from app.services.lead_tags import has_tag
+        q = q.filter(has_tag(Inq.tags, tag))
     start, end = _ist_bounds(date_from, date_to)
     if start:
         q = q.filter(Inq.created_at >= start)

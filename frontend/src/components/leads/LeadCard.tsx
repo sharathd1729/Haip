@@ -29,6 +29,8 @@ export interface LeadCard {
   stage_key: string | null;
   sla_breached?: boolean;
   occasion?: string;
+  // inquiries.tags: AI tags from the lead summary (backend services/lead_tags.py) plus any a person added
+  tags?: string[];
   group_type?: string;
   check_in?: string;
   check_out?: string;
@@ -397,13 +399,17 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         </div>
       </div>
 
-      {/* Row 2: Occasion + group type pills */}
-      {(lead.occasion || lead.group_type) && (
+      {/* Row 2: Occasion + group type pills, then AI tags (at most 3 shown) */}
+      {(lead.occasion || lead.group_type || (lead.tags?.length ?? 0) > 0) && (
         <div className="flex items-center gap-1 flex-wrap">
           {lead.occasion && <Pill label={lead.occasion} />}
           {lead.group_type && lead.group_type !== lead.occasion && (
             <Pill label={lead.group_type} />
           )}
+          {(lead.tags ?? [])
+            .filter(t => t.toLowerCase() !== lead.occasion?.toLowerCase() && t.toLowerCase() !== lead.group_type?.toLowerCase())
+            .slice(0, 3)
+            .map(t => <Pill key={t} label={t} />)}
         </div>
       )}
 

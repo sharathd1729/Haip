@@ -97,6 +97,7 @@ def list_leads(
     lead_type: Optional[str] = Query(None, description="guest,b2b,partner (comma-separated)"),
     came_from: Optional[str] = Query(None, description="paid | organic | unknown (derived, lead_paid)"),
     validity: Optional[str] = Query(None, description="valid | invalid | not_reviewed (lead_validity: a person's review, else the rule)"),
+    tag: Optional[str] = Query(None, description="one AI/lead tag from services/lead_tags.VOCABULARY, e.g. 'anniversary'"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=200),
     current_user: User = Depends(get_current_user),
@@ -119,6 +120,8 @@ def list_leads(
         lead_list_extras.check_came_from(came_from)
         from app.services.lead_validity import check_value
         check_value(validity)
+        from app.services.lead_tags import check as check_tag
+        tag = check_tag(tag)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     for preset, name in ((enquiry_date_preset, "enquiry_date_preset"), (checkin_date_preset, "checkin_date_preset")):
@@ -155,9 +158,30 @@ def list_leads(
         lead_type=lead_type,
         came_from=came_from,
         validity=validity,
+        tag=tag,
     )
     res.scope = "mine_and_unassigned" if scope else "team"   # the one visibility rule, said on the page and in reports
     return res
+
+
+@router.get("/segments")
+def lead_segments(refresh: bool = Query(False), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Ready-made segments (the campaign presets, same counts a campaign would reach) and open leads per AI tag
+    (services/lead_segments.py). Owner / manager: counts across the whole team. Declared before /{inquiry_id}."""
+    from app.models.user import UserRole
+    from app.services import lead_segments
+
+    if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+        raise HTTPException(status_code=403, detail="Segments are for owners and managers.")
+    return lead_segments.overview(db, current_user.tenant_id, use_cache=not refresh)
+
+
+@router.get("/tags")
+def lead_tag_vocabulary(current_user: User = Depends(get_current_user)):
+    """The tags the AI may put on a lead (and a filter may ask for), grouped. Declared before /{inquiry_id}."""
+    from app.services.lead_tags import VOCABULARY
+
+    return {"groups": [{"label": k, "tags": list(v)} for k, v in VOCABULARY.items()]}
 
 
 # ── GET /leads/needs-action — default Leads view ─────────────────────────────

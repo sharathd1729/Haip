@@ -47,7 +47,8 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "unanswered_questions": ["<each question the GUEST asked that the team has NOT yet answered in this conversation, as a short phrase; [] if none>"],
     "requirements": ["<each amenity/need the guest stated (pets, kitchen, wheelchair access ...), as a short phrase; [] if none>"],
     "inferences": ["<anything you CONCLUDED but the guest did NOT say, e.g. 'likely price-sensitive'; [] if none. Never put an inference anywhere else>"],
-    "follow_up": "<when/how to follow up if a follow-up is due (e.g. 'call back tomorrow morning'), else null>",__ACTIONABLE__
+    "follow_up": "<when/how to follow up if a follow-up is due (e.g. 'call back tomorrow morning'), else null>",
+    __TAGS__,__ACTIONABLE__
   },
   "extracted": {
     "check_in": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-in/travel date, else null. If the guest gave a date with no year (e.g. 'sept 16-18', 'the 20th'), resolve the year using the 'Reference date' given in the lead context below -- pick the nearest occurrence of that month/day ON OR AFTER the reference date, never a year already in the past relative to it, and never guess a year with no anchor.>",
@@ -95,7 +96,10 @@ __ACTIONABLE_RULES__ The owner is the "Assigned agent" in the lead context when 
 
 from app.services import ai_actionable as _actionable  # noqa: E402
 
-SYSTEM_PROMPT = (SYSTEM_PROMPT.replace("__ACTIONABLE__", _actionable.PROMPT_SPEC.rstrip())
+from app.services import lead_tags as _lead_tags  # noqa: E402
+
+SYSTEM_PROMPT = (SYSTEM_PROMPT.replace("__TAGS__", _lead_tags.PROMPT_LINE.rstrip(","))
+                 .replace("__ACTIONABLE__", _actionable.PROMPT_SPEC.rstrip())
                  .replace("__ACTIONABLE_RULES__", _actionable.PROMPT_RULES))
 
 
@@ -125,6 +129,7 @@ def _clean_analysis(raw: dict) -> dict:
             out[key] = val.strip().lower() if isinstance(val, str) and val.strip().lower() in _URGENCIES else None
         else:
             out[key] = val.strip()[:300] if isinstance(val, str) and val.strip() else None
+    out["tags"] = _lead_tags.clean(raw.get("tags"))  # fixed vocabulary only (services/lead_tags.py)
     # v8 actionable block (added keys; nothing renamed). next_action stays the one-line text older readers use.
     out.update(_actionable.clean_actionable(raw))
     if not out.get("next_action"):
@@ -731,6 +736,11 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str, force: bool = Fal
             stage = getattr(inquiry, "pipeline_stage", None)
             analysis["written_stage_key"] = getattr(stage, "key", None)
             analysis["written_at"] = datetime.now(timezone.utc).isoformat()
+            # AI tags: replace only the ones the AI wrote last time, keep a person's (services/lead_tags.py).
+            previous_ai = (inquiry.ai_analysis or {}).get("ai_tags") if isinstance(inquiry.ai_analysis, dict) else None
+            new_tags = analysis.pop("tags", []) or []
+            inquiry.tags = _lead_tags.merge(inquiry.tags, previous_ai, new_tags)
+            analysis["ai_tags"] = new_tags
             inquiry.ai_analysis = analysis
         if lead_analysis is not None:
             inquiry.ai_lead_analysis = lead_analysis
