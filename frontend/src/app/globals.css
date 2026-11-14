@@ -1592,6 +1592,29 @@
   --y-late-soft: #3A1A12;
   --y-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 18px -10px rgb(0 0 0 / 0.6);
 }
+/* Yaad sign-in / sign-up (/yaad/login, /yaad/signup): the shared form's theme colours, mapped onto Yaad's Mango tokens. */
+.yaad-auth {
+  --primary: var(--y-brand);
+  --primary-foreground: var(--y-on-brand);
+  --ring: var(--y-ink);
+  --background: var(--y-canvas);
+  --foreground: var(--y-ink);
+  --muted-foreground: var(--y-ink-2);
+  --border: var(--y-line-strong);
+  /* Tailwind's utilities (bg-primary, text-foreground...) read the --color-* names, resolved at the root: map them too */
+  --color-primary: var(--y-brand);
+  --color-primary-foreground: var(--y-on-brand);
+  --color-ring: var(--y-ink);
+  --color-background: var(--y-canvas);
+  --color-foreground: var(--y-ink);
+  --color-muted-foreground: var(--y-ink-2);
+  --color-border: var(--y-line-strong);
+  --haip-action: var(--y-brand);          /* the global primary-button rule paints with these */
+  --haip-action-hover: var(--y-brand-hover);
+  --haip-on-action: var(--y-on-brand);
+  background: var(--y-canvas);
+  color: var(--y-ink);
+}
 /* The phone's bottom bar in a personal workspace takes Yaad's colours. */
 .yaad-shell { --haip-tabbar-active-bg: #FFEDB3; --haip-tabbar-active-fg: #16130C; }
 .dark .yaad-shell { --haip-tabbar-active-bg: #2E2512; --haip-tabbar-active-fg: #FFD979; }

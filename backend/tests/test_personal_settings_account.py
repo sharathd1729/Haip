@@ -200,3 +200,26 @@ def test_only_the_owner_of_a_personal_workspace_can_delete_it(client, db, tenant
         client.request("DELETE", "/api/v1/me/account", json={"confirm": "DELETE"}, headers=headers).status_code == 403
     )
     assert db.get(Tenant, tid).is_active is not False
+
+
+# ─── Yaad sign-up (POST /auth/register, workspace_mode=personal) ─────────────
+
+
+def test_yaad_signup_makes_a_personal_workspace_without_business_details(client, db):
+    r = client.post("/api/v1/auth/register", json={"name": "Arjun Rao", "email": "arjun.yaad@example.com",
+                                                   "password": "Secure123!", "workspace_mode": "personal"})
+    assert r.status_code == 201, r.text
+    t = db.get(Tenant, r.json()["user"]["tenant_id"])
+    assert t.name == "Arjun Rao" and t.slug.startswith("me-") and t.business_type is None
+    assert pc.is_personal_tenant(t)
+    assert db.query(AuditEvent).filter_by(tenant_id=t.id, action="workspace.mode_changed").count() == 1
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    assert client.get("/api/v1/me/calls", headers=h).status_code == 200            # straight into Yaad
+    assert client.get("/api/v1/workspace/context", headers=h).json()["mode"] == "personal"
+
+
+def test_business_signup_still_needs_its_details_and_a_real_password(client):
+    base = {"name": "B", "email": "b.biz@example.com", "password": "Secure123!"}
+    assert client.post("/api/v1/auth/register", json=base).status_code == 422          # no workspace name / URL
+    assert client.post("/api/v1/auth/register", json={**base, "email": "c@example.com", "password": "short",
+                                                      "workspace_mode": "personal"}).status_code == 400

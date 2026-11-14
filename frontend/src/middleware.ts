@@ -65,6 +65,10 @@ export default auth((req: NextRequest & { auth: any }) => {
     if (!req.auth?.error && (pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/onboarding")) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
+    // Yaad's own sign-in / sign-up: a signed-in person goes straight to their calls.
+    if (!req.auth?.error && (pathname === "/yaad/login" || pathname === "/yaad/signup")) {
+      return NextResponse.redirect(new URL("/dashboard/me", req.url));
+    }
   }
 
   // ── Logged-out users ───────────────────────────────────────────────────────
@@ -78,7 +82,8 @@ export default auth((req: NextRequest & { auth: any }) => {
     if (req.auth?.error) {
       console.warn("[auth] middleware redirect: session.error =", req.auth.error, "path =", pathname);
     }
-    const loginUrl = new URL("/login", req.url);
+    // Yaad's screens (the Yaad app opens /dashboard/me) sign in on Yaad's own page.
+    const loginUrl = new URL(pathname.startsWith("/dashboard/me") ? "/yaad/login" : "/login", req.url);
     // Keep the query string: the consent screen's OAuth params live there,
     // and dropping them strands the user after login.
     loginUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search);
@@ -97,6 +102,7 @@ export const config = {
     "/forgot-password",
     "/reset-password",
     "/onboarding",
+    "/yaad/:path*",
     "/dashboard/:path*",
     "/connect/:path*",
   ],

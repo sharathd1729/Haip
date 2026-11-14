@@ -30,7 +30,7 @@ export default function YaadRemindersPage() {
   return (
     <div className="yaad min-h-full px-4 py-5 sm:px-6">
       <div className="mx-auto max-w-[680px]">
-        <div className="mb-5 hidden min-[600px]:block"><YaadWordmark /></div>
+        <div className="mb-5 hidden min-[600px]:block md:hidden"><YaadWordmark /></div>
         <h1 className="text-[26px] font-semibold tracking-[-0.02em]">Reminders</h1>
         <p className="mt-1 text-[14.5px] text-[var(--y-ink-2)]">What you and others said you would do, from your calls.</p>
 
