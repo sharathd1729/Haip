@@ -60,6 +60,7 @@ async def receive_instagram_webhook(request: Request):
     # verify_meta_signature_any for why a wrong tenant value must not be
     # allowed to block inbound on its own.
     app_secret = ""
+    other_secrets: list[tuple[str, str]] = []
     entries = payload.get("entry", [])
     ig_account_id = entries[0].get("id") if entries else None
 
@@ -89,6 +90,21 @@ async def receive_instagram_webhook(request: Request):
                 if _ig:
                     _creds = decrypt_credentials(_ig.credentials_kms_blob)
                     app_secret = _creds.get("app_secret", "")
+                    # The same workspace's other Meta apps: when its Facebook page is linked to this Instagram account,
+                    # its own Meta app (the one behind its WhatsApp) delivers the DMs and signs them with ITS secret
+                    # (Jade, 14 Nov: every DM rejected against both the Instagram and the server secret).
+                    for _other in (
+                        _db.query(Integration)
+                        .filter(Integration.tenant_id == _ig.tenant_id,
+                                Integration.kind.in_(["whatsapp_meta", "whatsapp", "meta_ads"]))
+                        .all()
+                    ):
+                        try:
+                            _s = decrypt_credentials(_other.credentials_kms_blob).get("app_secret", "") if _other.credentials_kms_blob else ""
+                        except Exception:  # noqa: BLE001 -- one unreadable row must not block the others
+                            _s = ""
+                        if _s and _s != app_secret:
+                            other_secrets.append((f"{_other.kind}_app_secret", _s))
             finally:
                 _db.close()
         except Exception as _e:
@@ -101,7 +117,7 @@ async def receive_instagram_webhook(request: Request):
             body=body,
             signature_header=sig,
             env=settings.ENVIRONMENT,
-            secrets=[("tenant_app_secret", app_secret), ("META_APP_SECRET", settings.META_APP_SECRET)],
+            secrets=[("tenant_app_secret", app_secret), *other_secrets, ("META_APP_SECRET", settings.META_APP_SECRET)],
         )
     except HTTPException:
         # Say which Instagram account the rejected webhook was for and whether we found a saved secret
@@ -111,8 +127,11 @@ async def receive_instagram_webhook(request: Request):
             "instagram_webhook_rejected",
             ig_account_id=ig_account_id,
             tenant_secret_found=bool(app_secret),
+            other_secrets_tried=[label for label, _ in other_secrets],
         )
         raise
+    if matched not in ("tenant_app_secret", "META_APP_SECRET", "none"):
+        log.info("instagram_webhook_verified_by_other_app", ig_account_id=ig_account_id, secret=matched)
     if app_secret and matched == "META_APP_SECRET":
         # Accepted, but the secret saved on the integration is wrong. Loud so
         # it gets corrected rather than silently depending on the fallback.
