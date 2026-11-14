@@ -49,8 +49,10 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    tenant_name: str
-    tenant_slug: str
+    tenant_name: str = ""
+    tenant_slug: str = ""
+    # "personal" = a Yaad sign-up (one person's own calls): no business details; HAIP names the workspace itself
+    workspace_mode: Optional[Literal["personal"]] = None
     # = ops_pack_catalog.BUSINESS_TYPES (the segment picks the ops pack)
     business_type: Optional[
         Literal["caravan", "villa_resort", "farmhouse", "vacation_rental", "homestay", "hotel", "resort", "guesthouse"]
@@ -111,6 +113,17 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter_by(email=req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    personal = req.workspace_mode == "personal"
+    if personal:
+        from app.services.personal_calls import MODE_KEY, PERSONAL
+        req.tenant_name = req.tenant_name.strip() or req.name.strip() or "My calls"
+        req.tenant_slug = f"me-{secrets.token_hex(5)}"   # nobody sees it: a personal workspace has no public address
+        req.business_type = None
+    elif not req.tenant_name.strip() or not req.tenant_slug.strip():
+        raise HTTPException(status_code=422, detail="Workspace name and URL are required")
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
     # Check slug unique
     if db.query(Tenant).filter_by(slug=req.tenant_slug).first():
         raise HTTPException(status_code=400, detail="Tenant slug already taken")
@@ -121,6 +134,7 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         slug=req.tenant_slug,
         plan="growth",
         business_type=req.business_type,
+        **({"brand_config": {MODE_KEY: PERSONAL}} if personal else {}),
     )
     db.add(tenant)
     db.flush()
@@ -152,6 +166,10 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         consent_recorded_at=datetime.now(timezone.utc),
     )
     db.add(user)
+    if personal:
+        db.flush()
+        append_audit(db, tenant_id=tenant.id, actor_user_id=user.id, action="workspace.mode_changed",
+                     target_type="tenant", target_id=tenant.id, payload={"mode": "personal", "via": "yaad_signup"})
     db.commit()
 
     payload = {"sub": user.id, "tenant_id": tenant.id, "role": user.role.value}
