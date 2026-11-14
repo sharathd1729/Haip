@@ -41,7 +41,7 @@ function Home() {
   return (
     <div className="yaad min-h-full px-4 py-5 sm:px-6">
       <div className="mx-auto max-w-[1180px]">
-        <div className="mb-5 hidden items-center justify-between gap-3 min-[600px]:flex">
+        <div className="mb-5 hidden items-center justify-between gap-3 min-[600px]:flex md:hidden">{/* md+: the Yaad sidebar shows these */}
           <YaadWordmark />
           <Link href="/dashboard/me/reminders" className="y-press inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--y-line-strong)] bg-[var(--y-card)] px-4 text-[15px] font-medium">
             <ListChecks size={17} aria-hidden /> Reminders

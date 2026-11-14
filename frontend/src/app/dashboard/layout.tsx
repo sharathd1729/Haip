@@ -1,6 +1,7 @@
 import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeader } from "@/components/layout/MobileHeader";
 import { HybridTopNav } from "@/components/shell/HybridTopNav";
+import { YaadSideNav } from "@/components/personal/YaadSideNav";
 import { redirect } from "next/navigation";
 import type { Viewport } from "next";
 import { auth } from "@/lib/auth";
@@ -69,6 +70,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           background: "var(--haip-app-bg)",
         }}
       >
+        {/* Yaad (personal workspace) on desktop: a left sidebar; renders nothing for business workspaces */}
+        <YaadSideNav user={user} />
         {/* ── Main column (Hospitality Hybrid: no sidebar; a top bar on desktop, header + bottom bar on phones) ── */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Desktop top bar */}

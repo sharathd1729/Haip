@@ -91,6 +91,7 @@ export function HybridTopNav({ user }: Props) {
   const role = user?.role ?? "";
   const nav = useNav(role);
   const { theme } = useBrandTheme();
+  if (nav.personal) return null;   // Yaad (personal workspace): its own left sidebar instead (personal/YaadSideNav)
   const tabs = nav.primaryTabs.map(t => ({ ...t, link: nav.byHref.get(t.href) })).filter(t => t.link);
   const darkLogo = isOwnLogo(theme.logoDarkUrl) ? theme.logoDarkUrl : null;
   const plateLogo = !darkLogo && isOwnLogo(theme.logoUrl) ? theme.logoUrl : null;
