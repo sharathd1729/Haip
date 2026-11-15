@@ -6,14 +6,12 @@ import JsonLd from "@/components/site/JsonLd";
 import { KEYWORDS, pageMetadata, softwareLd } from "@/lib/seo";
 import "./features.css";
 
-// Preview: noindex until /site-v2 replaces the live pages; the canonical already points at the final address.
 export const metadata = pageMetadata({
   title: "Features: inbox, calls, leads, bookings and operations | HAIP",
   description:
     "Everything HAIP does for your property: one WhatsApp and Instagram inbox, calls recorded and scored, a leads pipeline, bookings and payment links, operations, your website and Instagram posts, and reports.",
   path: "/features",
   keywords: [...KEYWORDS.features],
-  noindex: true,
 });
 
 export default function FeaturesPage() {

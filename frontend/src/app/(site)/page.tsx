@@ -14,14 +14,12 @@ import SiteFooter from "@/components/site/SiteFooter";
 import JsonLd from "@/components/site/JsonLd";
 import { KEYWORDS, organizationLd, pageMetadata, softwareLd } from "@/lib/seo";
 
-// Preview: noindex until /site-v2 replaces the live homepage; the canonical already points at "/".
 export const metadata = pageMetadata({
   title: "HAIP: WhatsApp, calls and bookings for Indian hospitality",
   description:
     "No guest left on read. HAIP answers your guests on WhatsApp and Instagram, records every call, and runs bookings, payments and the stay for villas, resorts, homestays, hotels and caravans in India.",
   path: "/",
   keywords: [...KEYWORDS.home],
-  noindex: true,
 });
 
 // New homepage, section order as approved in the mockup (v47).
