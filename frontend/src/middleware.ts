@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
+import { isYaadScreen } from "@/lib/authRedirect";
 
 // Subdomains that map directly to a marketing page path.
 // e.g. status.haip.app/ → /status, docs.haip.app/ → /docs
@@ -9,6 +10,10 @@ const SUBDOMAIN_MAP: Record<string, string> = {
   status: "/status",
   docs:   "/docs",
 };
+
+// Yaad's host and the pages it may show (its own screens plus the shared profile, help and phones pages).
+const isYaadHost = (host: string) => host.split(":")[0].toLowerCase().startsWith("yaad.");
+const YAAD_PATHS = ["/dashboard/me", "/dashboard/profile", "/dashboard/help", "/dashboard/settings/calls-app"];
 
 export default auth((req: NextRequest & { auth: any }) => {
   const { pathname } = req.nextUrl;
@@ -53,6 +58,27 @@ export default auth((req: NextRequest & { auth: any }) => {
   const graceAllowed = withinGrace && !pathname.startsWith("/connect");
   const isLoggedIn = !!req.auth && (!req.auth.error || graceAllowed);
 
+  // ── Yaad's own address (yaad.genhaip.com; yaad.localhost locally) ──────────
+  // Only Yaad's screens and Yaad's sign-in live there: its own cookie, so a HAIP session in the same browser never mixes
+  // in, and a HAIP page is never one click away. Anything else on that host goes back to Yaad.
+  if (isYaadHost(hostname)) {
+    const yaadPage = YAAD_PATHS.some(p => pathname === p || pathname.startsWith(p + "/"));
+    // Redirects stay on the Yaad host (req.url can carry the upstream host behind nginx).
+    const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "");
+    const here = (path: string) => new URL(path, `${proto}://${hostname}`);
+    const entry = pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/onboarding";
+    if (!isLoggedIn && (entry || pathname.startsWith("/dashboard"))) {
+      const loginUrl = here("/yaad/login");
+      loginUrl.searchParams.set("callbackUrl", yaadPage ? pathname + req.nextUrl.search : "/dashboard/me");
+      return NextResponse.redirect(loginUrl);
+    }
+    if (isLoggedIn && !req.auth?.error && (entry || pathname === "/yaad/login" || pathname === "/yaad/signup")) {
+      return NextResponse.redirect(here("/dashboard/me"));
+    }
+    if (pathname.startsWith("/dashboard") && !yaadPage) return NextResponse.redirect(here("/dashboard/me"));
+    return NextResponse.next();
+  }
+
   // ── Logged-in users ────────────────────────────────────────────────────────
   if (isLoggedIn) {
     // Send away from auth/marketing entry pages straight into the app.
@@ -83,7 +109,7 @@ export default auth((req: NextRequest & { auth: any }) => {
       console.warn("[auth] middleware redirect: session.error =", req.auth.error, "path =", pathname);
     }
     // Yaad's screens (the Yaad app opens /dashboard/me) sign in on Yaad's own page.
-    const loginUrl = new URL(pathname.startsWith("/dashboard/me") ? "/yaad/login" : "/login", req.url);
+    const loginUrl = new URL(isYaadScreen(pathname) ? "/yaad/login" : "/login", req.url);
     // Keep the query string: the consent screen's OAuth params live there,
     // and dropping them strands the user after login.
     loginUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search);

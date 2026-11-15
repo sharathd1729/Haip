@@ -10,6 +10,7 @@ const YAAD: LoginBrand = {
   signupLabel: "Create your account",
   signupHref: "/yaad/signup",
   defaultCallback: "/dashboard/me",
+  callbackUnder: "/dashboard/me",
 };
 
 export default function YaadLoginPage() {

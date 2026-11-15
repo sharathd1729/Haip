@@ -46,6 +46,9 @@ android {
             applicationId = "com.genhaip.yaad"
             buildConfigField("String", "START_PATH", "\"/dashboard/me\"")
             buildConfigField("boolean", "PERSONAL", "true")
+            // Yaad has its own address (own sign-in cookie, never a HAIP screen). Publish this APK only once
+            // yaad.genhaip.com serves the app (DEPLOY.md "Yaad's own address"), or the app cannot reach anything.
+            buildConfigField("String", "HAIP_BASE_URL", "\"${System.getenv("YAAD_BASE_URL") ?: "https://yaad.genhaip.com"}\"")
         }
     }
 
