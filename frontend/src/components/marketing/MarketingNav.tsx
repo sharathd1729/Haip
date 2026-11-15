@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Menu, X, ChevronDown, Inbox, Phone, Users, MessageSquare, Star, BarChart2, Building2, Hotel, Plane, FileText, Shield, BookOpen, ArrowRight } from "@/lib/icons";
+import { Menu, X, ChevronDown, Inbox, Phone, Users, MessageSquare, Star, BarChart2, Building2, Hotel, Plane, FileText, Shield, ArrowRight } from "@/lib/icons";
 import { Trees, Activity } from "lucide-react";
 
 // ─── Nav data ─────────────────────────────────────────────────────────────────
@@ -28,7 +28,6 @@ const solutions = [
 const resources = [
   { label: "Case studies",    href: "/case-studies", desc: "How real teams use HAIP",                 icon: <FileText size={14} style={{ color: "#00555a" }} /> },
   { label: "Security & trust",href: "/security",     desc: "DPDP · KMS · audit · sub-processors",    icon: <Shield size={14} style={{ color: "#00555a" }} /> },
-  { label: "Documentation",   href: "/docs",         desc: "Setup, API and integration guides",       icon: <BookOpen size={14} style={{ color: "#00555a" }} /> },
   { label: "System status",   href: "/status",       desc: "Live uptime and incident log",            icon: <Activity size={14} style={{ color: "#00555a" }} /> },
 ];
 

@@ -15,8 +15,6 @@ const links = {
     { label: "Travel Operators", href: "/solutions/travel" },
   ],
   Resources: [
-    { label: "Documentation", href: "/docs" },
-    { label: "Blog",          href: "/blog" },
     { label: "Case Studies",  href: "/case-studies" },
     { label: "Status",        href: "/status" },
   ],
