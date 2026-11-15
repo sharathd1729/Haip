@@ -7,14 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, ArrowRight, Shield } from "@/lib/icons";
 import api, { clearTokenCache } from "@/lib/api";
-
-// Only same-origin paths: an absolute or protocol-relative callbackUrl
-// ("https://evil.example", "//evil.example") would make login an open
-// redirector.
-function safeCallback(raw: string | null, fallback: string): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
-  return raw;
-}
+import { safeCallback } from "@/lib/authRedirect";
 
 export interface LoginBrand {
   title: string;
@@ -23,6 +16,7 @@ export interface LoginBrand {
   signupLabel: string;
   signupHref: string;
   defaultCallback: string;   // where to go when no (safe) callbackUrl was given
+  callbackUnder?: string;    // only return to pages at or below this path
 }
 
 export const HAIP_LOGIN: LoginBrand = {
@@ -36,7 +30,7 @@ export function LoginForm({ brand = HAIP_LOGIN }: { brand?: LoginBrand }) {
   const params = useSearchParams();
   // Set by middleware when a protected page (e.g. the AI-assistant consent
   // screen) bounced a logged-out user here.
-  const callbackUrl = safeCallback(params.get("callbackUrl"), brand.defaultCallback);
+  const callbackUrl = safeCallback(params.get("callbackUrl"), brand.defaultCallback, brand.callbackUnder);
 
   // Email+password
   const [email, setEmail] = useState("");

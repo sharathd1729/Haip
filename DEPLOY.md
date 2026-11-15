@@ -235,7 +235,54 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate api worker work
 
 | Yaad folders + calendar + Google Calendar sync + Ask chats (15 Nov) | Migrations 207-209 run with the deploy. In Google Cloud (the Business Profile OAuth client), add the redirect URI `{API_BASE_URL}/api/v1/me/calendar/google/oauth-callback` and the scope `https://www.googleapis.com/auth/calendar.events` to the consent screen; Google must verify the app before more than 100 people can connect (sensitive scope). No new env vars. |
 
+| Yaad's own address `yaad.genhaip.com` (15 Nov) | Follow "Yaad's own address" below BEFORE publishing the next Yaad APK (it opens yaad.genhaip.com). |
+
 Add a row here whenever a release needs more than "pull, build, migrate, up".
+
+## Yaad's own address (yaad.genhaip.com)
+
+Yaad runs from the same frontend container as HAIP, on its own host: its own sign-in cookie (a HAIP session in the same
+browser never mixes in), and `frontend/src/middleware.ts` sends any non-Yaad page on that host back to `/dashboard/me`.
+
+1. **DNS (Hostinger)**: add an `A` record, name `yaad`, value = the VPS's public IP (the same IP `genhaip.com` uses).
+   Check: `dig +short yaad.genhaip.com` prints that IP.
+2. **nginx on the VPS**: a server block for the new name, next to the `genhaip.com` one (an exact `server_name` wins over
+   the client-sites catch-all):
+
+```nginx
+server {
+    server_name yaad.genhaip.com;
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+    listen 80;
+}
+```
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **Certificate**:
+
+```bash
+sudo certbot --nginx -d yaad.genhaip.com
+```
+
+4. **Backend env**: add `YAAD_URL=https://yaad.genhaip.com` to `backend/.env` (Yaad's evening email links and the Google
+   Calendar return page use it), then `docker compose -f docker-compose.prod.yml up -d --force-recreate api worker worker_replies beat`.
+   Add `https://yaad.genhaip.com` to `ALLOWED_ORIGINS` only if the frontend calls the API directly (it uses `/api/v1`
+   through the frontend by default, so normally no change).
+5. **Check**: open `https://yaad.genhaip.com` (goes to the Yaad sign-in), sign in, then try
+   `https://yaad.genhaip.com/dashboard/messaging`: it must land on Memories.
+6. **Then** publish the Yaad APK built from this code (its address is `https://yaad.genhaip.com`, override with
+   `YAAD_BASE_URL` at build time). Everyone signs in once on the new address; `www.genhaip.com/yaad/login` keeps working.
 
 ## Publishing an Android app update (HAIP Calls, Yaad)
 

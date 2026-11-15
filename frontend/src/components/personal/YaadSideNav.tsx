@@ -43,7 +43,7 @@ export function YaadSideNav({ user }: { user?: { name?: string | null; email?: s
       <div className="border-t border-[var(--y-line)] px-4 py-4">
         <p className="truncate text-[14px] font-semibold">{user?.name ?? "You"}</p>
         {user?.email && <p className="truncate text-[12.5px] text-[var(--y-ink-3)]">{user.email}</p>}
-        <button type="button" onClick={() => { clearTokenCache(); signOut({ callbackUrl: "/yaad/login" }); }}
+        <button type="button" onClick={() => { clearTokenCache(); signOut({ redirect: false }).then(() => window.location.assign("/yaad/login")); }}
           className="y-press mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--y-line-strong)] px-3.5 text-[13.5px] font-medium">
           <LogOut size={15} aria-hidden /> Sign out
         </button>

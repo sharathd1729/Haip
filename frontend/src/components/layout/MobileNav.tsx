@@ -113,7 +113,7 @@ export function MobileMenuSheet({ open, onClose, user }: { open: boolean; onClos
             <UserAvatar name={user?.name} photoUrl={me?.avatar_url} size="md" className="size-10" />
             <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-semibold">{user?.name ?? "User"}</p><p className="truncate text-[12.5px] text-[var(--haip-fg-subtle)]">{user?.email ?? ""}</p></div>
           </div>
-          <button type="button" onClick={() => { clearTokenCache(); signOut({ callbackUrl: nav.personal ? "/yaad/login" : "/login" }); }}
+          <button type="button" onClick={() => { clearTokenCache(); signOut({ redirect: false }).then(() => window.location.assign(nav.personal ? "/yaad/login" : "/login")); }}
             className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-[15px] font-semibold text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]">
             <LogOut size={17} />Sign out
           </button>

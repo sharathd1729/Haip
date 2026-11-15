@@ -112,7 +112,7 @@ def google_oauth_start(token: str = Query(...), db: Session = Depends(get_db)):
 
 def _back(status: str, reason: str = "") -> RedirectResponse:
     q = urlencode({"google": status, **({"reason": reason[:120]} if reason else {})})
-    return RedirectResponse(f"{settings.FRONTEND_URL.rstrip('/')}/dashboard/me/calendar?{q}", status_code=302)
+    return RedirectResponse(f"{(settings.YAAD_URL or settings.FRONTEND_URL).rstrip('/')}/dashboard/me/calendar?{q}", status_code=302)
 
 
 @router.get("/google/oauth-callback")

@@ -74,7 +74,7 @@ def daily_digest(self, tenant_id: str, day: str | None = None, to_email: str | N
         log.info("personal_digest_quiet_day", tenant_id=tenant_id, day=day)
         return {"tenant_id": tenant_id, "day": day, "status": "no_calls"}
 
-    app_url = settings.FRONTEND_URL or ""
+    app_url = settings.YAAD_URL or settings.FRONTEND_URL or ""
     subject, html, text = email.subject(digest), email.html(digest, app_url), email.text(digest, app_url)
     sent = sum(bool(asyncio.run(_send(addr, subject, html, text))) for addr in targets)
     if not sent:
