@@ -15,7 +15,7 @@ export default function Hero() {
     <div>
       <h1 id="h1"><span className="static">No guest left on read.</span><span className="rot"><span className="lead">Answer every</span><span className="hlword" id="hlword"><span id="hltext">WhatsApp at 2 AM</span></span></span></h1>
       <p className="sub">HAIP answers your guests on WhatsApp and Instagram, records every call, and runs bookings, payments and channels. Your team steps in when it matters.</p>
-      <div className="ctas"><a className="btn big primary" href="/book-demo">Book a demo</a><a className="btn big outline" href="#hero">Chat with us on WhatsApp</a></div>
+      <div className="ctas"><a className="btn big primary" href="/book-demo">Book a demo</a><a className="btn big outline" href="https://wa.me/918147698153" target="_blank" rel="noopener noreferrer">Chat with us on WhatsApp</a></div>
       <p className="fine">For villas, resorts, homestays and travel operators</p>
     </div>
     <div className="stream" role="img" aria-label="Example conversation: Rohan asks on Instagram about a pool villa, shares his number, the chat moves to WhatsApp, a voice note is transcribed, a missed call gets a callback, a 24,300 rupee advance is paid and the dates are blocked on Airbnb and Booking.com.">
