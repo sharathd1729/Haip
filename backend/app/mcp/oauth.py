@@ -33,7 +33,7 @@ def api_base(request: Request) -> str:
     """Public origin of this API -- the OAuth issuer. Prefer the configured
     value: behind the reverse proxy request.base_url is the internal
     http://api:8000, which no external client can reach."""
-    return (settings.API_BASE_URL or str(request.base_url)).rstrip("/")
+    return (settings.MCP_PUBLIC_URL or settings.API_BASE_URL or str(request.base_url)).rstrip("/")
 
 
 def mcp_url(request: Request) -> str:

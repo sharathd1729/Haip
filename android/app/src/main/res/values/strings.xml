@@ -24,6 +24,10 @@
     <string name="step_call_log">1. Allow call log</string>
     <string name="step_call_log_body">HAIP needs to read your call log to add guest calls to their lead page.</string>
     <string name="allow_call_log">Allow call log</string>
+    <string name="step_contacts">Contact names</string>
+    <string name="step_contacts_body">Allow contacts so your calls show the names you saved, not just numbers. Only the name of each person you called is sent.</string>
+    <string name="allow_contacts">Allow contacts</string>
+    <string name="contacts_allowed">Done: contacts allowed.</string>
     <string name="restricted_hint">If Android says this setting is restricted: open App info for HAIP Calls, tap the ⋮ menu, choose "Allow restricted settings", then try again.</string>
     <string name="done_allowed">Done: call log allowed.</string>
 

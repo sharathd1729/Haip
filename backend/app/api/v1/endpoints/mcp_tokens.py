@@ -86,5 +86,5 @@ def revoke_token(
 def mcp_endpoint_info():
     """Returns the MCP endpoint URL to paste into Perisclaw's connector
     dialog, alongside a freshly-generated token."""
-    base = (settings.API_BASE_URL or "").rstrip("/")
+    base = (settings.MCP_PUBLIC_URL or settings.API_BASE_URL or "").rstrip("/")
     return {"mcp_url": f"{base}/mcp"}

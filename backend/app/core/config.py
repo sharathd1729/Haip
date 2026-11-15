@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     YAAD_URL: str = ""
     # Public API base URL used in webhook-info responses (no trailing slash)
     API_BASE_URL: str = ""
+    # Public origin of the MCP server + its OAuth (https://api.genhaip.com). API_BASE_URL can point at the web app
+    # (Vercel), which only forwards /api/v1, so /mcp and /.well-known there 404. Empty = API_BASE_URL.
+    MCP_PUBLIC_URL: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 

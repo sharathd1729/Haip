@@ -35,9 +35,10 @@ from app.core.audit import append_audit
 from app.core.database import SessionLocal, set_tenant_context
 from app.mcp import redaction
 from app.models.user import User, UserRole
-from app.services import authz_service, oauth_service, token_service
+from app.services import authz_service, oauth_service, personal_calls, token_service
 from app.mcp.oauth import protected_resource_metadata_url
 from app.mcp.tools import TOOLS, TOOLS_BY_NAME, ToolError
+from app.mcp.tools_yaad import YAAD_INSTRUCTIONS, YAAD_TOOLS, YAAD_TOOLS_BY_NAME
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/mcp", tags=["mcp"])
@@ -173,6 +174,9 @@ async def mcp_endpoint(request: Request):
         role_caps = authz_service.get_capabilities(db, user)
         token_caps = token_service.expand_scopes(db, token_record.scopes)
         effective_caps = role_caps & token_caps
+        # A personal (Yaad) workspace gets only Yaad's tools; a business workspace only HAIP's.
+        yaad = personal_calls.is_personal(db, token_record.tenant_id)
+        tools, tools_by_name = (YAAD_TOOLS, YAAD_TOOLS_BY_NAME) if yaad else (TOOLS, TOOLS_BY_NAME)
 
         if method == "initialize":
             requested = params.get("protocolVersion")
@@ -180,8 +184,9 @@ async def mcp_endpoint(request: Request):
             return _jsonrpc_result(request_id, {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "haip-mcp", "title": "HAIP", "version": "1.1.0"},
-                "instructions": _SERVER_INSTRUCTIONS,
+                "serverInfo": {"name": "yaad-mcp" if yaad else "haip-mcp", "title": "Yaad" if yaad else "HAIP",
+                               "version": "1.2.0"},
+                "instructions": YAAD_INSTRUCTIONS if yaad else _SERVER_INSTRUCTIONS,
             })
 
         if method == "ping":
@@ -194,14 +199,14 @@ async def mcp_endpoint(request: Request):
             # filtered list (plan invariant #1).
             tools_public = [
                 {k: v for k, v in t.items() if k != "handler"}
-                for t in TOOLS if t.get("capability") in effective_caps
+                for t in tools if t.get("capability") in effective_caps
             ]
             return _jsonrpc_result(request_id, {"tools": tools_public})
 
         if method == "tools/call":
             tool_name = params.get("name")
             arguments = params.get("arguments") or {}
-            tool = TOOLS_BY_NAME.get(tool_name)
+            tool = tools_by_name.get(tool_name)
             if not tool:
                 return _jsonrpc_error(request_id, -32602, f"Unknown tool: {tool_name}")
 

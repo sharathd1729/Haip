@@ -146,7 +146,7 @@ Request:
 | `duration_sec` | 0-86400 (`CallLog.Calls.DURATION`) |
 | `answered` | incoming: false = missed / rejected. Outgoing: false = nobody picked up. Send `duration_sec` as logged; HAIP counts an unanswered call as 0 seconds |
 | `sim_slot` | optional 0-9; accepted, not stored |
-| `contact_name` | optional, <= 120: the name saved in the phone's contacts (`CallLog.Calls.CACHED_NAME`, no extra permission). Sent ONLY by the Yaad app; kept only in a personal workspace (put on the person with that number), ignored in a business workspace. A placeholder or number-as-name is ignored. |
+| `contact_name` | optional, <= 120: the name saved in the phone's contacts (`CallLog.Calls.CACHED_NAME`, else the address book via `ContactsContract.PhoneLookup` when READ_CONTACTS is allowed). Sent ONLY by the Yaad app; kept only in a personal workspace (put on the person with that number), ignored in a business workspace. A placeholder or number-as-name is ignored. |
 
 Response `200`, one result per call in the same order:
 
