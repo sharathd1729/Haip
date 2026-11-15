@@ -59,7 +59,7 @@ class Graph:
     def __init__(self, leads=None, permissions=PERMS):
         self.leads, self.permissions, self.calls = leads if leads is not None else [lead()], permissions, []
 
-    def __call__(self, url, params=None):
+    def __call__(self, url, params=None, token=None):
         self.calls.append(url)
         params = params or {}
         if url.endswith("/me"):
@@ -70,7 +70,7 @@ class Graph:
             return {"data": [{"id": "act_42", "name": "Jade Ads", "currency": "INR", "account_status": 1}]}
         if url.endswith("/me/accounts"):
             return {"data": [{"id": "147", "name": "Jade Page", "access_token": "PAGE-TOKEN"}]}
-        assert params.get("access_token") == "PAGE-TOKEN", "forms and leads are read with the page's own token"
+        assert token == "PAGE-TOKEN", "forms and leads are read with the page's own token"
         if url.endswith("/147/leadgen_forms"):
             return {
                 "data": [
@@ -225,7 +225,7 @@ def test_a_meta_failure_is_shown_and_the_cursor_stays(db, tenant_and_user, graph
     _on(db, tenant.id)
     since = biz.get_row(db, tenant.id).config["lead_forms"]["since"]
 
-    def down(url, params=None):
+    def down(url, params=None, token=None):
         raise meta_ads.MetaAdsError("(#4) Application request limit reached", status=400, code=4)
 
     monkeypatch.setattr(meta_ads, "_get", down)

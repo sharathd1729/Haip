@@ -60,7 +60,7 @@ def test_follows_pagination_but_refuses_a_non_graph_host(monkeypatch):
     page2 = {"data": [_raw("a2")]}
     calls = []
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, headers=None, timeout=None):
         calls.append(url)
         r = MagicMock(); r.status_code = 200
         r.json.return_value = page1 if len(calls) == 1 else page2

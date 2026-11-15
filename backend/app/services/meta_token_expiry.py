@@ -71,12 +71,13 @@ def fetch_expiry(token: str) -> Optional[dict]:
     try:
         resp = httpx.get(
             f"{GRAPH}/debug_token",
-            params={"input_token": token, "access_token": token},
+            params={"input_token": token},  # debug_token reads input_token from the query by design; never log this URL
+            headers={"Authorization": f"Bearer {token}"},
             timeout=15,
         )
         data = (resp.json() or {}).get("data")
     except Exception as exc:  # network, bad JSON
-        log.warning("meta_token_expiry_probe_failed", error=str(exc))
+        log.warning("meta_token_expiry_probe_failed", error=type(exc).__name__)
         return None
     if not isinstance(data, dict) or "is_valid" not in data:
         return None

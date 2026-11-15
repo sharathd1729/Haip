@@ -151,7 +151,8 @@ def keyword_volumes(keywords: list[str], client: Optional[httpx.Client] = None) 
 def _graph(token: str, path: str, params: dict, client: Optional[httpx.Client]) -> dict:
     c = client or httpx.Client(timeout=TIMEOUT, follow_redirects=False)
     try:
-        return _check(c.get(GRAPH + path, params={**params, "access_token": token}), "Instagram").json()
+        # Token in the header, never the URL: httpx error messages carry the URL.
+        return _check(c.get(GRAPH + path, params=params, headers={"Authorization": f"Bearer {token}"}), "Instagram").json()
     except (httpx.TimeoutException, httpx.TransportError) as exc:
         raise FeedError(f"Instagram did not answer: {type(exc).__name__}", transient=True) from exc
     finally:

@@ -28,7 +28,7 @@ URL = "/api/v1/meta-business"
 
 
 def fake_graph(permissions=ALL, accounts=True, pages=True, reject=False):
-    def _get(url, params=None):
+    def _get(url, params=None, token=None):
         if reject:
             raise MetaAdsError("Invalid OAuth access token", status=400, code=190)
         if url.endswith("/me"):

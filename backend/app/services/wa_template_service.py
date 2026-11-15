@@ -565,7 +565,8 @@ def _app_id(access_token: str) -> str:
         return settings.META_APP_ID
     resp = httpx.get(
         f"{_GRAPH}/debug_token",
-        params={"input_token": access_token, "access_token": access_token},
+        params={"input_token": access_token},  # debug_token reads input_token from the query by design; never log this URL
+        headers={"Authorization": f"Bearer {access_token}"},
         timeout=15,
     )
     app_id = (resp.json().get("data") or {}).get("app_id")
@@ -583,8 +584,8 @@ def upload_sample_to_meta(access_token: str, content: bytes, content_type: str, 
             f"{_GRAPH}/{app_id}/uploads",
             params={
                 "file_length": len(content), "file_type": content_type, "file_name": file_name,
-                "access_token": access_token,
             },
+            headers={"Authorization": f"OAuth {access_token}"},
             timeout=20,
         ).json()
         upload_id = start.get("id")
@@ -597,7 +598,7 @@ def upload_sample_to_meta(access_token: str, content: bytes, content_type: str, 
             timeout=60,
         ).json()
     except httpx.HTTPError as exc:
-        log.error("wa_template_media_upload_failed", error=str(exc))
+        log.error("wa_template_media_upload_failed", error=type(exc).__name__)
         raise TemplateError("Couldn't reach Meta to upload the file. Try again.") from exc
     handle = done.get("h")
     if not handle:
