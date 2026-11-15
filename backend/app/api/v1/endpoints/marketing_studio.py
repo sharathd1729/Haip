@@ -3,6 +3,7 @@ marketing.read / marketing.edit / marketing.approve. Nothing here publishes exte
 
 GET  /marketing/studio/profile                  PUT same          business profile (brand_config.business_profile)
 GET  /marketing/studio/measured                                    latest measured Instagram numbers (provider data)
+GET  /marketing/studio/profile-score                               Instagram profile score /100 (instagram_profile checklist)
 POST /marketing/studio/audits   GET  .../audits[/{id}]             social audit = measured snapshot + AI assessment
 POST /marketing/studio/plans    GET  .../plans[/{id}]              strategy + content calendar
 POST /marketing/studio/plans/{id}/content                          draft items for the plan's calendar entries
@@ -142,6 +143,14 @@ def get_audit(audit_id: str, user: User = Depends(get_current_user), db: Session
     if a is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No such audit.", "problems": []})
     return _audit_out(a)
+
+
+@router.get("/profile-score")
+def profile_score(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    """Instagram profile score out of 100 (12 items, a fix per point lost), read from the instagram_profile checklist;
+    its automatic checks read Instagram from Celery, so this never calls Instagram."""
+    from app.services import marketing_profile_score as profile
+    return profile.score(db, _tenant(db, user))
 
 
 # ── Plans ───────────────────────────────────────────────────────────────────────────────────────────────────────────

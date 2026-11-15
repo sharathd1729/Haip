@@ -24,6 +24,7 @@ class Step:
     rules: tuple[str, ...] = ()
     due_days: int = 7
     link: tuple[str, str] | None = None  # (label, HAIP page) for a step done inside HAIP
+    points: int = 0  # Instagram profile score (marketing_profile_score): points this step is worth out of 100
 
 
 @dataclass(frozen=True)
@@ -137,13 +138,16 @@ GBP_SETUP = Template(
     ),
 )
 
+# v2 (Instagram toolkit phase 3): the steps ARE the 12-item profile score (marketing_profile_score, rubric adapted from
+# instagram-agent-skill ig-profile, MIT): each scored step carries its points; measured ones are checked by HAIP.
 INSTAGRAM_PROFILE = Template(
     key="instagram_profile",
-    version=1,
+    version=2,
     platform="instagram",
     recurrence="one_off",
     title="Instagram profile: set up for bookings",
-    summary="Your profile is the first thing a guest checks before they message you.",
+    summary="Your profile is the first thing a guest checks before they message you. Each step adds to your profile "
+    "score out of 100 (Studio › Insights).",
     steps=(
         Step(
             "professional",
@@ -162,24 +166,49 @@ INSTAGRAM_PROFILE = Template(
         ),
         Step(
             "name",
-            "Name with what you are",
-            "Instagram searches the Name field. Put what you are next to your brand.",
+            "Name with what you are and where",
+            "The bold Name line (30 characters, not the handle) carries your brand plus what you are and where, in words "
+            "guests search. Instagram search reads this field.",
+            verify="auto",
+            check="instagram_name",
             slots=("ig_name",),
+            points=12,
         ),
         Step(
             "bio",
-            "Paste your bio",
-            "Say what you are, where, and how to book.",
+            "Bio line one: who it is for",
+            "Line one says who the stay is for and what they get, as a sentence. Not a list of adjectives or emoji "
+            "between bars.",
             verify="auto",
             check="instagram_bio",
             slots=("short_bio",),
             rules=("ig.bio_max",),
+            points=12,
+        ),
+        Step(
+            "bio_proof",
+            "Bio: one proof or how to book",
+            "Use the rest of the bio for one piece of proof (a rating, a detail only you have) or one plain way to book.",
+            verify="auto",
+            check="instagram_bio_body",
+            points=8,
         ),
         Step(
             "link",
-            "Add your link",
-            "Edit profile › Links. Use this link so every post can send guests somewhere.",
+            "Add one link",
+            "Edit profile › Links. One link to where the bio promises; two or more is a menu, and a menu books worse.",
+            verify="auto",
+            check="instagram_link",
             slots=("links_url",),
+            points=8,
+        ),
+        Step(
+            "handle",
+            "A handle people can say",
+            "Readable, sayable and the same as on your other channels. No stacked underscores or numbers for letters.",
+            verify="auto",
+            check="instagram_handle",
+            points=6,
         ),
         Step(
             "contact", "Add a WhatsApp or contact button", "Edit profile › Contact options.", slots=("whatsapp_number",)
@@ -187,18 +216,49 @@ INSTAGRAM_PROFILE = Template(
         Step(
             "category",
             "Pick a category",
-            "Edit profile › Category. HAIP has no confirmed list for Instagram yet: check in the platform, then add a "
-            "screenshot.",
+            "Edit profile › Category, one that fits the stay. HAIP has no confirmed list for Instagram yet: check in the "
+            "platform, then add a screenshot. Counts for the score together with the contact button.",
             verify="evidence",
+            points=6,
         ),
         Step(
             "highlights",
             "Add story highlights",
-            "Save stories into these highlights so new visitors find answers.",
+            "Four to six highlights named for what guests ask (Stays, Reviews, How to book, Location), covers consistent.",
             slots=("highlights",),
+            points=8,
         ),
         Step(
-            "pinned", "Pin your 3 best posts", "Pin a post that shows the place, one with a review, one on how to book."
+            "pinned",
+            "Pin your 3 best posts",
+            "Three pinned posts, three jobs: the place at its best, a guest review, how to book.",
+            points=10,
+        ),
+        Step(
+            "grid",
+            "First nine posts read at a glance",
+            "The first nine covers show what the place is at thumbnail size. Pick reel covers on purpose.",
+            points=8,
+        ),
+        Step(
+            "photo",
+            "Profile photo that reads small",
+            "A logo or one clear image that still reads in a 40-pixel circle.",
+            points=6,
+        ),
+        Step(
+            "recent",
+            "Post every week",
+            "Post at least once a week and reply to the comments on your latest post. HAIP checks your recent posts.",
+            verify="auto",
+            check="instagram_recent",
+            points=10,
+        ),
+        Step(
+            "stories",
+            "A story most days",
+            "Share a story on most days: the morning view, breakfast, a room being made up.",
+            points=6,
         ),
     ),
 )
