@@ -2,15 +2,20 @@
 // from Meta's components array, and what the live preview shows.
 
 export type HeaderKind = "none" | "text" | "image" | "video" | "document";
-export type ButtonType = "QUICK_REPLY" | "URL" | "PHONE_NUMBER";
+export type ButtonType = "QUICK_REPLY" | "URL" | "PHONE_NUMBER" | "COPY_CODE";
+/** Standard message, limited-time offer (banner + optional countdown), or carousel (swipeable cards). */
+export type TemplateFormat = "standard" | "offer" | "carousel";
 
 export interface TemplateButton {
   type: ButtonType;
   text: string;
   url?: string;
   phone_number?: string;
-  example?: string[];      // a URL ending in {{1}} needs a full sample link (e.g. the booking pack's pay buttons)
+  example?: string[] | string;   // URL ending in {{1}}: a full sample link; COPY_CODE: a sample code
 }
+
+/** HAIP's tracked-link path (backend wa_campaign_money.TRACK_MARKER): a URL button ending in it gets one code per guest. */
+export const TRACK_MARKER = "/api/v1/c/{{1}}";
 
 export interface TemplateComponent {
   type: string;
@@ -18,6 +23,10 @@ export interface TemplateComponent {
   text?: string;
   buttons?: TemplateButton[];
   example?: { header_text?: string[]; body_text?: string[][]; header_handle?: string[] };
+  limited_time_offer?: { text: string; has_expiration: boolean };
+  cards?: { components: TemplateComponent[] }[];
+  media_key?: string;      // HAIP-only: a carousel card's stored file (removed before Meta sees it)
+  media_url?: string;      // HAIP-only: signed preview of it, when the server adds one
 }
 
 export interface Template {
@@ -48,6 +57,15 @@ export interface ButtonDraft {
   url: string;
   phone: string;
   urlExample: string;
+  code: string;            // COPY_CODE: sample offer code
+}
+
+export interface CardDraft {
+  id: string;
+  kind: "image" | "video";
+  media: HeaderMedia | null;
+  body: string;
+  buttons: ButtonDraft[];
 }
 
 export interface TemplateForm {
@@ -62,12 +80,17 @@ export interface TemplateForm {
   bodyExamples: Record<number, string>;
   footer: string;
   buttons: ButtonDraft[];
+  format: TemplateFormat;
+  offerText: string;
+  offerCountdown: boolean;
+  cards: CardDraft[];
 }
 
 // Meta's limits, mirrored from the backend (wa_template_service.py) so the
 // editor can stop you before the server has to.
 export const LIMITS = {
   header: 60, body: 1024, footer: 60, buttonText: 25, buttons: 10, urlButtons: 2, phoneButtons: 1,
+  coupon: 15, offerText: 16, cards: 10, minCards: 2, cardBody: 160, cardButtons: 2,
 } as const;
 
 export const MEDIA_ACCEPT: Record<Exclude<HeaderKind, "none" | "text">, { accept: string; hint: string; maxMb: number }> = {
@@ -89,7 +112,14 @@ export const LANGUAGES = [
 let _btnSeq = 0;
 export function newButton(type: ButtonType): ButtonDraft {
   _btnSeq += 1;
-  return { id: `b${Date.now()}_${_btnSeq}`, type, text: "", url: "", phone: "", urlExample: "" };
+  return { id: `b${Date.now()}_${_btnSeq}`, type, text: "", url: "", phone: "", urlExample: "", code: "" };
+}
+
+export function newCard(kind: CardDraft["kind"] = "image", like?: CardDraft): CardDraft {
+  _btnSeq += 1;
+  // Meta wants every card to have the same buttons: copy the first card's button types.
+  const buttons = like ? like.buttons.map(b => ({ ...newButton(b.type), text: b.text })) : [newButton("URL")];
+  return { id: `c${Date.now()}_${_btnSeq}`, kind, media: null, body: "", buttons };
 }
 
 export function emptyForm(): TemplateForm {
@@ -97,6 +127,7 @@ export function emptyForm(): TemplateForm {
     name: "", language: "en", category: "MARKETING",
     headerKind: "none", headerText: "", headerExample: "", media: null,
     body: "", bodyExamples: {}, footer: "", buttons: [],
+    format: "standard", offerText: "", offerCountdown: false, cards: [],
   };
 }
 
@@ -122,10 +153,37 @@ export function urlExample(b: Pick<ButtonDraft, "url" | "urlExample">): { exampl
   return { example: [b.urlExample.startsWith(base) && b.urlExample.length > base.length ? b.urlExample : `${base}example`] };
 }
 
+function draftToButton(b: ButtonDraft): TemplateButton {
+  if (b.type === "URL") return { type: "URL", text: b.text, url: b.url, ...urlExample(b) };
+  if (b.type === "PHONE_NUMBER") return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone };
+  if (b.type === "COPY_CODE") return { type: "COPY_CODE", text: "Copy offer code", example: b.code.trim() };
+  return { type: "QUICK_REPLY", text: b.text };
+}
+
+function buttonToDraft(b: TemplateButton): ButtonDraft {
+  const ex = Array.isArray(b.example) ? b.example[0] ?? "" : b.example ?? "";
+  return { ...newButton(b.type), text: b.text, url: b.url ?? "", phone: b.phone_number ?? "",
+           urlExample: b.type === "URL" ? ex : "", code: b.type === "COPY_CODE" ? ex : "" };
+}
+
 export function buildComponents(form: TemplateForm): TemplateComponent[] {
   const comps: TemplateComponent[] = [];
   const headerVars = extractVarIndices(form.headerText);
   const bodyVars = extractVarIndices(form.body);
+
+  if (form.format === "carousel") {
+    if (form.body.trim()) {
+      comps.push({ type: "BODY", text: form.body,
+        ...(bodyVars.length ? { example: { body_text: [bodyVars.map(i => form.bodyExamples[i] ?? "")] } } : {}) });
+    }
+    comps.push({ type: "CAROUSEL", cards: form.cards.map(c => ({ components: [
+      { type: "HEADER", format: c.kind.toUpperCase(),
+        ...(c.media ? { example: { header_handle: [c.media.handle] }, media_key: c.media.key } : {}) },
+      { type: "BODY", text: c.body },
+      { type: "BUTTONS", buttons: c.buttons.map(draftToButton) },
+    ] })) });
+    return comps;
+  }
 
   if (form.headerKind === "text" && form.headerText.trim()) {
     comps.push({
@@ -144,13 +202,11 @@ export function buildComponents(form: TemplateForm): TemplateComponent[] {
       ...(bodyVars.length ? { example: { body_text: [bodyVars.map(i => form.bodyExamples[i] ?? "")] } } : {}),
     });
   }
-  if (form.footer.trim()) comps.push({ type: "FOOTER", text: form.footer });
+  if (form.format === "offer") {
+    comps.push({ type: "LIMITED_TIME_OFFER", limited_time_offer: { text: form.offerText, has_expiration: form.offerCountdown } });
+  } else if (form.footer.trim()) comps.push({ type: "FOOTER", text: form.footer });
 
-  const buttons = orderedButtons(form.buttons).map((b): TemplateButton => {
-    if (b.type === "URL") return { type: "URL", text: b.text, url: b.url, ...urlExample(b) };
-    if (b.type === "PHONE_NUMBER") return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone };
-    return { type: "QUICK_REPLY", text: b.text };
-  });
+  const buttons = orderedButtons(form.buttons).map(draftToButton);
   if (buttons.length) comps.push({ type: "BUTTONS", buttons });
   return comps;
 }
@@ -180,9 +236,25 @@ export function formFromTemplate(t: Template): TemplateForm {
     } else if (c.type === "FOOTER") {
       form.footer = c.text ?? "";
     } else if (c.type === "BUTTONS") {
-      form.buttons = (c.buttons ?? []).map(b => ({
-        ...newButton(b.type), text: b.text, url: b.url ?? "", phone: b.phone_number ?? "", urlExample: b.example?.[0] ?? "",
-      }));
+      form.buttons = (c.buttons ?? []).map(buttonToDraft);
+    } else if (c.type === "LIMITED_TIME_OFFER") {
+      form.format = "offer";
+      form.offerText = c.limited_time_offer?.text ?? "";
+      form.offerCountdown = !!c.limited_time_offer?.has_expiration;
+    } else if (c.type === "CAROUSEL") {
+      form.format = "carousel";
+      form.cards = (c.cards ?? []).map(card => {
+        const header = card.components.find(x => x.type === "HEADER");
+        const body = card.components.find(x => x.type === "BODY");
+        const btns = card.components.find(x => x.type === "BUTTONS");
+        const handle = header?.example?.header_handle?.[0];
+        return {
+          ...newCard((header?.format ?? "IMAGE").toLowerCase() === "video" ? "video" : "image"),
+          media: header?.media_key && handle ? { key: header.media_key, handle, previewUrl: header.media_url ?? null, fileName: "Uploaded file" } : null,
+          body: body?.text ?? "",
+          buttons: (btns?.buttons ?? []).map(buttonToDraft),
+        };
+      });
     }
   }
   return form;
@@ -201,6 +273,27 @@ export function localProblems(form: TemplateForm): string[] {
   const bodyVars = extractVarIndices(form.body);
   if (!form.name.trim()) problems.push("Give the template a name.");
   if (!form.body.trim()) problems.push("Write the message body.");
+  if (form.format === "offer") {
+    if (!form.offerText.trim() || form.offerText.length > LIMITS.offerText) problems.push(`Write the offer banner (up to ${LIMITS.offerText} characters).`);
+    if (form.footer.trim()) problems.push("A limited-time offer can't have a footer.");
+    if (form.headerKind === "text" || form.headerKind === "document") problems.push("An offer's header must be an image or a video (or none).");
+    if (!form.buttons.some(b => b.type === "URL")) problems.push("A limited-time offer needs a link button.");
+    if (form.offerCountdown && !form.buttons.some(b => b.type === "COPY_CODE")) problems.push("An offer with a countdown needs an offer code button.");
+  }
+  if (form.format === "carousel") {
+    if (form.cards.length < LIMITS.minCards || form.cards.length > LIMITS.cards) problems.push(`A carousel needs ${LIMITS.minCards} to ${LIMITS.cards} cards.`);
+    form.cards.forEach((c, i) => {
+      if (!c.media) problems.push(`Upload the ${c.kind} for card ${i + 1}.`);
+      if (!c.body.trim() || c.body.length > LIMITS.cardBody) problems.push(`Card ${i + 1} needs text (up to ${LIMITS.cardBody} characters).`);
+      if (extractVarIndices(c.body).length) problems.push(`Card ${i + 1}'s text can't have variables.`);
+      if (c.buttons.some(b => !b.text.trim())) problems.push(`Every button on card ${i + 1} needs a label.`);
+      if (c.buttons.some(b => b.type === "URL" && (!b.url.startsWith("https://") || extractVarIndices(b.url).length))) problems.push(`Card ${i + 1}'s link must be a fixed https:// address.`);
+    });
+    return problems;
+  }
+  for (const b of form.buttons) {
+    if (b.type === "COPY_CODE" && !/^[A-Za-z0-9]{1,15}$/.test(b.code.trim())) { problems.push("The offer code button needs a sample code (letters and numbers, up to 15)."); break; }
+  }
   if (form.headerKind === "text" && !form.headerText.trim()) problems.push("Header text is empty — choose \"None\" or write it.");
   if (form.headerKind !== "none" && form.headerKind !== "text" && !form.media) problems.push(`Upload the header ${form.headerKind}.`);
   if (headerVars.length > 1) problems.push("A text header can have only one variable.");
@@ -210,7 +303,7 @@ export function localProblems(form: TemplateForm): string[] {
   }
   if (extractVarIndices(form.footer).length) problems.push("A footer can't contain variables.");
   for (const b of form.buttons) {
-    if (!b.text.trim()) { problems.push("Every button needs a label."); break; }
+    if (b.type !== "COPY_CODE" && !b.text.trim()) { problems.push("Every button needs a label."); break; }
   }
   for (const b of form.buttons) {
     if (b.type === "URL" && !b.url.trim().toLowerCase().startsWith("https://")) { problems.push("Link buttons need an address starting with https://."); break; }

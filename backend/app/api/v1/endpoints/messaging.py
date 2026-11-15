@@ -11,7 +11,7 @@ import httpx
 import structlog
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import Column, String, Boolean, JSON, Enum as SAEnum
+from sqlalchemy import Column, String, Boolean, JSON, Text, Enum as SAEnum
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -83,6 +83,9 @@ class WACampaign(Base, TimestampMixin, TenantMixin):
     # migration 105 -- how each template {{n}} is filled per recipient:
     # {"body": {"1": {"source": "first_name", "fallback": "Guest"}}, "header": {...}}
     variable_map = Column(JSON, default=dict)
+    # migration 213: where a tracked link button leads, and why the campaign stopped (person / daily limit / failures)
+    link_url = Column(Text, nullable=True)
+    paused_reason = Column(String(200), nullable=True)
 
 
 class WASubscriber(Base, TimestampMixin, TenantMixin):
@@ -171,6 +174,7 @@ class CampaignCreateRequest(BaseModel):
     audience_filter: Optional[dict] = {}
     scheduled_at: Optional[str] = None
     variable_map: Optional[dict] = {}
+    link_url: Optional[str] = None   # where a tracked link button leads (wa_campaign_money)
 
 
 class CampaignOut(BaseModel):
@@ -185,6 +189,8 @@ class CampaignOut(BaseModel):
     read_count: str
     failed_count: str
     variable_map: Optional[dict] = None
+    link_url: Optional[str] = None
+    paused_reason: Optional[str] = None
     # See TemplateOut.created_at — DateTime column, not a string.
     created_at: Optional[datetime] = None
 
@@ -260,6 +266,8 @@ def _check_template_input(tenant_id: str, components: list, header_media_key: Op
     header = next((c for c in components if (c.get("type") or "").upper() == "HEADER"), None)
     if header and (header.get("format") or "TEXT").upper() in wts.MEDIA_FORMATS and not header_media_key:
         problems.append("Attach the header file.")
+    if any(not k.startswith(f"{tenant_id}/wa_templates/") for k in wts.card_media_keys(components)):
+        problems.append("A card's file doesn't belong to this workspace.")
     if problems:
         raise HTTPException(status_code=400, detail=" ".join(problems))
 
@@ -602,7 +610,7 @@ def submit_to_meta(db: Session, tmpl: "WATemplate", template_id: str) -> dict:
             resp = httpx.post(
                 f"https://graph.facebook.com/v18.0/{tmpl.meta_template_id}",
                 headers={"Authorization": f"Bearer {access_token}"},
-                json={"category": tmpl.category.value, "components": tmpl.components},
+                json={"category": tmpl.category.value, "components": wts.meta_components(tmpl.components)},
                 timeout=15,
             )
         else:
@@ -613,7 +621,7 @@ def submit_to_meta(db: Session, tmpl: "WATemplate", template_id: str) -> dict:
                     "name": tmpl.name,
                     "language": tmpl.language,
                     "category": tmpl.category.value,
-                    "components": tmpl.components,
+                    "components": wts.meta_components(tmpl.components),
                 },
                 timeout=15,
             )
@@ -691,6 +699,18 @@ def _prepared_audience(raw: Optional[dict]) -> dict:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+def _valid_link(url: Optional[str]) -> Optional[str]:
+    """A campaign's tracked-link destination: an https URL, or None to clear it."""
+    from urllib.parse import urlparse
+    url = (url or "").strip()
+    if not url:
+        return None
+    p = urlparse(url)
+    if p.scheme != "https" or not p.netloc or len(url) > 2000:
+        raise HTTPException(status_code=422, detail="The link must start with https://")
+    return url
+
+
 def _validated_schedule(value: Optional[str], template_id: Optional[str], db: Session, tenant_id: str) -> Optional[str]:
     """A schedule as a UTC ISO string, or None. Refuses times in the past and
     scheduling a campaign whose template isn't approved -- it would only fail
@@ -724,6 +744,7 @@ def create_campaign(
         audience_filter=audience_filter,
         variable_map=body.variable_map or {},
         scheduled_at=scheduled_at,
+        link_url=_valid_link(body.link_url),
         status=CampaignStatus.SCHEDULED if scheduled_at else CampaignStatus.DRAFT,
     )
     db.add(campaign)
@@ -741,7 +762,7 @@ def create_campaign(
 
 # Fields a client may change. The old handler copied any attribute name in the
 # request body onto the row -- including tenant_id, id and status.
-_CAMPAIGN_EDITABLE = ("name", "template_id", "audience_filter", "scheduled_at", "variable_map")
+_CAMPAIGN_EDITABLE = ("name", "template_id", "audience_filter", "scheduled_at", "variable_map", "link_url")
 
 
 @router.patch("/campaigns/{campaign_id}")
@@ -764,6 +785,8 @@ def update_campaign(
     )
     if "audience_filter" in changes:
         changes["audience_filter"] = _prepared_audience(changes["audience_filter"])
+    if "link_url" in changes:
+        changes["link_url"] = _valid_link(changes["link_url"])
     if "scheduled_at" in changes:
         changes["scheduled_at"] = _validated_schedule(
             changes["scheduled_at"], changes.get("template_id", campaign.template_id), db, current_user.tenant_id,
@@ -791,6 +814,7 @@ def launch_campaign(
         raise HTTPException(status_code=400, detail=f"Cannot launch campaign in {campaign.status} status")
     _check_campaign_variables(db, current_user.tenant_id, campaign.template_id, campaign.variable_map)
     campaign.status = CampaignStatus.RUNNING
+    campaign.paused_reason = None
     db.commit()
 
     # Enqueue the batch-send worker
@@ -804,6 +828,73 @@ def launch_campaign(
     )
 
     return {"status": "running"}
+
+
+@router.post("/campaigns/{campaign_id}/pause")
+def pause_campaign(
+    campaign_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    """Stop a running (or scheduled) campaign after the batch in flight. Launch it again to continue: people already
+    reached are skipped."""
+    campaign = db.query(WACampaign).filter_by(id=campaign_id, tenant_id=current_user.tenant_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if campaign.status not in (CampaignStatus.RUNNING, CampaignStatus.SCHEDULED):
+        raise HTTPException(status_code=409, detail="Only a running or scheduled campaign can be paused.")
+    campaign.status = CampaignStatus.PAUSED
+    who = current_user.name or "a team member"
+    campaign.paused_reason = f"Paused by {who}."
+    db.commit()
+    return {"status": "paused"}
+
+
+@router.get("/campaigns/{campaign_id}/retarget")
+def retarget_options(
+    campaign_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    """How many people each retarget segment of this campaign would reach now."""
+    from app.services import wa_campaign_retarget as rt
+    if not db.query(WACampaign.id).filter_by(id=campaign_id, tenant_id=current_user.tenant_id).first():
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    counts = rt.count(db, current_user.tenant_id, campaign_id)
+    return [{"segment": k, "label": v, "count": counts[k]} for k, v in rt.SEGMENTS.items()]
+
+
+@router.post("/campaigns/{campaign_id}/retarget", response_model=CampaignOut, status_code=status.HTTP_201_CREATED)
+def create_retarget(
+    campaign_id: str,
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    """A new draft campaign for one segment of this one (same template unless another is given)."""
+    from app.services import wa_campaign_retarget as rt
+    source = db.query(WACampaign).filter_by(id=campaign_id, tenant_id=current_user.tenant_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    segment = body.get("segment")
+    if segment not in rt.SEGMENTS:
+        raise HTTPException(status_code=422, detail="Pick who to send it to.")
+    template_id = body.get("template_id") or source.template_id
+    if not db.query(WATemplate.id).filter_by(id=template_id, tenant_id=current_user.tenant_id).first():
+        raise HTTPException(status_code=422, detail="Template not found")
+    label = rt.SEGMENTS[segment].lower()
+    campaign = WACampaign(
+        id=str(uuid.uuid4()), tenant_id=current_user.tenant_id,
+        name=(body.get("name") or f"{source.name} - {label}")[:255],
+        template_id=template_id,
+        audience_filter={"type": "retarget", "campaign_id": source.id, "segment": segment},
+        variable_map=source.variable_map if template_id == source.template_id else {},
+        link_url=source.link_url, status=CampaignStatus.DRAFT,
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+    return campaign
 
 
 @router.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)

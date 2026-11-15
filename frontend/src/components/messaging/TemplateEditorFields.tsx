@@ -2,9 +2,9 @@
 import { useRef, useState } from "react";
 import { Loader2, Plus, Trash2, Upload, AlertCircle, RefreshCw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import api from "@/lib/api";
+import api, { API_ROOT } from "@/lib/api";
 import {
-  LIMITS, MEDIA_ACCEPT, extractVarIndices, newButton,
+  TRACK_MARKER, LIMITS, MEDIA_ACCEPT, extractVarIndices, newButton,
   type ButtonType, type HeaderKind, type TemplateForm,
 } from "./templateModel";
 
@@ -194,14 +194,15 @@ export function BodyField({ form, patch }: { form: TemplateForm; patch: Patch })
 
 // ─── Buttons ─────────────────────────────────────────────────────────────────
 
-const BUTTON_LABEL: Record<ButtonType, string> = { QUICK_REPLY: "Quick reply", URL: "Visit website", PHONE_NUMBER: "Call phone" };
+const BUTTON_LABEL: Record<ButtonType, string> = { QUICK_REPLY: "Quick reply", URL: "Visit website", PHONE_NUMBER: "Call phone", COPY_CODE: "Offer code" };
 
 export function ButtonsField({ form, patch }: { form: TemplateForm; patch: Patch }) {
   const count = (t: ButtonType) => form.buttons.filter(b => b.type === t).length;
   const canAdd = (t: ButtonType) =>
     form.buttons.length < LIMITS.buttons &&
     (t !== "URL" || count("URL") < LIMITS.urlButtons) &&
-    (t !== "PHONE_NUMBER" || count("PHONE_NUMBER") < LIMITS.phoneButtons);
+    (t !== "PHONE_NUMBER" || count("PHONE_NUMBER") < LIMITS.phoneButtons) &&
+    (t !== "COPY_CODE" || (count("COPY_CODE") < 1 && form.category === "MARKETING"));
 
   const update = (id: string, change: Partial<TemplateForm["buttons"][number]>) =>
     patch(f => ({ ...f, buttons: f.buttons.map(b => (b.id === id ? { ...b, ...change } : b)) }));
@@ -219,16 +220,32 @@ export function ButtonsField({ form, patch }: { form: TemplateForm; patch: Patch
             <div key={b.id} className="border border-[var(--haip-border)] rounded-xl p-2.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11.5px] font-semibold text-primary bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-full px-2 py-0.5 flex-shrink-0">{BUTTON_LABEL[b.type]}</span>
-                <input value={b.text} maxLength={LIMITS.buttonText + 10} onChange={e => update(b.id, { text: e.target.value })}
-                  placeholder="Button label" aria-label="Button label"
-                  className="flex-1 min-w-0 px-2.5 py-1.5 border border-[var(--haip-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                <Counter value={b.text.length} max={LIMITS.buttonText} />
+                {b.type === "COPY_CODE" ? (
+                  <input value={b.code} maxLength={LIMITS.coupon} onChange={e => update(b.id, { code: e.target.value.replace(/[^A-Za-z0-9]/g, "") })}
+                    placeholder="Sample code, e.g. DIWALI20" aria-label="Sample offer code"
+                    className="flex-1 min-w-0 px-2.5 py-1.5 border border-[var(--haip-border)] rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                ) : (
+                  <>
+                    <input value={b.text} maxLength={LIMITS.buttonText + 10} onChange={e => update(b.id, { text: e.target.value })}
+                      placeholder="Button label" aria-label="Button label"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-[var(--haip-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                    <Counter value={b.text.length} max={LIMITS.buttonText} />
+                  </>
+                )}
                 <button type="button" aria-label="Remove button" onClick={() => patch(f => ({ ...f, buttons: f.buttons.filter(x => x.id !== b.id) }))}
                   className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)] p-1 rounded-lg hover:bg-[var(--haip-status-danger-bg)]"><Trash2 size={13} /></button>
               </div>
               {b.type === "URL" && (
-                <input value={b.url} onChange={e => update(b.id, { url: e.target.value })} placeholder="https://ratha.example/book" aria-label="Link"
-                  className="mt-2 w-full px-2.5 py-1.5 border border-[var(--haip-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <>
+                  <input value={b.url} onChange={e => update(b.id, { url: e.target.value })} placeholder="https://ratha.example/book" aria-label="Link"
+                    className="mt-2 w-full px-2.5 py-1.5 border border-[var(--haip-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  {b.url.includes(TRACK_MARKER) ? (
+                    <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Tracked link: each campaign sets where it leads, and its report counts taps.</p>
+                  ) : (
+                    <button type="button" onClick={() => update(b.id, { url: `${API_ROOT}${TRACK_MARKER}` })}
+                      className="mt-1 text-[11.5px] font-semibold text-primary hover:underline">Use a tracked link (counts taps per guest)</button>
+                  )}
+                </>
               )}
               {b.type === "PHONE_NUMBER" && (
                 <input value={b.phone} onChange={e => update(b.id, { phone: e.target.value })} placeholder="+919876543210" aria-label="Phone number"
@@ -240,14 +257,14 @@ export function ButtonsField({ form, patch }: { form: TemplateForm; patch: Patch
       )}
 
       <div className="flex flex-wrap gap-2">
-        {(["QUICK_REPLY", "URL", "PHONE_NUMBER"] as ButtonType[]).map(t => (
+        {(["QUICK_REPLY", "URL", "PHONE_NUMBER", "COPY_CODE"] as ButtonType[]).map(t => (
           <button key={t} type="button" disabled={!canAdd(t)} onClick={() => patch(f => ({ ...f, buttons: [...f.buttons, newButton(t)] }))}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-2)] hover:bg-[var(--haip-border)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
             <Plus size={12} /> {BUTTON_LABEL[t]}
           </button>
         ))}
       </div>
-      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1.5">Up to {LIMITS.urlButtons} website buttons and {LIMITS.phoneButtons} call button. Quick replies are shown first.</p>
+      <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1.5">Up to {LIMITS.urlButtons} website buttons, {LIMITS.phoneButtons} call button and 1 offer code (marketing only; the code is set per campaign). Quick replies are shown first.</p>
     </div>
   );
 }

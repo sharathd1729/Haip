@@ -732,6 +732,13 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
     if not wamid or meta_status not in _META_STATUS_MAP:
         return  # ignore unknown statuses
 
+    # Meta's pricing for this message (category, billable): kept once per message for cost reports (wa_costs).
+    try:
+        from app.services import wa_costs
+        wa_costs.record(db, str(tenant.id), status_obj)
+    except Exception as exc:  # noqa: BLE001 -- cost is a report; the delivery status still applies
+        log.warning("wa_pricing_record_failed", error=str(exc)[:200])
+
     new_state = _META_STATUS_MAP[meta_status]
 
     message = db.query(Message).filter_by(
