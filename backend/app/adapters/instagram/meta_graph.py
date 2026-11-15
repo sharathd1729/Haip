@@ -57,8 +57,10 @@ _ALLOWED_MEDIA_HOST_SUFFIXES = (
 )
 
 
-# Webhook fields HAIP handles (webhooks_instagram.py): DMs incl. echoes, button taps, ad referrals, comments.
-WEBHOOK_FIELDS = "messages,messaging_postbacks,messaging_referral,comments,live_comments"
+# Webhook fields HAIP handles (webhooks_instagram.py): DMs incl. echoes, button taps, ad referrals, comments, Live
+# comments, and "seen" (automation DMs opened, Automations v2 dashboard).
+WEBHOOK_FIELDS = "messages,messaging_postbacks,messaging_referral,comments,live_comments,messaging_seen"
+OPTIONAL_FIELDS = ("live_comments", "messaging_seen")  # dropped one at a time if Meta refuses them
 
 
 def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
@@ -67,10 +69,14 @@ def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
     Without this call Meta sends no DMs for the account even though the token works. Returns (ok, error text);
     never raises, so a failed subscribe never undoes a successful connect.
     """
-    ok, err = _subscribe(access_token, WEBHOOK_FIELDS)
-    if not ok and "live_comments" in WEBHOOK_FIELDS:
-        # Live comments are optional: if Meta refuses that field, still subscribe to the ones DMs need.
-        ok, err = _subscribe(access_token, WEBHOOK_FIELDS.replace(",live_comments", ""))
+    fields = WEBHOOK_FIELDS.split(",")
+    ok, err = _subscribe(access_token, ",".join(fields))
+    for optional in OPTIONAL_FIELDS:
+        if ok:
+            break
+        # Optional fields: if Meta refuses one, still subscribe to the ones DMs need.
+        fields = [f for f in fields if f != optional]
+        ok, err = _subscribe(access_token, ",".join(fields))
     return ok, err
 
 

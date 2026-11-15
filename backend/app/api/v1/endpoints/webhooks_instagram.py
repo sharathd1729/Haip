@@ -176,8 +176,22 @@ def _handle_messaging_event(ig_account_id: str, event: dict):
         _handle_referral_event(ig_account_id, sender_id, event)
     elif "postback" in event:
         _handle_postback(ig_account_id, sender_id, event)
+    elif "read" in event:
+        _handle_seen(ig_account_id, sender_id, event)
     elif "story_mention" in event:
         _handle_story_mention(ig_account_id, sender_id, event)
+
+
+def _handle_seen(ig_account_id: str, sender_id: str, event: dict):
+    """Queue "the person opened our DMs" (messaging_seen): counts as opened for the automations that wrote to them."""
+    if not sender_id:
+        return
+    try:
+        from app.workers.tasks.process_instagram_seen import process_instagram_seen
+        process_instagram_seen.delay({"ig_account_id": ig_account_id, "sender_id": sender_id,
+                                      "timestamp": event.get("timestamp")})
+    except Exception as exc:
+        log.error("instagram_seen_queue_failed", error=str(exc))
 
 
 def _handle_referral_event(ig_account_id: str, sender_id: str, event: dict):

@@ -3,14 +3,15 @@
 // Rules are automation_rules rows (GET/PATCH/DELETE /automations); stats from GET /instagram/automations/stats.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, MessageSquare, Link2, Users, BadgeCheck } from "@/lib/icons";
+import { Plus, Pencil, Trash2, MessageSquare } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Card, EmptyState, PageHeader, Stat, StatusPill } from "@/components/ui/kit";
+import { Card, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
+import { PeriodBar } from "@/components/dashboard/PeriodBar";
+import { AutomationsOverview } from "@/components/instagram/AutomationsOverview";
 import { AutomationBuilder } from "@/components/instagram/AutomationBuilder";
 import { isIgRule, triggerMeta, type IgRule, type IgRuleStats } from "@/components/instagram/automationTypes";
 
-const PERIODS = [7, 30, 90] as const;
 
 function scopeLabel(r: IgRule): string {
   if (r.trigger !== "ig_comment_received") return "";
@@ -75,21 +76,21 @@ function RuleCard({ rule, stats, onEdit }: { rule: IgRule; stats?: IgRuleStats; 
 }
 
 export default function InstagramAutomationsPage() {
-  const [days, setDays] = useState<number>(30);
+  const [period, setPeriod] = useState<string>("this_month");
+  const [preset, setPreset] = useState<{ id: string; thumb?: string; caption?: string } | null>(null);
   const [editing, setEditing] = useState<IgRule | null>(null);
   const [open, setOpen] = useState(false);
 
   const rules = useQuery<IgRule[]>({ queryKey: ["automations"], queryFn: () => api.get("/automations").then(r => r.data) });
   const stats = useQuery<{ automations: IgRuleStats[] }>({
-    queryKey: ["ig-automation-stats", days],
-    queryFn: () => api.get("/instagram/automations/stats", { params: { days } }).then(r => r.data),
+    queryKey: ["ig-automation-stats", period],
+    queryFn: () => api.get("/instagram/automations/stats", { params: { period } }).then(r => r.data),
   });
 
   const ig = (rules.data ?? []).filter(isIgRule);
   const byRule = new Map((stats.data?.automations ?? []).map(s => [s.rule_id, s]));
-  const total = (k: keyof IgRuleStats) => (stats.data?.automations ?? []).reduce((n, s) => n + (Number(s[k]) || 0), 0);
-  const period = `last ${days} days`;
-  const openNew = () => { setEditing(null); setOpen(true); };
+  const openNew = () => { setEditing(null); setPreset(null); setOpen(true); };
+  const openForPost = (m: { id: string; thumb?: string; caption?: string }) => { setEditing(null); setPreset(m); setOpen(true); };
 
   return (
     <div className="mx-auto grid max-w-5xl gap-5">
@@ -101,21 +102,10 @@ export default function InstagramAutomationsPage() {
           </button>
         } />
 
-      <div className="flex gap-1.5" role="group" aria-label="Period">
-        {PERIODS.map(d => (
-          <button key={d} type="button" onClick={() => setDays(d)} aria-pressed={days === d}
-            className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
-              days === d ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{d} days</button>
-        ))}
-      </div>
+      <PeriodBar value={period} onChange={setPeriod} />
+      <AutomationsOverview period={period} onAdd={openForPost} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="People reached" value={total("people")} hint={period} icon={Users} loading={stats.isLoading} />
-        <Stat label="DMs sent" value={total("dm_sent")} hint={period} icon={MessageSquare} loading={stats.isLoading} />
-        <Stat label="Link clicks" value={total("clicked")} hint={period} icon={Link2} loading={stats.isLoading} />
-        <Stat label="Leads" value={total("leads")} hint={`shared a number, ${period}`} icon={BadgeCheck} loading={stats.isLoading} />
-      </div>
-
+      <h2 className="text-[16px] font-semibold">Your automations</h2>
       {rules.isLoading ? (
         <div className="grid gap-3" aria-busy="true">
           {[0, 1, 2].map(i => <div key={i} className="h-28 animate-pulse rounded-[16px] bg-[var(--haip-surface)]" />)}
@@ -129,11 +119,11 @@ export default function InstagramAutomationsPage() {
           action={<button type="button" onClick={openNew} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground"><Plus size={15} /> Create the first one</button>} /></Card>
       ) : (
         <div className="grid gap-3">
-          {ig.map(r => <RuleCard key={r.id} rule={r} stats={byRule.get(r.id)} onEdit={() => { setEditing(r); setOpen(true); }} />)}
+          {ig.map(r => <RuleCard key={r.id} rule={r} stats={byRule.get(r.id)} onEdit={() => { setEditing(r); setPreset(null); setOpen(true); }} />)}
         </div>
       )}
 
-      {open && <AutomationBuilder key={editing?.id ?? "new"} open={open} onOpenChange={setOpen} initial={editing} />}
+      {open && <AutomationBuilder key={editing?.id ?? preset?.id ?? "new"} open={open} onOpenChange={setOpen} initial={editing} preset={preset} />}
     </div>
   );
 }

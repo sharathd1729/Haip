@@ -291,7 +291,7 @@ def test_connect_still_subscribes_dms_if_meta_refuses_live_comments(monkeypatch)
                                json=lambda: {"success": True} if ok else {"error": {"message": "Invalid field"}})
     monkeypatch.setattr(httpx, "post", post)
     assert meta_graph.subscribe_webhooks("IGtok") == (True, "")
-    assert sent == [meta_graph.WEBHOOK_FIELDS, "messages,messaging_postbacks,messaging_referral,comments"]
+    assert sent == [meta_graph.WEBHOOK_FIELDS, "messages,messaging_postbacks,messaging_referral,comments,messaging_seen"]
 
 
 def test_a_refused_button_reply_falls_back_to_the_whole_message_as_text(db, ig, monkeypatch):

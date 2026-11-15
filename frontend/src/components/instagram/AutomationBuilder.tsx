@@ -75,9 +75,14 @@ function Bubble({ who, children, button }: { who: "them" | "you"; children: Reac
 
 const sample = (t: string) => (t || "").replaceAll("{first_name}", "Asha");
 
-export function AutomationBuilder({ open, onOpenChange, initial }: { open: boolean; onOpenChange: (o: boolean) => void; initial?: IgRule | null }) {
+export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
+  open: boolean; onOpenChange: (o: boolean) => void; initial?: IgRule | null;
+  /** A new automation for this post (the dashboard's "Add" on a post with no automation). */
+  preset?: { id: string; thumb?: string; caption?: string } | null;
+}) {
   const qc = useQueryClient();
-  const tc0: IgTriggerConfig = initial?.trigger_config ?? { scope: "post", keywords: [] };
+  const tc0: IgTriggerConfig = initial?.trigger_config
+    ?? { scope: "post", keywords: [], ...(preset ? { media_id: preset.id, media_thumb: preset.thumb, media_caption: preset.caption } : {}) };
   const ac0: IgActionConfig = initial?.action_config ?? { message: "" };
   const [name, setName] = useState(initial?.name ?? "");
   const [trigger, setTrigger] = useState<IgTrigger>((initial?.trigger as IgTrigger) ?? "ig_comment_received");
