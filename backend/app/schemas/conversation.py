@@ -78,6 +78,8 @@ class SendMessageRequest(BaseModel):
     is_internal: bool = False
     replied_to_message_id: Optional[str] = None
     scheduled_for: Optional[str] = None  # W4: ISO datetime
+    # WhatsApp only: reply buttons / link button / list / location request (services/wa_interactive.py).
+    interactive: Optional[dict] = None
 
 
 class AIDraftRequest(BaseModel):

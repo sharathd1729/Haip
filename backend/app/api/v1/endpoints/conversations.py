@@ -518,11 +518,25 @@ def send_message(
                    "Send an approved template instead.",
         )
 
+    interactive = None
+    if body.interactive and not body.is_internal:
+        if _channel_value(conv) != "whatsapp":
+            raise HTTPException(status_code=422, detail="Buttons and lists can only be sent on WhatsApp.")
+        from pydantic import ValidationError
+
+        from app.services import wa_interactive
+
+        try:
+            interactive = wa_interactive.validate(body.interactive)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc.errors()[0].get("msg", "Invalid buttons")).removeprefix("Value error, ")) from None
+
     # ── Create new message ────────────────────────────────────────────────────
     msg = Message(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
         conversation_id=conversation_id,
+        **({"channel_metadata": {"interactive": interactive}} if interactive else {}),
         direction="outbound",
         channel=conv.channel,
         body=body.body,

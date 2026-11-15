@@ -87,8 +87,13 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
         media_type = getattr(message, "media_type", None)
         media_url  = getattr(message, "media_url", None)
         body_text  = message.body or ""
+        interactive = (message.channel_metadata or {}).get("interactive")
 
-        if media_type and media_url:
+        if interactive:
+            # Reply buttons / link button / list / location request (services/wa_interactive.py).
+            from app.services import wa_interactive
+            result = _run_async(adapter.send_interactive(to=guest.phone, interactive=wa_interactive.payload(interactive, body_text)))
+        elif media_type and media_url:
             if media_type == "image":
                 result = _run_async(adapter.send_image(to=guest.phone, url=media_url, caption=body_text))
             elif media_type == "video":

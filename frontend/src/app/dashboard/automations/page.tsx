@@ -61,6 +61,7 @@ const TRIGGERS: { value: string; label: string; icon: React.ReactNode; hint: str
   { value: "stay_check_out_1d", label: "Check-out tomorrow", icon: <CheckCircle2 size={13} />,  hint: "Guest checks out tomorrow" },
   { value: "ig_dm_received",    label: "Instagram DM received",      icon: <InstagramIcon size={13} />, hint: "Guest sends an Instagram DM matching your keywords" },
   { value: "ig_comment_received", label: "Instagram comment received", icon: <InstagramIcon size={13} />, hint: "Guest comments on a post matching your keywords" },
+  { value: "wa_message_received", label: "WhatsApp message with a keyword", icon: <MessageSquare size={13} />, hint: "Guest sends a WhatsApp message containing one of your keywords. Answered before the AI." },
 ];
 
 const ACTIONS: { value: string; label: string; hint: string; configFields: string[] }[] = [
@@ -70,6 +71,7 @@ const ACTIONS: { value: string; label: string; hint: string; configFields: strin
   { value: "move_to_followup",       label: "Move to follow-up",      hint: "Advances inquiry stage to Responding",       configFields: [] },
   { value: "tag_guest",              label: "Tag guest",               hint: "Adds tags to the subscriber record",         configFields: ["tags"] },
   { value: "send_instagram_quick_reply", label: "Send Instagram quick reply", hint: "Sends a canned DM reply — instant, no AI involved", configFields: ["message", "public_ack_pool"] },
+  { value: "send_whatsapp_reply", label: "Reply on WhatsApp", hint: "Text, up to 3 reply buttons, or a link button. Instant, no AI.", configFields: ["message"] },
 ];
 
 function triggerInfo(val: string) {
@@ -201,7 +203,7 @@ function RuleModal({ initial, onClose, onSaved }: {
     if (!form.name.trim()) { setError("Name is required"); return; }
     if (!form.trigger) { setError("Select a trigger"); return; }
     if (!form.action) { setError("Select an action"); return; }
-    const isIgTrigger = form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received";
+    const isIgTrigger = form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received" || form.trigger === "wa_message_received";
     const hasReplyAll = form.trigger === "ig_comment_received" && !!form.trigger_config.media_id && !!form.trigger_config.reply_all;
     if (isIgTrigger && !hasReplyAll && (form.trigger_config.keywords ?? []).length === 0) {
       setError("Add at least one keyword (or enable reply-all on a scoped post)"); return;
@@ -211,6 +213,16 @@ function RuleModal({ initial, onClose, onSaved }: {
       if (!tmpl) { setError("Pick the template to send"); return; }
       const missing = unmappedVariables(tmpl, (form.action_config.variable_map ?? {}) as VariableMap);
       if (missing.length) { setError(`Set a value for ${missing.join(", ")}`); return; }
+    }
+    if ((form.trigger === "wa_message_received") !== (form.action === "send_whatsapp_reply")) {
+      setError("A WhatsApp keyword reply needs the “WhatsApp message with a keyword” trigger and the “Reply on WhatsApp” action together"); return;
+    }
+    if (form.action === "send_whatsapp_reply") {
+      if (!form.action_config.message?.trim()) { setError("Write the reply message"); return; }
+      const buttons = (form.action_config.buttons ?? []).filter((b: string) => b.trim());
+      if (buttons.some((b: string) => b.length > 20)) { setError("Keep each button to 20 characters"); return; }
+      if (form.action_config.link?.url && !/^https:\/\/\S+$/.test(form.action_config.link.url)) { setError("The link must start with https://"); return; }
+      if (buttons.length && form.action_config.link?.url) { setError("Use either reply buttons or a link button, not both"); return; }
     }
     if (form.action === "send_instagram_quick_reply" && !form.action_config.message?.trim()) {
       setError("Reply message is required"); return;
@@ -293,7 +305,7 @@ function RuleModal({ initial, onClose, onSaved }: {
           </div>
 
           {/* T2.4: keyword rule config — shown for both Instagram triggers */}
-          {(form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received") && (
+          {(form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received" || form.trigger === "wa_message_received") && (
             <div className="border border-[var(--haip-status-info-border)] bg-[var(--haip-status-info-bg)] rounded-xl p-4 space-y-4">
               <div>
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5 flex items-center gap-1">
@@ -416,6 +428,46 @@ function RuleModal({ initial, onClose, onSaved }: {
                 }))}
                 placeholder="vip, high-intent"
                 className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          )}
+
+          {form.action === "send_whatsapp_reply" && (
+            <div className="border border-[var(--haip-border)] rounded-xl p-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Reply <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
+                <textarea value={form.action_config.message ?? ""} maxLength={1024} rows={3}
+                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, message: e.target.value } }))}
+                  placeholder="Hi {first_name}! Which dates are you looking at?"
+                  className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-xl text-[16px] sm:text-sm bg-[var(--haip-card)] focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Use {"{first_name}"} for their name.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Reply buttons <span className="text-[var(--haip-fg-subtle)] font-normal">(optional, up to 3, 20 characters each)</span></label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[0, 1, 2].map(i => (
+                    <input key={i} maxLength={20} value={(form.action_config.buttons ?? [])[i] ?? ""} placeholder={["This weekend", "Next month", "Talk to us"][i]}
+                      aria-label={`Button ${i + 1}`}
+                      onChange={e => setForm(f => { const b = [...(f.action_config.buttons ?? ["", "", ""])]; b[i] = e.target.value; return { ...f, action_config: { ...f.action_config, buttons: b } }; })}
+                      className="w-full min-h-11 px-3 border border-[var(--haip-border)] rounded-xl text-[16px] sm:text-sm bg-[var(--haip-card)]" />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Or a link button <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
+                <div className="grid gap-2 sm:grid-cols-[160px_1fr]">
+                  <input maxLength={20} value={form.action_config.link?.title ?? ""} placeholder="See our villas" aria-label="Link button text"
+                    onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, link: { ...(f.action_config.link ?? {}), title: e.target.value } } }))}
+                    className="w-full min-h-11 px-3 border border-[var(--haip-border)] rounded-xl text-[16px] sm:text-sm bg-[var(--haip-card)]" />
+                  <input inputMode="url" value={form.action_config.link?.url ?? ""} placeholder="https://…" aria-label="Link"
+                    onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, link: { ...(f.action_config.link ?? {}), url: e.target.value } } }))}
+                    className="w-full min-h-11 px-3 border border-[var(--haip-border)] rounded-xl text-[16px] sm:text-sm bg-[var(--haip-card)]" />
+                </div>
+              </div>
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input type="checkbox" checked={!!form.action_config.once_per_person}
+                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, once_per_person: e.target.checked } }))} />
+                Only once per person (after that the AI or your team answers)
+              </label>
             </div>
           )}
 

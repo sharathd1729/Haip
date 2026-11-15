@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
+import { ReplyButtonsBar } from "@/components/inbox/ReplyButtonsBar";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -84,6 +85,7 @@ function InboxPageInner() {
   // Guest 360 panel is desktop-only (hidden md:flex on GuestPanel) -- on
   // mobile it opens as a sheet from the thread header instead.
   const [showGuestSheet, setShowGuestSheet] = useState(false);
+  const [replyButtons, setReplyButtons] = useState<string[]>([]);  // WhatsApp reply buttons on the next message
 
   const [channelFilter, setChannelFilter] = useState("");
   // Filter chip (Needs reply / Unassigned / Mine / All) -- applied
@@ -412,13 +414,14 @@ function InboxPageInner() {
   // the send-message call itself.
 
   const sendMutation = useMutation({
-    mutationFn: ({ text, is_internal, replied_to_message_id, scheduled_for }: { text: string; is_internal?: boolean; replied_to_message_id?: string; scheduled_for?: string | null }) =>
+    mutationFn: ({ text, is_internal, replied_to_message_id, scheduled_for, buttons }: { text: string; is_internal?: boolean; replied_to_message_id?: string; scheduled_for?: string | null; buttons?: string[] }) =>
       api.post(`/conversations/${activeConversationId}/messages`, {
         body: text,
         direction: "outbound",
         is_internal: is_internal ?? false,
         replied_to_message_id: replied_to_message_id ?? null,
         scheduled_for: scheduled_for ?? null,
+        ...(buttons && buttons.length ? { interactive: { kind: "buttons", buttons } } : {}),
       }),
     // Optimistic insert — show the message immediately instead of waiting on
     // the full send round trip (Meta API call + DB write can take several
@@ -584,12 +587,15 @@ function InboxPageInner() {
     if (!activeConversationId) return;
     // D9: block free-form send when service window is closed (except internal notes)
     if (windowBlocked) return;
+    const buttons = isWhatsApp && !isInternalNote ? replyButtons.map(b => b.trim()).filter(Boolean) : [];
     sendMutation.mutate({
       text: replyText.trim(),
       is_internal: isInternalNote,
       replied_to_message_id: replyToMsg?.id,
       scheduled_for: overrideScheduled !== undefined ? overrideScheduled : scheduledFor,
+      buttons,
     });
+    setReplyButtons([]);
   };
 
   // W4: quick schedule options
@@ -771,6 +777,10 @@ function InboxPageInner() {
                 You have view-only access to this inbox, so you can read conversations but not reply to guests.
               </div>
             ) : (
+            <>
+            {isWhatsApp && !isInternalNote && !windowBlocked && (
+              <ReplyButtonsBar key={activeConversationId ?? "none"} value={replyButtons} onChange={setReplyButtons} />
+            )}
             <Composer
               isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked} isInternalNote={isInternalNote}
               exitInternalNote={exitInternalNote} replyToMsg={replyToMsg} setReplyToMsg={setReplyToMsg}
@@ -784,6 +794,7 @@ function InboxPageInner() {
               showSchedule={showSchedule} setShowSchedule={setShowSchedule} handleTextChange={handleTextChange}
               handleKeyDown={handleKeyDown} handleSend={handleSend} sendMutation={sendMutation}
             />
+            </>
             )}
           </>
         )}

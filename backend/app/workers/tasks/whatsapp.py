@@ -643,14 +643,23 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
         log.warning("playbook_callback_tap_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
+    # ── WhatsApp keyword auto-replies (services/wa_keyword_replies.py) ─────
+    # An active "wa_message_received" rule whose keyword is in the message answers it; the AI then stays out.
+    if body and body.strip() and msg_type not in _NO_AI_TYPES:
+        try:
+            from app.services import wa_keyword_replies
+            if wa_keyword_replies.handle(db, tenant.id, guest, conversation, body.strip()):
+                message.automation_outcome = "matched_auto_replied"
+                db.commit()
+                return
+        except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
+            db.rollback()
+            log.warning("wa_keyword_reply_failed", tenant_id=tenant.id, error=str(exc)[:200])
+
     # ── Trigger AI Concierge ───────────────────────────────────────────────
     # Only trigger for text/interactive messages (not raw media without caption)
-    # Phase 2.5 agent-accountability instrumentation
-    # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): WhatsApp has no
-    # keyword-rule engine (that's Instagram-only, ig_keyword_match.py), so
-    # every inbound message here is effectively "no_match" -- outcome is
-    # just AI-drafted vs no response, same vocabulary as the IG side so
-    # downstream queries don't need a per-channel case split.
+    # Phase 2.5 agent-accountability instrumentation (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): a message that
+    # reaches here matched no keyword reply -- outcome is AI-drafted vs no response, same vocabulary as the IG side.
     if body and body.strip() and msg_type not in _NO_AI_TYPES:
         try:
             from app.workers.tasks.concierge_draft import concierge_draft

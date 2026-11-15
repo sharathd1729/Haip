@@ -72,6 +72,19 @@ class MetaCloudAdapter:
         }
         return await self._post(url, payload)
 
+    async def send_interactive(self, to: str, interactive: dict) -> dict:
+        """Reply buttons, a CTA link button, a list or a location request (services/wa_interactive.payload builds
+        the object). A session message: only inside the 24-hour window."""
+        url = f"{WA_BASE}/{self.phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "interactive",
+            "interactive": interactive,
+        }
+        return await self._post(url, payload)
+
     async def send_image(self, to: str, url: str, caption: str = "") -> dict:
         url_ = f"{WA_BASE}/{self.phone_number_id}/messages"
         payload = {
