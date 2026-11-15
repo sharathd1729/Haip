@@ -316,125 +316,74 @@
   fill: #1f9d55;
 }
 
-/* ── Contact: pick who you need (a list that opens one team at a time) ──────────────── */
-.site .ctX .ctw {
+/* ── Contact: three direct ways to reach us (rows, not cards) ────────────────────────── */
+.site .ctX .ctr {
   margin: 36px 0 0;
   padding: 0;
-  border: 0;
+  list-style: none;
   max-width: 34em;
-}
-.site .ctX .ctw legend {
-  padding: 0;
-  margin-bottom: 12px;
-  font: 600 12px/1 var(--f-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ui-ink2);
-}
-.site .ctX .ctt {
   border-top: 1px solid var(--line);
 }
-.site .ctX .ctt:last-of-type {
+.site .ctX .ctr li {
   border-bottom: 1px solid var(--line);
 }
-.site .ctX .ctt > label {
+.site .ctX .ctr a {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-height: 64px;
+  gap: 16px;
+  min-height: 76px;
   padding: 12px 4px;
-  cursor: pointer;
+  transition: background 0.2s var(--ease);
 }
-.site .ctX .ctt input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.site .ctX .ctt .ctd {
+.site .ctX .ctr a > svg {
   flex: none;
+  width: 20px;
+  height: 20px;
+  fill: var(--ink2);
+  transition: transform 0.25s var(--ease);
+}
+.site .ctX .ctr a:hover > svg {
+  transform: translateX(4px);
+}
+.site .ctX .cti {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--panel);
+}
+.site .ctX .cti svg {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--ink) 25%, transparent);
-  transition:
-    border-color 0.2s var(--ease),
-    box-shadow 0.2s var(--ease);
+  fill: var(--accent);
 }
-.site .ctX .ctt input:checked + .ctd {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 4px var(--bg), inset 0 0 0 11px var(--accent);
+.site .ctX .cti.wa {
+  background: #e3f8ea;
 }
-.site .ctX .ctt input:focus-visible + .ctd {
-  outline: 2px solid var(--ink);
-  outline-offset: 3px;
+.site .ctX .cti.wa svg {
+  fill: #1f9d55;
 }
-.site .ctX .ctt .ctn {
+.site .ctX .ctn {
   flex: 1;
   min-width: 0;
 }
-.site .ctX .ctt .ctn b {
+.site .ctX .ctn b {
   display: block;
   font-size: 18px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
-.site .ctX .ctt .ctn span {
+.site .ctX .ctn span {
   display: block;
   font-size: 14px;
   color: var(--ink2);
 }
-.site .ctX .ctt .cto {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.35s var(--ease);
-}
-.site .ctX .ctt.is-on .cto {
-  grid-template-rows: 1fr;
-}
-.site .ctX .ctt .cto > div {
-  overflow: hidden;
-}
-.site .ctX .ctt .ctl {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 4px 16px 40px;
-}
-.site .ctX .ctt .ctl a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--accent);
+.site .ctX .ctp {
+  margin: 20px 0 0;
   font-size: 14px;
-  font-weight: 600;
-}
-.site .ctX .ctf {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
-  margin: 64px 0 0;
-  padding: 28px 0 0;
-  border-top: 1px solid var(--line);
-}
-.site .ctX .ctf dt {
-  font: 600 12px/1 var(--f-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ui-ink2);
-}
-.site .ctX .ctf dd {
-  margin: 10px 0 0;
-  font-size: 15px;
-  line-height: 1.6;
-}
-.site .ctX .ctf dd a {
-  display: block;
-  width: fit-content;
-}
-.site .ctX .ctf dd a:hover {
-  text-decoration: underline;
 }
 
 @keyframes s-lf-in {
@@ -455,11 +404,6 @@
   .site .lpX .lpg {
     grid-template-columns: minmax(0, 1fr);
     gap: 40px;
-  }
-  .site .ctX .ctf {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-    margin-top: 48px;
   }
 }
 /* Book a demo on phones and tablets: headline, then the form, then what happens next. */
@@ -501,8 +445,5 @@
   .site .bdX .bdn li,
   .site .lfX .lfd {
     animation: none;
-  }
-  .site .ctX .ctt .cto {
-    transition: none;
   }
 }

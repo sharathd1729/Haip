@@ -1,0 +1,74 @@
+/* Floating WhatsApp button on the public site (components/site/WhatsAppFab.tsx). Unscoped class: used by both site layouts. */
+.haip-wa-fab {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right, 0px));
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 60px;
+  padding: 0 26px 0 20px;
+  border-radius: 999px;
+  background: #25d366;
+  color: #fff;
+  font: 700 18px/1 var(--font-onest), system-ui, sans-serif;
+  text-decoration: none;
+  box-shadow: 0 14px 30px -12px rgba(18, 140, 70, 0.6), 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.2s ease;
+  animation: haip-wa-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both;
+}
+.haip-wa-fab svg {
+  width: 30px;
+  height: 30px;
+  fill: currentColor;
+  flex: none;
+}
+.haip-wa-fab:hover {
+  background: #1ebe5b;
+  transform: translateY(-2px);
+  box-shadow: 0 18px 34px -12px rgba(18, 140, 70, 0.7), 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.haip-wa-fab:active {
+  transform: scale(0.97);
+}
+.haip-wa-fab:focus-visible {
+  outline: 3px solid #0b4f55;
+  outline-offset: 3px;
+}
+@keyframes haip-wa-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 640px) {
+  .haip-wa-fab {
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    height: 52px;
+    padding: 0 20px 0 16px;
+    font-size: 16px;
+  }
+  .haip-wa-fab svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .haip-wa-fab {
+    animation: none;
+  }
+}
+@media print {
+  .haip-wa-fab {
+    display: none;
+  }
+}

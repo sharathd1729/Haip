@@ -3,43 +3,31 @@
 import { useState, type FormEvent } from "react";
 import { ConsentCheckbox, Honeypot } from "@/components/marketing/LeadFormParts";
 import { newSubmissionId, submitPublicLead } from "@/lib/publicLeads";
-import { ArchMark, ArrowIcon, CheckIcon, Field, WA_NUMBER } from "./leadParts";
+import { ArchMark, ArrowIcon, CheckIcon, Field, WA_NUMBER, WhatsAppIcon } from "./leadParts";
 
-// Contact details are the ones the old contact page published; change them here only.
-const TEAMS = [
-  {
-    id: "sales",
-    name: "Sales",
-    what: "Pricing, a demo, getting started",
-    links: [["Book a demo", "/book-demo"], ["gen.haip@gmail.com", "mailto:gen.haip@gmail.com"]],
-  },
-  {
-    id: "support",
-    name: "Customer support",
-    what: "Already on HAIP: how-to, billing, a problem",
-    links: [["WhatsApp support", `https://wa.me/${WA_NUMBER}`], ["support@haip.app", "mailto:support@haip.app"]],
-  },
-  {
-    id: "partnerships",
-    name: "Partnerships",
-    what: "Agencies, resellers, integrations",
-    links: [["partnerships@haip.app", "mailto:partnerships@haip.app"], ["Become a partner", "/partners"]],
-  },
-] as const;
+export const CONTACT_EMAIL = "info@genhaip.com";
 
-const TOPICS: [string, string][] = [
-  ["sales", "Sales or a demo"],
-  ["support", "Support"],
-  ["partnerships", "Partnerships"],
-  ["security", "Security or privacy"],
-  ["press", "Press"],
-  ["other", "Something else"],
-];
+type ContactForm = { fullName: string; workEmail: string; phone: string; message: string };
 
-type ContactForm = { fullName: string; workEmail: string; phone: string; topic: string; message: string };
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M1.5 8.67v8.58a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3V8.67l-8.928 5.493a3 3 0 0 1-3.144 0L1.5 8.67Z" />
+      <path d="M22.5 6.908V6.75a3 3 0 0 0-3-3h-15a3 3 0 0 0-3 3v.158l9.714 5.978a1.5 1.5 0 0 0 1.572 0L22.5 6.908Z" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fillRule="evenodd" clipRule="evenodd" d="M6.75 2.25A.75.75 0 0 1 7.5 3v1.5h9V3A.75.75 0 0 1 18 3v1.5h.75a3 3 0 0 1 3 3v11.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3H6V3a.75.75 0 0 1 .75-.75Zm13.5 9a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5Z" />
+    </svg>
+  );
+}
 
 export default function ContactBody() {
-  const [form, setForm] = useState<ContactForm>({ fullName: "", workEmail: "", phone: "", topic: "sales", message: "" });
+  const [form, setForm] = useState<ContactForm>({ fullName: "", workEmail: "", phone: "", message: "" });
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +61,6 @@ export default function ContactBody() {
         email: form.workEmail,
         phone: form.phone || null,
         message: form.message,
-        details: { topic: form.topic },
         consent,
         website: honeypot,
       });
@@ -94,38 +81,32 @@ export default function ContactBody() {
             <h1 id="cth">
               Talk to <em>a person.</em>
             </h1>
-            <p className="lpl">Pick who you need. Write to them directly, or send the form and it reaches the right desk.</p>
+            <p className="lpl">WhatsApp us, write to us or send the form. A real person from the team replies.</p>
 
-            <fieldset className="ctw">
-              <legend>Who do you need?</legend>
-              {TEAMS.map((t) => {
-                const on = form.topic === t.id;
-                return (
-                  <div key={t.id} className={`ctt${on ? " is-on" : ""}`}>
-                    <label>
-                      <input type="radio" name="team" value={t.id} checked={on} onChange={() => set({ topic: t.id })} />
-                      <span className="ctd" aria-hidden="true" />
-                      <span className="ctn">
-                        <b>{t.name}</b>
-                        <span>{t.what}</span>
-                      </span>
-                    </label>
-                    <div className="cto" aria-hidden={!on}>
-                      <div>
-                        <div className="ctl">
-                          {t.links.map(([label, href]) => (
-                            <a key={label} href={href} tabIndex={on ? 0 : -1}
-                               {...(href.startsWith("https://") ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
-                              {label}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </fieldset>
+            <ul className="ctr" aria-label="Ways to reach us">
+              <li>
+                <a href={`https://wa.me/${WA_NUMBER}`} target="_blank" rel="noopener noreferrer">
+                  <span className="cti wa"><WhatsAppIcon /></span>
+                  <span className="ctn"><b>+91 81476 98153</b><span>WhatsApp or call, Mon to Sat, 9 am to 8 pm IST</span></span>
+                  <ArrowIcon />
+                </a>
+              </li>
+              <li>
+                <a href={`mailto:${CONTACT_EMAIL}`}>
+                  <span className="cti"><MailIcon /></span>
+                  <span className="ctn"><b>{CONTACT_EMAIL}</b><span>Write to us about anything</span></span>
+                  <ArrowIcon />
+                </a>
+              </li>
+              <li>
+                <a href="/book-demo">
+                  <span className="cti"><CalendarIcon /></span>
+                  <span className="ctn"><b>Book a demo</b><span>30 minutes, live on your own WhatsApp</span></span>
+                  <ArrowIcon />
+                </a>
+              </li>
+            </ul>
+            <p className="ctp">HAIP Technologies Pvt. Ltd., Bengaluru, India</p>
           </div>
 
           <div className="ui lfX">
@@ -151,16 +132,9 @@ export default function ContactBody() {
                       <input className="lfi" type="email" autoComplete="email" value={form.workEmail} onChange={(e) => set({ workEmail: e.target.value })} placeholder="you@yourstay.in" />
                     </Field>
                   </div>
-                  <div className="lfr">
-                    <Field label="WhatsApp number (optional)">
-                      <input className="lfi" type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="+91 98xxx xxxxx" />
-                    </Field>
-                    <Field label="What's it about?">
-                      <select className="lfi" value={form.topic} onChange={(e) => set({ topic: e.target.value })}>
-                        {TOPICS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                      </select>
-                    </Field>
-                  </div>
+                  <Field label="WhatsApp number (optional)">
+                    <input className="lfi" type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="+91 98xxx xxxxx" />
+                  </Field>
                   <Field label="Your message" required>
                     <textarea className="lfi" rows={5} value={form.message} onChange={(e) => set({ message: e.target.value })} placeholder="Tell us what you need. The more detail, the faster we can help." />
                   </Field>
@@ -178,28 +152,6 @@ export default function ContactBody() {
             )}
           </div>
         </div>
-
-        <dl className="ctf">
-          <div>
-            <dt>Reply times</dt>
-            <dd>Sales: under 2 working hours<br />Support: under 4 working hours<br />Partnerships: within a working day</dd>
-          </div>
-          <div>
-            <dt>Phone and WhatsApp</dt>
-            <dd>
-              <a href={`https://wa.me/${WA_NUMBER}`} target="_blank" rel="noopener noreferrer">+91 81476 98153</a>
-              Mon to Sat, 9 am to 8 pm IST
-            </dd>
-          </div>
-          <div>
-            <dt>Write to</dt>
-            <dd>
-              <a href="mailto:security@haip.app">security@haip.app</a>
-              <a href="mailto:dpo@haip.app">dpo@haip.app (data protection)</a>
-              HAIP Technologies Pvt. Ltd., Bengaluru
-            </dd>
-          </div>
-        </dl>
       </div>
     </section>
   );

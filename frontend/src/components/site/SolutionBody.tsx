@@ -222,8 +222,8 @@ export default function SolutionBody({ d }: { d: Solution }) {
               </h1>
               <p className="l">{d.lead}</p>
               <div className="acts">
-                <a className="btn big primary" href="#cta">Book a demo</a>
-                <a className="btn big outline" href="#cta">Chat with us on WhatsApp</a>
+                <a className="btn big primary" href="/book-demo">Book a demo</a>
+                <a className="btn big outline" href="https://wa.me/918147698153" target="_blank" rel="noopener noreferrer">Chat with us on WhatsApp</a>
               </div>
             </div>
             <Chat biz={d.biz} lines={d.chat} />

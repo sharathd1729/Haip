@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Anton, JetBrains_Mono } from "next/font/google";
+import WhatsAppFab from "@/components/site/WhatsAppFab";
 import "./site.css";
 
 // The marketing site: "/", /features, /pricing, /solutions/*. Has its own header and footer, so it sits outside (marketing).
@@ -42,6 +43,7 @@ export default function SiteLayout({
       className={`site ${display.variable} ${mono.variable}`}
     >
       {children}
+      <WhatsAppFab />
     </div>
   );
 }

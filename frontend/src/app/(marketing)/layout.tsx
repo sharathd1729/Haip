@@ -1,6 +1,7 @@
 import type { Viewport } from "next";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+import WhatsAppFab from "@/components/site/WhatsAppFab";
 
 // Marketing pages are light-only by design. Declaring this to the browser
 // prevents Android/Chrome forced-dark from inverting the palette.
@@ -20,6 +21,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <MarketingNav />
       <main className="mkt-surface">{children}</main>
       <MarketingFooter />
+      <WhatsAppFab />
     </>
   );
 }
