@@ -39,10 +39,30 @@ def process_whatsapp_message(self, payload: dict):
         for entry in entry_list:
             for change in entry.get("changes", []):
                 value = change.get("value", {})
+                if change.get("field") in _TEMPLATE_FIELDS:
+                    _process_template_event(str(entry.get("id") or ""), change.get("field"), value)
+                    continue
                 _process_value(value)
     except Exception as exc:
         log.error("whatsapp_processing_failed", error=str(exc))
         raise self.retry(exc=exc)
+
+
+_TEMPLATE_FIELDS = ("message_template_status_update", "message_template_quality_update", "template_category_update")
+
+
+def _process_template_event(waba_id: str, field: str, value: dict) -> None:
+    """Template approved / rejected / paused etc. (services/wa_template_events.py), per WhatsApp Business Account."""
+    from app.services import wa_template_events
+
+    db = SessionLocal()
+    try:
+        wa_template_events.handle(db, waba_id, field, value or {})
+    except Exception as exc:  # noqa: BLE001 -- the 30-minute template sync still catches the change
+        db.rollback()
+        log.warning("wa_template_event_failed", waba_id=waba_id, field=field, error=str(exc)[:200])
+    finally:
+        db.close()
 
 
 def resolve_wa_tenant(db, phone_number_id: str) -> Tenant | None:
