@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page";
 import { errorMessage, fmtDate } from "@/lib/bookings";
 import { WebhooksSection } from "@/components/developers/WebhooksSection";
+import { ConnectorGuides } from "@/components/developers/ConnectorGuides";
 
 interface ApiKeyRow {
   id: string; name: string; prefix: string; scopes: string[]; created_at: string | null;
@@ -174,6 +175,7 @@ export default function DevelopersPage() {
         </>
       )}
 
+      <ConnectorGuides />
       <WebhooksSection isOwner={isOwner} />
     </div>
   );

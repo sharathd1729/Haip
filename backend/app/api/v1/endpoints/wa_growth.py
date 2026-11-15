@@ -160,3 +160,17 @@ def send_booking_form(conversation_id: str, current_user: User = Depends(get_cur
                            spec, sender_kind=None, sender_id=current_user.id, sender_name=current_user.name or "Team",
                            source="booking_form")
     return {"message_id": mid}
+
+
+# ─── inbox analytics (WhatsApp step 4) ──────────────────────────────────────────
+
+@router.get("/messaging/inbox-analytics")
+def inbox_analytics(days: int = 30, current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+                    db: Session = Depends(get_db)):
+    """First-response time on WhatsApp, conversations per team member and message cost for the last 7/14/30/90 days."""
+    from app.models.tenant import Tenant
+    from app.services import wa_inbox_analytics
+    if days not in wa_inbox_analytics.PERIODS:
+        raise HTTPException(status_code=422, detail="Pick 7, 14, 30 or 90 days.")
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    return wa_inbox_analytics.report(db, tenant, days)

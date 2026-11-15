@@ -42,7 +42,19 @@ EVENTS: dict[str, str] = {
     "payment.received": "A payment was recorded on a booking (including online payments)",
     "message.received": "A guest sent a WhatsApp or Instagram message",
     "message.status": "An outbound message changed state: sent, delivered, read or failed",
+    "lead.created": "A person became a lead: they shared a usable phone number (HAIP's lead rule)",
 }
+
+# Google Apps Script web apps (the Google Sheets connector) run doPost and then answer 302 to a
+# googleusercontent.com page with the output. The work is done, so that redirect counts as delivered.
+_APPS_SCRIPT_HOSTS = ("script.google.com",)
+
+
+def _delivered(url: str, status: int) -> bool:
+    from urllib.parse import urlsplit
+    if 200 <= status < 300:
+        return True
+    return status in (302, 303) and (urlsplit(url).hostname or "").lower() in _APPS_SCRIPT_HOSTS
 
 
 def new_secret() -> str:
@@ -151,7 +163,7 @@ def deliver(db: Session, delivery_id: str, tenant_id: str, client: Optional[http
         return d.status
 
     now = datetime.now(timezone.utc)
-    if 200 <= resp.status_code < 300:
+    if _delivered(ep.url, resp.status_code):
         d.status, d.attempts, d.response_status, d.last_error = "success", d.attempts + 1, resp.status_code, None
         d.delivered_at, d.next_attempt_at = now, None
         ep.consecutive_failures, ep.last_success_at = 0, now

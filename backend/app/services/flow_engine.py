@@ -116,6 +116,16 @@ def _evaluate_condition(db: Session, tenant_id: str, guest_id: str, conversation
         )
         return bool(newer_inbound)
 
+    if condition == "not_replied":
+        # Drips: carry on only while the guest hasn't answered the last message (the lone edge is the "true" path).
+        # A drip started by an event (new enquiry, opt-in) has no conversation yet: use the guest's latest WhatsApp chat.
+        if not conversation_id:
+            from app.models.conversation import ChannelType, Conversation
+            conv = (db.query(Conversation.id).filter_by(tenant_id=tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP)
+                    .order_by(Conversation.created_at.desc()).first())
+            conversation_id = conv[0] if conv else None
+        return not _evaluate_condition(db, tenant_id, guest_id, conversation_id, {**node, "condition": "replied"})
+
     if condition == "is_vip":
         from app.models.guest import Guest
         from app.api.v1.endpoints.messaging import WASubscriber
