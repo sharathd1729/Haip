@@ -207,6 +207,16 @@ def _quick(title: str, rule_id: str, step: str) -> list[dict]:
 # ── the steps ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
+def _final_text(db: Session, tenant_id: str, rule: AutomationRule, guest, keep) -> str:
+    """The final message as plain text: the rule's message, then its link (tracked) when it has a button."""
+    from app.services import ig_automation_copy as copy_rules
+
+    cfg = rule.action_config or {}
+    text, _changes = copy_rules.prepare_dm(_render(cfg.get("message") or "", guest), keep)
+    url = (cfg.get("button") or {}).get("url")
+    return f"{text}\n{tracked_url(db, tenant_id, rule.id, url)}" if url else text
+
+
 def start(
     db: Session,
     tenant_id: str,
@@ -255,22 +265,36 @@ def start(
     needs_tap = bool(cfg.get("button") or gate.get("enabled"))
     text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else cfg["message"], guest), keep)
     quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else None
+    delivered_final = False
     try:
         if comment_id:
-            result = adapter.send_private_reply(comment_id, text, quick)
+            try:
+                result = adapter.send_private_reply(comment_id, text, quick)
+            except Exception as exc:  # noqa: BLE001
+                if not quick:
+                    raise
+                # Meta refused the first reply with a tap button (seen live as a 500). The comment's one private reply
+                # is still unused, so send the whole message instead: text + link, no button, no follow check.
+                logger.warning("ig_automation_private_reply_button_refused rule=%s: %s", rule.id, exc)
+                text = _final_text(db, tenant_id, rule, guest, keep)
+                result = adapter.send_private_reply(comment_id, text, None)
+                delivered_final = True
+                notes.append("sent as plain text: Instagram refused the button")
         elif quick:
             result = adapter.send_quick_replies(recipient_id, text, quick)
         else:
             result = adapter.send_text(recipient_id, text)
     except Exception as exc:  # noqa: BLE001
         logger.error("ig_automation_dm_failed rule=%s: %s", rule.id, exc)
-        log_event(db, tenant_id, rule.id, "dm_failed", guest_id, media_id, str(exc))
-        _log_run(db, tenant_id, rule, "failed", f"Send failed: {exc}", ctx)
+        log_event(db, tenant_id, rule.id, "dm_failed", guest_id, media_id, str(exc)[:500])
+        _log_run(db, tenant_id, rule, "failed", f"Send failed: {str(exc)[:500]}", ctx)
         db.commit()
         return False
 
     _record(db, tenant_id, conversation_id, text, result, rule.id)
     log_event(db, tenant_id, rule.id, "dm_sent", guest_id, media_id)
+    if delivered_final:
+        log_event(db, tenant_id, rule.id, "link_sent", guest_id, media_id)
     rule.run_count = (rule.run_count or 0) + 1
     rule.last_run_at = datetime.now(UTC)
     if not comment_id and rule.trigger == "ig_dm_received" and (cfg.get("follow_up") or "").strip():

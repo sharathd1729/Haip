@@ -104,6 +104,31 @@ def validate_media_url(url: str) -> bool:
     return any(host == s.lstrip(".") or host.endswith(s) for s in _ALLOWED_MEDIA_HOST_SUFFIXES)
 
 
+def _meta_error(resp: httpx.Response) -> str:
+    """Meta's own reason ("(#10) ...", code, subcode) from an error body, without anything secret."""
+    try:
+        err = (resp.json() or {}).get("error") or {}
+    except ValueError:
+        return resp.text[:200]
+    parts = [str(err.get("message") or "").strip()]
+    if err.get("code") is not None:
+        parts.append(f"code {err.get('code')}" + (f"/{err.get('error_subcode')}" if err.get("error_subcode") else ""))
+    return " ".join(p for p in parts if p) or resp.text[:200]
+
+
+def _raise_for_status(resp: httpx.Response, method: str, path: str) -> None:
+    """Like raise_for_status (callers still catch httpx.HTTPStatusError and read .response), but the message is
+    Meta's reason and the path, never the full URL."""
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        reason = _meta_error(exc.response)
+        logger.error("Instagram %s %s → %s %s", method, path, exc.response.status_code, reason)
+        raise httpx.HTTPStatusError(
+            f"Instagram {exc.response.status_code}: {reason}", request=exc.request, response=exc.response
+        ) from None
+
+
 class InstagramGraphAdapter:
     def __init__(self, access_token: str, ig_account_id: str):
         self._token = access_token
@@ -112,30 +137,21 @@ class InstagramGraphAdapter:
         # Messages hang off the Instagram account with an Instagram Login token, off the page ("me") with a page token.
         self._inbox = "me" if self._base == FB_GRAPH_BASE else ig_account_id
 
+    # The token goes in the Authorization header, never the URL: httpx puts the URL in every error message, and those
+    # messages end up in logs and in automation_runs (shown on screen). A leaked ?access_token= was seen there.
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._token}"}
+
     def _post(self, path: str, payload: dict) -> dict:
         url = f"{self._base}/{path.lstrip('/')}"
-        resp = httpx.post(
-            url,
-            json=payload,
-            params={"access_token": self._token},
-            timeout=15,
-        )
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            logger.error("Instagram POST %s → %s %s", path, exc.response.status_code, exc.response.text[:300])
-            raise
+        resp = httpx.post(url, json=payload, headers=self._headers(), timeout=15)
+        _raise_for_status(resp, "POST", path)
         return resp.json()
 
     def _get(self, path: str, params: dict | None = None) -> dict:
         url = f"{self._base}/{path.lstrip('/')}"
-        p = {"access_token": self._token, **(params or {})}
-        resp = httpx.get(url, params=p, timeout=15)
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            logger.error("Instagram GET %s → %s %s", path, exc.response.status_code, exc.response.text[:300])
-            raise
+        resp = httpx.get(url, params=params or {}, headers=self._headers(), timeout=15)
+        _raise_for_status(resp, "GET", path)
         return resp.json()
 
     # ── Sending ────────────────────────────────────────────────────────────────
