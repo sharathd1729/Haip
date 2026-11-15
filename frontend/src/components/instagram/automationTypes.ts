@@ -66,6 +66,20 @@ export const DEFAULT_FORM: IgForm = {
   ],
 };
 
+export interface IgSequenceStep {
+  text: string;
+  after_minutes: number;
+  button?: { title: string; url: string } | null;
+}
+
+// Waits a follow-up can use; all of them together must fit in Instagram's 23-hour window (checked server-side too).
+export const SEQUENCE_WAITS: { value: number; label: string }[] = [
+  { value: 10, label: "10 minutes" }, { value: 30, label: "30 minutes" }, { value: 60, label: "1 hour" },
+  { value: 180, label: "3 hours" }, { value: 360, label: "6 hours" }, { value: 720, label: "12 hours" },
+  { value: 1200, label: "20 hours" },
+];
+export const SEQUENCE_WINDOW_MINUTES = 23 * 60;
+
 export interface IgActionConfig {
   message: string;
   button?: { title: string; url: string } | null;
@@ -75,6 +89,7 @@ export interface IgActionConfig {
   follow_gate?: { enabled: boolean; ask_text?: string; button_title?: string; max_asks?: number; send_anyway?: boolean };
   once_per_person?: boolean;
   form?: IgForm;
+  sequence?: IgSequenceStep[];
 }
 
 export interface IgRule {
@@ -116,6 +131,8 @@ export interface IgRuleStats {
   form_started?: number;
   form_completed?: number;
   form_dropped?: number;
+  sequence_sent?: number;
+  sequence_stopped?: number;
 }
 
 export const isIgRule = (r: { trigger: string; action: string }) => r.action === IG_ACTION && r.trigger.startsWith("ig_");

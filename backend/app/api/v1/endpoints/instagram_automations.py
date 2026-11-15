@@ -149,6 +149,8 @@ def automation_stats(
                         "form_started",
                         "form_completed",
                         "form_dropped",
+                        "sequence_sent",
+                        "sequence_stopped",
                     )
                 },
             }

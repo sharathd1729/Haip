@@ -22,6 +22,8 @@ EVENT_KINDS = (
     "form_started",
     "form_completed",
     "form_dropped",
+    "sequence_sent",
+    "sequence_stopped",
     "opened",  # the person opened an automation DM (Instagram "seen", webhook field messaging_seen)
 )
 

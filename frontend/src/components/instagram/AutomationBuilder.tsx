@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { Drawer } from "@/components/ui/kit";
 import { MediaPicker } from "./MediaPicker";
 import { FormQuestions } from "./FormQuestions";
-import { DEFAULT_ACKS, DEFAULT_FORM, IG_ACTION, TRIGGERS, triggerMeta, type IgActionConfig, type IgForm, type IgRule, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
+import { SequenceSteps, sequenceTotal } from "./SequenceSteps";
+import { DEFAULT_ACKS, DEFAULT_FORM, IG_ACTION, SEQUENCE_WINDOW_MINUTES, TRIGGERS, triggerMeta, type IgActionConfig, type IgForm, type IgRule, type IgSequenceStep, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
 
 const field = "min-h-11 w-full rounded-[12px] border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] sm:text-[14.5px] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:border-primary focus:outline-none";
 const area = cn(field, "min-h-[88px] py-2.5 leading-relaxed");
@@ -100,6 +101,7 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
   const [gate, setGate] = useState({ enabled: false, ask_text: "Please follow us first, then tap the button below 👇", button_title: "I'm following", max_asks: 3, send_anyway: true, ...(ac0.follow_gate ?? {}) });
   const [once, setOnce] = useState(ac0.once_per_person ?? true);
   const [form, setForm] = useState<IgForm>(ac0.form?.questions?.length ? ac0.form : DEFAULT_FORM);
+  const [sequence, setSequence] = useState<IgSequenceStep[]>(ac0.sequence ?? []);
   const [error, setError] = useState("");
 
   const isComment = COMMENT_TRIGGERS.includes(trigger);
@@ -120,6 +122,7 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
         message, button: withButton ? button : null, opener, opener_button: openerButton,
         public_ack_pool: isComment ? acks.filter(a => a.trim()) : [], follow_gate: gate, once_per_person: once,
         form: { enabled: form.enabled, questions: form.questions.map(q => ({ ...q, text: q.text.trim(), options: (q.options ?? []).filter(Boolean) })) },
+        sequence: sequence.map(s => ({ ...s, text: s.text.trim(), button: s.button?.url.trim() ? { title: s.button.title, url: s.button.url.trim() } : null })),
       };
       const body = { name: name.trim() || triggerMeta(trigger)?.short || "Instagram automation", trigger, action: IG_ACTION, trigger_config, action_config };
       return initial ? api.patch(`/automations/${initial.id}`, body) : api.post("/automations", { ...body, is_active: true });
@@ -136,6 +139,9 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
     if (withButton && !/^https:\/\/\S+$/.test(button.url.trim())) return setError("The button link must start with https://");
     if (form.enabled && form.questions.filter(q => q.key === "phone").length !== 1) return setError("The questions must ask for the WhatsApp number once.");
     if (form.enabled && form.questions.some(q => !q.text.trim())) return setError("Write the text for every question.");
+    if (sequence.some(s => !s.text.trim())) return setError("Write the text for every follow-up, or remove the empty one.");
+    if (sequence.some(s => s.button && !/^https:\/\/\S+$/.test(s.button.url.trim()))) return setError("Follow-up links must start with https://");
+    if (sequenceTotal(sequence) > SEQUENCE_WINDOW_MINUTES) return setError("The follow-ups must all go out within 23 hours.");
     save.mutate();
   };
 
@@ -239,6 +245,10 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
             )}
           </Section>
 
+          <Section title="Follow-up messages" hint={isComment ? "Sent after the final message, which goes out once they tap. Up to 3." : "Sent after the final message. Up to 3."}>
+            <SequenceSteps value={sequence} onChange={setSequence} />
+          </Section>
+
           <Section title="Ask to follow first">
             <Toggle checked={gate.enabled} onChange={v => setGate({ ...gate, enabled: v })} label="Only send after they follow"
               hint="HAIP checks with Instagram whether they follow you." />
@@ -272,6 +282,7 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
             {gate.enabled && <Bubble who="you" button={gate.button_title}>{sample(gate.ask_text)}</Bubble>}
             {form.enabled && form.questions.slice(0, 3).map((q, i) => <Bubble key={i} who="you" button={q.options?.slice(0, 3).join(" · ") || undefined}>{q.text || "Question…"}</Bubble>)}
             <Bubble who="you" button={withButton ? button.title : undefined}>{sample(message).replaceAll("{agent_name}", "Priya") || "Your message…"}</Bubble>
+            {sequence.map((s, i) => <Bubble key={`seq-${i}`} who="you" button={s.button?.title || undefined}>{sample(s.text) || "Follow-up…"}</Bubble>)}
           </div>
         </aside>
       </div>

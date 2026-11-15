@@ -300,6 +300,10 @@ def _finish(db, tenant_id, rule, session, adapter, guest) -> None:
     engine.log_event(db, tenant_id, rule.id, "form_completed", session.guest_id)
     if inquiry is not None:
         _refresh_summary(tenant_id, inquiry.id)
+    from app.services import ig_sequence
+
+    ig_sequence.begin(rule, tenant_id, recipient_id=session.recipient_id, guest_id=session.guest_id,
+                      conversation_id=session.conversation_id)
 
 
 def _write_to_enquiry(db, tenant_id: str, session: IgFormSession, rule: AutomationRule, answers: dict):

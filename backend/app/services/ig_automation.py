@@ -327,6 +327,10 @@ def start(
         )
     _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}" + (f" ({'; '.join(notes)})" if notes else ""), ctx)
     db.commit()
+    if not comment_id and not needs_tap:  # the final message went out in an open chat: follow-ups may follow
+        from app.services import ig_sequence
+
+        ig_sequence.begin(rule, tenant_id, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id)
     return True
 
 
@@ -461,3 +465,6 @@ def _send_final(
     log_event(db, tenant_id, rule.id, "link_sent", guest_id)  # "the final message went out" (with or without a link)
     _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}", ctx)
     db.commit()
+    from app.services import ig_sequence
+
+    ig_sequence.begin(rule, tenant_id, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id)

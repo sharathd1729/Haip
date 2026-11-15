@@ -106,6 +106,17 @@ class IgForm(BaseModel):
         return self
 
 
+SEQUENCE_WINDOW_MINUTES = 23 * 60  # Instagram allows messages for 24 h after the person's last message
+
+
+class IgSequenceStep(BaseModel):
+    """One follow-up after the automation's final message (services/ig_sequence.py)."""
+
+    text: str = Field(min_length=1, max_length=640)
+    after_minutes: int = Field(ge=5, le=SEQUENCE_WINDOW_MINUTES)  # wait after the previous message
+    button: IgButton | None = None
+
+
 class IgActionConfig(BaseModel):
     message: str = Field(min_length=1, max_length=900)
     button: IgButton | None = None
@@ -117,6 +128,15 @@ class IgActionConfig(BaseModel):
     follow_up: str = Field(default="", max_length=500)  # DM-keyword rules only (endpoints/automations.py)
     follow_up_after_hours: int | None = Field(default=None, ge=1, le=23)
     form: IgForm = Field(default_factory=IgForm)
+    sequence: list[IgSequenceStep] = Field(default_factory=list, max_length=3)
+
+    @model_validator(mode="after")
+    def _sequence_fits_the_window(self):
+        total = sum(step.after_minutes for step in self.sequence)
+        if total > SEQUENCE_WINDOW_MINUTES:
+            raise ValueError("The follow-ups must all go out within 23 hours: Instagram stops allowing messages 24 hours "
+                             "after the person's last message.")
+        return self
 
     @field_validator("public_ack_pool", mode="before")
     @classmethod
