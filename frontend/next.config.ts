@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/site-v2", destination: "/", permanent: true },
       { source: "/site-v2/:path*", destination: "/:path*", permanent: true },
+      // Pages taken down until they are rebuilt in the new design (owner, 15 Nov). Temporary, so they can come back.
+      ...["/about", "/assess", "/changelog", "/api-docs"].map((source) => ({ source, destination: "/", permanent: false })),
     ];
   },
   async rewrites() {

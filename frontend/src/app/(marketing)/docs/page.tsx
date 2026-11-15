@@ -9,8 +9,7 @@ export default function DocsPage() {
       description="The full HAIP documentation hub — setup checklists for WhatsApp Cloud API, CallerDesk / Acefone, Hostaway, and step-by-step guides for every role. We're polishing the public site; in the meantime your account manager has the full doc set."
       icon={<BookOpen size={12} />}
       accent="cyan"
-      primaryCta={{ label: "Talk to your account manager", href: "/contact?topic=support" }}
-      secondaryCta={{ label: "API reference (coming)", href: "/api-docs" }}
+      primaryCta={{ label: "Talk to us", href: "/contact" }}
       highlights={[
         { title: "WhatsApp Embedded Signup", desc: "Meta verification, number provisioning, template setup — 15-min walkthrough." },
         { title: "CallerDesk + Acefone setup", desc: "IVR flow, recording consent, webhook config, click-to-call API keys." },

@@ -6,7 +6,6 @@ const links = {
     { label: "Features",     href: "/features" },
     { label: "Pricing",      href: "/pricing" },
     { label: "Integrations", href: "/integrations" },
-    { label: "Changelog",    href: "/changelog" },
     { label: "Roadmap",      href: "/roadmap" },
   ],
   Solutions: [
@@ -19,15 +18,11 @@ const links = {
     { label: "Documentation", href: "/docs" },
     { label: "Blog",          href: "/blog" },
     { label: "Case Studies",  href: "/case-studies" },
-    { label: "Changelog",     href: "/changelog" },
-    { label: "API Reference", href: "/api-docs" },
     { label: "Status",        href: "/status" },
   ],
   Company: [
-    { label: "About",       href: "/about" },
     { label: "Contact",     href: "/contact" },
     { label: "Book a demo", href: "/book-demo" },
-    { label: "Free property assessment", href: "/assess" },
   ],
   Legal: [
     { label: "Privacy Policy",      href: "/privacy" },
