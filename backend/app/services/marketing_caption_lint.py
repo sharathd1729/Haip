@@ -7,11 +7,11 @@ marketing_content_service.check_text; this only reports it).
 
 The 125-character cut is an approximation: the real one moves with the device, font size and line breaks.
 """
+
 import re
-from typing import Optional
 
 TRUNCATE = 125
-HASHTAG_LIMIT = 5        # Instagram's cap per post or reel since 18 Dec 2025 (down from 30)
+HASHTAG_LIMIT = 5  # Instagram's cap per post or reel since 18 Dec 2025 (down from 30)
 
 HASHTAG_RE = re.compile(r"(?:^|\s)(#[\w\u0900-\u097f]+)")
 ASKS = [
@@ -26,8 +26,23 @@ ASKS = [
     (re.compile(r"(?i)\btag (?:someone|a friend|your)\b"), "tag someone"),
     (re.compile(r"(?i)\btell us\b|\bwhich one\b|\bwhat would you\b"), "answer a question"),
 ]
-FILLER_TAGS = {"#viral", "#fyp", "#explore", "#explorepage", "#foryou", "#foryoupage", "#trending", "#instagood", "#love",
-               "#follow", "#like4like", "#reels", "#reelsinstagram", "#viralreels", "#instadaily"}
+FILLER_TAGS = {
+    "#viral",
+    "#fyp",
+    "#explore",
+    "#explorepage",
+    "#foryou",
+    "#foryoupage",
+    "#trending",
+    "#instagood",
+    "#love",
+    "#follow",
+    "#like4like",
+    "#reels",
+    "#reelsinstagram",
+    "#viralreels",
+    "#instadaily",
+}
 
 
 def posted_caption(payload: dict) -> str:
@@ -46,7 +61,9 @@ def _check(key, label, status, value, detail):
     return {"key": key, "label": label, "status": status, "value": value, "detail": detail}
 
 
-def check_caption(caption: str, hashtags: Optional[list] = None, keywords: Optional[list] = None, cut: int = TRUNCATE) -> dict:
+def check_caption(
+    caption: str, hashtags: list | None = None, keywords: list | None = None, cut: int = TRUNCATE
+) -> dict:
     """Checks on one caption. status: ok | warn | bad."""
     caption = (caption or "").strip()
     tags: list[str] = []
@@ -59,16 +76,45 @@ def check_caption(caption: str, hashtags: Optional[list] = None, keywords: Optio
     checks = []
 
     if not first_line:
-        checks.append(_check("visible_line", 'Visible line before "... more"', "bad", f"0 / {cut}", "The caption opens on a blank line."))
+        checks.append(
+            _check(
+                "visible_line",
+                'Visible line before "... more"',
+                "bad",
+                f"0 / {cut}",
+                "The caption opens on a blank line.",
+            )
+        )
     elif first_line[0] in "#@":
-        checks.append(_check("visible_line", 'Visible line before "... more"', "bad", f"{len(first_line)} / {cut}",
-                             "Opens on a hashtag or a mention: the one place worth a sentence."))
+        checks.append(
+            _check(
+                "visible_line",
+                'Visible line before "... more"',
+                "bad",
+                f"{len(first_line)} / {cut}",
+                "Opens on a hashtag or a mention: the one place worth a sentence.",
+            )
+        )
     elif len(first_line) > cut:
-        checks.append(_check("visible_line", 'Visible line before "... more"', "warn", f"{len(first_line)} / {cut}",
-                             f"The first line is cut at {cut} characters, mid-thought. Put the hook in the first {cut}."))
+        checks.append(
+            _check(
+                "visible_line",
+                'Visible line before "... more"',
+                "warn",
+                f"{len(first_line)} / {cut}",
+                f"The first line is cut at {cut} characters, mid-thought. Put the hook in the first {cut}.",
+            )
+        )
     else:
-        checks.append(_check("visible_line", 'Visible line before "... more"', "ok", f"{len(first_line)} / {cut}",
-                             "The first line shows whole in the feed."))
+        checks.append(
+            _check(
+                "visible_line",
+                'Visible line before "... more"',
+                "ok",
+                f"{len(first_line)} / {cut}",
+                "The first line shows whole in the feed.",
+            )
+        )
 
     found = []
     for pattern, name in ASKS:
@@ -78,33 +124,78 @@ def check_caption(caption: str, hashtags: Optional[list] = None, keywords: Optio
     if len(found) == 1:
         checks.append(_check("one_ask", "One clear ask", "ok", found[0][1], f"One call to action: {found[0][0]}."))
     elif not found:
-        checks.append(_check("one_ask", "One clear ask", "warn", "None", "No call to action. Say what people should do next."))
+        checks.append(
+            _check("one_ask", "One clear ask", "warn", "None", "No call to action. Say what people should do next.")
+        )
     else:
-        checks.append(_check("one_ask", "One clear ask", "warn", f"{len(found)} asks",
-                             f"{', '.join(n for n, _ in found)}. Two asks work like none: keep one."))
+        checks.append(
+            _check(
+                "one_ask",
+                "One clear ask",
+                "warn",
+                f"{len(found)} asks",
+                f"{', '.join(n for n, _ in found)}. Two asks work like none: keep one.",
+            )
+        )
 
     filler = [t for t in tags if t.lower() in FILLER_TAGS]
     if len(tags) > HASHTAG_LIMIT:
-        checks.append(_check("hashtags", "Hashtags", "bad", f"{len(tags)} / {HASHTAG_LIMIT}",
-                             f"Over Instagram's cap of {HASHTAG_LIMIT}: tags past the fifth do not count."))
+        checks.append(
+            _check(
+                "hashtags",
+                "Hashtags",
+                "bad",
+                f"{len(tags)} / {HASHTAG_LIMIT}",
+                f"Over Instagram's cap of {HASHTAG_LIMIT}: tags past the fifth do not count.",
+            )
+        )
     elif filler:
-        checks.append(_check("hashtags", "Hashtags", "warn", f"{len(tags)} / {HASHTAG_LIMIT}",
-                             f"{', '.join(filler[:3])} describe nothing. Spend the tags on places and topics."))
+        checks.append(
+            _check(
+                "hashtags",
+                "Hashtags",
+                "warn",
+                f"{len(tags)} / {HASHTAG_LIMIT}",
+                f"{', '.join(filler[:3])} describe nothing. Spend the tags on places and topics.",
+            )
+        )
     else:
-        checks.append(_check("hashtags", "Hashtags", "ok", f"{len(tags)} / {HASHTAG_LIMIT}",
-                             " ".join(tags) if tags else "No hashtags."))
+        checks.append(
+            _check(
+                "hashtags",
+                "Hashtags",
+                "ok",
+                f"{len(tags)} / {HASHTAG_LIMIT}",
+                " ".join(tags) if tags else "No hashtags.",
+            )
+        )
 
     words = [k.strip() for k in keywords or [] if k and k.strip()]
     if words:
         low = caption.lower()
         hit = [k for k in words if k.lower() in low]
         missing = [k for k in words if k.lower() not in low]
-        checks.append(_check("search_words", "Search words", "ok" if not missing else "warn", f"{len(hit)} / {len(words)}",
-                             ("Missing: " + ", ".join(missing) + ". People search Instagram by place.") if missing
-                             else "Found: " + ", ".join(hit) + "."))
+        checks.append(
+            _check(
+                "search_words",
+                "Search words",
+                "ok" if not missing else "warn",
+                f"{len(hit)} / {len(words)}",
+                ("Missing: " + ", ".join(missing) + ". People search Instagram by place.")
+                if missing
+                else "Found: " + ", ".join(hit) + ".",
+            )
+        )
 
-    return {"visible": visible, "truncated": truncated, "cut": cut, "first_line_chars": len(first_line),
-            "hashtags": tags, "asks": [n for n, _ in found], "checks": checks}
+    return {
+        "visible": visible,
+        "truncated": truncated,
+        "cut": cut,
+        "first_line_chars": len(first_line),
+        "hashtags": tags,
+        "asks": [n for n, _ in found],
+        "checks": checks,
+    }
 
 
 def price_check(price_mode: str, strings: list[str]) -> dict:
@@ -115,7 +206,9 @@ def price_check(price_mode: str, strings: list[str]) -> dict:
     for s in strings:
         found = price_policy.detect_price(s)
         if found:
-            return _check("price", "Price policy", "bad", "Mentions a price", f"{found!r}: this workspace never shows prices.")
+            return _check(
+                "price", "Price policy", "bad", "Mentions a price", f"{found!r}: this workspace never shows prices."
+            )
     return _check("price", "Price policy", "ok", "No prices", "No prices, as this workspace's policy says.")
 
 
@@ -129,10 +222,21 @@ def report(price_mode: str, profile: dict, kind: str, payload: dict) -> dict:
     from app.schemas.marketing import strings_of
 
     payload = payload or {}
-    out = (check_caption(payload.get("caption") or "", payload.get("hashtags") or [], search_words(profile))
-           if "caption" in payload and kind != "article" else {"visible": None, "truncated": False, "cut": TRUNCATE,
-                                                               "first_line_chars": 0, "hashtags": [], "asks": [], "checks": []})
+    out = (
+        check_caption(payload.get("caption") or "", payload.get("hashtags") or [], search_words(profile))
+        if "caption" in payload and kind != "article"
+        else {
+            "visible": None,
+            "truncated": False,
+            "cut": TRUNCATE,
+            "first_line_chars": 0,
+            "hashtags": [],
+            "asks": [],
+            "checks": [],
+        }
+    )
     from app.services.ig_automation_copy import payload_checks
-    out["checks"].extend(payload_checks(payload))          # comment-to-DM copy rules (Instagram toolkit phase 5)
+
+    out["checks"].extend(payload_checks(payload))  # comment-to-DM copy rules (Instagram toolkit phase 5)
     out["checks"].append(price_check(price_mode, strings_of(payload)))
     return out
