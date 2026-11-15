@@ -7,6 +7,7 @@ must keep passing (they stop an over-eager fix from breaking legitimate behaviou
 
 Registered, not hidden: these are the only expected failures in the suite (see CLAUDE.md "no known failures").
 """
+from tests._wa_window import open_window
 import os
 import threading
 import uuid
@@ -68,6 +69,7 @@ def _conv(db, tenant_id):
     c = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True)
     db.add(c)
     db.flush()
+    open_window(db, c)
     return g, c
 
 

@@ -5,6 +5,8 @@ import { Zap, Plus, CheckCircle2, PauseCircle, XCircle, MessageSquare, Phone, Cl
 import { ToggleLeft, ToggleRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { VariableMapping, defaultMap, unmappedVariables, type VariableMap } from "@/components/messaging/VariableMapping";
+import type { Template } from "@/components/messaging/templateModel";
 
 // Instagram glyph was removed from lucide v1+ -- same inline SVG pattern
 // already used in components/inbox/ChannelIcon.tsx.
@@ -204,6 +206,12 @@ function RuleModal({ initial, onClose, onSaved }: {
     if (isIgTrigger && !hasReplyAll && (form.trigger_config.keywords ?? []).length === 0) {
       setError("Add at least one keyword (or enable reply-all on a scoped post)"); return;
     }
+    if (form.action === "send_whatsapp_template") {
+      const tmpl = approvedTemplates.find((t: any) => t.id === form.action_config.template_id) as Template | undefined;
+      if (!tmpl) { setError("Pick the template to send"); return; }
+      const missing = unmappedVariables(tmpl, (form.action_config.variable_map ?? {}) as VariableMap);
+      if (missing.length) { setError(`Set a value for ${missing.join(", ")}`); return; }
+    }
     if (form.action === "send_instagram_quick_reply" && !form.action_config.message?.trim()) {
       setError("Reply message is required"); return;
     }
@@ -361,12 +369,22 @@ function RuleModal({ initial, onClose, onSaved }: {
                 <p className="text-xs text-[var(--haip-status-warning-fg)]">No approved templates. <a href="/dashboard/messaging/templates" className="underline font-medium">Create one first.</a></p>
               ) : (
                 <select value={form.action_config.template_id ?? ""}
-                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, template_id: e.target.value } }))}
+                  onChange={e => { const id = e.target.value; const t = approvedTemplates.find((x: any) => x.id === id) as Template | undefined;
+                    setForm(f => ({ ...f, action_config: { ...f.action_config, template_id: id, variable_map: defaultMap(t) } })); }}
                   className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
                   <option value="">Select template…</option>
                   {approvedTemplates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               )}
+              {(() => {
+                const tmpl = approvedTemplates.find((t: any) => t.id === form.action_config.template_id) as Template | undefined;
+                return tmpl ? (
+                  <div className="mt-3">
+                    <VariableMapping template={tmpl} value={(form.action_config.variable_map ?? {}) as VariableMap}
+                      onChange={(m: VariableMap) => setForm(f => ({ ...f, action_config: { ...f.action_config, variable_map: m } }))} />
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
 

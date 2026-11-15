@@ -1,6 +1,7 @@
 """Moving a lead out of Lost: by hand (PATCH /inquiries, MCP: owner/manager + reason, 403 otherwise) and automatically
 (lead_reopen: only the GUEST responding -- they write, call, or pick up our call -- whoever closed it; owner 1 Nov 2026).
 Sold always stays Sold."""
+from tests._wa_window import open_window
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -229,6 +230,8 @@ def test_inbox_send_never_reopens(client, db, tenant_and_user):
         conv = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True,
                             inquiry_id=inq.id)
         db.add(conv)
+        db.flush()
+        open_window(db, conv)
         db.commit()
         with patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay"):
             r = client.post(f"/api/v1/conversations/{conv.id}/messages", json={"body": "Hi, are you still planning?"}, headers=hdr)

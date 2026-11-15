@@ -2,7 +2,7 @@ import hashlib
 import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import update
+from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
@@ -440,6 +440,26 @@ def _refresh_lead_summary(db, conv, tenant_id: str) -> None:
         log.warning("send_summary_refresh_skipped", conversation_id=str(conv.id), error=str(exc))
 
 
+_WHATSAPP_WINDOW = timedelta(hours=24)
+
+
+def _channel_value(conv) -> str:
+    return str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
+
+
+def _whatsapp_window_open(db: Session, conv) -> bool:
+    """True while the guest's last message is under 24 hours old (Meta's customer-service window)."""
+    last = (db.query(func.max(Message.created_at))
+            .filter(Message.tenant_id == conv.tenant_id, Message.conversation_id == conv.id,
+                    Message.direction == MessageDirection.INBOUND)
+            .scalar())
+    if last is None:
+        return False
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last <= _WHATSAPP_WINDOW
+
+
 @router.post("/{conversation_id}/messages", response_model=MessageOut, status_code=201)
 def send_message(
     conversation_id: str,
@@ -487,6 +507,16 @@ def send_message(
             Message.tenant_id == current_user.tenant_id,
             Message.idempotency_key == idempotency_key,
         ).update({Message.idempotency_key: None}, synchronize_session=False)
+
+    # ── WhatsApp's 24-hour window ─────────────────────────────────────────────
+    # Free text (and media) reach a WhatsApp guest only within 24 hours of their last message. Outside it Meta
+    # rejects the send after it looked sent in the inbox, so refuse it here and point to a template instead.
+    if not body.is_internal and _channel_value(conv) == "whatsapp" and not _whatsapp_window_open(db, conv):
+        raise HTTPException(
+            status_code=409,
+            detail="WhatsApp's 24-hour window has closed: the guest last wrote more than 24 hours ago. "
+                   "Send an approved template instead.",
+        )
 
     # ── Create new message ────────────────────────────────────────────────────
     msg = Message(

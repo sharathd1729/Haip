@@ -23,7 +23,7 @@ type Integration = {
 };
 
 const INTEGRATIONS: Integration[] = [
-  { name: "WhatsApp Business", cat: "Messaging", status: "Live", desc: "Official Meta Cloud API with Embedded Signup. Connect in minutes — no developer needed.", initial: "W", bg: "#166534", text: "#86efac" },
+  { name: "WhatsApp Business", cat: "Messaging", status: "Live", desc: "Official Meta Cloud API on your own WhatsApp Business account. Connect with your Meta app keys; one-click signup is coming.", initial: "W", bg: "#166534", text: "#86efac" },
   { name: "Instagram DM", cat: "Messaging", status: "Live", desc: "Instagram DMs and mentions managed from your HAIP inbox, linked to guest profiles.", initial: "IG", bg: "#831843", text: "#f9a8d4" },
   { name: "CallerDesk", cat: "Telephony", status: "Live", desc: "India's leading cloud telephony. Auto-transcription and QA scoring for every call.", initial: "CD", bg: "#1e3a8a", text: "#93c5fd" },
   { name: "Acefone", cat: "Telephony", status: "Live", desc: "Multi-property cloud telephony with DID management and call flow analytics.", initial: "AC", bg: "#4c1d95", text: "#c4b5fd" },

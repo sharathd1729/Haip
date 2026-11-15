@@ -10,6 +10,7 @@ Covers:
 - Helper: _extract_idempotency_key strips whitespace, reads both cases
 """
 
+from tests._wa_window import open_window
 import uuid
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
@@ -147,6 +148,8 @@ def conversation(db, tenant_and_user):
         is_open=True,
     )
     db.add(conv)
+    db.flush()
+    open_window(db, conv)
     db.commit()
     return conv
 

@@ -15,6 +15,7 @@ site fires it.
 Approving/editing/rejecting an AI draft was already confirmed to not set
 this (see TestApproveDraft below) -- that decision is unchanged.
 """
+from tests._wa_window import open_window
 import uuid
 from unittest.mock import patch
 
@@ -38,7 +39,7 @@ def conversation(db, tenant_and_user):
     guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant_id, name="Guest", phone="+919999000004")
     db.add(guest); db.flush()
     conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id, channel=ChannelType.WHATSAPP, is_open=True)
-    db.add(conv); db.commit()
+    db.add(conv); db.flush(); open_window(db, conv); db.commit()
     return conv
 
 
