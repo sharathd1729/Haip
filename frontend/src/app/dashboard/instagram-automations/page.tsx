@@ -55,6 +55,7 @@ function RuleCard({ rule, stats, onEdit }: { rule: IgRule; stats?: IgRuleStats; 
         <p className="mt-2 text-[13px] tabular-nums text-[var(--haip-fg-muted)]">
           {stats ? `${stats.people} reached · ${stats.dm_sent} DMs · ${stats.clicked} clicks · ${stats.leads} leads` : "No activity in this period"}
           {stats && stats.dm_failed > 0 && <span className="text-[var(--haip-status-danger-fg)]"> · {stats.dm_failed} failed</span>}
+          {stats && (stats.form_started ?? 0) > 0 && <span> · {stats.form_completed ?? 0} of {stats.form_started} finished the questions</span>}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">

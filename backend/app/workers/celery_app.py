@@ -35,6 +35,7 @@ celery_app = Celery(
         "app.workers.tasks.process_instagram_referral",
         "app.workers.tasks.process_instagram_comment",
         "app.workers.tasks.ig_follow_up",
+        "app.workers.tasks.ig_form_reminder",
         "app.workers.tasks.send_instagram_dm",
         # PMS syncs
         "app.workers.tasks.sync_retalwise",
@@ -215,6 +216,7 @@ celery_app.conf.update(
         "process_instagram_referral":               {"queue": "whatsapp"},
         "process_instagram_comment":                 {"queue": "whatsapp"},
         "ig_quick_reply.follow_up":                  {"queue": "whatsapp"},   # one follow-up after a keyword DM
+        "ig_dm_form.remind":                         {"queue": "whatsapp"},   # one nudge mid DM form
         "process_instagram_echo":                    {"queue": "whatsapp"},
         "send_instagram_dm":                        {"queue": "replies"},
         "instagram_mark_seen":                       {"queue": "whatsapp"},

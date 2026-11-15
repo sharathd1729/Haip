@@ -69,6 +69,43 @@ class IgFollowGate(BaseModel):
     send_anyway: bool = True  # after the last ask: send the message anyway, or stop
 
 
+FORM_KEYS = ("dates", "guests", "phone", "email", "budget", "occasion", "custom")
+
+
+class IgFormQuestion(BaseModel):
+    key: Literal["dates", "guests", "phone", "email", "budget", "occasion", "custom"]
+    text: str = Field(min_length=1, max_length=300)
+    options: list[str] = Field(default_factory=list, max_length=10)  # tap-to-answer chips; typing works too
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def _options(cls, v):
+        out = [str(o).strip() for o in (v or []) if str(o or "").strip()]
+        too_long = [o for o in out if len(o) > 20]
+        if too_long:  # Instagram cuts quick-reply titles at 20 characters
+            raise ValueError(f"Keep each answer option to 20 characters: '{too_long[0]}'")
+        return out
+
+
+class IgForm(BaseModel):
+    """Collect details inside the DM (services/ig_dm_form.py): questions asked one at a time after the tap; the rule's
+    `message` (and button) is sent once the last answer arrives."""
+
+    enabled: bool = False
+    questions: list[IgFormQuestion] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode="after")
+    def _phone_once(self):
+        if self.enabled:
+            phones = [q for q in self.questions if q.key == "phone"]
+            if len(phones) != 1:
+                raise ValueError("The form must ask for the WhatsApp number once: that is what makes the person a lead.")
+            keys = [q.key for q in self.questions if q.key != "custom"]
+            if len(keys) != len(set(keys)):
+                raise ValueError("Each question type can be asked only once (add more as 'your own question').")
+        return self
+
+
 class IgActionConfig(BaseModel):
     message: str = Field(min_length=1, max_length=900)
     button: IgButton | None = None
@@ -79,6 +116,7 @@ class IgActionConfig(BaseModel):
     once_per_person: bool = True
     follow_up: str = Field(default="", max_length=500)  # DM-keyword rules only (endpoints/automations.py)
     follow_up_after_hours: int | None = Field(default=None, ge=1, le=23)
+    form: IgForm = Field(default_factory=IgForm)
 
     @field_validator("public_ack_pool", mode="before")
     @classmethod

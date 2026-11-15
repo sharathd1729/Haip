@@ -133,6 +133,9 @@ def automation_stats(
                         "leads",
                         "skipped",
                         "dm_failed",
+                        "form_started",
+                        "form_completed",
+                        "form_dropped",
                     )
                 },
             }

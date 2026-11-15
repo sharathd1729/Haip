@@ -33,6 +33,39 @@ export interface IgTriggerConfig {
   ad_id?: string;
 }
 
+export type IgFormKey = "dates" | "guests" | "phone" | "email" | "budget" | "occasion" | "custom";
+
+export interface IgFormQuestion {
+  key: IgFormKey;
+  text: string;
+  options?: string[];
+}
+
+export interface IgForm {
+  enabled: boolean;
+  questions: IgFormQuestion[];
+}
+
+export const FORM_KEYS: { value: IgFormKey; label: string }[] = [
+  { value: "dates", label: "Dates" },
+  { value: "guests", label: "Number of guests" },
+  { value: "phone", label: "WhatsApp number" },
+  { value: "email", label: "Email" },
+  { value: "budget", label: "Budget" },
+  { value: "occasion", label: "Occasion" },
+  { value: "custom", label: "Your own question" },
+];
+
+// The recommended default (Automations v2 plan): short enough that most people finish.
+export const DEFAULT_FORM: IgForm = {
+  enabled: false,
+  questions: [
+    { key: "dates", text: "When are you planning to come?", options: ["This weekend", "Next month", "Dates not fixed"] },
+    { key: "guests", text: "How many guests?", options: ["2", "4", "6", "8+"] },
+    { key: "phone", text: "Last one: your WhatsApp number, so our team can send the quote." },
+  ],
+};
+
 export interface IgActionConfig {
   message: string;
   button?: { title: string; url: string } | null;
@@ -41,6 +74,7 @@ export interface IgActionConfig {
   public_ack_pool?: string[];
   follow_gate?: { enabled: boolean; ask_text?: string; button_title?: string; max_asks?: number; send_anyway?: boolean };
   once_per_person?: boolean;
+  form?: IgForm;
 }
 
 export interface IgRule {
@@ -79,6 +113,9 @@ export interface IgRuleStats {
   leads: number;
   skipped: number;
   dm_failed: number;
+  form_started?: number;
+  form_completed?: number;
+  form_dropped?: number;
 }
 
 export const isIgRule = (r: { trigger: string; action: string }) => r.action === IG_ACTION && r.trigger.startsWith("ig_");

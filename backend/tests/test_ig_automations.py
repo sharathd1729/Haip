@@ -13,7 +13,7 @@ from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
 from app.models.ig_automation import IgAutomationEvent, IgTrackedLink
 from app.models.tenant import Tenant
-from app.services import ig_automation
+from app.services import ig_automation, ig_next_post
 from app.services.ig_keyword_match import find_matching_rule
 from app.services.ig_quick_reply import dispatch_quick_reply
 
@@ -182,11 +182,11 @@ def test_a_next_post_rule_binds_to_the_first_newer_post_once(db, ig, monkeypatch
     r = _rule(db, t.id, tc={"keywords": ["price"], "scope": "next_post"})
     made = r.created_at if r.created_at.tzinfo else r.created_at.replace(tzinfo=timezone.utc)
     times = {"old": made - timedelta(days=2), "new": made + timedelta(hours=1), "newer": made + timedelta(days=1)}
-    monkeypatch.setattr(ig_automation, "_media_time", lambda db, tenant_id, media_id: times[media_id])
-    ig_automation.bind_next_post(db, t.id, "old")
+    monkeypatch.setattr(ig_next_post, "_media_time", lambda db, tenant_id, media_id: times[media_id])
+    ig_next_post.bind_next_post(db, t.id, "old")
     assert not (db.get(AutomationRule, r.id).trigger_config or {}).get("media_id")
-    ig_automation.bind_next_post(db, t.id, "new")
-    ig_automation.bind_next_post(db, t.id, "newer")
+    ig_next_post.bind_next_post(db, t.id, "new")
+    ig_next_post.bind_next_post(db, t.id, "newer")
     assert db.get(AutomationRule, r.id).trigger_config["media_id"] == "new"
     assert find_matching_rule(db, t.id, "ig_comment_received", "price", media_id="new").id == r.id
 
