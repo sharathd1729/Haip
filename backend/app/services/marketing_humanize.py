@@ -11,13 +11,13 @@ Jake Schincariol; docs/marketing-website/THIRD_PARTY_NOTICES.md). Word list: `ma
   * clean_payload / undo_payload apply that to a content payload field by field, so undo restores exactly the fields
     the humanizer changed and still hold its output.
 """
+
 import copy
 import json
 import re
 import statistics
 import unicodedata
 from pathlib import Path
-from typing import Optional
 
 LEXICON = json.loads(Path(__file__).with_name("marketing_slop.json").read_text(encoding="utf-8"))
 
@@ -30,8 +30,25 @@ NUMBERS = re.compile(r"\b\d[\d,.]*%?\b|[$₹]\d")
 PROPER = re.compile(r"(?<![.!?]\s)(?<!^)\b[A-Z][a-z]{2,}\b", re.MULTILINE)
 
 # Payload keys that are not prose a guest reads, or must stay byte-exact (hashtags, the comment keyword, ids).
-SKIP_KEYS = {"asset_id", "kind", "date", "valid_until", "framework", "style", "colour", "accent", "font", "logo_asset_id",
-             "logo_position", "hashtags", "keyword", "slug", "alt_text", "shot_note", "audio_id"}
+SKIP_KEYS = {
+    "asset_id",
+    "kind",
+    "date",
+    "valid_until",
+    "framework",
+    "style",
+    "colour",
+    "accent",
+    "font",
+    "logo_asset_id",
+    "logo_position",
+    "hashtags",
+    "keyword",
+    "slug",
+    "alt_text",
+    "shot_note",
+    "audio_id",
+}
 
 
 def _cp_map() -> dict[str, tuple[str, str]]:
@@ -50,10 +67,15 @@ _TYPO = {t["from"]: t for t in LEXICON["typographic"]}
 def _bounded(find: str) -> re.Pattern:
     body = re.escape(find).replace(r"\ ", r"\s+")
     # \b only next to a word character: "what are your thoughts?" must still match at its "?".
-    return re.compile((r"\b" if find[0].isalnum() else "") + body + (r"\b" if find[-1].isalnum() else ""), re.IGNORECASE)
+    return re.compile(
+        (r"\b" if find[0].isalnum() else "") + body + (r"\b" if find[-1].isalnum() else ""), re.IGNORECASE
+    )
 
 
-_LEX = [(e, _bounded(e["find"])) for e in sorted(LEXICON["phrases"] + LEXICON["words"], key=lambda e: len(e["find"]), reverse=True)]
+_LEX = [
+    (e, _bounded(e["find"]))
+    for e in sorted(LEXICON["phrases"] + LEXICON["words"], key=lambda e: len(e["find"]), reverse=True)
+]
 _STRUCTURES = []
 for _s in LEXICON["structures"]:
     try:
@@ -70,6 +92,7 @@ def _protect(text: str, patterns: list[re.Pattern], stash: list[str]) -> str:
     def put(m):
         stash.append(m.group(0))
         return f"\x00{len(stash) - 1}\x00"
+
     for p in patterns:
         text = p.sub(put, text)
     return text
@@ -82,7 +105,9 @@ def _restore(text: str, stash: list[str]) -> str:
 def _pass_invisible(text: str) -> tuple[str, list[dict]]:
     out, counts = [], {}
     for i, c in enumerate(text):
-        name, action = _INVISIBLE.get(c) or (("invisible format character", "delete") if unicodedata.category(c) == "Cf" else (None, None))
+        name, action = _INVISIBLE.get(c) or (
+            ("invisible format character", "delete") if unicodedata.category(c) == "Cf" else (None, None)
+        )
         # A zero-width joiner between two emoji builds one emoji (a family, a cook); it is not an artefact.
         if c == "‍" and 0 < i < len(text) - 1 and _emojiish(text[i - 1]) and _emojiish(text[i + 1]):
             action = None
@@ -106,15 +131,15 @@ def _pass_typographic(text: str) -> tuple[str, list[dict]]:
         if ch == "—":
             text = re.sub(r"\s*—\s*", ", ", text)
         elif ch == "–":
-            text = re.sub(r"\s*–\s*(?=\d)", "-", text)      # 5–10 -> 5-10
-            text = re.sub(r"\s+–\s+", ", ", text)           # used as an em dash
+            text = re.sub(r"\s*–\s*(?=\d)", "-", text)  # 5–10 -> 5-10
+            text = re.sub(r"\s+–\s+", ", ", text)  # used as an em dash
             text = text.replace("–", "-")
         else:
             text = text.replace(ch, entry["to"])
     if any(h["kind"] == "dash" for h in hits):
-        text = re.sub(r",\s*([,.;:!?])", r"\1", text)          # a comma before existing punctuation reads wrong
+        text = re.sub(r",\s*([,.;:!?])", r"\1", text)  # a comma before existing punctuation reads wrong
         text = re.sub(r",[ \t]*\n", "\n", text)
-        text = re.sub(r"(?m)^[ \t]*,[ \t]*", "", text)          # "— Ananya" on its own line
+        text = re.sub(r"(?m)^[ \t]*,[ \t]*", "", text)  # "— Ananya" on its own line
     return text, hits
 
 
@@ -136,8 +161,8 @@ def _pass_lexical(text: str) -> tuple[str, list[dict], bool]:
             continue
         hits.append({"kind": "word", "from": entry["find"], "to": entry["replace"], "count": len(found)})
         deleted = deleted or not entry["replace"]
-        text = pattern.sub(lambda m: _match_case(m.group(0), entry["replace"]), text)
-    if hits:   # tidy what a deletion leaves behind ("system. ." or a line opening on a comma)
+        text = pattern.sub(lambda m, repl=entry["replace"]: _match_case(m.group(0), repl), text)
+    if hits:  # tidy what a deletion leaves behind ("system. ." or a line opening on a comma)
         text = re.sub(r"[ \t]{2,}", " ", text)
         text = re.sub(r"(?m)^[ \t]*(?:[,.;:]+[ \t]*)+", "", text)
         text = re.sub(r"(?m)^[ \t](?=\S)", "", text)
@@ -146,8 +171,8 @@ def _pass_lexical(text: str) -> tuple[str, list[dict], bool]:
         text = text.replace("...", "\x01")
         text = re.sub(r"\.[ \t]*\.+", ".", text)
         text = re.sub(r"([!?])[ \t]*\.", r"\1", text)
-        text = re.sub(r"\.[ \t]*[!?]+", ".", text)    # "stay. Look no further!" -> "stay."
-        text = re.sub(r"([.!?])[ \t]*,[ \t]*", r"\1 ", text)    # a sentence that now opens on a comma
+        text = re.sub(r"\.[ \t]*[!?]+", ".", text)  # "stay. Look no further!" -> "stay."
+        text = re.sub(r"([.!?])[ \t]*,[ \t]*", r"\1 ", text)  # a sentence that now opens on a comma
         text = text.replace("\x01", "...")
         text = re.sub(r"(?m)^[ \t]+$", "", text)
         text = re.sub(r"\n{3,}", "\n\n", text)
@@ -159,7 +184,9 @@ def _restore_capitals(original: str, text: str) -> str:
     starts = re.findall(r"(?:^|[.!?]\s+|\n)\s*([A-Za-z])", original)
     if not starts or sum(1 for c in starts if c.isupper()) * 2 < len(starts):
         return text
-    return re.sub(r"(?:^|(?<=[.!?] )|(?<=[.!?]\n)|(?<=\n))\s*([a-z])", lambda m: m.group(0)[:-1] + m.group(1).upper(), text)
+    return re.sub(
+        r"(?:^|(?<=[.!?] )|(?<=[.!?]\n)|(?<=\n))\s*([a-z])", lambda m: m.group(0)[:-1] + m.group(1).upper(), text
+    )
 
 
 def _keep_patterns(keep_words) -> list[re.Pattern]:
@@ -186,11 +213,17 @@ def clean(text: str, keep_words=None) -> tuple[str, list[dict]]:
 
 def summary(changes: list[dict]) -> str:
     """'Fixed 1 em dash, swapped 2 stock words' for the draft screen."""
+
     def n(kind):
         return sum(c["count"] for c in changes if c["kind"] == kind)
+
     parts = []
-    for kind, one, many in (("dash", "dash", "dashes"), ("quote", "curly quote", "curly quotes"),
-                            ("invisible", "hidden character", "hidden characters"), ("ellipsis", "ellipsis", "ellipses")):
+    for kind, one, many in (
+        ("dash", "dash", "dashes"),
+        ("quote", "curly quote", "curly quotes"),
+        ("invisible", "hidden character", "hidden characters"),
+        ("ellipsis", "ellipsis", "ellipses"),
+    ):
         if n(kind):
             parts.append(f"{n(kind)} {one if n(kind) == 1 else many}")
     words = n("word")
@@ -201,6 +234,7 @@ def summary(changes: list[dict]) -> str:
 
 
 # ── Score (detect.py) ────────────────────────────────────────────────────────────────────────────────────────────────
+
 
 def _clamp(n: float) -> float:
     return max(0.0, min(100.0, n))
@@ -220,7 +254,9 @@ def _burstiness(text):
         return None, "Too short to judge"
     mean = statistics.mean(lens)
     cv = statistics.pstdev(lens) / mean if mean else 0
-    return _scale(cv, human=0.70, machine=0.22), f"Sentence length varies {cv:.2f} across {len(lens)} sentences (want 0.55+)"
+    return _scale(
+        cv, human=0.70, machine=0.22
+    ), f"Sentence length varies {cv:.2f} across {len(lens)} sentences (want 0.55+)"
 
 
 def _specificity(text):
@@ -239,7 +275,9 @@ def _slop(text):
     found = [(e["find"], len(p.findall(text))) for e, p in _LEX]
     found = [(f, k) for f, k in found if k]
     hits = sum(k for _, k in found)
-    detail = f"{hits} stock word{'' if hits == 1 else 's'}" + (f" ({', '.join(sorted(f for f, _ in found)[:4])})" if found else "")
+    detail = f"{hits} stock word{'' if hits == 1 else 's'}" + (
+        f" ({', '.join(sorted(f for f, _ in found)[:4])})" if found else ""
+    )
     return _scale(hits * 100 / len(w), human=0.0, machine=4.0), detail
 
 
@@ -250,7 +288,9 @@ def _fingerprint(text):
     ellip = text.count("…")
     nbsp = sum(text.count(c) for c in "   ")
     per1k = (invisible * 4 + em * 2 + curly + ellip + nbsp) * 1000 / max(len(text), 1)
-    return _scale(per1k, human=0.0, machine=12.0), f"{invisible} hidden, {em} em dash, {curly} curly quote, {ellip} ellipsis, {nbsp} hard space"
+    return _scale(
+        per1k, human=0.0, machine=12.0
+    ), f"{invisible} hidden, {em} em dash, {curly} curly quote, {ellip} ellipsis, {nbsp} hard space"
 
 
 def _voice(text):
@@ -262,16 +302,24 @@ def _voice(text):
     person = len(PRONOUNS.findall(text)) * per100
     names = [s["name"] for s, p in _STRUCTURES if p.search(text)]
     tells = sum(len(p.findall(text)) for _, p in _STRUCTURES)
-    score = (_scale(contractions, human=3.0, machine=0.0) * 0.35 + _scale(person, human=8.0, machine=1.0) * 0.35
-             + _clamp(100 - tells * 22) * 0.30)
+    score = (
+        _scale(contractions, human=3.0, machine=0.0) * 0.35
+        + _scale(person, human=8.0, machine=1.0) * 0.35
+        + _clamp(100 - tells * 22) * 0.30
+    )
     detail = f"{contractions:.1f} contractions and {person:.1f} we/you per 100 words"
     if names:
         detail += "; " + ", ".join(names[:3])
     return _clamp(score), detail
 
 
-_CHECKS = (("variation", "Sentence variety", _burstiness), ("specificity", "Specific details", _specificity),
-           ("stock_words", "Stock words", _slop), ("fingerprint", "Typing marks", _fingerprint), ("voice", "Voice", _voice))
+_CHECKS = (
+    ("variation", "Sentence variety", _burstiness),
+    ("specificity", "Specific details", _specificity),
+    ("stock_words", "Stock words", _slop),
+    ("fingerprint", "Typing marks", _fingerprint),
+    ("voice", "Voice", _voice),
+)
 
 
 def score(text: str, keep_words=None) -> dict:
@@ -283,7 +331,7 @@ def score(text: str, keep_words=None) -> dict:
         return {"score": None, "verdict": "review", "checks": []}
     text = URL_RE.sub(" ", text)
     for p in _keep_patterns(keep_words):
-        text = p.sub("Keep", text)      # still a name for "specific details", never a stock word
+        text = p.sub("Keep", text)  # still a name for "specific details", never a stock word
     checks = []
     for key, label, fn in _CHECKS:
         value, detail = fn(text)
@@ -291,12 +339,13 @@ def score(text: str, keep_words=None) -> dict:
     judged = [c["score"] for c in checks if c["score"] is not None]
     if not judged:
         return {"score": None, "verdict": "review", "checks": checks}
-    overall = statistics.mean(judged) * 0.6 + min(judged) * 0.4      # the weakest signal drags the verdict
+    overall = statistics.mean(judged) * 0.6 + min(judged) * 0.4  # the weakest signal drags the verdict
     verdict = "pass" if overall >= 70 and min(judged) >= 55 else "review" if overall >= 50 else "flagged"
     return {"score": round(overall), "verdict": verdict, "checks": checks}
 
 
 # ── Payloads ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 
 def _walk(value, path: list, fn):
     if isinstance(value, str):
@@ -326,7 +375,7 @@ def _merge(changes: list[dict]) -> list[dict]:
     return list(merged.values())
 
 
-def clean_payload(payload: dict, keep_words=None) -> tuple[dict, Optional[dict]]:
+def clean_payload(payload: dict, keep_words=None) -> tuple[dict, dict | None]:
     """(cleaned payload, record or None). record = {fields: [{path, before, after}], changes: [...]}: what undo needs."""
     fields, changes = [], []
 
@@ -353,12 +402,12 @@ def _get(obj, path):
     return obj
 
 
-def undoable(payload: dict, record: Optional[dict]) -> list[dict]:
+def undoable(payload: dict, record: dict | None) -> list[dict]:
     """The recorded fields that still hold the humanizer's output (a person may have rewritten the others since)."""
     return [f for f in ((record or {}).get("fields") or []) if _get(payload, f["path"]) == f["after"]]
 
 
-def undo_payload(payload: dict, record: Optional[dict]) -> tuple[dict, int]:
+def undo_payload(payload: dict, record: dict | None) -> tuple[dict, int]:
     """(payload with the original text back in every still-unchanged field, how many fields were restored)."""
     out = copy.deepcopy(payload)
     fields = undoable(payload, record)
@@ -370,7 +419,7 @@ def undo_payload(payload: dict, record: Optional[dict]) -> tuple[dict, int]:
 
 def keep_words(tenant) -> list[str]:
     """The workspace's own brand words the humanizer never swaps (brand_config.marketing_studio.keep_words)."""
-    cfg = ((getattr(tenant, "brand_config", None) or {}).get("marketing_studio") or {})
+    cfg = (getattr(tenant, "brand_config", None) or {}).get("marketing_studio") or {}
     words = cfg.get("keep_words") if isinstance(cfg, dict) else None
     return [w for w in words if isinstance(w, str) and w.strip()] if isinstance(words, list) else []
 
@@ -381,6 +430,7 @@ MAX_KEEP_WORDS, MAX_KEEP_LEN = 50, 40
 def set_keep_words(db, tenant, words: list[str], actor_id: str) -> list[str]:
     """Owner setting: brand words kept as written (e.g. "curated", "unwind"). Audited."""
     from sqlalchemy.orm.attributes import flag_modified
+
     from app.core.audit import append_audit
 
     clean: list[str] = []
@@ -396,6 +446,13 @@ def set_keep_words(db, tenant, words: list[str], actor_id: str) -> list[str]:
     cfg["marketing_studio"] = section
     tenant.brand_config = cfg
     flag_modified(tenant, "brand_config")
-    append_audit(db, tenant_id=tenant.id, action="marketing.keep_words.updated", actor_user_id=actor_id,
-                 target_type="tenant", target_id=tenant.id, payload={"before": before, "after": clean})
+    append_audit(
+        db,
+        tenant_id=tenant.id,
+        action="marketing.keep_words.updated",
+        actor_user_id=actor_id,
+        target_type="tenant",
+        target_id=tenant.id,
+        payload={"before": before, "after": clean},
+    )
     return clean

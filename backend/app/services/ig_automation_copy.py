@@ -9,29 +9,37 @@ Copyright (c) 2026 Jake Schincariol; docs/marketing-website/THIRD_PARTY_NOTICES.
   * Public replies: no selling and no links, no stock phrases, one idea.
   * Every automated message goes through the phase-1 humanizer at send time (marketing_humanize.clean).
 """
+
 import re
-from typing import Optional
 
 from app.services import marketing_humanize as human
 
 DELIVERY_TEMPLATE = "{name}here it is: {thing}.\n\n{how}\n\n{question}"
 DEFAULT_FOLLOW_UP = "Did that help? If you tell us your dates, we'll check them for you."
 SAFE_PUBLIC_REPLY = "Sent you a DM."
-FOLLOW_UP_HOURS, FOLLOW_UP_MAX_HOURS = 20, 23        # Instagram's standard window is 24 h from the guest's message
+FOLLOW_UP_HOURS, FOLLOW_UP_MAX_HOURS = 20, 23  # Instagram's standard window is 24 h from the guest's message
 MAX_DM_CHARS, MAX_PUBLIC_WORDS = 600, 20
 
-URL_RE = re.compile(r"https?://|www\.|\b[a-z0-9-]{2,}\.[a-z]{2,12}\b", re.IGNORECASE)   # any bare domain counts
-SELLING_RE = re.compile(r"(?i)(₹|\brs\.?\s?\d|\binr\b|\bprice[sd]?\b|\brates?\b|\bdiscount|\boffer\b|% off|\bbook now\b|"
-                        r"\bbook today\b|\blimited (?:time|slots?)\b|\bdeal\b|\bstarting (?:at|from)\b)")
-GATE_RE = re.compile(r"(?i)\b(before i send|before we send|can i ask|may i ask|first,? (?:tell|let) me|"
-                     r"what do you do|share your (?:email|number))\b")
+URL_RE = re.compile(r"https?://|www\.|\b[a-z0-9-]{2,}\.[a-z]{2,12}\b", re.IGNORECASE)  # any bare domain counts
+SELLING_RE = re.compile(
+    r"(?i)(₹|\brs\.?\s?\d|\binr\b|\bprice[sd]?\b|\brates?\b|\bdiscount|\boffer\b|% off|\bbook now\b|"
+    r"\bbook today\b|\blimited (?:time|slots?)\b|\bdeal\b|\bstarting (?:at|from)\b)"
+)
+GATE_RE = re.compile(
+    r"(?i)\b(before i send|before we send|can i ask|may i ask|first,? (?:tell|let) me|"
+    r"what do you do|share your (?:email|number))\b"
+)
 BANNED_PUBLIC_OPENERS = re.compile(r"(?i)^\s*(great post|love this|so true|needed this|thanks for (?:the )?comment)")
 
 
-def delivery(thing: str, how: str, question: str, name: Optional[str] = None) -> str:
+def delivery(thing: str, how: str, question: str, name: str | None = None) -> str:
     """The default keyword-delivery DM, filled in."""
-    return DELIVERY_TEMPLATE.format(name=f"{name.strip()}, " if name and name.strip() else "", thing=thing.strip().rstrip("."),
-                                    how=how.strip(), question=question.strip())
+    return DELIVERY_TEMPLATE.format(
+        name=f"{name.strip()}, " if name and name.strip() else "",
+        thing=thing.strip().rstrip("."),
+        how=how.strip(),
+        question=question.strip(),
+    )
 
 
 def _stock(text: str) -> list[str]:
@@ -50,9 +58,13 @@ def check_dm(text: str) -> list[dict]:
     if not text:
         return [_finding("empty", "The DM is empty.", "bad")]
     if GATE_RE.search(text):
-        out.append(_finding("gate", "Asks something before delivering. Send what they asked for first, then ask.", "bad"))
+        out.append(
+            _finding("gate", "Asks something before delivering. Send what they asked for first, then ask.", "bad")
+        )
     if len(text) > MAX_DM_CHARS:
-        out.append(_finding("length", f"{len(text)} characters; keep it under {MAX_DM_CHARS} so it reads on one screen."))
+        out.append(
+            _finding("length", f"{len(text)} characters; keep it under {MAX_DM_CHARS} so it reads on one screen.")
+        )
     questions = text.count("?")
     if questions == 0:
         out.append(_finding("question", "No question at the end: one short one starts the conversation."))
@@ -80,7 +92,9 @@ def check_public_reply(text: str) -> list[dict]:
         out.append(_finding("stock", "A stock phrase. Say the one specific thing instead."))
     sentences = [s for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     if len(sentences) > 2 or len(text.split()) > MAX_PUBLIC_WORDS:
-        out.append(_finding("one_idea", f"More than one idea; keep it to one short line (under {MAX_PUBLIC_WORDS} words)."))
+        out.append(
+            _finding("one_idea", f"More than one idea; keep it to one short line (under {MAX_PUBLIC_WORDS} words).")
+        )
     return out
 
 
@@ -89,7 +103,7 @@ def prepare_dm(text: str, keep_words=None) -> tuple[str, list[dict]]:
     return human.clean(text, keep_words)
 
 
-def prepare_public(text: str, keep_words=None) -> tuple[str, list[dict], Optional[str]]:
+def prepare_public(text: str, keep_words=None) -> tuple[str, list[dict], str | None]:
     """(text to post, humanizer changes, why it was replaced or None). A reply that sells or links is never posted."""
     cleaned, changes = human.clean(text, keep_words)
     bad = [f for f in check_public_reply(cleaned) if f["status"] == "bad"]
@@ -113,14 +127,24 @@ def payload_checks(payload: dict) -> list[dict]:
         return []
     out = []
     dm_findings = check_dm(dm["message"])
-    out.append({"key": "keyword_dm", "label": "Keyword DM", "status": max((f["status"] for f in dm_findings), default="ok",
-                                                                            key=["ok", "warn", "bad"].index),
-                "value": "Delivers first" if not dm_findings else f"{len(dm_findings)} to fix",
-                "detail": " ".join(f["message"] for f in dm_findings) or "Delivers what they asked for, then one question."})
+    out.append(
+        {
+            "key": "keyword_dm",
+            "label": "Keyword DM",
+            "status": max((f["status"] for f in dm_findings), default="ok", key=["ok", "warn", "bad"].index),
+            "value": "Delivers first" if not dm_findings else f"{len(dm_findings)} to fix",
+            "detail": " ".join(f["message"] for f in dm_findings) or "Delivers what they asked for, then one question.",
+        }
+    )
     if dm.get("public_reply"):
         pub = check_public_reply(dm["public_reply"])
-        out.append({"key": "public_reply", "label": "Public reply", "status": max((f["status"] for f in pub), default="ok",
-                                                                                   key=["ok", "warn", "bad"].index),
-                    "value": "No selling" if not pub else f"{len(pub)} to fix",
-                    "detail": " ".join(f["message"] for f in pub) or "One idea, no selling, no links."})
+        out.append(
+            {
+                "key": "public_reply",
+                "label": "Public reply",
+                "status": max((f["status"] for f in pub), default="ok", key=["ok", "warn", "bad"].index),
+                "value": "No selling" if not pub else f"{len(pub)} to fix",
+                "detail": " ".join(f["message"] for f in pub) or "One idea, no selling, no links.",
+            }
+        )
     return out
