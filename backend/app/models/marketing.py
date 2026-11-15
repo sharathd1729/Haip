@@ -63,6 +63,10 @@ class MarketingContent(Base, TimestampMixin):
     generation_status = Column(String(20), nullable=False, default="idle")    # idle | pending | failed
     generation_error = Column(Text, nullable=True)
     created_by = Column(String, nullable=True)
+    # Reels (Instagram toolkit phase 2, marketing_hooks): three scored opening lines + script + timed shot list, and
+    # the formula a person picked (kept for per-formula results). Advice only; never part of the approved payload.
+    hook_plan = Column(JSON, nullable=True)
+    hook_formula = Column(String(60), nullable=True)
 
     __table_args__ = (Index("ix_marketing_content_tenant_status", "tenant_id", "status"),)
 
@@ -83,6 +87,9 @@ class MarketingContentVersion(Base):
     model = Column(String(120), nullable=True)
     created_by = Column(String, nullable=True)           # the person who wrote it, or who asked the AI for it
     created_at = Column(DateTime(timezone=True), nullable=False)
+    # What the humanizer changed before this AI version was stored ({fields: [{path, before, after}], changes}), so
+    # Undo can restore the original text as a new version (marketing_humanize). None = nothing changed / not AI.
+    humanize = Column(JSON, nullable=True)
 
     __table_args__ = (UniqueConstraint("content_id", "version", name="uq_marketing_content_versions_n"),)
 

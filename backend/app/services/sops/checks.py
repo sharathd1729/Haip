@@ -33,24 +33,76 @@ def _connected(kind: str, label: str) -> Callable[[Session, Tenant, SopInstance]
     return check
 
 
-def instagram_bio(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+def _ig_fields(db: Session, tenant: Tenant, inst: SopInstance) -> dict | str:
+    """The account's profile fields, read once per check run (cached on the instance object); a str = why not."""
     from app.adapters.instagram.meta_graph import InstagramGraphAdapter
     from app.core.encryption import decrypt_credentials
 
+    cached = getattr(inst, "_ig_fields_cache", None)
+    if cached is not None:
+        return cached
     integ = _instagram_integration(db, tenant.id)
     if integ is None or not integ.credentials_kms_blob:
-        return _r("unknown", "Connect Instagram to HAIP so it can read your bio, or add a screenshot.")
-    creds = decrypt_credentials(integ.credentials_kms_blob)
-    account = (integ.config or {}).get("instagram_business_account_id", "")
-    try:
-        fields = InstagramGraphAdapter(
-            access_token=creds.get("access_token", ""), ig_account_id=account
-        ).get_account_fields()
-    except Exception as exc:  # noqa: BLE001 -- a platform hiccup is "could not check", never a crash
-        return _r("unknown", f"HAIP couldn't read your Instagram profile ({type(exc).__name__}). Try again later.")
-    if (fields.get("biography") or "").strip():
-        return _r("ok", "Your Instagram bio is filled in.")
-    return _r("fail", "Your Instagram bio is empty.")
+        out: dict | str = "Connect Instagram to HAIP so it can read your profile, or add a screenshot."
+    else:
+        creds = decrypt_credentials(integ.credentials_kms_blob)
+        account = (integ.config or {}).get("instagram_business_account_id", "")
+        try:
+            out = InstagramGraphAdapter(
+                access_token=creds.get("access_token", ""), ig_account_id=account
+            ).get_account_fields() or {}
+        except Exception as exc:  # noqa: BLE001 -- a platform hiccup is "could not check", never a crash
+            out = f"HAIP couldn't read your Instagram profile ({type(exc).__name__}). Try again later."
+    inst._ig_fields_cache = out
+    return out
+
+
+def _rubric(item: str, fn) -> Callable[[Session, Tenant, SopInstance], dict]:
+    """A profile-score item (marketing_profile_score): ok only at full marks; the points are stored with the result."""
+    from app.services import marketing_profile_score as profile
+
+    def check(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+        fields = _ig_fields(db, tenant, inst)
+        if isinstance(fields, str):
+            return _r("unknown", fields)
+        from app.services.marketing_ai_service import get_profile
+
+        points, detail = fn(fields, tenant, get_profile(tenant).get("city"))
+        full = profile.ITEMS[item]["points"]
+        return {**_r("ok" if points >= full else "fail", detail), "points": points, "max": full}
+
+    return check
+
+
+instagram_bio = _rubric("bio_first_line", lambda f, t, city: _ps().bio_line_points(f.get("biography") or "", city))
+
+
+def _ps():
+    from app.services import marketing_profile_score
+    return marketing_profile_score
+
+
+def instagram_recent(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
+    """Recent posts for the profile score: a post in 7 days = full marks, in 30 days = half (any app's posts)."""
+    from app.models.marketing import InstagramPostMetricDaily
+
+    if _instagram_integration(db, tenant.id) is None:
+        return _r("unknown", "Connect Instagram to HAIP so it can see your posts, or add a screenshot.")
+
+    def posts(days: int) -> int:
+        return (
+            db.query(InstagramPostMetricDaily.media_id)
+            .filter(InstagramPostMetricDaily.tenant_id == tenant.id,
+                    InstagramPostMetricDaily.posted_at >= _since(days).isoformat())
+            .distinct()
+            .count()
+        )
+
+    if posts(7):
+        return {**_r("ok", "Posted in the last 7 days."), "points": 10, "max": 10}
+    if posts(30):
+        return {**_r("fail", "Last post is more than a week old."), "points": 5, "max": 10}
+    return {**_r("fail", "No post in the last 30 days: the account reads as closed."), "points": 0, "max": 10}
 
 
 def whatsapp_name(db: Session, tenant: Tenant, inst: SopInstance) -> dict:
@@ -172,6 +224,13 @@ CHECKS: dict[str, Callable[[Session, Tenant, SopInstance], dict]] = {
     "instagram_posted_7d": instagram_posted_7d,
     "website_live": website_live,
     "instagram_bio": instagram_bio,
+    "instagram_name": _rubric(
+        "name_field", lambda f, t, city: _ps().name_points(f.get("name") or "", t.brand_name or t.name or "", city)
+    ),
+    "instagram_bio_body": _rubric("bio_body", lambda f, t, city: _ps().bio_body_points(f.get("biography") or "")),
+    "instagram_link": _rubric("link", lambda f, t, city: _ps().link_points(f.get("website") or "")),
+    "instagram_handle": _rubric("handle", lambda f, t, city: _ps().handle_points(f.get("username") or "")),
+    "instagram_recent": instagram_recent,
     "whatsapp_name": whatsapp_name,
 }
 

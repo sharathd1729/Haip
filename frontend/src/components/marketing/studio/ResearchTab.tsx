@@ -13,7 +13,8 @@ import { STUDIO, btn, btnPrimary, inputCls, openOAuth, studioError, when } from 
 interface Competitor { id: string; handle: string; display_name: string | null; followers: number | null; last_snapshot_at: string | null; last_error: string | null }
 interface MeasuredComp { handle: string; followers: number | null; followers_source: string | null; median_engagement: number | null; posts_known: number; manual_posts: number; median_engagement_rate: number | null; posts_per_week: number | null; formats: Record<string, number> }
 interface Brief { status: string; error: string | null; created_at: string; measured: { competitors: MeasuredComp[] }; assessment: { summary: string; themes: { name: string; why_it_works: string; examples: string[] }[]; formats: string[]; opportunities: string[]; avoid: string[]; not_enough_signal: string[] } | null }
-interface Research { competitors: Competitor[]; max_competitors: number; facebook: { status: string; username: string | null; error: string | null; source: string | null; login_available: boolean }; brief: Brief | null }
+interface RankedPost { handle: string; permalink: string | null; media_type: string | null; source: string; metric: "views" | "engagement"; value: number | null; multiple: number | null; band: "signal" | "above" | "normal" | "below" | "unknown"; hook: string; formula: string | null }
+interface Research { ranked?: { note: string; posts: RankedPost[] }; competitors: Competitor[]; max_competitors: number; facebook: { status: string; username: string | null; error: string | null; source: string | null; login_available: boolean }; brief: Brief | null }
 interface TokenResult { research: boolean; facebook_page: boolean; ig_username: string | null; page_name: string | null; missing: string[] }
 
 const NUM = new Intl.NumberFormat("en-IN");
@@ -24,18 +25,21 @@ function AddPost({ competitorId, onDone }: { competitorId: string; onDone: () =>
   const [link, setLink] = useState("");
   const [likes, setLikes] = useState("");
   const [comments, setComments] = useState("");
+  const [views, setViews] = useState("");
   const [note, setNote] = useState("");
   const add = useMutation({
     mutationFn: () => api.post(`${STUDIO}/research/competitors/${competitorId}/posts`, {
-      permalink: link.trim(), like_count: likes ? Number(likes) : null, comments_count: comments ? Number(comments) : null, note: note || null }),
-    onSuccess: () => { setLink(""); setLikes(""); setComments(""); setNote(""); onDone(); },
+      permalink: link.trim(), like_count: likes ? Number(likes) : null, comments_count: comments ? Number(comments) : null,
+      views: views ? Number(views) : null, note: note || null }),
+    onSuccess: () => { setLink(""); setLikes(""); setComments(""); setViews(""); setNote(""); onDone(); },
     onError: e => toast({ variant: "error", title: "Not added", description: studioError(e, "Check the link.") }),
   });
   return (
-    <form className="mt-2 grid gap-2 sm:grid-cols-[2fr_6rem_6rem_2fr_auto]" onSubmit={e => { e.preventDefault(); if (link.trim()) add.mutate(); }}>
+    <form className="mt-2 grid gap-2 sm:grid-cols-[2fr_6rem_6rem_6rem_2fr_auto]" onSubmit={e => { e.preventDefault(); if (link.trim()) add.mutate(); }}>
       <input className={inputCls} placeholder="https://www.instagram.com/p/…" value={link} onChange={e => setLink(e.target.value)} aria-label="Post link" />
       <input className={inputCls} inputMode="numeric" placeholder="Likes" value={likes} onChange={e => setLikes(e.target.value.replace(/\D/g, ""))} aria-label="Likes" />
       <input className={inputCls} inputMode="numeric" placeholder="Comments" value={comments} onChange={e => setComments(e.target.value.replace(/\D/g, ""))} aria-label="Comments" />
+      <input className={inputCls} inputMode="numeric" placeholder="Views" value={views} onChange={e => setViews(e.target.value.replace(/\D/g, ""))} aria-label="Views (reels)" />
       <input className={inputCls} placeholder="What stood out?" maxLength={500} value={note} onChange={e => setNote(e.target.value)} aria-label="Note" />
       <button type="submit" className={btn} disabled={add.isPending || !link.trim()}>Add post</button>
     </form>
@@ -147,6 +151,8 @@ export function ResearchTab() {
         </CardBody>
       </Card>
 
+      <RankedCard ranked={d.ranked} />
+
       {d.brief && (
         <>
           <Card>
@@ -191,5 +197,44 @@ export function ResearchTab() {
         </>
       )}
     </div>
+  );
+}
+
+const BAND: Record<RankedPost["band"], { label: string; tone: "success" | "neutral" | "warning" | "info" }> = {
+  signal: { label: "Real signal", tone: "success" }, above: { label: "Above their normal", tone: "info" },
+  normal: { label: "Their normal day", tone: "neutral" }, below: { label: "Below normal", tone: "warning" },
+  unknown: { label: "Too few posts to judge", tone: "neutral" },
+};
+
+/** Competitor posts ranked by how far they beat THAT account's own median (phase 4), with the hook formula used. */
+function RankedCard({ ranked }: { ranked?: { note: string; posts: RankedPost[] } }) {
+  const posts = ranked?.posts ?? [];
+  return (
+    <Card>
+      <CardHeader title="What really worked" description={ranked?.note ?? "Posts ranked by how far they beat their own account's normal."} />
+      <CardBody>
+        {!posts.length ? (
+          <p className="text-sm text-[var(--haip-fg-subtle)]">Paste at least three posts per competitor (with views for reels), or connect Facebook, to rank them.</p>
+        ) : (
+          <ul className="divide-y divide-[var(--haip-border)]">
+            {posts.slice(0, 12).map((p, i) => (
+              <li key={`${p.permalink}-${i}`} className="flex items-center gap-3 py-2">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[var(--haip-surface)] font-mono text-[10px] text-[var(--haip-fg-subtle)]">{(p.media_type ?? "POST").replace("CAROUSEL_ALBUM", "CAROUSEL").slice(0, 8)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">@{p.handle} · {p.hook || "no caption"}</span>
+                  <span className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--haip-fg-subtle)]">
+                    <StatusPill tone={BAND[p.band].tone}>{BAND[p.band].label}</StatusPill>
+                    {p.formula ? `Formula: ${p.formula}` : "No known formula"}
+                    {p.source === "manual" && " · pasted"}
+                    {p.permalink && <a href={p.permalink} target="_blank" rel="noopener noreferrer nofollow" className="text-primary underline">open</a>}
+                  </span>
+                </span>
+                <span className="shrink-0 font-mono text-base font-semibold tabular-nums">{p.multiple == null ? "—" : `${p.multiple}×`}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+    </Card>
   );
 }

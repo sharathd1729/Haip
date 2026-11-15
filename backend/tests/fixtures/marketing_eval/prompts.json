@@ -12,8 +12,8 @@
     "version": "marketing-shoot-brief-v2"
   },
   "marketing_content": {
-    "sha": "b116ebf691851351a9aed3ce4a280e16c66135aed47b9c12521a9919e8e9d980",
-    "version": "marketing-content-v8"
+    "sha": "eddfea3fd06d4a25c8250f077b40258595fe982e03dab2f703421e69f8d903fb",
+    "version": "marketing-content-v10"
   },
   "marketing_deck": {
     "sha": "e3b0b99b9ad807456b54284d3a81c627540d8fa73155040e99131cba021df1ab",
@@ -28,12 +28,16 @@
     "version": "marketing-ota-copy-v3"
   },
   "marketing_plan": {
-    "sha": "31e2d1f62538b9cb0b07feeb2e4c8bac65b1ee6ed4d4c45032fdb6593bae1359",
-    "version": "marketing-plan-v7"
+    "sha": "02a89ff7ee42187350fe1f3155b36de1305f7e111d966d71d304eeb731b47907",
+    "version": "marketing-plan-v8"
+  },
+  "marketing_reel_hooks": {
+    "sha": "0a1d3aefd3c123b7b8655d5e38ec5ecbe82bd316f6c33028516306a5522d4c24",
+    "version": "marketing-reel-hooks-v1"
   },
   "marketing_research": {
-    "sha": "f2d1738ce83fcdbb6ee93157416e16b276cd968009c4e334e62f542bb0eaca8b",
-    "version": "marketing-research-v2"
+    "sha": "abd1f4f9bef81037c1ab62a0f4e6ebc122dfe682e16d45c0861db71395333ef9",
+    "version": "marketing-research-v3"
   },
   "marketing_review": {
     "sha": "1c70703344623f242601d64c28c044ac75f2de6873781d3c0d89e2b687a0dbcb",

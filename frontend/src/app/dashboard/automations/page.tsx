@@ -408,12 +408,28 @@ function RuleModal({ initial, onClose, onSaved }: {
                 <textarea
                   value={form.action_config.message ?? ""}
                   onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, message: e.target.value } }))}
-                  placeholder="Our villas start at ₹18,000/night — check availability at ..."
+                  placeholder="Here it is: the July weekend dates, 12-14 and 19-21. Reply with the one you like. Which suits you?"
                   rows={3}
                   className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
                 />
-                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Sent as a private DM — deterministic, no AI involved.</p>
+                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Sent as a private DM, no AI involved. Works best as: what they asked for first, one line on how to use it, one short question last. Stock words, long dashes and curly quotes are tidied when it is sent.</p>
               </div>
+
+              {form.trigger === "ig_dm_received" && (
+                <div>
+                  <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
+                    One follow-up <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    value={form.action_config.follow_up ?? ""}
+                    onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, follow_up: e.target.value } }))}
+                    placeholder="Did that help? Tell us your dates and we'll check them."
+                    rows={2} maxLength={500}
+                    className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-xl text-base sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                  />
+                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Sent once, about 20 hours later, only if they have not replied and nobody has answered them.</p>
+                </div>
+              )}
 
               {form.trigger === "ig_comment_received" && (
                 <div>
@@ -426,7 +442,7 @@ function RuleModal({ initial, onClose, onSaved }: {
                     placeholder="Check your DMs! 📥 — press Enter to add"
                     chipClassName="bg-white text-[var(--haip-fg-2)] border border-[var(--haip-border)]"
                   />
-                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Posted publicly as a reply to the comment. Falls back to a default if left empty.</p>
+                  <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Posted publicly as a reply to the comment. One short idea: no prices, offers or links (those are refused). Falls back to a default if left empty.</p>
                 </div>
               )}
             </div>

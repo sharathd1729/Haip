@@ -86,6 +86,42 @@ Agency M1 adapts ideas from its `brand-review` skill:
 
 These appear in `marketing_review_service.py`, `marketing_lint.py` and `marketing-review-v1`. Nothing is copied verbatim; the ideas are re-expressed for HAIP.
 
+## Jakeschincariol/instagram-agent-skill (Instagram toolkit)
+
+Source: https://github.com/Jakeschincariol/instagram-agent-skill (read 15 Nov 2026, commit d03c56bb). Rebuilt as HAIP code, not installed as skills; only the parts below are used.
+- Phase 1, `ig-human` (`humanize.py`, `detect.py`, `slop.json`) -> `backend/app/services/marketing_humanize.py` + `marketing_slop.json`: the invisible-character, dash/quote and stock-word passes, URL protection, capital restoring, and the five-check score. Changed for HAIP: a workspace keep-list, emoji joiners kept, only dashes/quotes/ellipsis among the typographic marks, travel words that are literal in hospitality copy (journey, landscape, iconic, ...) dropped from the word list, a few hospitality stock phrases added, and unjudgeable checks left out of the score.
+- Phase 1, `ig-caption` (`caption.py`) -> `backend/app/services/marketing_caption_lint.py`: the 125-character visible window, the one-ask check (asks rewritten for a brand: "DM us", "comment STAY"), the 5-hashtag cap and filler tags, search words; also the caption rules in `marketing-content-v9`.
+- Phase 2, `ig-reel` (`hooks.json`, `hookscore.py`, `beats.py`) -> `backend/app/services/marketing_hooks.py` + `marketing_hooks.json`: the 26 hook formulas with their match patterns, the five-property hook score with its dealbreakers, and the timed beat sheet; also `marketing-reel-hooks-v1`. Changed for HAIP: rupee and night/km units, hospitality imperatives, a price-policy block, and the phase-1 humanizer on every line.
+- Phase 3, `ig-profile` (`rubric.json`) -> `backend/app/services/marketing_profile_rubric.json` + `marketing_profile_score.py` and the steps of the `instagram_profile` checklist (`backend/app/services/sops/catalogue.py`): the twelve items and their weights; the wording is rewritten for a hospitality business and HAIP scores the measurable items in code.
+- Phase 4, `ig-viral` (the method in `swipe.py` only, not its browsing) -> `ranked()` in `backend/app/services/marketing_research_service.py`: rank a post by its multiple over its own account's median and name the hook formula; also `marketing-research-v3` and `marketing-plan-v8`. HAIP uses only posts a person pasted and the official Business Discovery API: nothing is scraped or browsed.
+- Phase 5, `ig-dm`, `ig-reply`, `ig-comment` (method only, these are prose skills) -> `backend/app/services/ig_automation_copy.py`, `ig_quick_reply.py` and `marketing-content-v10`: the keyword-delivery shape (deliver first, one line on use, one short question), a single follow-up, and the public-reply rules (no selling or links, no stock phrases, one idea). HAIP does not automate comments on other accounts or outreach DMs.
+
+The upstream licence is reproduced below.
+
+```
+MIT License
+
+Copyright (c) 2026 Jake Schincariol
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## Noto Sans / Noto Serif (brand-kit typefaces, agency M3)
 
 Installed from the Debian package `fonts-noto-core` in `backend/Dockerfile`; not copied into this repository. Licence: SIL Open Font License 1.1 (https://openfontlicense.org). `marketing_render.py` and `marketing_reel.py` draw text with them onto images and videos the workspace posts; the OFL allows that, and the fonts themselves are not redistributed.
