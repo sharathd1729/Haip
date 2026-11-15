@@ -327,10 +327,12 @@ def start(
         )
     _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}" + (f" ({'; '.join(notes)})" if notes else ""), ctx)
     db.commit()
-    if not comment_id and not needs_tap:  # the final message went out in an open chat: follow-ups may follow
-        from app.services import ig_sequence
+    if not comment_id and not needs_tap:  # the final message went out in an open chat: suggest more, follow-ups
+        from app.services import ig_suggest
 
-        ig_sequence.begin(rule, tenant_id, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id)
+        ig_suggest.after_final(
+            db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id
+        )
     return True
 
 
@@ -339,7 +341,11 @@ def parse_payload(payload: str | None) -> tuple[str, str] | None:
     if not payload or not payload.startswith(PAYLOAD_PREFIX):
         return None
     parts = payload[len(PAYLOAD_PREFIX) :].split(":")
-    return (parts[0], parts[1]) if len(parts) == 2 and parts[1] in ("open", "followed") else None
+    if len(parts) == 2 and parts[1] in ("open", "followed", "more", "start"):
+        return parts[0], parts[1]
+    if len(parts) == 3 and parts[1] == "ask" and parts[2].isdigit():  # "I'm interested" on card n (ig_suggest)
+        return parts[0], f"ask:{parts[2]}"
+    return None
 
 
 def handle_payload(
@@ -362,6 +368,10 @@ def handle_payload(
         return True
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "step": step}
+    if step == "start" or step == "more" or step.startswith("ask:"):  # welcome/menu start, suggest more (ig_suggest)
+        from app.services import ig_suggest
+
+        return ig_suggest.route(db, tenant_id, rule, step, recipient_id, guest_id, conversation_id, guest)
     if guest_id and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=("link_sent", "form_completed")):
         return True  # already has the link; a second tap sends nothing
     reason = skip_reason(db, tenant_id, rule, guest_id, starting=False)
@@ -465,6 +475,8 @@ def _send_final(
     log_event(db, tenant_id, rule.id, "link_sent", guest_id)  # "the final message went out" (with or without a link)
     _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}", ctx)
     db.commit()
-    from app.services import ig_sequence
+    from app.services import ig_suggest
 
-    ig_sequence.begin(rule, tenant_id, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id)
+    ig_suggest.after_final(
+        db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id
+    )

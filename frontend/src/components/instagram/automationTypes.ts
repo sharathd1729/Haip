@@ -80,6 +80,15 @@ export const SEQUENCE_WAITS: { value: number; label: string }[] = [
 ];
 export const SEQUENCE_WINDOW_MINUTES = 23 * 60;
 
+export interface IgSuggestMore {
+  enabled: boolean;
+  source: "stays" | "packages";
+  prompt: string;
+  button_title: string;
+}
+
+export const DEFAULT_SUGGEST: IgSuggestMore = { enabled: false, source: "stays", prompt: "Want to see our other stays?", button_title: "More stays" };
+
 export interface IgActionConfig {
   message: string;
   button?: { title: string; url: string } | null;
@@ -90,6 +99,7 @@ export interface IgActionConfig {
   once_per_person?: boolean;
   form?: IgForm;
   sequence?: IgSequenceStep[];
+  suggest_more?: IgSuggestMore;
 }
 
 export interface IgRule {

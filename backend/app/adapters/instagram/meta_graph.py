@@ -211,6 +211,17 @@ class InstagramGraphAdapter:
             "messaging_type": "RESPONSE",
         })
 
+    def send_cards(self, recipient_id: str, elements: list[dict]) -> dict:
+        """Swipeable cards (generic template, up to 10). Each element: title (<=80), subtitle (<=80), optional https
+        image_url, buttons (<=3: web_url or postback). Raises like _post."""
+        return self._post(f"/{self._inbox}/messages", {
+            "recipient": {"id": recipient_id},
+            "message": {"attachment": {"type": "template", "payload": {
+                "template_type": "generic", "elements": elements[:10],
+            }}},
+            "messaging_type": "RESPONSE",
+        })
+
     def follows_us(self, user_id: str) -> bool | None:
         """True/False when Meta says whether this person follows the account (is_user_follow_business), None when it
         will not say (Meta needs the person to have messaged us first; any error)."""

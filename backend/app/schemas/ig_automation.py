@@ -117,6 +117,16 @@ class IgSequenceStep(BaseModel):
     button: IgButton | None = None
 
 
+class IgSuggestMore(BaseModel):
+    """After the final message: a "More stays" button that shows the workspace's stays or packages as swipeable cards
+    (services/ig_suggest.py). Cards never show prices; "I'm interested" hands the chat to the team."""
+
+    enabled: bool = False
+    source: Literal["stays", "packages"] = "stays"
+    prompt: str = Field(default="Want to see our other stays?", max_length=300)
+    button_title: str = Field(default="More stays", min_length=1, max_length=20)
+
+
 class IgActionConfig(BaseModel):
     message: str = Field(min_length=1, max_length=900)
     button: IgButton | None = None
@@ -129,6 +139,7 @@ class IgActionConfig(BaseModel):
     follow_up_after_hours: int | None = Field(default=None, ge=1, le=23)
     form: IgForm = Field(default_factory=IgForm)
     sequence: list[IgSequenceStep] = Field(default_factory=list, max_length=3)
+    suggest_more: IgSuggestMore = Field(default_factory=IgSuggestMore)
 
     @model_validator(mode="after")
     def _sequence_fits_the_window(self):
