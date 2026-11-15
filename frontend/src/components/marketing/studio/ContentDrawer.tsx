@@ -14,6 +14,7 @@ import { PublishPanel } from "./PublishPanel";
 import { RenderedPreview } from "./RenderedPreview";
 import { BrandReviewPanel } from "./BrandReviewPanel";
 import { CaptionChecks } from "./CaptionChecks";
+import { HookPicker } from "./HookPicker";
 import { LookVariants, ReelPlayer } from "./ReelAndLook";
 import { PromoteButton } from "./AdsTab";
 import { CanvaButton } from "./CreativePanel";
@@ -163,6 +164,10 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
                 </div>
               )}
               {!locked && <CanvaButton itemId={item.id} />}
+              {item.kind === "reel" && item.hook_plan && (
+                <HookPicker itemId={item.id} versionId={current.id} plan={item.hook_plan} formula={item.hook_formula ?? null}
+                  canChoose={!locked && !dirty && !busy && role !== "viewer" && role !== "read_only"} onChanged={d => done({ data: d })} />
+              )}
               {item.text_checks && (
                 <CaptionChecks itemId={item.id} versionId={current.id} checks={item.text_checks}
                   canUndo={!locked && !dirty && !busy && role !== "viewer" && role !== "read_only"} onChanged={d => done({ data: d })} />

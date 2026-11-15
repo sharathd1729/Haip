@@ -31,6 +31,10 @@
     "sha": "31e2d1f62538b9cb0b07feeb2e4c8bac65b1ee6ed4d4c45032fdb6593bae1359",
     "version": "marketing-plan-v7"
   },
+  "marketing_reel_hooks": {
+    "sha": "0a1d3aefd3c123b7b8655d5e38ec5ecbe82bd316f6c33028516306a5522d4c24",
+    "version": "marketing-reel-hooks-v1"
+  },
   "marketing_research": {
     "sha": "f2d1738ce83fcdbb6ee93157416e16b276cd968009c4e334e62f542bb0eaca8b",
     "version": "marketing-research-v2"

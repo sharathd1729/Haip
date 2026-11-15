@@ -45,6 +45,18 @@ export interface ContentItem {
   auto_schedule_error?: string | null;
   /** Current version: caption checks, "sounds human" score, what the humanizer fixed (marketing_content_service.text_checks). */
   text_checks?: TextChecks | null;
+  /** Reels: three scored opening lines, script and timed shot list (marketing_hooks); the formula a person picked. */
+  hook_plan?: HookPlan | null;
+  hook_formula?: string | null;
+}
+
+export interface HookOption {
+  formula_id: number; formula: string; spoken: string; on_screen: string; score: number; verdict: "strong" | "ok" | "weak";
+  blocked: boolean; reason: string | null;
+}
+export interface HookPlan {
+  status: "ready" | "failed"; error?: string; options?: HookOption[]; chosen?: number | null; beats_for?: number | null;
+  beats?: { total_seconds: number; notes: string[]; rows: { n: number; start: number; seconds: number; line: string; shot: string; label: string; flags: string[] }[] };
 }
 
 export interface CaptionCheck { key: string; label: string; status: "ok" | "warn" | "bad"; value: string; detail: string }

@@ -12,6 +12,7 @@ POST /marketing/studio/content/{id}/versions                       save an edit 
 POST /marketing/studio/content/{id}/generate                       AI writes a new version (async)
 POST /marketing/studio/content/{id}/submit | approve | reject | archive   (submit refuses a draft without photos)
 POST /marketing/studio/content/{id}/undo-humanize                  restore the AI's wording the humanizer replaced (new version)
+POST /marketing/studio/content/{id}/hooks/{n}/choose               reels: use opening line n (new version + formula saved)
 GET|POST /marketing/studio/media (multipart); POST media/{id}/render, GET templates: library + template creatives
 GET  /marketing/studio/usage                                       metered usage for this module
 GET  /marketing/studio/settings   PUT same (owner)                 opt-in switches (AI images), humanizer keep_words; GET image-models
@@ -249,7 +250,8 @@ def _item_out(db: Session, item: MarketingContent, *, full: bool = False) -> dic
            "property_id": item.property_id, "plan_id": item.plan_id, "planned_for": item.planned_for,
            "current_version_id": item.current_version_id, "approved_version_id": item.approved_version_id,
            "generation_status": item.generation_status, "generation_error": item.generation_error,
-           "created_by": item.created_by, "created_at": item.created_at, "updated_at": item.updated_at}
+           "created_by": item.created_by, "created_at": item.created_at, "updated_at": item.updated_at,
+           "hook_formula": item.hook_formula}
     if item.status in ("draft", "rejected"):            # "Needs photos": submit refuses it
         v = svc.get_version(db, item.tenant_id, item.current_version_id)
         out["needs_photos"] = svc.missing_photos(item.kind, v.payload) if v is not None else []
@@ -259,6 +261,7 @@ def _item_out(db: Session, item: MarketingContent, *, full: bool = False) -> dic
         current = svc.get_version(db, item.tenant_id, item.current_version_id)
         out["current"] = _version_out(current)
         out["text_checks"] = svc.text_checks(db, item.tenant_id, item, current)   # caption checks, human score, fixes
+        out["hook_plan"] = item.hook_plan          # reels: scored opening lines, script, timed shot list
         out["versions"] = [_version_out(v) for v in h["versions"]]
         out["decisions"] = [{"id": d.id, "version_id": d.version_id, "decision": d.decision, "note": d.note,
                              "actor_user_id": d.actor_user_id, "created_at": d.created_at} for d in h["decisions"]]
@@ -322,6 +325,16 @@ def undo_humanize(item_id: str, body: Decision, user: User = Depends(get_current
                   _m=_module, _c=_edit):
     """Put back the AI's original wording the humanizer replaced; saved as a new version (needs approval again)."""
     _run(svc.undo_humanize, db, user.tenant_id, item_id, body.version_id, user)
+    db.commit()
+    return _item_out(db, _run(svc.get_item, db, user.tenant_id, item_id), full=True)
+
+
+@router.post("/content/{item_id}/hooks/{n}/choose", status_code=201)
+def choose_hook(item_id: str, n: int, body: Decision, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                _m=_module, _c=_edit):
+    """Use reel opening line n: its on-screen text goes on the first clip (new version) and its formula is saved."""
+    from app.services import marketing_hooks as hooks
+    _run(hooks.choose, db, user.tenant_id, item_id, n, body.version_id, user)
     db.commit()
     return _item_out(db, _run(svc.get_item, db, user.tenant_id, item_id), full=True)
 

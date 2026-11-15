@@ -6,6 +6,7 @@ so a model that ignores the schema produces a recorded failure, never stored con
 v2 techniques (judge against the account's own median, STOP/KEEP/TEST, "not enough signal", first comment, carousel
 slide rules, one-ask story arcs, 3-5 pillars with out-of-scope) are adapted from Ootto-AI/claude-content-skills,
 MIT licence, Copyright (c) 2026 Ootto. Notice: docs/marketing-website/THIRD_PARTY_NOTICES.md.
+Reel hooks v1: the 26 hook formulas, the hook score and the beat sheet adapt instagram-agent-skill `ig-reel` (MIT).
 Content v9: the 125-character first line, one ask and the 5-hashtag cap adapt Jakeschincariol/instagram-agent-skill
 `ig-caption` (MIT, Copyright (c) 2026 Jake Schincariol).
 M1 (content v4, review v1): the AI-tell list, carousel frameworks and [NEED: ...] discipline adapt
@@ -13,6 +14,7 @@ coreyhaines31/marketingskills (MIT, Copyright (c) 2025 Corey Haines); the brand 
 tone by channel, severity findings, compliance flags) adapts anthropics/knowledge-work-plugins (Apache-2.0).
 """
 from app.schemas.marketing import AIBrandReview, AuditAssessment, MarketingPlanBody, CONTENT_MODELS
+from app.schemas.marketing_hooks import ReelHookDraft
 from app.schemas.marketing_research import ResearchBrief
 
 _COMMON_RULES = """Rules you must follow:
@@ -110,6 +112,23 @@ Answer only by calling the tool.
 """ + _COMMON_RULES
 
 
+REEL_HOOKS_SYSTEM = """You write the opening of an Instagram Reel for a hospitality brand, and the spoken script after it.
+The Reel is cut from the property's own clips (listed in the draft); a host or staff member may say the script to camera
+or it may be shown as text. Produce:
+- options: exactly THREE opening lines, each from a DIFFERENT formula in the list (give its number as formula_id).
+  `spoken` is the first thing said: 5-12 words, sayable in about two seconds, with one concrete thing (a place, an
+  hour, a detail from the facts) at the front. `on_screen` is the first thing read: six words or fewer, blunter than
+  the spoken line. No greeting, no "in this reel", no hashtags, no emoji.
+- script: 3-8 lines after the hook. Line 1 is why it matters to the viewer; then one idea per line, each with `shot`:
+  which clip from the draft is on screen (use its footage words) or what to film; the last line delivers what the hook
+  promised and carries the ONE ask (DM us, comment a word, link in bio), and echoes one word from the hook.
+  15-30 seconds in all (about 40-80 words).
+- Speak as the host ("we"), to one guest ("you"). Choose formulas that fit a stay; a creator formula about money lost
+  or followers gained only fits if the facts give it something true to say.
+- Only facts given. Never invent numbers, awards, reviews, dates or availability.
+Answer only by calling the tool.
+""" + _COMMON_RULES
+
 def rules(price_mode: str) -> dict:
     return {"price_rule": PRICE_RULE_GROUNDED if price_mode == "grounded" else PRICE_RULE_HANDOFF}
 
@@ -160,6 +179,8 @@ def _schema(model) -> dict:
 
 AUDIT_TOOL = {"name": "submit_audit", "description": "Return the audit assessment.", "input_schema": _schema(AuditAssessment)}
 PLAN_TOOL = {"name": "submit_plan", "description": "Return the marketing plan.", "input_schema": _schema(MarketingPlanBody)}
+REEL_HOOKS_TOOL = {"name": "submit_reel_hooks", "description": "Return three hook options and the script.",
+                   "input_schema": _schema(ReelHookDraft)}
 
 
 def content_tool(kind: str) -> dict:

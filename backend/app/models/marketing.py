@@ -63,6 +63,10 @@ class MarketingContent(Base, TimestampMixin):
     generation_status = Column(String(20), nullable=False, default="idle")    # idle | pending | failed
     generation_error = Column(Text, nullable=True)
     created_by = Column(String, nullable=True)
+    # Reels (Instagram toolkit phase 2, marketing_hooks): three scored opening lines + script + timed shot list, and
+    # the formula a person picked (kept for per-formula results). Advice only; never part of the approved payload.
+    hook_plan = Column(JSON, nullable=True)
+    hook_formula = Column(String(60), nullable=True)
 
     __table_args__ = (Index("ix_marketing_content_tenant_status", "tenant_id", "status"),)
 

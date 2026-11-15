@@ -385,6 +385,18 @@ def _humanized(kind: str, data: dict, tenant: Tenant) -> tuple[dict, Optional[di
     return cleaned, record
 
 
+def _reel_hooks(db: Session, tenant: Tenant, item: MarketingContent) -> None:
+    """Three scored opening lines + script for a fresh reel draft (marketing_hooks). Advice: a provider error never
+    loses the draft or retries the whole generation."""
+    from app.services import marketing_hooks as hooks
+    try:
+        hooks.write(db, tenant, item)
+    except Exception as exc:  # noqa: BLE001 -- the draft is already stored; hooks can be asked for again
+        log.warning("marketing_reel_hooks_failed", tenant_id=tenant.id, item_id=item.id, error=str(exc)[:200])
+        item.hook_plan = {"status": "failed", "error": "The AI could not write hook options right now. Write the reel again to retry."}
+        flag_modified(item, "hook_plan")
+
+
 def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[str], brief: Optional[str]) -> MarketingContent:
     item = content_svc.get_item(db, tenant_id, item_id)
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
@@ -411,6 +423,8 @@ def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[st
         content_svc.add_version(db, tenant_id, item.id, data, origin="ai", actor_id=actor_id,
                                 note=note[:1000] or None, prompt_version=get_version("marketing_content"),
                                 model=raw.get("model"), humanize=humanized)
+        if item.kind == "reel":
+            _reel_hooks(db, tenant, item)
     except content_svc.MarketingError as exc:
         item.generation_status = "failed"
         item.generation_error = "; ".join([exc.message, *exc.problems])[:2000]
