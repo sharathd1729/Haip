@@ -37,6 +37,7 @@ SENT_KINDS = ("dm_sent", "link_sent", "gate_asked")
 TENANT_HOURLY_CAP = 200  # automated sends per workspace per hour (Meta rate limits)
 GUEST_HOURLY_CAP = 5  # automated sends per person per hour
 DEFAULT_ACK = "Check your DMs! 📥"
+ALREADY_REPLIED = "2534023"  # Meta error_subcode: "The comment you are trying to reply to already has a reply"
 
 
 # ── small helpers ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -236,6 +237,13 @@ def start(
     reason = skip_reason(db, tenant_id, rule, guest_id, starting=True)
     if not cfg.get("message"):
         reason = reason or "no_message"
+    # One answer per comment. Meta can deliver the same comment twice at once (both copies pass the ingest dedup before
+    # either commits); the second private reply then fails with "already has a reply" (subcode 2534023, seen live).
+    if not reason and comment_id:
+        from app.core import cache
+
+        if not cache.idem_check_and_set(f"igauto:comment:{tenant_id}:{comment_id}", ttl=8 * 86400):
+            reason = "comment_already_answered"
     adapter = None if reason else _adapter(db, tenant_id)
     if not reason and adapter is None:
         reason = "instagram_not_connected"
@@ -271,7 +279,7 @@ def start(
             try:
                 result = adapter.send_private_reply(comment_id, text, quick)
             except Exception as exc:  # noqa: BLE001
-                if not quick:
+                if not quick or ALREADY_REPLIED in str(exc):
                     raise
                 # Meta refused the first reply with a tap button (seen live as a 500). The comment's one private reply
                 # is still unused, so send the whole message instead: text + link, no button, no follow check.
@@ -285,6 +293,12 @@ def start(
         else:
             result = adapter.send_text(recipient_id, text)
     except Exception as exc:  # noqa: BLE001
+        if comment_id and ALREADY_REPLIED in str(exc):
+            # Someone (or an earlier copy of this event) already answered the comment privately: nothing went wrong.
+            log_event(db, tenant_id, rule.id, "skipped", guest_id, media_id, "comment_already_answered")
+            _log_run(db, tenant_id, rule, "skipped", "This comment already has a private reply", ctx)
+            db.commit()
+            return False
         logger.error("ig_automation_dm_failed rule=%s: %s", rule.id, exc)
         log_event(db, tenant_id, rule.id, "dm_failed", guest_id, media_id, str(exc)[:500])
         _log_run(db, tenant_id, rule, "failed", f"Send failed: {str(exc)[:500]}", ctx)

@@ -337,3 +337,33 @@ def test_instagram_errors_never_carry_the_access_token(monkeypatch):
     assert seen["headers"]["Authorization"] == "Bearer IGAATsecret123"
     assert str(err.value) == "Instagram 500: An unknown error has occurred. code 1/99"
     assert err.value.response.status_code == 500
+
+
+def test_the_same_comment_delivered_twice_is_answered_once(db, ig, monkeypatch):
+    from app.core import cache
+    seen = set()
+    monkeypatch.setattr(cache, "idem_check_and_set", lambda key, ttl=0: not (key in seen or seen.add(key)))
+    t = _tenant(db)
+    g, c = _guest(db, t.id)
+    r = _rule(db, t.id, ac={"once_per_person": False})
+    for _ in range(2):
+        dispatch_quick_reply(db, t.id, r, recipient_id="igsid", guest_id=g.id, conversation_id=c.id, comment_id="cm-dup")
+    assert ig.names().count("private") == 1 and ig.names().count("public") == 1
+    assert _kinds(db, r).count("skipped") == 1
+
+
+def test_already_answered_comment_is_a_skip_not_a_failure(db, ig, monkeypatch):
+    t = _tenant(db)
+    g, c = _guest(db, t.id)
+    r = _rule(db, t.id, ac={"button": {"title": "See", "url": "https://ratha.in/p"}})
+    calls = []
+
+    def already(comment_id, text, quick=None):
+        calls.append(quick)
+        raise RuntimeError("Instagram 500: The comment you are trying to reply to already has a reply. code -1/2534023")
+
+    monkeypatch.setattr(ig, "send_private_reply", already)
+    assert not dispatch_quick_reply(db, t.id, r, recipient_id="igsid", guest_id=g.id, conversation_id=c.id, comment_id="cm9")
+    assert len(calls) == 1                                 # no plain-text retry: the comment's one reply is used up
+    kinds = _kinds(db, r)
+    assert "skipped" in kinds and "dm_failed" not in kinds
