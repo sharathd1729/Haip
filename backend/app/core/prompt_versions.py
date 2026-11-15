@@ -195,7 +195,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v5 (M2): approved claims; a post sells exactly its plan entry's target dates.
     # v6 (M3): optional comment_dm ("comment STAY for dates").
     # v9 (Instagram toolkit phase 1): first line whole inside 125 characters, exactly one ask, at most 5 hashtags.
-    "marketing_content": "marketing-content-v9",
+    # v10 (phase 5): the comment-to-DM delivers first, one how-to line, one short question; public reply sells nothing.
+    "marketing_content": "marketing-content-v10",
     # Reel hooks (marketing_hooks, Instagram toolkit phase 2): three opening lines from 26 formulas + spoken script.
     "marketing_reel_hooks": "marketing-reel-hooks-v1",
     # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.

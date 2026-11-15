@@ -436,6 +436,8 @@ def run() -> None:
 
     import _demo_site   # the website, built with the v2 builder (SiteSpec); binds to the photos above
     site_host = _demo_site.seed(db, tenant, owner)
+    import _demo_ig_toolkit   # Instagram toolkit screens: humanized draft, reel hooks, profile checklist, competitors
+    _demo_ig_toolkit.seed(db, tenant, owner)
 
     print(f"\nDemo tenant '{D.BRAND}' ({D.SLUG}) ready: {len(plan)} leads, {counts['messages']} messages, "
           f"{len(D.TRANSCRIPTS) + 2} calls, {n_stays} bookings, {n_pay} payments, {photos} photos, {clips} clips.")

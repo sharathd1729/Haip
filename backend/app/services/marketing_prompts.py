@@ -6,6 +6,7 @@ so a model that ignores the schema produces a recorded failure, never stored con
 v2 techniques (judge against the account's own median, STOP/KEEP/TEST, "not enough signal", first comment, carousel
 slide rules, one-ask story arcs, 3-5 pillars with out-of-scope) are adapted from Ootto-AI/claude-content-skills,
 MIT licence, Copyright (c) 2026 Ootto. Notice: docs/marketing-website/THIRD_PARTY_NOTICES.md.
+Content v10: the keyword-delivery DM and public-reply rules adapt instagram-agent-skill `ig-dm` / `ig-reply` (MIT).
 Reel hooks v1: the 26 hook formulas, the hook score and the beat sheet adapt instagram-agent-skill `ig-reel` (MIT).
 Content v9: the 125-character first line, one ask and the 5-hashtag cap adapt Jakeschincariol/instagram-agent-skill
 `ig-caption` (MIT, Copyright (c) 2026 Jake Schincariol).
@@ -96,9 +97,11 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
   bullets; stock phrases (nestled, hidden gem, look no further, unforgettable experience, hustle and bustle, embark on,
   elevate your, a haven of, awaits you, imagine waking up, in the heart of); guarantees; superlatives you can't prove;
   other businesses' names; invented guest quotes.
-- To turn comments into DMs, set `comment_dm`: a one-word keyword (e.g. STAY), the DM to send (what they asked for,
-  then how to book), and optionally a short public reply; the caption must tell people to comment that word. Use it
-  for posts that sell dates or a package, not for every post.
+- To turn comments into DMs, set `comment_dm`: a one-word keyword (e.g. STAY), the DM to send, and optionally a short
+  public reply; the caption must tell people to comment that word. Use it for posts that sell dates or a package, not
+  for every post. The DM delivers what they asked for FIRST (never "before I send it, can I ask..."), then one line on
+  how to use it or book, then ONE short question they can answer in a few words, last. The public reply is one short
+  idea: no selling, no prices, no links, no stock phrase ("Check your DMs" is fine).
 - `profile.claims` are facts the owner approved for public use: use them as written. When the plan entry names
   `targets` (open dates or an occasion), the post sells exactly those; never say other dates are available.
 - Use only figures that are in the facts. If you need a fact you don't have (a distance, a time, what's included),

@@ -132,5 +132,7 @@ def report(price_mode: str, profile: dict, kind: str, payload: dict) -> dict:
     out = (check_caption(payload.get("caption") or "", payload.get("hashtags") or [], search_words(profile))
            if "caption" in payload and kind != "article" else {"visible": None, "truncated": False, "cut": TRUNCATE,
                                                                "first_line_chars": 0, "hashtags": [], "asks": [], "checks": []})
+    from app.services.ig_automation_copy import payload_checks
+    out["checks"].extend(payload_checks(payload))          # comment-to-DM copy rules (Instagram toolkit phase 5)
     out["checks"].append(price_check(price_mode, strings_of(payload)))
     return out
