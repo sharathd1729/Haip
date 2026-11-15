@@ -37,6 +37,7 @@ SENT_KINDS = ("dm_sent", "link_sent", "gate_asked")
 TENANT_HOURLY_CAP = 200  # automated sends per workspace per hour (Meta rate limits)
 GUEST_HOURLY_CAP = 5  # automated sends per person per hour
 DEFAULT_ACK = "Check your DMs! 📥"
+ALREADY_REPLIED = "2534023"  # Meta error_subcode: "The comment you are trying to reply to already has a reply"
 
 
 # ── small helpers ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -207,6 +208,16 @@ def _quick(title: str, rule_id: str, step: str) -> list[dict]:
 # ── the steps ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
+def _final_text(db: Session, tenant_id: str, rule: AutomationRule, guest, keep) -> str:
+    """The final message as plain text: the rule's message, then its link (tracked) when it has a button."""
+    from app.services import ig_automation_copy as copy_rules
+
+    cfg = rule.action_config or {}
+    text, _changes = copy_rules.prepare_dm(_render(cfg.get("message") or "", guest), keep)
+    url = (cfg.get("button") or {}).get("url")
+    return f"{text}\n{tracked_url(db, tenant_id, rule.id, url)}" if url else text
+
+
 def start(
     db: Session,
     tenant_id: str,
@@ -226,6 +237,13 @@ def start(
     reason = skip_reason(db, tenant_id, rule, guest_id, starting=True)
     if not cfg.get("message"):
         reason = reason or "no_message"
+    # One answer per comment. Meta can deliver the same comment twice at once (both copies pass the ingest dedup before
+    # either commits); the second private reply then fails with "already has a reply" (subcode 2534023, seen live).
+    if not reason and comment_id:
+        from app.core import cache
+
+        if not cache.idem_check_and_set(f"igauto:comment:{tenant_id}:{comment_id}", ttl=8 * 86400):
+            reason = "comment_already_answered"
     adapter = None if reason else _adapter(db, tenant_id)
     if not reason and adapter is None:
         reason = "instagram_not_connected"
@@ -255,22 +273,42 @@ def start(
     needs_tap = bool(cfg.get("button") or gate.get("enabled"))
     text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else cfg["message"], guest), keep)
     quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else None
+    delivered_final = False
     try:
         if comment_id:
-            result = adapter.send_private_reply(comment_id, text, quick)
+            try:
+                result = adapter.send_private_reply(comment_id, text, quick)
+            except Exception as exc:  # noqa: BLE001
+                if not quick or ALREADY_REPLIED in str(exc):
+                    raise
+                # Meta refused the first reply with a tap button (seen live as a 500). The comment's one private reply
+                # is still unused, so send the whole message instead: text + link, no button, no follow check.
+                logger.warning("ig_automation_private_reply_button_refused rule=%s: %s", rule.id, exc)
+                text = _final_text(db, tenant_id, rule, guest, keep)
+                result = adapter.send_private_reply(comment_id, text, None)
+                delivered_final = True
+                notes.append("sent as plain text: Instagram refused the button")
         elif quick:
             result = adapter.send_quick_replies(recipient_id, text, quick)
         else:
             result = adapter.send_text(recipient_id, text)
     except Exception as exc:  # noqa: BLE001
+        if comment_id and ALREADY_REPLIED in str(exc):
+            # Someone (or an earlier copy of this event) already answered the comment privately: nothing went wrong.
+            log_event(db, tenant_id, rule.id, "skipped", guest_id, media_id, "comment_already_answered")
+            _log_run(db, tenant_id, rule, "skipped", "This comment already has a private reply", ctx)
+            db.commit()
+            return False
         logger.error("ig_automation_dm_failed rule=%s: %s", rule.id, exc)
-        log_event(db, tenant_id, rule.id, "dm_failed", guest_id, media_id, str(exc))
-        _log_run(db, tenant_id, rule, "failed", f"Send failed: {exc}", ctx)
+        log_event(db, tenant_id, rule.id, "dm_failed", guest_id, media_id, str(exc)[:500])
+        _log_run(db, tenant_id, rule, "failed", f"Send failed: {str(exc)[:500]}", ctx)
         db.commit()
         return False
 
     _record(db, tenant_id, conversation_id, text, result, rule.id)
     log_event(db, tenant_id, rule.id, "dm_sent", guest_id, media_id)
+    if delivered_final:
+        log_event(db, tenant_id, rule.id, "link_sent", guest_id, media_id)
     rule.run_count = (rule.run_count or 0) + 1
     rule.last_run_at = datetime.now(UTC)
     if not comment_id and rule.trigger == "ig_dm_received" and (cfg.get("follow_up") or "").strip():

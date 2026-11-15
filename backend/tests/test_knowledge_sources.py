@@ -151,7 +151,7 @@ def test_the_adapter_pages_with_the_cursor_on_graph_instagram_only():
     from app.adapters.instagram.meta_graph import InstagramGraphAdapter
     seen = []
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, headers=None):
         seen.append((url, dict(params)))
         return httpx.Response(200, json={"data": [{"id": "1"}], "paging": {"cursors": {"after": "C2"}, "next": "https://evil.example/x"}},
                               request=httpx.Request("GET", url))

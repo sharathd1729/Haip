@@ -292,3 +292,78 @@ def test_connect_still_subscribes_dms_if_meta_refuses_live_comments(monkeypatch)
     monkeypatch.setattr(httpx, "post", post)
     assert meta_graph.subscribe_webhooks("IGtok") == (True, "")
     assert sent == [meta_graph.WEBHOOK_FIELDS, "messages,messaging_postbacks,messaging_referral,comments"]
+
+
+def test_a_refused_button_reply_falls_back_to_the_whole_message_as_text(db, ig, monkeypatch):
+    """Meta answered a private reply carrying a tap button with a 500 (seen live). The comment's one private reply is
+    still unused, so the person gets the full message + tracked link as plain text instead of nothing."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://genhaip.com")
+    t = _tenant(db)
+    g, c = _guest(db, t.id)
+    r = _rule(db, t.id, ac={"button": {"title": "See packages", "url": "https://ratha.in/packages"}, "opener": "Tap below"})
+    real = ig.send_private_reply
+
+    def refuse_buttons(comment_id, text, quick=None):
+        if quick:
+            raise RuntimeError("Instagram 500: An unknown error has occurred. code 1")
+        return real(comment_id, text, quick)
+
+    monkeypatch.setattr(ig, "send_private_reply", refuse_buttons)
+    assert dispatch_quick_reply(db, t.id, r, recipient_id="igsid", guest_id=g.id, conversation_id=c.id, comment_id="cm1")
+    name, _, text, quick = ig.calls[-1]
+    link = db.query(IgTrackedLink).filter_by(rule_id=r.id).one()
+    assert name == "private" and quick is None and "prices" in text and text.endswith(f"/l/{t.slug}/{link.code}")
+    assert _kinds(db, r)[-2:] == ["dm_sent", "link_sent"]
+
+
+def test_instagram_errors_never_carry_the_access_token(monkeypatch):
+    import httpx
+
+    from app.adapters.instagram.meta_graph import InstagramGraphAdapter
+
+    seen = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None, **kw):
+        seen.update(url=url, headers=headers, kw=kw)
+        body = {"error": {"message": "An unknown error has occurred.", "code": 1, "error_subcode": 99}}
+        return httpx.Response(500, json=body, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    adapter = InstagramGraphAdapter(access_token="IGAATsecret123", ig_account_id="1784")
+    with pytest.raises(httpx.HTTPStatusError) as err:
+        adapter.send_private_reply("cm1", "hello")
+    assert "IGAATsecret123" not in str(err.value) and "IGAATsecret123" not in seen["url"] and "params" not in seen["kw"]
+    assert seen["headers"]["Authorization"] == "Bearer IGAATsecret123"
+    assert str(err.value) == "Instagram 500: An unknown error has occurred. code 1/99"
+    assert err.value.response.status_code == 500
+
+
+def test_the_same_comment_delivered_twice_is_answered_once(db, ig, monkeypatch):
+    from app.core import cache
+    seen = set()
+    monkeypatch.setattr(cache, "idem_check_and_set", lambda key, ttl=0: not (key in seen or seen.add(key)))
+    t = _tenant(db)
+    g, c = _guest(db, t.id)
+    r = _rule(db, t.id, ac={"once_per_person": False})
+    for _ in range(2):
+        dispatch_quick_reply(db, t.id, r, recipient_id="igsid", guest_id=g.id, conversation_id=c.id, comment_id="cm-dup")
+    assert ig.names().count("private") == 1 and ig.names().count("public") == 1
+    assert _kinds(db, r).count("skipped") == 1
+
+
+def test_already_answered_comment_is_a_skip_not_a_failure(db, ig, monkeypatch):
+    t = _tenant(db)
+    g, c = _guest(db, t.id)
+    r = _rule(db, t.id, ac={"button": {"title": "See", "url": "https://ratha.in/p"}})
+    calls = []
+
+    def already(comment_id, text, quick=None):
+        calls.append(quick)
+        raise RuntimeError("Instagram 500: The comment you are trying to reply to already has a reply. code -1/2534023")
+
+    monkeypatch.setattr(ig, "send_private_reply", already)
+    assert not dispatch_quick_reply(db, t.id, r, recipient_id="igsid", guest_id=g.id, conversation_id=c.id, comment_id="cm9")
+    assert len(calls) == 1                                 # no plain-text retry: the comment's one reply is used up
+    kinds = _kinds(db, r)
+    assert "skipped" in kinds and "dm_failed" not in kinds
