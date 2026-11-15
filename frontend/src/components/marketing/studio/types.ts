@@ -43,6 +43,15 @@ export interface ContentItem {
   needs_photos?: number[];
   /** Approved items only: why autopilot could not schedule it (latest try). */
   auto_schedule_error?: string | null;
+  /** Current version: caption checks, "sounds human" score, what the humanizer fixed (marketing_content_service.text_checks). */
+  text_checks?: TextChecks | null;
+}
+
+export interface CaptionCheck { key: string; label: string; status: "ok" | "warn" | "bad"; value: string; detail: string }
+export interface TextChecks {
+  caption: { visible: string | null; truncated: boolean; cut: number; hashtags: string[]; asks: string[]; checks: CaptionCheck[] };
+  human: { score: number | null; verdict: "pass" | "review" | "flagged"; checks: { key: string; label: string; score: number | null; detail: string }[] };
+  fixed: { summary: string; undoable: number; changes: { kind: string; from: string; to: string; count: number }[] } | null;
 }
 
 export interface Finding {

@@ -148,7 +148,7 @@ def create_item(db: Session, tenant_id: str, *, kind: str, title: str, actor_id:
 
 def add_version(db: Session, tenant_id: str, item_id: str, payload: dict, *, origin: str, actor_id: Optional[str],
                 note: Optional[str] = None, prompt_version: Optional[str] = None,
-                model: Optional[str] = None) -> MarketingContentVersion:
+                model: Optional[str] = None, humanize: Optional[dict] = None) -> MarketingContentVersion:
     item = get_item(db, tenant_id, item_id)
     if item.status == "archived":
         raise MarketingError(409, "archived", "Archived content cannot be changed.")
@@ -159,7 +159,7 @@ def add_version(db: Session, tenant_id: str, item_id: str, payload: dict, *, ori
     n = (db.query(func.max(MarketingContentVersion.version)).filter_by(content_id=item.id).scalar() or 0) + 1
     version = MarketingContentVersion(tenant_id=tenant_id, content_id=item.id, version=n, payload=clean, sha256=sha_of(clean),
                                       origin=origin, note=note, prompt_version=prompt_version, model=model,
-                                      created_by=actor_id, created_at=_now())
+                                      created_by=actor_id, created_at=_now(), humanize=humanize)
     db.add(version)
     try:
         db.flush()
@@ -290,3 +290,62 @@ def history(db: Session, tenant_id: str, item_id: str) -> dict:
     decisions = (db.query(MarketingApproval).filter_by(tenant_id=tenant_id, content_id=item.id)
                  .order_by(MarketingApproval.created_at.desc()).all())
     return {"versions": versions, "decisions": decisions}
+
+
+# ── Humanizer record, text checks and Undo (Instagram toolkit phase 1) ──────────────────────────────────────────────
+
+def humanize_record(db: Session, tenant_id: str, item: MarketingContent, payload: dict) -> Optional[dict]:
+    """The newest humanizer record, narrowed to the fields that still hold its output in `payload`. Looks past later
+    versions that changed no text (photo picks), so Undo survives "Pick photos"; None once nothing is left to undo."""
+    from app.services import marketing_humanize as human
+
+    rows = (db.query(MarketingContentVersion).filter_by(tenant_id=tenant_id, content_id=item.id)
+            .order_by(MarketingContentVersion.version.desc()).limit(10).all())
+    for v in rows:
+        if v.humanize:
+            fields = human.undoable(payload, v.humanize)
+            if not fields:
+                return None
+            changes = v.humanize.get("changes") or []
+            return {"version_id": v.id, "fields": fields, "changes": changes, "summary": human.summary(changes)}
+    return None
+
+
+def text_checks(db: Session, tenant_id: str, item: MarketingContent,
+                version: Optional[MarketingContentVersion]) -> Optional[dict]:
+    """What the draft screen shows next to a version: caption checks, the "sounds human" score, what was fixed."""
+    from app.services import marketing_caption_lint as caption_lint
+    from app.services import marketing_humanize as human
+    from app.services.marketing_ai_service import get_profile
+
+    if version is None:
+        return None
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    fixed = humanize_record(db, tenant_id, item, version.payload)
+    mode = price_policy.price_mode(tenant) if tenant is not None else "handoff"
+    return {"caption": caption_lint.report(mode, get_profile(tenant) if tenant is not None else {}, item.kind, version.payload),
+            "human": human.score(human.prose_of(version.payload), human.keep_words(tenant)),
+            "fixed": ({"summary": fixed["summary"], "changes": fixed["changes"], "undoable": len(fixed["fields"])}
+                      if fixed else None)}
+
+
+def undo_humanize(db: Session, tenant_id: str, item_id: str, seen_version_id: str, actor: User) -> MarketingContentVersion:
+    """Put back the AI's original wording in every field the humanizer changed (and nobody edited since), as a new
+    human version: the normal edit rules apply (an approval is voided, a schedule cancelled)."""
+    from app.services import marketing_humanize as human
+
+    item = get_item(db, tenant_id, item_id)
+    if item.current_version_id != seen_version_id:
+        raise MarketingError(409, "version_changed", "A newer version was saved since you opened this. Reload and try again.")
+    current = get_version(db, tenant_id, seen_version_id)
+    record = humanize_record(db, tenant_id, item, current.payload) if current is not None else None
+    if not record:
+        raise MarketingError(409, "nothing_to_undo", "There is no humanizer change left to undo on this version.")
+    payload, restored = human.undo_payload(current.payload, record)
+    version = add_version(db, tenant_id, item.id, payload, origin="human", actor_id=actor.id,
+                          note="Undid the humanizer's fixes")
+    append_audit(db, tenant_id=tenant_id, action="marketing.content.humanize_undone", actor_user_id=actor.id,
+                 target_type="marketing_content", target_id=item.id,
+                 payload={"from_version_id": seen_version_id, "version_id": version.id, "fields": restored,
+                          "record_version_id": record["version_id"]})
+    return version

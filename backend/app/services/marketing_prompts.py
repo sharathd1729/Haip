@@ -6,6 +6,8 @@ so a model that ignores the schema produces a recorded failure, never stored con
 v2 techniques (judge against the account's own median, STOP/KEEP/TEST, "not enough signal", first comment, carousel
 slide rules, one-ask story arcs, 3-5 pillars with out-of-scope) are adapted from Ootto-AI/claude-content-skills,
 MIT licence, Copyright (c) 2026 Ootto. Notice: docs/marketing-website/THIRD_PARTY_NOTICES.md.
+Content v9: the 125-character first line, one ask and the 5-hashtag cap adapt Jakeschincariol/instagram-agent-skill
+`ig-caption` (MIT, Copyright (c) 2026 Jake Schincariol).
 M1 (content v4, review v1): the AI-tell list, carousel frameworks and [NEED: ...] discipline adapt
 coreyhaines31/marketingskills (MIT, Copyright (c) 2025 Corey Haines); the brand review structure (We are / We are not,
 tone by channel, severity findings, compliance flags) adapts anthropics/knowledge-work-plugins (Apache-2.0).
@@ -63,9 +65,14 @@ Answer only by calling the tool.
 """ + _COMMON_RULES
 
 CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce exactly one piece of the requested kind.
-- Caption: the first line is the only one shown before "more", so make it earn the tap; then 2-4 short lines of
-  substance; then one clear call to action (usually "DM us" or "link in bio"). No hashtags inside the caption.
-- hashtags: 5-15 relevant ones, a mix of broad, mid and niche; no banned or spammy tags.
+- Caption: the feed shows only about the first 125 characters before "... more", so the first line carries the
+  hook whole inside 125 characters (a place, a time, a detail; never a greeting, a hashtag or a mention); then 2-4
+  short lines of substance; then exactly ONE call to action (usually "DM us", "comment STAY" or "link in bio"), never
+  two. Name the place people would search for (the town or region) in the caption. No hashtags inside the caption.
+- hashtags: at most 5 (Instagram's cap since 18 Dec 2025; tags past the fifth do not count), specific to the place
+  and the stay; no generic tags (#travel, #instagood, #explore), no banned or spammy tags.
+- Plain typing: no em dashes, curly quotes or stock words (delve, elevate, unlock, seamless, curated); HAIP removes
+  them after you write, so write without them.
 - first_comment: one warm question that invites replies (no link, no hashtags).
 - Carousel: first choose `framework`: list (N reasons/places), itinerary (day by day), walkthrough (a tour of the
   stay), problem_proof (the trip people want, and why this stay gives it) or guide (how to plan it). Slide 1 is the

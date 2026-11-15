@@ -83,6 +83,9 @@ class MarketingContentVersion(Base):
     model = Column(String(120), nullable=True)
     created_by = Column(String, nullable=True)           # the person who wrote it, or who asked the AI for it
     created_at = Column(DateTime(timezone=True), nullable=False)
+    # What the humanizer changed before this AI version was stored ({fields: [{path, before, after}], changes}), so
+    # Undo can restore the original text as a new version (marketing_humanize). None = nothing changed / not AI.
+    humanize = Column(JSON, nullable=True)
 
     __table_args__ = (UniqueConstraint("content_id", "version", name="uq_marketing_content_versions_n"),)
 

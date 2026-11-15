@@ -11,9 +11,10 @@ GET  /marketing/studio/content/{id}                                item + curren
 POST /marketing/studio/content/{id}/versions                       save an edit (new version; voids an approval)
 POST /marketing/studio/content/{id}/generate                       AI writes a new version (async)
 POST /marketing/studio/content/{id}/submit | approve | reject | archive   (submit refuses a draft without photos)
+POST /marketing/studio/content/{id}/undo-humanize                  restore the AI's wording the humanizer replaced (new version)
 GET|POST /marketing/studio/media (multipart); POST media/{id}/render, GET templates: library + template creatives
 GET  /marketing/studio/usage                                       metered usage for this module
-GET  /marketing/studio/settings   PUT same (owner)                 opt-in switches (AI images); GET image-models
+GET  /marketing/studio/settings   PUT same (owner)                 opt-in switches (AI images), humanizer keep_words; GET image-models
 POST /marketing/studio/images     GET same                         AI image jobs (async; result needs approval)
 POST /marketing/studio/media/{id}/approve | reject                 review an AI image (marketing.approve)
 """
@@ -36,6 +37,7 @@ from app.models.usage_event import UsageEvent
 from app.models.user import User
 from app.services import marketing_ai_service as ai
 from app.services import marketing_content_service as svc
+from app.services import marketing_humanize as human
 from app.services import marketing_image_service as images
 from app.services import marketing_publish_service as publish
 from app.services import media_library_service as media
@@ -254,7 +256,9 @@ def _item_out(db: Session, item: MarketingContent, *, full: bool = False) -> dic
     if full:
         out["auto_schedule_error"] = publish.auto_schedule_error(db, item.tenant_id, item)
         h = svc.history(db, item.tenant_id, item.id)
-        out["current"] = _version_out(svc.get_version(db, item.tenant_id, item.current_version_id))
+        current = svc.get_version(db, item.tenant_id, item.current_version_id)
+        out["current"] = _version_out(current)
+        out["text_checks"] = svc.text_checks(db, item.tenant_id, item, current)   # caption checks, human score, fixes
         out["versions"] = [_version_out(v) for v in h["versions"]]
         out["decisions"] = [{"id": d.id, "version_id": d.version_id, "decision": d.decision, "note": d.note,
                              "actor_user_id": d.actor_user_id, "created_at": d.created_at} for d in h["decisions"]]
@@ -311,6 +315,15 @@ def generate(item_id: str, body: GenerateRequest = GenerateRequest(), user: User
     _queue(db, generate_content, MarketingContent, item.id, user.tenant_id, user.id, body.brief or "")
     db.refresh(item)
     return _item_out(db, item)
+
+
+@router.post("/content/{item_id}/undo-humanize", status_code=201)
+def undo_humanize(item_id: str, body: Decision, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                  _m=_module, _c=_edit):
+    """Put back the AI's original wording the humanizer replaced; saved as a new version (needs approval again)."""
+    _run(svc.undo_humanize, db, user.tenant_id, item_id, body.version_id, user)
+    db.commit()
+    return _item_out(db, _run(svc.get_item, db, user.tenant_id, item_id), full=True)
 
 
 @router.post("/content/{item_id}/submit")
@@ -422,11 +435,13 @@ def usage(days: int = Query(30, ge=1, le=366), user: User = Depends(get_current_
 class StudioSettings(BaseModel):
     ai_images_enabled: Optional[bool] = None
     ai_images_monthly_cap: Optional[int] = Field(default=None, ge=0, le=images.MAX_MONTHLY_CAP)
+    keep_words: Optional[list[str]] = Field(default=None, max_length=human.MAX_KEEP_WORDS)   # humanizer exceptions
 
 
 def _settings_out(db: Session, tenant: Tenant) -> dict:
     return {"ai_images_enabled": images.ai_images_enabled(tenant), "ai_images_monthly_cap": images.monthly_cap(tenant),
-            "ai_images_used_this_month": images.used_this_month(db, tenant), "default_model": images.image_adapter.DEFAULT_MODEL}
+            "ai_images_used_this_month": images.used_this_month(db, tenant), "default_model": images.image_adapter.DEFAULT_MODEL,
+            "keep_words": human.keep_words(tenant)}
 
 
 @router.get("/settings")
@@ -442,6 +457,8 @@ def put_settings(body: StudioSettings, user: User = Depends(get_current_user), d
         images.set_ai_images(db, tenant, body.ai_images_enabled, user.id)
     if body.ai_images_monthly_cap is not None:
         _run(images.set_monthly_cap, db, tenant, body.ai_images_monthly_cap, user.id)
+    if body.keep_words is not None:
+        human.set_keep_words(db, tenant, body.keep_words, user.id)
     db.commit()
     return _settings_out(db, tenant)
 

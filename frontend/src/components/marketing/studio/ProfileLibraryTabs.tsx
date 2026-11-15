@@ -10,6 +10,7 @@ import { AiImagesPanel } from "./AiImagesPanel";
 import { BrandDraftPanel, ClaimsEditor, PhotoTagsRow, TaggingBar, type Claim } from "./BrainPanels";
 import { CreativePanel } from "./CreativePanel";
 import { ChannelsPanel } from "./ChannelsReviews";
+import { KeepWordsCard } from "./CaptionChecks";
 import { useSession } from "next-auth/react";
 
 interface VoiceTrait { trait: string; we_are: string; we_are_not: string; sounds_like: string | null; not_like: string | null }
@@ -102,6 +103,7 @@ export function ProfileTab() {
   if (q.isLoading || !p) return q.isError ? <Card><EmptyState title="Could not load the profile" hint={studioError(q.error, "Try again.")} /></Card> : <Skeleton className="h-64 w-full" />;
 
   return (
+    <div className="space-y-4">
     <Card>
       <CardHeader title={q.data?.brand_name ?? "Business profile"} description="What the AI may say about you. It never invents anything beyond this and your property details." />
       <CardBody>
@@ -160,6 +162,8 @@ export function ProfileTab() {
         </form>
       </CardBody>
     </Card>
+    <KeepWordsCard />
+    </div>
   );
 }
 

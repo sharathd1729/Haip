@@ -367,6 +367,24 @@ def set_creative_model(db: Session, tenant: Tenant, value: str, actor_id: str) -
     return value
 
 
+def _humanized(kind: str, data: dict, tenant: Tenant) -> tuple[dict, Optional[dict]]:
+    """The AI's draft with stock words, dashes, curly quotes and hidden characters fixed (owner decision: automatic,
+    recorded on the version, one tap to undo). If a fix would break the format (a deletion empties a required field,
+    a swap overruns a length limit), the draft is stored as the AI wrote it."""
+    from app.schemas.marketing import validate_content
+    from app.services import marketing_humanize as human
+
+    cleaned, record = human.clean_payload(data, human.keep_words(tenant))
+    if record is None:
+        return data, None
+    try:
+        validate_content(kind, cleaned)
+    except ValueError:
+        log.info("marketing_humanize_skipped", tenant_id=tenant.id, kind=kind)
+        return data, None
+    return cleaned, record
+
+
 def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[str], brief: Optional[str]) -> MarketingContent:
     item = content_svc.get_item(db, tenant_id, item_id)
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
@@ -389,9 +407,10 @@ def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[st
             for key in ("colour", "accent", "font", "logo_asset_id", "logo_position"):
                 data["design"].pop(key, None)            # the brand kit is applied by the designer step, not the model
         note = " ".join(x for x in ((brief or "")[:500], ("Other first lines: " + " | ".join(hooks)) if hooks else "") if x)
+        data, humanized = _humanized(item.kind, data, tenant)
         content_svc.add_version(db, tenant_id, item.id, data, origin="ai", actor_id=actor_id,
                                 note=note[:1000] or None, prompt_version=get_version("marketing_content"),
-                                model=raw.get("model"))
+                                model=raw.get("model"), humanize=humanized)
     except content_svc.MarketingError as exc:
         item.generation_status = "failed"
         item.generation_error = "; ".join([exc.message, *exc.problems])[:2000]

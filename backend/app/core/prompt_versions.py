@@ -193,7 +193,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
     # v5 (M2): approved claims; a post sells exactly its plan entry's target dates.
     # v6 (M3): optional comment_dm ("comment STAY for dates").
-    "marketing_content": "marketing-content-v8",
+    # v9 (Instagram toolkit phase 1): first line whole inside 125 characters, exactly one ask, at most 5 hashtags.
+    "marketing_content": "marketing-content-v9",
     # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.
     "marketing_review": "marketing-review-v3",
     # Brand DNA draft (marketing_brand_dna): voice/tone/claims SUGGESTED from the website, captions, property text.

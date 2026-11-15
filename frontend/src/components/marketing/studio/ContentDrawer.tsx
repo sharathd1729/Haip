@@ -13,6 +13,7 @@ import { PayloadForm, emptyPayload } from "./PayloadForm";
 import { PublishPanel } from "./PublishPanel";
 import { RenderedPreview } from "./RenderedPreview";
 import { BrandReviewPanel } from "./BrandReviewPanel";
+import { CaptionChecks } from "./CaptionChecks";
 import { LookVariants, ReelPlayer } from "./ReelAndLook";
 import { PromoteButton } from "./AdsTab";
 import { CanvaButton } from "./CreativePanel";
@@ -162,6 +163,10 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
                 </div>
               )}
               {!locked && <CanvaButton itemId={item.id} />}
+              {item.text_checks && (
+                <CaptionChecks itemId={item.id} versionId={current.id} checks={item.text_checks}
+                  canUndo={!locked && !dirty && !busy && role !== "viewer" && role !== "read_only"} onChanged={d => done({ data: d })} />
+              )}
               <BrandReviewPanel itemId={item.id} versionId={current.id} canAsk={role !== "viewer" && item.status !== "archived"} />
               <PayloadForm key={current.id} kind={item.kind} value={draft} onChange={setDraft} disabled={locked || busy} />
             </>
