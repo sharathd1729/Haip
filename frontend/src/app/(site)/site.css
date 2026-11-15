@@ -30,7 +30,7 @@
   --mint: #ddf0e8;
   --green: #1e7a5a;
   --f-display: var(--font-site-display), "Anton", Impact, sans-serif;
-  --f-body: var(--font-site-body), system-ui, sans-serif;
+  --f-body: var(--font-onest), system-ui, sans-serif;
   --f-mono: var(--font-site-mono), ui-monospace, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
