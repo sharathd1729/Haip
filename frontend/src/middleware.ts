@@ -5,10 +5,9 @@ import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
 import { isYaadScreen } from "@/lib/authRedirect";
 
 // Subdomains that map directly to a marketing page path.
-// e.g. status.haip.app/ → /status, docs.haip.app/ → /docs
+// e.g. status.haip.app/ → /status
 const SUBDOMAIN_MAP: Record<string, string> = {
   status: "/status",
-  docs:   "/docs",
 };
 
 // Yaad's host and the pages it may show (its own screens plus the shared profile, help and phones pages).
