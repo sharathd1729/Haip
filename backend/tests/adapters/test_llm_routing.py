@@ -224,3 +224,38 @@ def test_seo_agency_routes_brief_to_the_low_model_and_outreach_to_the_content_mo
     assert "seo_brief" in _CLAUDE_FAST_TASKS and "seo_outreach" not in _CLAUDE_FAST_TASKS
     assert get_version("seo_brief") == "seo-brief-v1" and get_version("seo_outreach") == "seo-outreach-v1"
     assert MAX_TOKENS["seo_brief"] >= 4000 and MAX_TOKENS["seo_outreach"] >= 4000
+
+
+def test_yaad_never_routes_to_nvidia_even_on_fallback(monkeypatch):
+    """Yaad (personal workspaces) never uses NVIDIA (owner, 15 Nov 2026): the call read and Ask Yaad run on Gemini 3.6
+    Flash with Flash-Lite as the backup (Ask: one attempt, a person waits); the daily email paragraph on Flash-Lite;
+    LLM_FORCE_PROVIDER=claude puts Claude first with that Gemini route as the fallback."""
+    from unittest.mock import patch
+
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.anthropic_claude import ClaudeAdapter
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+    from app.services import personal_ask, personal_calls, personal_digest
+
+    tasks = (personal_calls.LLM_TASK, personal_ask.LLM_TASK, personal_digest.LLM_TASK)
+    assert tasks == ("personal_call", "personal_ask", "personal_digest")
+    assert all(_TASK_ROUTES[t][0] == "gemini" for t in tasks)
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    for task, timeout in (("personal_call", 90), ("personal_ask", 40)):
+        adapter = get_llm(task).inner
+        assert isinstance(adapter, FallbackAdapter) and _GEMINI_FALLBACK_TASKS[task] == timeout
+        assert adapter._primary.provider == "gemini" and adapter._secondary.provider == "gemini"
+        assert adapter._secondary._default_model == "gemini-3.1-flash-lite" and adapter._primary_attempts == 1
+    assert get_llm("personal_digest").inner.provider == "gemini"
+    with patch("app.core.config.settings.LLM_FORCE_PROVIDER", "claude"), \
+         patch("app.core.config.settings.ANTHROPIC_API_KEY", "sk-ant-test-not-real"), patch("anthropic.AsyncAnthropic"):
+        forced = get_llm("personal_ask").inner
+        assert isinstance(forced._primary, ClaudeAdapter) and forced._secondary._primary.provider == "gemini"
+
+
+def test_yaad_folder_sorting_routes_to_gemini_flash_lite():
+    from app.services import personal_folders
+
+    assert personal_folders.LLM_TASK == "personal_folder"
+    assert _TASK_ROUTES["personal_folder"] == ("gemini", "gemini-3.1-flash-lite")

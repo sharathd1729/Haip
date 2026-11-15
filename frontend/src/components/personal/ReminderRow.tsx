@@ -6,9 +6,11 @@ import { cn } from "@/lib/utils";
 import { calendarLink, dueLabel, isMine, ownerLabel, type ActionItem } from "@/lib/personal";
 import { useToggleReminder } from "./hooks";
 
-export function ReminderRow({ item, callId, source }: {
+export function ReminderRow({ item, callId, source, cite }: {
   item: ActionItem;
   callId: string;
+  /** The source chip after the task (components/personal/Cite.tsx). */
+  cite?: React.ReactNode;
   /** Where it came from, shown on the Reminders page (call title and person). */
   source?: { title: string | null; contact: string };
 }) {
@@ -35,6 +37,7 @@ export function ReminderRow({ item, callId, source }: {
       <div className="min-w-0 flex-1 py-2.5">
         <p className={cn("text-[15px] leading-snug transition-colors duration-150", done ? "text-[var(--y-ink-3)] line-through" : "text-[var(--y-ink)]")}>
           {item.text}
+          {cite}
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px]">
           <span className={cn(

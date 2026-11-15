@@ -1,13 +1,14 @@
 "use client";
-// Yaad calls list: dated plans that came up on calls ("Upcoming"), then every call newest first, grouped by day.
+// Yaad memories timeline: dated plans that came up on calls ("Upcoming"), then every call newest first on a day timeline.
 // A row shows what the call was about once it is summarised, and plainly says why when it is not (yet).
 import { Clock, Loader2, PhoneIncoming, PhoneOutgoing } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { STATUS_TEXT, dayLabel, durationLabel, groupByDay, timeLabel, type CallRow, type Upcoming } from "@/lib/personal";
 import { useCallsPages } from "./hooks";
 
-export function CallList({ selectedId, onSelect }: { selectedId?: string | null; onSelect: (id: string) => void }) {
-  const q = useCallsPages();
+export function CallList({ filter = {}, onSelect }: { filter?: { q?: string; category?: string; folder?: string }; onSelect: (id: string) => void }) {
+  const q = useCallsPages(filter);
+  const filtered = !!(filter.q?.trim() || filter.category);
   const calls = q.data?.pages.flatMap(p => p.calls) ?? [];
   const upcoming = q.data?.pages[0]?.upcoming ?? [];
 
@@ -21,6 +22,14 @@ export function CallList({ selectedId, onSelect }: { selectedId?: string | null;
       </Notice>
     );
   }
+  if (calls.length === 0 && filter.folder) {
+    return filter.folder === "unclassified"
+      ? <Notice title="Everything is in a folder" body="New calls that match no folder will show up here." />
+      : <Notice title="No calls in this folder yet" body="Calls that match its keywords or rule land here by themselves. You can also open any call and add it." />;
+  }
+  if (calls.length === 0 && filtered) {
+    return <Notice title="No memories match" body="Try another word, or a different category." />;
+  }
   if (calls.length === 0) {
     return (
       <Notice
@@ -33,12 +42,14 @@ export function CallList({ selectedId, onSelect }: { selectedId?: string | null;
   return (
     <div className="grid gap-7">
       {upcoming.length > 0 && <UpcomingStrip items={upcoming} onSelect={onSelect} />}
-      {groupByDay(calls).map(group => (
-        <section key={group.day} aria-label={group.day ? dayLabel(group.day) : "Undated"} className="grid gap-2.5">
-          <h2 className="px-1 text-[13px] font-semibold text-[var(--y-ink-2)]">{group.day ? dayLabel(group.day) : "Undated"}</h2>
-          <ul className="grid gap-2.5">
+      {groupByDay(calls).map((group, gi) => (
+        <section key={group.day} aria-label={group.day ? dayLabel(group.day) : "Undated"} className="y-enter grid grid-cols-[14px_minmax(0,1fr)] gap-x-3">
+          <span aria-hidden className={cn("mt-1 size-3 rounded-full border-2", gi === 0 ? "border-[var(--y-ink)]" : "border-[var(--y-line-strong)]")} />
+          <h2 className="text-[13px] font-semibold text-[var(--y-ink-2)]">{group.day ? dayLabel(group.day) : "Undated"}</h2>
+          <span aria-hidden className="ml-[5px] border-l border-[var(--y-line-strong)]" />
+          <ul className="grid gap-2 pb-2 pt-2.5">
             {group.rows.map(c => (
-              <li key={c.id}><CallCard call={c} active={c.id === selectedId} onSelect={onSelect} /></li>
+              <li key={c.id}><CallCard call={c} onSelect={onSelect} /></li>
             ))}
           </ul>
         </section>
@@ -57,18 +68,14 @@ export function CallList({ selectedId, onSelect }: { selectedId?: string | null;
   );
 }
 
-function CallCard({ call, active, onSelect }: { call: CallRow; active: boolean; onSelect: (id: string) => void }) {
+function CallCard({ call, onSelect }: { call: CallRow; onSelect: (id: string) => void }) {
   const Dir = call.direction === "in" ? PhoneIncoming : PhoneOutgoing;
   const working = call.status === "transcribing" || call.status === "analysing";
   return (
     <button
       type="button"
       onClick={() => onSelect(call.id)}
-      aria-current={active ? "true" : undefined}
-      className={cn(
-        "y-press w-full rounded-[18px] border bg-[var(--y-card)] p-4 text-left shadow-[var(--y-shadow)] transition-colors duration-150",
-        active ? "border-[var(--y-brand)]" : "border-[var(--y-line)] hover:border-[var(--y-line-strong)]",
-      )}
+      className="y-press w-full rounded-[18px] border border-transparent p-3.5 text-left transition-colors duration-150 hover:border-[var(--y-line)] hover:bg-[var(--y-card)]"
     >
       <div className="flex items-center gap-1.5 text-[12.5px] text-[var(--y-ink-3)] [font-variant-numeric:tabular-nums]">
         <Dir size={13} aria-hidden />

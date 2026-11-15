@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarLink, dayLabel, dueLabel, durationLabel, groupByDay, istDay, ownerLabel } from "./personal";
+import { calendarLink, chatGroup, citeOrder, dayLabel, dueLabel, durationLabel, groupByDay, istDay, momentHref, momentLabel, monthGrid, ownerLabel, refKey, shiftMonth, splitCites, withoutCites } from "./personal";
 
 // 14 Nov 2026, 01:30 IST = 13 Nov 20:00 UTC: the IST day differs from the UTC day, which is the case that breaks.
 const NOW = new Date("2026-11-13T20:00:00Z");
@@ -48,5 +48,49 @@ describe("personal call helpers", () => {
       ["2026-11-14", ["a"]],
       ["2026-11-13", ["b", "c"]],
     ]);
+  });
+});
+
+describe("calendar grid", () => {
+  it("starts on the Monday on or before the 1st and covers 6 weeks", () => {
+    const days = monthGrid("2026-11"); // 1 Nov 2026 is a Sunday
+    expect(days[0]).toBe("2026-10-26");
+    expect(days[6]).toBe("2026-11-01");
+    expect(days).toHaveLength(42);
+    expect(days[41]).toBe("2026-12-06");
+  });
+  it("moves across years", () => {
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+  });
+});
+
+describe("references", () => {
+  it("matches the backend key and labels moments", () => {
+    expect(refKey("  Book the   Venue ")).toBe("book the venue");
+    expect(momentLabel(42.7)).toBe("0:42");
+    expect(momentLabel(3729)).toBe("1:02:09");
+    expect(momentHref("c1", 41.5)).toBe("/dashboard/me/calls/c1?t=41");
+    expect(momentHref("c1")).toBe("/dashboard/me/calls/c1");
+  });
+  it("numbers sourced points in reading order", () => {
+    const order = citeOrder({
+      decision: "Host them", sections: [{ heading: "A", bullets: ["no source", "Arrives 21st"] }],
+      action_items: [{ id: "1", text: "Book venue", owner: "me", due: "", context: "", done: false, done_at: null }],
+      open_points: [], upcoming: [],
+      refs: { "arrives 21st": { at: 41, quote: "x" }, "book venue": { at: 60, quote: "y" } },
+    });
+    expect([...order.entries()]).toEqual([["arrives 21st", 1], ["book venue", 2]]);
+  });
+  it("splits and strips [n] markers", () => {
+    expect(splitCites("Ravi agreed [1]. Price [2][1].")).toEqual(["Ravi agreed ", 1, ". Price ", 2, 1, "."]);
+    expect(withoutCites("Ravi agreed [1]. Price [2][1].")).toBe("Ravi agreed. Price.");
+  });
+  it("groups chats by day", () => {
+    const now = new Date("2026-11-15T06:00:00Z");
+    expect(chatGroup("2026-11-15T03:00:00Z", now)).toBe("Today");
+    expect(chatGroup("2026-11-14T03:00:00Z", now)).toBe("Yesterday");
+    expect(chatGroup("2026-11-10T03:00:00Z", now)).toBe("Previous 7 days");
+    expect(chatGroup("2026-09-10T03:00:00Z", now)).toBe("September 2026");
   });
 });

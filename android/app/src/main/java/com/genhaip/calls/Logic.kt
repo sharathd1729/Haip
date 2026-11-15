@@ -43,6 +43,18 @@ object Logic {
 
     fun isPersonal(number: String, personalKeys: Set<String>): Boolean = key(number).let { it.length >= 7 && it in personalKeys }
 
+    /** Yaad's name catch-up: one saved contact name per number (the newest row's, rows oldest first), never for a personal,
+     *  withheld or nameless number. */
+    fun contactNames(rows: List<Pair<String, String?>>, personalKeys: Set<String>): List<Pair<String, String>> {
+        val byKey = LinkedHashMap<String, Pair<String, String>>()
+        for ((number, name) in rows) {
+            val n = name?.trim().orEmpty()
+            if (n.isEmpty() || !usable(number) || isPersonal(number, personalKeys)) continue
+            byKey[key(number)] = number to n.take(120)
+        }
+        return byKey.values.toList()
+    }
+
     /** ISO 8601 with the zone offset, seconds always present (the API refuses a time without a zone). */
     fun iso(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String = Instant.ofEpochMilli(epochMs).atZone(zone).format(ISO)
 

@@ -80,6 +80,21 @@ def delete_account(db, tenant, actor) -> dict:
         .update({MobileDevice.revoked_at: now}, synchronize_session=False),
     )
 
+    # Yaad's own records carry the person's words (chats, event notes, people, folder rules)
+    from app.models.integration import Integration
+    from app.models.yaad_folder import YaadAsk, YaadEvent, YaadFolder, YaadFolderCall
+
+    for name, model in (
+        ("yaad_asks", YaadAsk),
+        ("yaad_events", YaadEvent),
+        ("yaad_folder_calls", YaadFolderCall),
+        ("yaad_folders", YaadFolder),
+    ):
+        add(name, db.query(model).filter(model.tenant_id == tid).delete(synchronize_session=False))
+    db.query(Integration).filter(Integration.tenant_id == tid, Integration.kind == "google_calendar").update(
+        {Integration.credentials_kms_blob: None, Integration.status: "disconnected"}, synchronize_session=False
+    )
+
     users = db.query(User).filter(User.tenant_id == tid).all()
     for u in users:
         u.email = f"deleted-{uuid.uuid4().hex[:12]}@deleted.invalid"
