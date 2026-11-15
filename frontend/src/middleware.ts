@@ -67,9 +67,11 @@ export default auth((req: NextRequest & { auth: any }) => {
     const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "");
     const here = (path: string) => new URL(path, `${proto}://${hostname}`);
     const entry = pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/onboarding";
-    if (!isLoggedIn && (entry || pathname.startsWith("/dashboard"))) {
+    // /connect = the consent page the Yaad connector (ChatGPT / Claude) signs in through.
+    const connect = pathname.startsWith("/connect");
+    if (!isLoggedIn && (entry || connect || pathname.startsWith("/dashboard"))) {
       const loginUrl = here("/yaad/login");
-      loginUrl.searchParams.set("callbackUrl", yaadPage ? pathname + req.nextUrl.search : "/dashboard/me");
+      loginUrl.searchParams.set("callbackUrl", yaadPage || connect ? pathname + req.nextUrl.search : "/dashboard/me");
       return NextResponse.redirect(loginUrl);
     }
     if (isLoggedIn && !req.auth?.error && (entry || pathname === "/yaad/login" || pathname === "/yaad/signup")) {

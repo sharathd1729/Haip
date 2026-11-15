@@ -14,4 +14,10 @@ describe("sign-in redirects", () => {
     expect(safeCallback("//evil.example", "/dashboard", undefined)).toBe("/dashboard");
     expect(safeCallback("/dashboard/leads", "/dashboard", undefined)).toBe("/dashboard/leads");
   });
+  it("Yaad's sign-in may return to the connector consent page, not to HAIP pages", () => {
+    const yaad = ["/dashboard/me", "/connect"];
+    expect(safeCallback("/connect/authorize?client_id=c1", "/dashboard/me", yaad)).toBe("/connect/authorize?client_id=c1");
+    expect(safeCallback("/connectx", "/dashboard/me", yaad)).toBe("/dashboard/me");
+    expect(safeCallback("/dashboard/leads", "/dashboard/me", yaad)).toBe("/dashboard/me");
+  });
 });

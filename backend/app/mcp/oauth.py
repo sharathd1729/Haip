@@ -33,15 +33,28 @@ def api_base(request: Request) -> str:
     """Public origin of this API -- the OAuth issuer. Prefer the configured
     value: behind the reverse proxy request.base_url is the internal
     http://api:8000, which no external client can reach."""
-    return (settings.API_BASE_URL or str(request.base_url)).rstrip("/")
+    return (settings.MCP_PUBLIC_URL or settings.API_BASE_URL or str(request.base_url)).rstrip("/")
 
 
-def mcp_url(request: Request) -> str:
-    return f"{api_base(request)}/mcp"
+# Two connector addresses on one OAuth server: HAIP at /mcp, Yaad (personal workspaces) at /yaad/mcp, so a person with
+# both accounts can add both connectors and each one signs in on its own product's page.
+YAAD_PATH = "/yaad/mcp"
 
 
-def protected_resource_metadata_url(request: Request) -> str:
-    return f"{api_base(request)}/.well-known/oauth-protected-resource/mcp"
+def mcp_url(request: Request, yaad: bool = False) -> str:
+    return f"{api_base(request)}{YAAD_PATH if yaad else '/mcp'}"
+
+
+def mcp_urls(request: Request) -> tuple[str, str]:
+    return mcp_url(request), mcp_url(request, yaad=True)
+
+
+def is_yaad_resource(request: Request, resource: Optional[str]) -> bool:
+    return bool(resource) and resource.rstrip("/") == mcp_url(request, yaad=True)
+
+
+def protected_resource_metadata_url(request: Request, yaad: bool = False) -> str:
+    return f"{api_base(request)}/.well-known/oauth-protected-resource{YAAD_PATH if yaad else '/mcp'}"
 
 
 # ── Discovery ─────────────────────────────────────────────────────────────────
@@ -62,8 +75,18 @@ def protected_resource_metadata(request: Request):
     }
 
 
+@router.get("/.well-known/oauth-protected-resource/yaad/mcp")
+def yaad_protected_resource_metadata(request: Request):
+    return {
+        **protected_resource_metadata(request),
+        "resource": mcp_url(request, yaad=True),
+        "resource_name": "Yaad",
+    }
+
+
 @router.get("/.well-known/oauth-authorization-server")
 @router.get("/.well-known/oauth-authorization-server/mcp")
+@router.get("/.well-known/oauth-authorization-server/yaad/mcp")
 @router.get("/.well-known/openid-configuration")
 def authorization_server_metadata(request: Request):
     """RFC 8414. openid-configuration is served too because some clients
@@ -140,7 +163,7 @@ def authorize(request: Request):
                 code_challenge_method=q.get("code_challenge_method"),
                 resource=q.get("resource"),
                 scope=q.get("scope"),
-                mcp_url=mcp_url(request),
+                mcp_url=mcp_urls(request),
             )
         except OAuthError as exc:
             # RFC 6749 §4.1.2.1: an unknown client or unregistered redirect
@@ -161,7 +184,9 @@ def authorize(request: Request):
             "code_challenge_method", "state", "scope", "resource",
         ) if q.get(k) is not None
     }
-    frontend = settings.FRONTEND_URL.rstrip("/")
+    # The Yaad connector signs in on Yaad's own address and page.
+    yaad = is_yaad_resource(request, q.get("resource"))
+    frontend = ((settings.YAAD_URL or settings.FRONTEND_URL) if yaad else settings.FRONTEND_URL).rstrip("/")
     return RedirectResponse(f"{frontend}/connect/authorize?{urlencode(passthrough)}", status_code=302)
 
 

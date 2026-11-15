@@ -3,7 +3,9 @@ package com.genhaip.calls
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.provider.CallLog
+import android.provider.ContactsContract
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -13,7 +15,8 @@ private data class CallRow(val id: Long, val number: String, val type: Int, val 
 class CallSync(private val ctx: Context, private val prefs: Prefs, private val token: String) {
     fun run(): Outcome {
         if (ctx.checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) return Outcome.OK
-        if (BuildConfig.PERSONAL && !prefs.namesCaughtUp && catchUpNames() == Outcome.REVOKED) return Outcome.REVOKED
+        // Yaad: names for calls already sent. Runs again once contacts are allowed (the call log's own name is often empty).
+        if (BuildConfig.PERSONAL && prefs.namesLevel < namesLevelNow() && catchUpNames() == Outcome.REVOKED) return Outcome.REVOKED
         while (true) {
             val rows = read(prefs.lastCallId, prefs.syncFloorMs)
             if (rows.isEmpty()) return Outcome.OK
@@ -35,7 +38,7 @@ class CallSync(private val ctx: Context, private val prefs: Prefs, private val t
                             .put("duration_sec", row.durationSec)
                             .put("answered", dir.second)
                             // Yaad only: the name saved in the phone's contacts. The business Calls app never sends it.
-                            .apply { if (BuildConfig.PERSONAL && !row.name.isNullOrBlank()) put("contact_name", row.name.trim().take(120)) }
+                            .apply { if (BuildConfig.PERSONAL) nameFor(row.number, row.name)?.let { put("contact_name", it.take(120)) } }
                     )
                 }
                 val r = Api.postCalls(token, JSONObject().put("calls", arr))
@@ -105,7 +108,7 @@ class CallSync(private val ctx: Context, private val prefs: Prefs, private val t
         ctx.contentResolver.query(
             CallLog.Calls.CONTENT_URI, arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME),
             "${CallLog.Calls.DATE} >= ?", arrayOf(prefs.syncFloorMs.toString()), "${CallLog.Calls._ID} ASC",
-        )?.use { c -> while (c.moveToNext()) rows.add((c.getString(0) ?: "") to c.getString(1)) }
+        )?.use { c -> while (c.moveToNext()) { val n = c.getString(0) ?: ""; rows.add(n to nameFor(n, c.getString(1))) } }
         for (chunk in Logic.contactNames(rows, prefs.personalKeys).chunked(NAMES_BATCH)) {
             val arr = JSONArray()
             chunk.forEach { (number, name) -> arr.put(JSONObject().put("number", number.take(40)).put("name", name)) }
@@ -113,8 +116,30 @@ class CallSync(private val ctx: Context, private val prefs: Prefs, private val t
             if (r.code == 401) return Outcome.REVOKED
             if (r.code != 200) return Outcome.RETRY
         }
-        prefs.namesCaughtUp = true
+        prefs.namesLevel = namesLevelNow()
         return Outcome.OK
+    }
+
+    private val looked = HashMap<String, String?>()
+
+    private fun contactsAllowed() = ctx.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+
+    /** 1 = names from the call log only, 2 = also from contacts. */
+    private fun namesLevelNow() = if (contactsAllowed()) 2 else 1
+
+    /** The person's saved name: the call log's cached name, else (contacts allowed) a contacts lookup by number. */
+    private fun nameFor(number: String, cached: String?): String? {
+        cached?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        if (number.isBlank() || !contactsAllowed()) return null
+        return looked.getOrPut(number) {
+            try {
+                val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+                ctx.contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) c.getString(0)?.trim()?.takeIf { it.isNotEmpty() } else null }
+            } catch (e: Exception) {
+                null // a contacts provider that refuses: the call still goes, just without a name
+            }
+        }
     }
 
     companion object {

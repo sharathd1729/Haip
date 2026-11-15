@@ -6,8 +6,9 @@ export const isYaadScreen = (path: string) => path === "/dashboard/me" || path.s
 
 // Only same-origin paths: an absolute or protocol-relative callbackUrl ("https://evil.example", "//evil.example") would make
 // login an open redirector. `under`: a sign-in page of one product only returns to that product's pages (Yaad: /dashboard/me).
-export function safeCallback(raw: string | null, fallback: string, under?: string): string {
+export function safeCallback(raw: string | null, fallback: string, under?: string | string[]): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
-  if (under && raw !== under && !raw.startsWith(under + "/") && !raw.startsWith(under + "?")) return fallback;
+  const roots = under === undefined ? [] : Array.isArray(under) ? under : [under];
+  if (roots.length && !roots.some(u => raw === u || raw.startsWith(u + "/") || raw.startsWith(u + "?"))) return fallback;
   return raw;
 }

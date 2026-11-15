@@ -13,7 +13,7 @@ import structlog
 from app.api.v1.deps import get_current_user, require_roles
 from app.core.audit import append_audit
 from app.core.database import get_db
-from app.mcp.oauth import mcp_url
+from app.mcp.oauth import is_yaad_resource, mcp_urls
 from app.models.mcp_oauth import OAuthClient
 from app.models.user import User, UserRole
 from app.schemas.mcp_oauth import (
@@ -55,7 +55,7 @@ def consent(
             code_challenge_method=body.code_challenge_method,
             resource=body.resource,
             scope=body.scope,
-            mcp_url=mcp_url(request),
+            mcp_url=mcp_urls(request),
         )
     except OAuthError as exc:
         if not exc.redirectable:
@@ -63,6 +63,16 @@ def consent(
         return OAuthConsentResult(redirect_to=oauth_service.build_redirect(
             body.redirect_uri, {**exc.as_dict(), "state": body.state},
         ))
+
+    # The Yaad connector only serves personal (Yaad) workspaces: say so here, not on the first tool call.
+    if body.decision == "approve" and is_yaad_resource(request, body.resource):
+        from app.services.personal_calls import is_personal
+
+        if not is_personal(db, current_user.tenant_id):
+            raise HTTPException(
+                status_code=400,
+                detail="This is the Yaad connector. Sign in with your Yaad account, or add the HAIP connector instead.",
+            )
 
     if body.decision == "deny":
         return OAuthConsentResult(redirect_to=oauth_service.build_redirect(

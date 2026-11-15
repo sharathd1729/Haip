@@ -76,9 +76,23 @@ class SetupActivity : ComponentActivity() {
         } else {
             text(getString(R.string.step_call_log_body))
             button(R.string.allow_call_log) {
-                askPhone.launch(arrayOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.READ_PHONE_STATE))
+                askPhone.launch(
+                    arrayOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.READ_PHONE_STATE) +
+                        (if (BuildConfig.PERSONAL) arrayOf(Manifest.permission.READ_CONTACTS) else emptyArray<String>())
+                )
             }
             text(getString(R.string.restricted_hint))
+        }
+
+        // Yaad: names of the people you talked to come from your contacts (many phones leave the call log's name empty).
+        if (BuildConfig.PERSONAL) {
+            heading(R.string.step_contacts)
+            if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+                text(getString(R.string.contacts_allowed))
+            } else {
+                text(getString(R.string.step_contacts_body))
+                button(R.string.allow_contacts) { askPhone.launch(arrayOf(Manifest.permission.READ_CONTACTS)) }
+            }
         }
 
         heading(R.string.step_folder)

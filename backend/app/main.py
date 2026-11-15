@@ -14,7 +14,7 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.router import api_router
 from app.public_api.app import app as public_api_app
 import app.services.webhook_events  # noqa: F401  (registers webhook event listeners)
-from app.mcp.server import router as mcp_router
+from app.mcp.server import router as mcp_router, yaad_router as yaad_mcp_router
 from app.mcp.oauth import router as mcp_oauth_router
 import structlog
 
@@ -78,7 +78,7 @@ class McpCorsBypassMiddleware:
         # /oauth/* and /.well-known/* are the MCP connector's OAuth flow
         # (app/mcp/oauth.py) -- called by the same external clients, and by
         # browser-based ones (MCP Inspector) that need the preflight to pass.
-        if scope["type"] != "http" or not scope["path"].startswith(("/mcp", "/oauth/", "/.well-known/")):
+        if scope["type"] != "http" or not scope["path"].startswith(("/mcp", "/yaad/mcp", "/oauth/", "/.well-known/")):
             return await self.app(scope, receive, send)
 
         headers = dict(scope.get("headers") or [])
@@ -154,6 +154,7 @@ fake_services.install_if_enabled()
 if fake_services.enabled():
     app.include_router(fake_services.build_router())
 app.include_router(mcp_router)
+app.include_router(yaad_mcp_router)
 app.include_router(mcp_oauth_router)
 # Public, API-key authenticated API with its own OpenAPI file and docs (/api/public/v1/docs)
 app.mount("/api/public/v1", public_api_app)
