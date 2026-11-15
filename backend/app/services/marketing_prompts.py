@@ -50,7 +50,9 @@ Produce:
 - a realistic cadence for a small team, and a dated calendar inside the requested period (at most one entry per day,
   every entry's pillar exactly one of the pillar names).
 Base it on the business facts, the audit's stop/keep/test lists and, when given, the competitor research (borrow
-what works in the segment; never copy a competitor's post).
+what works in the segment; never copy a competitor's post). "Competitor research" may list `outlier_formulas`: hook
+formulas behind competitor posts that beat their own account's median 3x or more; prefer those formulas for the "new"
+share, adapted to these facts.
 Demand comes first. The "Demand" data lists open dates per vehicle/property (gaps), long weekends and festivals:
 - every post that sells a stay names the exact open dates or occasion it sells in `targets` (copy the dates from the
   gaps; never invent dates or say dates are open that are not in the gaps); group related posts into `campaigns`
@@ -202,6 +204,9 @@ Reach and saves of other accounts are not available; never estimate them.
 - themes: what the best-performing competitor posts have in common, each with why it likely works and up to 5
   example permalinks copied exactly from the data.
 - formats: which formats earn the most engagement per follower.
+- `ranked` lists posts by their multiple over THAT account's own recent median (band signal = 3x or more, a real
+  signal; normal = an ordinary day) with the hook formula their first line follows. Build themes on the signal posts
+  and name the formula when one repeats; never treat raw likes or views as proof.
 - opportunities: what this brand could do that competitors are not doing well, grounded in the business facts.
 - avoid: patterns that consistently under-perform.
 - If the data is thin, say what is missing in not_enough_signal instead of guessing.

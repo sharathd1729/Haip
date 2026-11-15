@@ -36,6 +36,7 @@ class CompetitorPostIn(_Strict):
     media_type: Optional[Literal["IMAGE", "CAROUSEL_ALBUM", "VIDEO", "REELS"]] = None
     like_count: Optional[int] = Field(default=None, ge=0, le=100_000_000)
     comments_count: Optional[int] = Field(default=None, ge=0, le=10_000_000)
+    views: Optional[int] = Field(default=None, ge=0, le=2_000_000_000)     # reels: the play count shown on the post
     posted_at: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}")
     note: Optional[str] = Field(default=None, max_length=500)
 

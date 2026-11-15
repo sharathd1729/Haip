@@ -278,8 +278,11 @@ def _latest_research(db: Session, tenant_id: str) -> str:
     if brief is None or not brief.assessment:
         return "(none yet)"
     a = brief.assessment
+    outliers = [{"formula": r["formula"], "multiple": r["multiple"], "handle": r["handle"]}
+                for r in (brief.measured or {}).get("ranked") or [] if r.get("band") == "signal" and r.get("formula")]
     return str({"themes": [t["name"] + ": " + t["why_it_works"] for t in a.get("themes", [])],
-                "formats": a.get("formats"), "opportunities": a.get("opportunities"), "avoid": a.get("avoid")})
+                "formats": a.get("formats"), "opportunities": a.get("opportunities"), "avoid": a.get("avoid"),
+                "outlier_formulas": outliers[:8]})
 
 
 def _demand(db: Session, tenant: Tenant) -> Optional[dict]:

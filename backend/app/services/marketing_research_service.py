@@ -82,8 +82,8 @@ def add_manual_post(db: Session, tenant_id: str, competitor_id: str, data: Compe
     comp = _competitor(db, tenant_id, competitor_id)
     post = MarketingCompetitorPost(tenant_id=tenant_id, competitor_id=comp.id, source="manual", permalink=data.permalink,
                                    caption=data.caption, media_type=data.media_type, like_count=data.like_count,
-                                   comments_count=data.comments_count, posted_at=data.posted_at, note=data.note,
-                                   created_by=actor_id)
+                                   comments_count=data.comments_count, views=data.views, posted_at=data.posted_at,
+                                   note=data.note, created_by=actor_id)
     db.add(post)
     db.flush()
     return post
@@ -200,7 +200,63 @@ def measured(db: Session, tenant_id: str) -> dict:
                     "posts_per_week": _weeks_between([r["posted_at"] for r in rows if r["source"] == "api" and r["posted_at"]]),
                     "formats": formats, "top_posts": top})
     return {"source_note": "api = Instagram Business Discovery (public counts only, no reach); manual = pasted by a person",
-            "competitors": out}
+            "competitors": out, "ranked": ranked(db, tenant_id)["posts"][:RANKED_IN_BRIEF]}
+
+
+# ── What really worked (Instagram toolkit phase 4) ──────────────────────────────────────────────────────────────────
+# Adapted from Jakeschincariol/instagram-agent-skill `ig-viral` (swipe.py; MIT, Copyright (c) 2026 Jake Schincariol;
+# docs/marketing-website/THIRD_PARTY_NOTICES.md): rank a post by how far it beat ITS OWN account's recent median, not by
+# raw numbers, and name the hook formula. Only posts a person pasted (manual) and Business Discovery (api); never the
+# research collector's copies, and nothing is fetched here.
+
+RANK_SOURCES = ("manual", "api")
+RANK_RECENT, RANK_MIN_POSTS, RANKED_IN_BRIEF = 12, 3, 12
+SIGNAL_AT, ABOVE_AT, BELOW_AT = 3.0, 1.5, 0.75
+
+
+def _band(multiple: Optional[float]) -> str:
+    if multiple is None:
+        return "unknown"
+    return ("signal" if multiple >= SIGNAL_AT else "above" if multiple >= ABOVE_AT
+            else "normal" if multiple >= BELOW_AT else "below")
+
+
+def ranked(db: Session, tenant_id: str) -> dict:
+    """Competitor posts by multiple over that account's own median of its last 12 posts (views when the account has
+    at least 3 posts with views, else likes + comments). >= 3x = a real signal, < 1.5x = a normal day."""
+    from app.services.marketing_hooks import FORMULAS, classify
+
+    rows = []
+    for comp in list_competitors(db, tenant_id):
+        posts = (db.query(MarketingCompetitorPost)
+                 .filter(MarketingCompetitorPost.tenant_id == tenant_id, MarketingCompetitorPost.competitor_id == comp.id,
+                         MarketingCompetitorPost.source.in_(RANK_SOURCES))
+                 .all())
+        posts.sort(key=lambda p: p.posted_at or "", reverse=True)
+        recent = posts[:RANK_RECENT]
+        with_views = [p.views for p in recent if p.views is not None]
+        metric = "views" if len(with_views) >= RANK_MIN_POSTS else "engagement"
+
+        def value(p):
+            if metric == "views":
+                return p.views
+            return None if p.like_count is None and p.comments_count is None else (p.like_count or 0) + (p.comments_count or 0)
+
+        vals = [v for v in (value(p) for p in recent) if v is not None]
+        base = median(vals) if len(vals) >= RANK_MIN_POSTS else None
+        for p in recent:
+            v = value(p)
+            mult = round(v / base, 2) if v is not None and base else None
+            hook = (p.caption or "").strip().split("\n", 1)[0][:160]
+            fid = classify(hook)
+            rows.append({"handle": comp.handle, "permalink": p.permalink, "media_type": p.media_type, "source": p.source,
+                         "posted_at": p.posted_at, "metric": metric, "value": v, "baseline": base, "multiple": mult,
+                         "band": _band(mult), "hook": hook, "formula_id": fid,
+                         "formula": FORMULAS[fid]["name"] if fid else None})
+    rows.sort(key=lambda r: (r["multiple"] is None, -(r["multiple"] or 0)))
+    return {"note": f"Multiple = the post's views (or likes + comments) / that account's median of its last {RANK_RECENT} "
+                    f"posts. {SIGNAL_AT:g}x or more = a real signal; under {ABOVE_AT:g}x = a normal day.",
+            "posts": rows}
 
 
 def run_brief(db: Session, tenant: Tenant, actor_id: Optional[str]) -> MarketingResearchBrief:

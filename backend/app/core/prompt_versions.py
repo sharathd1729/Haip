@@ -177,8 +177,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
     # v4 (M2): the demand brief (open dates, long weekends, festivals); targets, campaigns, 60/30/10 buckets,
     # indicator + stop_if per entry, reactive days.
-    "marketing_plan": "marketing-plan-v7",
-    "marketing_research": "marketing-research-v2",
+    # v8 (Instagram toolkit phase 4): competitor posts ranked by multiple over their own median; outlier formulas.
+    "marketing_plan": "marketing-plan-v8",
+    "marketing_research": "marketing-research-v3",   # v3: ranked posts (multiple over own median + hook formula)
     # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
     "website_generate": "website-generate-v1",
     "website_edit": "website-edit-v1",
