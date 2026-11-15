@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, JetBrains_Mono, Onest } from "next/font/google";
+import { Anton, JetBrains_Mono } from "next/font/google";
 import "./site.css";
 
 // The marketing site: "/", /features, /pricing, /solutions/*. Has its own header and footer, so it sits outside (marketing).
@@ -10,15 +10,10 @@ const display = Anton({
   variable: "--font-site-display",
   display: "swap",
 });
-const body = Onest({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-site-body",
-  display: "swap",
-});
+// Body text reuses the root layout's Onest (--font-onest, variable weight). Loading Onest again here with a weight
+// list broke the Turbopack production build ("next/font/google queries have exactly one entry").
 const mono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["500", "600"],
   variable: "--font-site-mono",
   display: "swap",
 });
@@ -44,7 +39,7 @@ export default function SiteLayout({
 }) {
   return (
     <div
-      className={`site ${display.variable} ${body.variable} ${mono.variable}`}
+      className={`site ${display.variable} ${mono.variable}`}
     >
       {children}
     </div>
