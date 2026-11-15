@@ -166,3 +166,37 @@ def validate_ig_rule(trigger: str, trigger_config: dict, action_config: dict) ->
         raise ValueError("Add at least one keyword, or choose 'any comment'.")
     a = IgActionConfig(**(action_config or {}))
     return t.model_dump(exclude_none=True), a.model_dump(exclude_none=True)
+
+
+class IgWelcomeQuestion(BaseModel):
+    """A ready-made question Instagram shows before someone's first message (an "ice breaker")."""
+
+    question: str = Field(min_length=1, max_length=80)
+    rule_id: str | None = Field(default=None, max_length=36)  # run this automation; empty = a normal message
+
+
+class IgMenuItem(BaseModel):
+    """One item of the menu Instagram shows in every chat (the "persistent menu")."""
+
+    title: str = Field(min_length=1, max_length=30)
+    kind: Literal["automation", "link", "message"] = "message"
+    rule_id: str | None = Field(default=None, max_length=36)
+    url: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def _target(self):
+        if self.kind == "automation" and not self.rule_id:
+            raise ValueError(f"Pick the automation for “{self.title}”.")
+        if self.kind == "link":
+            p = urlparse((self.url or "").strip())
+            if p.scheme != "https" or not p.netloc:
+                raise ValueError(f"The link for “{self.title}” must start with https://")
+            self.url = self.url.strip()
+        return self
+
+
+class IgWelcome(BaseModel):
+    """Workspace-level: brand_config.instagram_welcome (services/ig_welcome.py)."""
+
+    questions: list[IgWelcomeQuestion] = Field(default_factory=list, max_length=4)
+    menu: list[IgMenuItem] = Field(default_factory=list, max_length=5)

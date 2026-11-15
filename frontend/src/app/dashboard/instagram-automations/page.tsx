@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Card, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
 import { PeriodBar } from "@/components/dashboard/PeriodBar";
 import { AutomationsOverview } from "@/components/instagram/AutomationsOverview";
+import { WelcomeSettings } from "@/components/instagram/WelcomeSettings";
 import { AutomationBuilder } from "@/components/instagram/AutomationBuilder";
 import { isIgRule, triggerMeta, type IgRule, type IgRuleStats } from "@/components/instagram/automationTypes";
 
@@ -81,6 +82,7 @@ export default function InstagramAutomationsPage() {
   const [preset, setPreset] = useState<{ id: string; thumb?: string; caption?: string } | null>(null);
   const [editing, setEditing] = useState<IgRule | null>(null);
   const [open, setOpen] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   const rules = useQuery<IgRule[]>({ queryKey: ["automations"], queryFn: () => api.get("/automations").then(r => r.data) });
   const stats = useQuery<{ automations: IgRuleStats[] }>({
@@ -97,10 +99,16 @@ export default function InstagramAutomationsPage() {
     <div className="mx-auto grid max-w-5xl gap-5">
       <PageHeader title="Instagram automations" subtitle="Reply to comments, story replies and DMs automatically: a public reply plus a DM with your link."
         actions={
+          <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setWelcomeOpen(true)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--haip-border)] px-4 text-[14.5px] font-medium">
+            <MessageSquare size={16} /> Welcome questions and menu
+          </button>
           <button type="button" onClick={openNew}
             className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[0.97]">
             <Plus size={16} /> New automation
           </button>
+          </div>
         } />
 
       <PeriodBar value={period} onChange={setPeriod} />
@@ -124,6 +132,7 @@ export default function InstagramAutomationsPage() {
         </div>
       )}
 
+      {welcomeOpen && <WelcomeSettings open={welcomeOpen} onOpenChange={setWelcomeOpen} rules={ig} />}
       {open && <AutomationBuilder key={editing?.id ?? preset?.id ?? "new"} open={open} onOpenChange={setOpen} initial={editing} preset={preset} />}
     </div>
   );

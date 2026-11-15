@@ -178,6 +178,39 @@ def automation_overview(
     )
 
 
+@router.get("/instagram/welcome")
+def get_welcome(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Welcome questions (shown before someone's first message) and the chat menu, with what each one runs."""
+    from app.services import ig_welcome
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    return ig_welcome.get(tenant)
+
+
+@router.put("/instagram/welcome")
+def put_welcome(
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Save and push to Instagram. Saved even if Instagram refuses (pushed=false + Meta's reason), so it can be retried."""
+    from pydantic import ValidationError
+
+    from app.services import ig_welcome
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    try:
+        return ig_welcome.save(db, tenant, current_user.id, body)
+    except ValidationError as exc:
+        msg = str(exc.errors()[0].get("msg", "Invalid settings")).removeprefix("Value error, ")
+        raise HTTPException(status_code=422, detail=msg) from None
+    except ig_welcome.WelcomeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @router.get("/l/{slug}/{code}", include_in_schema=False)
 def follow_link(slug: str, code: str, db: Session = Depends(get_db)):
     """A DM button's tracked link: count the click, then send the person on. Only stored codes resolve (no open

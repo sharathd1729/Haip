@@ -222,6 +222,23 @@ class InstagramGraphAdapter:
             "messaging_type": "RESPONSE",
         })
 
+    def set_chat_profile(self, ice_breakers: list[dict], menu: list[dict]) -> None:
+        """Welcome questions (ice breakers, <=4) and the chat menu (persistent menu) on the Instagram account.
+        An empty list removes that part. Raises like _post."""
+        body: dict = {"platform": "instagram"}
+        if ice_breakers:
+            body["ice_breakers"] = [{"call_to_actions": ice_breakers, "locale": "default"}]
+        if menu:
+            body["persistent_menu"] = [{"locale": "default", "call_to_actions": menu}]
+        if len(body) > 1:
+            self._post(f"/{self._inbox}/messenger_profile", body)
+        gone = [f for f, items in (("ice_breakers", ice_breakers), ("persistent_menu", menu)) if not items]
+        if gone:
+            url = f"{self._base}/{self._inbox}/messenger_profile"
+            resp = httpx.request("DELETE", url, json={"fields": gone, "platform": "instagram"},
+                                 headers=self._headers(), timeout=15)
+            _raise_for_status(resp, "DELETE", f"/{self._inbox}/messenger_profile")
+
     def follows_us(self, user_id: str) -> bool | None:
         """True/False when Meta says whether this person follows the account (is_user_follow_business), None when it
         will not say (Meta needs the person to have messaged us first; any error)."""

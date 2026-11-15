@@ -9,6 +9,7 @@ import { Drawer } from "@/components/ui/kit";
 import { MediaPicker } from "./MediaPicker";
 import { FormQuestions } from "./FormQuestions";
 import { SequenceSteps, sequenceTotal } from "./SequenceSteps";
+import { TEMPLATES, type IgTemplate } from "./templates";
 import { DEFAULT_ACKS, DEFAULT_FORM, DEFAULT_SUGGEST, IG_ACTION, SEQUENCE_WINDOW_MINUTES, TRIGGERS, triggerMeta, type IgActionConfig, type IgForm, type IgRule, type IgSequenceStep, type IgSuggestMore, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
 
 const field = "min-h-11 w-full rounded-[12px] border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] sm:text-[14.5px] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:border-primary focus:outline-none";
@@ -110,6 +111,17 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
   // Comments need a tap before Instagram allows more messages; an open chat (DM keyword, story reply, ad) starts the form at once.
   const needsTap = gate.enabled || (form.enabled ? isComment : withButton);
 
+  const applyTemplate = (t: IgTemplate) => {
+    setTrigger(t.trigger); setName(t.name); setKeywords(t.keywords); setReplyAll(!!t.replyAll);
+    if (t.acks) setAcks(t.acks);
+    setMessage(t.message);
+    setWithButton(!!t.button); if (t.button) setButton(t.button);
+    setForm(t.form ?? { ...form, enabled: false });
+    setSequence(t.sequence ?? []);
+    setSuggest({ ...suggest, enabled: !!t.suggest });
+    if (t.trigger === "ig_comment_received" && !preset) setScope("any");
+  };
+
   const save = useMutation({
     mutationFn: () => {
       const trigger_config: IgTriggerConfig = {
@@ -164,6 +176,17 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
       }>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
         <div>
+          {!initial && (
+            <Section title="Start from a template" hint="Fills in everything below. Change anything you like.">
+              <div className="flex flex-wrap gap-2">
+                {TEMPLATES.map(t => (
+                  <button key={t.key} type="button" onClick={() => applyTemplate(t)} title={t.hint}
+                    className="min-h-11 rounded-full border border-[var(--haip-border)] px-4 text-[13.5px] font-medium hover:border-primary">{t.label}</button>
+                ))}
+              </div>
+            </Section>
+          )}
+
           <Section title="When">
             <div className="grid grid-cols-2 gap-2">
               {TRIGGERS.map(t => (
