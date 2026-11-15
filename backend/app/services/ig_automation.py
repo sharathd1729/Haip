@@ -270,7 +270,15 @@ def start(
             logger.warning("ig_automation_public_reply_failed rule=%s: %s", rule.id, exc)
 
     gate = cfg.get("follow_gate") or {}
-    needs_tap = bool(cfg.get("button") or gate.get("enabled"))
+    from app.services import ig_dm_form  # DM forms (Automations v2): an open chat starts the questions at once
+
+    if (
+        not comment_id
+        and not gate.get("enabled")
+        and ig_dm_form.start_from_trigger(db, tenant_id, rule, adapter, ctx, recipient_id, guest, media_id)
+    ):
+        return True
+    needs_tap = bool(cfg.get("button") or gate.get("enabled") or ig_dm_form.enabled(rule))
     text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else cfg["message"], guest), keep)
     quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else None
     delivered_final = False
@@ -319,6 +327,12 @@ def start(
         )
     _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}" + (f" ({'; '.join(notes)})" if notes else ""), ctx)
     db.commit()
+    if not comment_id and not needs_tap:  # the final message went out in an open chat: suggest more, follow-ups
+        from app.services import ig_suggest
+
+        ig_suggest.after_final(
+            db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id
+        )
     return True
 
 
@@ -327,7 +341,11 @@ def parse_payload(payload: str | None) -> tuple[str, str] | None:
     if not payload or not payload.startswith(PAYLOAD_PREFIX):
         return None
     parts = payload[len(PAYLOAD_PREFIX) :].split(":")
-    return (parts[0], parts[1]) if len(parts) == 2 and parts[1] in ("open", "followed") else None
+    if len(parts) == 2 and parts[1] in ("open", "followed", "more", "start"):
+        return parts[0], parts[1]
+    if len(parts) == 3 and parts[1] == "ask" and parts[2].isdigit():  # "I'm interested" on card n (ig_suggest)
+        return parts[0], f"ask:{parts[2]}"
+    return None
 
 
 def handle_payload(
@@ -350,7 +368,11 @@ def handle_payload(
         return True
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "step": step}
-    if guest_id and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=("link_sent",)):
+    if step == "start" or step == "more" or step.startswith("ask:"):  # welcome/menu start, suggest more (ig_suggest)
+        from app.services import ig_suggest
+
+        return ig_suggest.route(db, tenant_id, rule, step, recipient_id, guest_id, conversation_id, guest)
+    if guest_id and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=("link_sent", "form_completed")):
         return True  # already has the link; a second tap sends nothing
     reason = skip_reason(db, tenant_id, rule, guest_id, starting=False)
     adapter = None if reason else _adapter(db, tenant_id)
@@ -388,6 +410,20 @@ def handle_payload(
                 db.commit()
                 return True
 
+    from app.services import ig_dm_form
+
+    if ig_dm_form.start(
+        db,
+        tenant_id,
+        rule,
+        adapter,
+        recipient_id=recipient_id,
+        guest_id=guest_id,
+        conversation_id=conversation_id,
+        guest=guest,
+    ):
+        db.commit()
+        return True
     _send_final(
         db,
         tenant_id,
@@ -439,54 +475,8 @@ def _send_final(
     log_event(db, tenant_id, rule.id, "link_sent", guest_id)  # "the final message went out" (with or without a link)
     _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}", ctx)
     db.commit()
+    from app.services import ig_suggest
 
-
-def bind_next_post(db: Session, tenant_id: str, media_id: str | None) -> None:
-    """A "next post" rule not yet tied to a post takes the first post published after the rule was made, found on that
-    post's first comment (one Graph lookup per post, cached a week). Commits only when it binds."""
-    if not media_id:
-        return
-    from sqlalchemy.orm.attributes import flag_modified
-
-    unbound = [
-        r
-        for r in db.query(AutomationRule)
-        .filter_by(tenant_id=tenant_id, is_active=True, action="send_instagram_quick_reply")
-        .all()
-        if (r.trigger_config or {}).get("scope") == "next_post" and not (r.trigger_config or {}).get("media_id")
-    ]
-    if not unbound:
-        return
-    posted = _media_time(db, tenant_id, media_id)
-    if posted is None:
-        return
-    for rule in unbound:
-        made = rule.created_at if rule.created_at.tzinfo else rule.created_at.replace(tzinfo=UTC)
-        if posted > made:
-            rule.trigger_config = {
-                **(rule.trigger_config or {}),
-                "media_id": media_id,
-                "media_bound_at": datetime.now(UTC).isoformat(),
-            }
-            flag_modified(rule, "trigger_config")
-    db.commit()
-
-
-def _media_time(db: Session, tenant_id: str, media_id: str) -> datetime | None:
-    from app.core import cache
-
-    key = f"igmedia_ts:{tenant_id}:{media_id}"
-    raw = cache.get_cached(key)
-    if raw is None:
-        adapter = _adapter(db, tenant_id)
-        if adapter is None:
-            return None
-        try:
-            raw = adapter._get(f"/{media_id}", params={"fields": "timestamp"}).get("timestamp") or ""
-        except Exception:  # noqa: BLE001
-            return None
-        cache.set_cached(key, raw, ttl=7 * 86400)
-    try:
-        return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%S%z") if raw else None
-    except ValueError:
-        return None
+    ig_suggest.after_final(
+        db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id
+    )

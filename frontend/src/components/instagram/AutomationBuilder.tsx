@@ -7,7 +7,10 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Drawer } from "@/components/ui/kit";
 import { MediaPicker } from "./MediaPicker";
-import { DEFAULT_ACKS, IG_ACTION, TRIGGERS, triggerMeta, type IgActionConfig, type IgRule, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
+import { FormQuestions } from "./FormQuestions";
+import { SequenceSteps, sequenceTotal } from "./SequenceSteps";
+import { TEMPLATES, type IgTemplate } from "./templates";
+import { DEFAULT_ACKS, DEFAULT_FORM, DEFAULT_SUGGEST, IG_ACTION, SEQUENCE_WINDOW_MINUTES, TRIGGERS, triggerMeta, type IgActionConfig, type IgForm, type IgRule, type IgSequenceStep, type IgSuggestMore, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
 
 const field = "min-h-11 w-full rounded-[12px] border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] sm:text-[14.5px] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:border-primary focus:outline-none";
 const area = cn(field, "min-h-[88px] py-2.5 leading-relaxed");
@@ -74,9 +77,14 @@ function Bubble({ who, children, button }: { who: "them" | "you"; children: Reac
 
 const sample = (t: string) => (t || "").replaceAll("{first_name}", "Asha");
 
-export function AutomationBuilder({ open, onOpenChange, initial }: { open: boolean; onOpenChange: (o: boolean) => void; initial?: IgRule | null }) {
+export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
+  open: boolean; onOpenChange: (o: boolean) => void; initial?: IgRule | null;
+  /** A new automation for this post (the dashboard's "Add" on a post with no automation). */
+  preset?: { id: string; thumb?: string; caption?: string } | null;
+}) {
   const qc = useQueryClient();
-  const tc0: IgTriggerConfig = initial?.trigger_config ?? { scope: "post", keywords: [] };
+  const tc0: IgTriggerConfig = initial?.trigger_config
+    ?? { scope: "post", keywords: [], ...(preset ? { media_id: preset.id, media_thumb: preset.thumb, media_caption: preset.caption } : {}) };
   const ac0: IgActionConfig = initial?.action_config ?? { message: "" };
   const [name, setName] = useState(initial?.name ?? "");
   const [trigger, setTrigger] = useState<IgTrigger>((initial?.trigger as IgTrigger) ?? "ig_comment_received");
@@ -93,11 +101,26 @@ export function AutomationBuilder({ open, onOpenChange, initial }: { open: boole
   const [openerButton, setOpenerButton] = useState(ac0.opener_button ?? "Send it");
   const [gate, setGate] = useState({ enabled: false, ask_text: "Please follow us first, then tap the button below 👇", button_title: "I'm following", max_asks: 3, send_anyway: true, ...(ac0.follow_gate ?? {}) });
   const [once, setOnce] = useState(ac0.once_per_person ?? true);
+  const [form, setForm] = useState<IgForm>(ac0.form?.questions?.length ? ac0.form : DEFAULT_FORM);
+  const [sequence, setSequence] = useState<IgSequenceStep[]>(ac0.sequence ?? []);
+  const [suggest, setSuggest] = useState<IgSuggestMore>({ ...DEFAULT_SUGGEST, ...(ac0.suggest_more ?? {}) });
   const [error, setError] = useState("");
 
   const isComment = COMMENT_TRIGGERS.includes(trigger);
   const keywordOptional = trigger === "ig_story_mention_received" || trigger === "ig_ad_chat_started";
-  const needsTap = withButton || gate.enabled;
+  // Comments need a tap before Instagram allows more messages; an open chat (DM keyword, story reply, ad) starts the form at once.
+  const needsTap = gate.enabled || (form.enabled ? isComment : withButton);
+
+  const applyTemplate = (t: IgTemplate) => {
+    setTrigger(t.trigger); setName(t.name); setKeywords(t.keywords); setReplyAll(!!t.replyAll);
+    if (t.acks) setAcks(t.acks);
+    setMessage(t.message);
+    setWithButton(!!t.button); if (t.button) setButton(t.button);
+    setForm(t.form ?? { ...form, enabled: false });
+    setSequence(t.sequence ?? []);
+    setSuggest({ ...suggest, enabled: !!t.suggest });
+    if (t.trigger === "ig_comment_received" && !preset) setScope("any");
+  };
 
   const save = useMutation({
     mutationFn: () => {
@@ -111,6 +134,9 @@ export function AutomationBuilder({ open, onOpenChange, initial }: { open: boole
       const action_config: IgActionConfig = {
         message, button: withButton ? button : null, opener, opener_button: openerButton,
         public_ack_pool: isComment ? acks.filter(a => a.trim()) : [], follow_gate: gate, once_per_person: once,
+        form: { enabled: form.enabled, questions: form.questions.map(q => ({ ...q, text: q.text.trim(), options: (q.options ?? []).filter(Boolean) })) },
+        suggest_more: { ...suggest, prompt: suggest.prompt.trim() || DEFAULT_SUGGEST.prompt, button_title: suggest.button_title.trim() || DEFAULT_SUGGEST.button_title },
+        sequence: sequence.map(s => ({ ...s, text: s.text.trim(), button: s.button?.url.trim() ? { title: s.button.title, url: s.button.url.trim() } : null })),
       };
       const body = { name: name.trim() || triggerMeta(trigger)?.short || "Instagram automation", trigger, action: IG_ACTION, trigger_config, action_config };
       return initial ? api.patch(`/automations/${initial.id}`, body) : api.post("/automations", { ...body, is_active: true });
@@ -125,6 +151,11 @@ export function AutomationBuilder({ open, onOpenChange, initial }: { open: boole
     if (isComment && trigger === "ig_comment_received" && scope === "post" && !media.id) return setError("Pick the post or reel.");
     if (!keywordOptional && !replyAll && keywords.length === 0) return setError("Add a keyword, or turn on “Reply to every comment”.");
     if (withButton && !/^https:\/\/\S+$/.test(button.url.trim())) return setError("The button link must start with https://");
+    if (form.enabled && form.questions.filter(q => q.key === "phone").length !== 1) return setError("The questions must ask for the WhatsApp number once.");
+    if (form.enabled && form.questions.some(q => !q.text.trim())) return setError("Write the text for every question.");
+    if (sequence.some(s => !s.text.trim())) return setError("Write the text for every follow-up, or remove the empty one.");
+    if (sequence.some(s => s.button && !/^https:\/\/\S+$/.test(s.button.url.trim()))) return setError("Follow-up links must start with https://");
+    if (sequenceTotal(sequence) > SEQUENCE_WINDOW_MINUTES) return setError("The follow-ups must all go out within 23 hours.");
     save.mutate();
   };
 
@@ -145,6 +176,17 @@ export function AutomationBuilder({ open, onOpenChange, initial }: { open: boole
       }>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
         <div>
+          {!initial && (
+            <Section title="Start from a template" hint="Fills in everything below. Change anything you like.">
+              <div className="flex flex-wrap gap-2">
+                {TEMPLATES.map(t => (
+                  <button key={t.key} type="button" onClick={() => applyTemplate(t)} title={t.hint}
+                    className="min-h-11 rounded-full border border-[var(--haip-border)] px-4 text-[13.5px] font-medium hover:border-primary">{t.label}</button>
+                ))}
+              </div>
+            </Section>
+          )}
+
           <Section title="When">
             <div className="grid grid-cols-2 gap-2">
               {TRIGGERS.map(t => (
@@ -201,7 +243,13 @@ export function AutomationBuilder({ open, onOpenChange, initial }: { open: boole
             </Section>
           )}
 
-          <Section title="The DM" hint="Use {first_name} for their name.">
+          <Section title="Collect details in the DM" hint="HAIP asks a few short questions, one at a time. When the WhatsApp number arrives, the person becomes a lead.">
+            <Toggle checked={form.enabled} onChange={v => setForm({ ...form, enabled: v })} label="Ask questions before the final message"
+              hint="Typed answers work as well as the tap options. Asking for a person or saying stop ends it." />
+            {form.enabled && <FormQuestions value={form.questions} onChange={questions => setForm({ ...form, questions })} />}
+          </Section>
+
+          <Section title={form.enabled ? "After the last answer" : "The DM"} hint={form.enabled ? "Use {first_name} for their name and {agent_name} for the person the lead is assigned to." : "Use {first_name} for their name."}>
             <textarea className={area} value={message} maxLength={900} onChange={e => setMessage(e.target.value)}
               placeholder="Hi {first_name}! Here are our packages and prices…" />
             <Toggle checked={withButton} onChange={setWithButton} label="Add a link button" hint="Clicks are counted in the stats." />
@@ -220,6 +268,30 @@ export function AutomationBuilder({ open, onOpenChange, initial }: { open: boole
                 </div>
               </div>
             )}
+          </Section>
+
+          <Section title="Suggest more" hint="After the final message, offer a button that shows your stays or packages as swipeable cards. Cards never show prices.">
+            <Toggle checked={suggest.enabled} onChange={v => setSuggest({ ...suggest, enabled: v })} label="Offer more options"
+              hint="“I'm interested” on a card notes their pick on the lead and hands the chat to your team." />
+            {suggest.enabled && (
+              <div className="grid gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {([["stays", "Our stays"], ["packages", "Our packages"]] as const).map(([v, l]) => (
+                    <button key={v} type="button" onClick={() => setSuggest({ ...suggest, source: v })} aria-pressed={suggest.source === v}
+                      className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
+                        suggest.source === v ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{l}</button>
+                  ))}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
+                  <input className={field} value={suggest.prompt} maxLength={300} onChange={e => setSuggest({ ...suggest, prompt: e.target.value })} aria-label="Offer message" />
+                  <input className={field} value={suggest.button_title} maxLength={20} onChange={e => setSuggest({ ...suggest, button_title: e.target.value })} aria-label="Offer button text" />
+                </div>
+              </div>
+            )}
+          </Section>
+
+          <Section title="Follow-up messages" hint={isComment ? "Sent after the final message, which goes out once they tap. Up to 3." : "Sent after the final message. Up to 3."}>
+            <SequenceSteps value={sequence} onChange={setSequence} />
           </Section>
 
           <Section title="Ask to follow first">
@@ -253,7 +325,10 @@ export function AutomationBuilder({ open, onOpenChange, initial }: { open: boole
             {!isComment && <Bubble who="them">{trigger === "ig_story_mention_received" ? "Mentioned you in their story" : keywords[0] || "Hi!"}</Bubble>}
             {needsTap && <Bubble who="you" button={openerButton}>{sample(opener)}</Bubble>}
             {gate.enabled && <Bubble who="you" button={gate.button_title}>{sample(gate.ask_text)}</Bubble>}
-            <Bubble who="you" button={withButton ? button.title : undefined}>{sample(message) || "Your message…"}</Bubble>
+            {form.enabled && form.questions.slice(0, 3).map((q, i) => <Bubble key={i} who="you" button={q.options?.slice(0, 3).join(" · ") || undefined}>{q.text || "Question…"}</Bubble>)}
+            <Bubble who="you" button={withButton ? button.title : undefined}>{sample(message).replaceAll("{agent_name}", "Priya") || "Your message…"}</Bubble>
+            {suggest.enabled && <Bubble who="you" button={suggest.button_title}>{suggest.prompt}</Bubble>}
+            {sequence.map((s, i) => <Bubble key={`seq-${i}`} who="you" button={s.button?.title || undefined}>{sample(s.text) || "Follow-up…"}</Bubble>)}
           </div>
         </aside>
       </div>

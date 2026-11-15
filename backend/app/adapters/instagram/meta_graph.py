@@ -57,8 +57,10 @@ _ALLOWED_MEDIA_HOST_SUFFIXES = (
 )
 
 
-# Webhook fields HAIP handles (webhooks_instagram.py): DMs incl. echoes, button taps, ad referrals, comments.
-WEBHOOK_FIELDS = "messages,messaging_postbacks,messaging_referral,comments,live_comments"
+# Webhook fields HAIP handles (webhooks_instagram.py): DMs incl. echoes, button taps, ad referrals, comments, Live
+# comments, and "seen" (automation DMs opened, Automations v2 dashboard).
+WEBHOOK_FIELDS = "messages,messaging_postbacks,messaging_referral,comments,live_comments,messaging_seen"
+OPTIONAL_FIELDS = ("live_comments", "messaging_seen")  # dropped one at a time if Meta refuses them
 
 
 def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
@@ -67,10 +69,14 @@ def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
     Without this call Meta sends no DMs for the account even though the token works. Returns (ok, error text);
     never raises, so a failed subscribe never undoes a successful connect.
     """
-    ok, err = _subscribe(access_token, WEBHOOK_FIELDS)
-    if not ok and "live_comments" in WEBHOOK_FIELDS:
-        # Live comments are optional: if Meta refuses that field, still subscribe to the ones DMs need.
-        ok, err = _subscribe(access_token, WEBHOOK_FIELDS.replace(",live_comments", ""))
+    fields = WEBHOOK_FIELDS.split(",")
+    ok, err = _subscribe(access_token, ",".join(fields))
+    for optional in OPTIONAL_FIELDS:
+        if ok:
+            break
+        # Optional fields: if Meta refuses one, still subscribe to the ones DMs need.
+        fields = [f for f in fields if f != optional]
+        ok, err = _subscribe(access_token, ",".join(fields))
     return ok, err
 
 
@@ -204,6 +210,34 @@ class InstagramGraphAdapter:
             }}},
             "messaging_type": "RESPONSE",
         })
+
+    def send_cards(self, recipient_id: str, elements: list[dict]) -> dict:
+        """Swipeable cards (generic template, up to 10). Each element: title (<=80), subtitle (<=80), optional https
+        image_url, buttons (<=3: web_url or postback). Raises like _post."""
+        return self._post(f"/{self._inbox}/messages", {
+            "recipient": {"id": recipient_id},
+            "message": {"attachment": {"type": "template", "payload": {
+                "template_type": "generic", "elements": elements[:10],
+            }}},
+            "messaging_type": "RESPONSE",
+        })
+
+    def set_chat_profile(self, ice_breakers: list[dict], menu: list[dict]) -> None:
+        """Welcome questions (ice breakers, <=4) and the chat menu (persistent menu) on the Instagram account.
+        An empty list removes that part. Raises like _post."""
+        body: dict = {"platform": "instagram"}
+        if ice_breakers:
+            body["ice_breakers"] = [{"call_to_actions": ice_breakers, "locale": "default"}]
+        if menu:
+            body["persistent_menu"] = [{"locale": "default", "call_to_actions": menu}]
+        if len(body) > 1:
+            self._post(f"/{self._inbox}/messenger_profile", body)
+        gone = [f for f, items in (("ice_breakers", ice_breakers), ("persistent_menu", menu)) if not items]
+        if gone:
+            url = f"{self._base}/{self._inbox}/messenger_profile"
+            resp = httpx.request("DELETE", url, json={"fields": gone, "platform": "instagram"},
+                                 headers=self._headers(), timeout=15)
+            _raise_for_status(resp, "DELETE", f"/{self._inbox}/messenger_profile")
 
     def follows_us(self, user_id: str) -> bool | None:
         """True/False when Meta says whether this person follows the account (is_user_follow_business), None when it

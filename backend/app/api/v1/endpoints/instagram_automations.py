@@ -66,16 +66,28 @@ def list_media(
 @router.get("/instagram/automations/stats")
 def automation_stats(
     days: int = Query(default=30, ge=1, le=365),
+    period: str | None = Query(default=None, max_length=20),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
 ):
     """Per automation over the last `days`: triggered, DMs sent, final messages / links sent, link clicks, follows,
     people reached, skipped, failed, and leads (people reached who shared a phone number after it)."""
     tenant_id = current_user.tenant_id
-    since = datetime.now(UTC) - timedelta(days=days)
+    since, until = datetime.now(UTC) - timedelta(days=days), datetime.now(UTC)
+    if period:
+        from app.services import ig_automation_overview
+
+        try:
+            (_, _, since, until), _ = ig_automation_overview.windows(period)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Unknown period") from None
     rows = (
         db.query(IgAutomationEvent.rule_id, IgAutomationEvent.kind, func.count())
-        .filter(IgAutomationEvent.tenant_id == tenant_id, IgAutomationEvent.created_at >= since)
+        .filter(
+            IgAutomationEvent.tenant_id == tenant_id,
+            IgAutomationEvent.created_at >= since,
+            IgAutomationEvent.created_at <= until,
+        )
         .group_by(IgAutomationEvent.rule_id, IgAutomationEvent.kind)
         .all()
     )
@@ -88,6 +100,7 @@ def automation_stats(
         .filter(
             IgAutomationEvent.tenant_id == tenant_id,
             IgAutomationEvent.created_at >= since,
+            IgAutomationEvent.created_at <= until,
             IgAutomationEvent.kind.in_(("dm_sent", "link_sent")),
             IgAutomationEvent.guest_id.isnot(None),
         )
@@ -133,12 +146,69 @@ def automation_stats(
                         "leads",
                         "skipped",
                         "dm_failed",
+                        "form_started",
+                        "form_completed",
+                        "form_dropped",
+                        "sequence_sent",
+                        "sequence_stopped",
                     )
                 },
             }
             for rid, s in out.items()
         ],
     }
+
+
+@router.get("/instagram/automations/overview")
+def automation_overview(
+    period: str = Query(default="this_month", max_length=20),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """The automations dashboard for a period (today, yesterday, last_7d, this_month, last_month), with the period
+    before for comparison. Booking amounts only with revenue.read; otherwise booked_amount is null and
+    money_restricted is true (never a fake 0)."""
+    from app.services import ig_automation_overview
+    from app.services.authz_service import has_capability
+
+    if period not in ig_automation_overview.PERIODS:
+        raise HTTPException(status_code=422, detail="Unknown period")
+    return ig_automation_overview.overview(
+        db, current_user.tenant_id, period, money=has_capability(db, current_user, "revenue.read")
+    )
+
+
+@router.get("/instagram/welcome")
+def get_welcome(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Welcome questions (shown before someone's first message) and the chat menu, with what each one runs."""
+    from app.services import ig_welcome
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    return ig_welcome.get(tenant)
+
+
+@router.put("/instagram/welcome")
+def put_welcome(
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Save and push to Instagram. Saved even if Instagram refuses (pushed=false + Meta's reason), so it can be retried."""
+    from pydantic import ValidationError
+
+    from app.services import ig_welcome
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    try:
+        return ig_welcome.save(db, tenant, current_user.id, body)
+    except ValidationError as exc:
+        msg = str(exc.errors()[0].get("msg", "Invalid settings")).removeprefix("Value error, ")
+        raise HTTPException(status_code=422, detail=msg) from None
+    except ig_welcome.WelcomeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.get("/l/{slug}/{code}", include_in_schema=False)

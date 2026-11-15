@@ -69,6 +69,64 @@ class IgFollowGate(BaseModel):
     send_anyway: bool = True  # after the last ask: send the message anyway, or stop
 
 
+FORM_KEYS = ("dates", "guests", "phone", "email", "budget", "occasion", "custom")
+
+
+class IgFormQuestion(BaseModel):
+    key: Literal["dates", "guests", "phone", "email", "budget", "occasion", "custom"]
+    text: str = Field(min_length=1, max_length=300)
+    options: list[str] = Field(default_factory=list, max_length=10)  # tap-to-answer chips; typing works too
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def _options(cls, v):
+        out = [str(o).strip() for o in (v or []) if str(o or "").strip()]
+        too_long = [o for o in out if len(o) > 20]
+        if too_long:  # Instagram cuts quick-reply titles at 20 characters
+            raise ValueError(f"Keep each answer option to 20 characters: '{too_long[0]}'")
+        return out
+
+
+class IgForm(BaseModel):
+    """Collect details inside the DM (services/ig_dm_form.py): questions asked one at a time after the tap; the rule's
+    `message` (and button) is sent once the last answer arrives."""
+
+    enabled: bool = False
+    questions: list[IgFormQuestion] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode="after")
+    def _phone_once(self):
+        if self.enabled:
+            phones = [q for q in self.questions if q.key == "phone"]
+            if len(phones) != 1:
+                raise ValueError("The form must ask for the WhatsApp number once: that is what makes the person a lead.")
+            keys = [q.key for q in self.questions if q.key != "custom"]
+            if len(keys) != len(set(keys)):
+                raise ValueError("Each question type can be asked only once (add more as 'your own question').")
+        return self
+
+
+SEQUENCE_WINDOW_MINUTES = 23 * 60  # Instagram allows messages for 24 h after the person's last message
+
+
+class IgSequenceStep(BaseModel):
+    """One follow-up after the automation's final message (services/ig_sequence.py)."""
+
+    text: str = Field(min_length=1, max_length=640)
+    after_minutes: int = Field(ge=5, le=SEQUENCE_WINDOW_MINUTES)  # wait after the previous message
+    button: IgButton | None = None
+
+
+class IgSuggestMore(BaseModel):
+    """After the final message: a "More stays" button that shows the workspace's stays or packages as swipeable cards
+    (services/ig_suggest.py). Cards never show prices; "I'm interested" hands the chat to the team."""
+
+    enabled: bool = False
+    source: Literal["stays", "packages"] = "stays"
+    prompt: str = Field(default="Want to see our other stays?", max_length=300)
+    button_title: str = Field(default="More stays", min_length=1, max_length=20)
+
+
 class IgActionConfig(BaseModel):
     message: str = Field(min_length=1, max_length=900)
     button: IgButton | None = None
@@ -79,6 +137,17 @@ class IgActionConfig(BaseModel):
     once_per_person: bool = True
     follow_up: str = Field(default="", max_length=500)  # DM-keyword rules only (endpoints/automations.py)
     follow_up_after_hours: int | None = Field(default=None, ge=1, le=23)
+    form: IgForm = Field(default_factory=IgForm)
+    sequence: list[IgSequenceStep] = Field(default_factory=list, max_length=3)
+    suggest_more: IgSuggestMore = Field(default_factory=IgSuggestMore)
+
+    @model_validator(mode="after")
+    def _sequence_fits_the_window(self):
+        total = sum(step.after_minutes for step in self.sequence)
+        if total > SEQUENCE_WINDOW_MINUTES:
+            raise ValueError("The follow-ups must all go out within 23 hours: Instagram stops allowing messages 24 hours "
+                             "after the person's last message.")
+        return self
 
     @field_validator("public_ack_pool", mode="before")
     @classmethod
@@ -97,3 +166,37 @@ def validate_ig_rule(trigger: str, trigger_config: dict, action_config: dict) ->
         raise ValueError("Add at least one keyword, or choose 'any comment'.")
     a = IgActionConfig(**(action_config or {}))
     return t.model_dump(exclude_none=True), a.model_dump(exclude_none=True)
+
+
+class IgWelcomeQuestion(BaseModel):
+    """A ready-made question Instagram shows before someone's first message (an "ice breaker")."""
+
+    question: str = Field(min_length=1, max_length=80)
+    rule_id: str | None = Field(default=None, max_length=36)  # run this automation; empty = a normal message
+
+
+class IgMenuItem(BaseModel):
+    """One item of the menu Instagram shows in every chat (the "persistent menu")."""
+
+    title: str = Field(min_length=1, max_length=30)
+    kind: Literal["automation", "link", "message"] = "message"
+    rule_id: str | None = Field(default=None, max_length=36)
+    url: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def _target(self):
+        if self.kind == "automation" and not self.rule_id:
+            raise ValueError(f"Pick the automation for “{self.title}”.")
+        if self.kind == "link":
+            p = urlparse((self.url or "").strip())
+            if p.scheme != "https" or not p.netloc:
+                raise ValueError(f"The link for “{self.title}” must start with https://")
+            self.url = self.url.strip()
+        return self
+
+
+class IgWelcome(BaseModel):
+    """Workspace-level: brand_config.instagram_welcome (services/ig_welcome.py)."""
+
+    questions: list[IgWelcomeQuestion] = Field(default_factory=list, max_length=4)
+    menu: list[IgMenuItem] = Field(default_factory=list, max_length=5)

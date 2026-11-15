@@ -373,18 +373,24 @@ def process_instagram_dm(self, payload: dict) -> dict:
         tapped = payload.get("quick_reply_payload") or ""
         from app.services import ig_automation
         automation_tap = (not payload.get("suppress_automation")) and ig_automation.parse_payload(tapped) is not None
+        # Someone in the middle of a DM form (services/ig_dm_form.py): this message is their answer; rules and the AI stay out.
+        form_answer = False
+        if not automation_tap and not payload.get("suppress_automation"):
+            from app.services import ig_dm_form
+            form_answer = ig_dm_form.handle_inbound(db, tenant_id, guest_id, body, guest=guest)
+        taken = automation_tap or form_answer
         # Story reply / story mention: their own automation triggers (a mention body is "[Story mention]" or an attachment).
         reply_story = (payload.get("reply_to") or {}).get("story")
         is_mention = body == "[Story mention]" or any((a or {}).get("type") == "story_mention" for a in attachments or [])
-        if automation_tap:
+        if taken:
             pass
         elif is_mention:
             matched_rule = find_matching_rule(db, tenant_id, "ig_story_mention_received", body)
         elif reply_story:
             matched_rule = find_matching_rule(db, tenant_id, "ig_story_reply_received", text or "")
-        if not automation_tap and matched_rule is None and body and body.strip() and not body.startswith("["):
+        if not taken and matched_rule is None and body and body.strip() and not body.startswith("["):
             matched_rule = find_matching_rule(db, tenant_id, "ig_dm_received", body)
-        if not automation_tap and matched_rule is None and referral:
+        if not taken and matched_rule is None and referral:
             # First message of a chat opened from an ad: the ad welcome (once per person, like every automation).
             matched_rule = find_matching_rule(db, tenant_id, "ig_ad_chat_started", body,
                                               ad_id=str((referral or {}).get("ad_id") or "") or None)
@@ -407,6 +413,8 @@ def process_instagram_dm(self, payload: dict) -> dict:
         # live behaviour is unchanged.
         if payload.get("suppress_automation"):
             message.automation_outcome = "backfilled_no_automation"
+        elif form_answer:
+            message.automation_outcome = "matched_auto_replied"
         elif automation_tap:
             ig_automation.handle_payload(db, tenant_id, tapped, recipient_id=sender_id, guest_id=guest_id,
                                          conversation_id=conversation.id, guest=guest)

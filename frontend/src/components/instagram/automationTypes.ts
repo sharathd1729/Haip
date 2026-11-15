@@ -33,6 +33,62 @@ export interface IgTriggerConfig {
   ad_id?: string;
 }
 
+export type IgFormKey = "dates" | "guests" | "phone" | "email" | "budget" | "occasion" | "custom";
+
+export interface IgFormQuestion {
+  key: IgFormKey;
+  text: string;
+  options?: string[];
+}
+
+export interface IgForm {
+  enabled: boolean;
+  questions: IgFormQuestion[];
+}
+
+export const FORM_KEYS: { value: IgFormKey; label: string }[] = [
+  { value: "dates", label: "Dates" },
+  { value: "guests", label: "Number of guests" },
+  { value: "phone", label: "WhatsApp number" },
+  { value: "email", label: "Email" },
+  { value: "budget", label: "Budget" },
+  { value: "occasion", label: "Occasion" },
+  { value: "custom", label: "Your own question" },
+];
+
+// The recommended default (Automations v2 plan): short enough that most people finish.
+export const DEFAULT_FORM: IgForm = {
+  enabled: false,
+  questions: [
+    { key: "dates", text: "When are you planning to come?", options: ["This weekend", "Next month", "Dates not fixed"] },
+    { key: "guests", text: "How many guests?", options: ["2", "4", "6", "8+"] },
+    { key: "phone", text: "Last one: your WhatsApp number, so our team can send the quote." },
+  ],
+};
+
+export interface IgSequenceStep {
+  text: string;
+  after_minutes: number;
+  button?: { title: string; url: string } | null;
+}
+
+// Waits a follow-up can use; all of them together must fit in Instagram's 23-hour window (checked server-side too).
+export const SEQUENCE_WAITS: { value: number; label: string }[] = [
+  { value: 10, label: "10 minutes" }, { value: 30, label: "30 minutes" }, { value: 60, label: "1 hour" },
+  { value: 180, label: "3 hours" }, { value: 360, label: "6 hours" }, { value: 720, label: "12 hours" },
+  { value: 1200, label: "20 hours" },
+];
+export const SEQUENCE_WINDOW_MINUTES = 23 * 60;
+
+export interface IgSuggestMore {
+  enabled: boolean;
+  source: "stays" | "packages";
+  prompt: string;
+  button_title: string;
+}
+
+export const DEFAULT_SUGGEST: IgSuggestMore = { enabled: false, source: "stays", prompt: "Want to see our other stays?", button_title: "More stays" };
+
 export interface IgActionConfig {
   message: string;
   button?: { title: string; url: string } | null;
@@ -41,6 +97,9 @@ export interface IgActionConfig {
   public_ack_pool?: string[];
   follow_gate?: { enabled: boolean; ask_text?: string; button_title?: string; max_asks?: number; send_anyway?: boolean };
   once_per_person?: boolean;
+  form?: IgForm;
+  sequence?: IgSequenceStep[];
+  suggest_more?: IgSuggestMore;
 }
 
 export interface IgRule {
@@ -79,6 +138,11 @@ export interface IgRuleStats {
   leads: number;
   skipped: number;
   dm_failed: number;
+  form_started?: number;
+  form_completed?: number;
+  form_dropped?: number;
+  sequence_sent?: number;
+  sequence_stopped?: number;
 }
 
 export const isIgRule = (r: { trigger: string; action: string }) => r.action === IG_ACTION && r.trigger.startsWith("ig_");
