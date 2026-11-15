@@ -7,6 +7,7 @@
   GET    /devices            owner/manager: every staff device in the workspace, with its last 30 days (calls, recordings)
   DELETE /devices/{id}       revoke: your own device, or any device for owner/manager (audited)
   POST   /device-calls       device token: up to 200 call-log entries, idempotent on (device, device_call_id)
+  POST   /device-calls/names device token, Yaad: up to 500 {number, name} saved contact names (personal workspaces only)
   POST   /device-calls/{device_call_id}/recording
                              device token, step 2: multipart field "file", the phone's recording of one of ITS calls
                              (m4a/mp3/amr/aac/wav/ogg by magic bytes, <= 50 MB). 201 attached, 202 waiting for the call
@@ -29,7 +30,7 @@ from app.api.v1.deps import get_current_user, require_roles
 from app.core.database import get_db, set_tenant_context
 from app.models.mobile_device import MobileDevice
 from app.models.user import User, UserRole
-from app.schemas.mobile_device import DeviceCallBatch, DeviceRegister, DeviceSettings
+from app.schemas.mobile_device import ContactNameBatch, DeviceCallBatch, DeviceRegister, DeviceSettings
 from app.services import mobile_device_service
 
 router = APIRouter(prefix="/devices", tags=["calls-app"])
@@ -161,6 +162,13 @@ def upload_device_calls(
     for r in results:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
     return {"results": results, "counts": counts}
+
+
+@calls_router.post("/names")
+def upload_contact_names(
+    body: ContactNameBatch, device: MobileDevice = Depends(current_device), db: Session = Depends(get_db)
+):
+    return {"renamed": mobile_device_service.name_contacts(db, device, body)}
 
 
 # Multipart overhead on top of the file itself (boundary, part headers); generous, still far below the cap.

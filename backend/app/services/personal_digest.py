@@ -22,11 +22,12 @@ from app.adapters.llm import get_llm
 from app.core.prompt_versions import get_version
 from app.services import personal_ask as ask
 from app.services import personal_calls as pc
-from app.services.call_analysis import LLM_TASK, _run_async
+from app.services.call_analysis import _run_async
 
 log = structlog.get_logger()
 
 VERSION = get_version("personal_digest")
+LLM_TASK = "personal_digest"  # Gemini Flash-Lite, never NVIDIA
 IST = ZoneInfo("Asia/Kolkata")
 MAX_REMINDERS = 60
 MAX_LIST = 15

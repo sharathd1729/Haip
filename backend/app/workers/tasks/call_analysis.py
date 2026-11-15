@@ -158,10 +158,17 @@ def _remember(db, call: Call, turns: list, tenant_id: str) -> None:
         custom_words=custom_words(db.query(Tenant).filter_by(id=tenant_id).first()),
     )
     result = personal_calls.analyse(tenant_id=tenant_id, call_id=call.id, system=system, user=user)
-    personal_calls.store(call, personal_calls.normalise(result, previous=personal_calls.memory_of(call)))
+    memory = personal_calls.normalise(result, previous=personal_calls.memory_of(call))
+    personal_calls.store(call, personal_calls.ground_refs(memory, turns))
     call.ai_score_status = "done"
     db.commit()
     log.info("personal_call_remembered", call_id=call.id, **stamp("personal_call", model=result.get("model_used")))
+    try:  # file it into the person's folders (keywords / their sorting rule); never blocks the memory
+        from app.workers.tasks.personal_folders import file_call
+
+        file_call.delay(tenant_id, call.id)
+    except Exception as exc:  # noqa: BLE001 -- broker down: the call stays Unclassified until filed by hand
+        log.warning("personal_file_call_not_queued", call_id=call.id, error=str(exc)[:200])
 
 
 def _clear_unconfirmed_agent(call: Call, turns: list) -> None:

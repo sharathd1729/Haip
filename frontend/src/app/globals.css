@@ -1623,3 +1623,12 @@
 .yaad .y-press { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 .yaad .y-press:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) { .yaad .y-press { transition: none; } .yaad .y-press:active { transform: none; } }
+/* Yaad folder colours (lib/personal.ts folderColor) */
+.yaad { --y-folder-mango: #E9A80F; --y-folder-tomato: #D9583D; --y-folder-leaf: #2E9E6A; --y-folder-sky: #3A7BD5; --y-folder-plum: #8B5CC2; --y-folder-stone: #8A7F68; }
+/* Yaad motion: new content rises in (an answer, a step); the thinking dots pulse. Reduced motion: the global rule above. */
+@keyframes yEnter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes yPulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); } 40% { opacity: 1; transform: none; } }
+.yaad .y-enter { animation: yEnter 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.yaad .y-dot { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; animation: yPulse 1.2s ease-in-out infinite; }
+.yaad .y-dot:nth-child(2) { animation-delay: 0.15s; }
+.yaad .y-dot:nth-child(3) { animation-delay: 0.3s; }

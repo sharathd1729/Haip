@@ -38,9 +38,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # call_scores.analysis_version stores this string (one score row per call per version).
     "call_analysis":   "call-analysis-v6",      # call_analysis.jinja
     # Personal workspaces (one person's own phone calls, NeoSapien-style read instead of the hospitality QA + wrap-up).
-    "personal_call":   "personal-call-v2",      # personal_call.jinja
-    "personal_ask":    "personal-ask-v1",       # personal_ask.jinja (Ask Yaad)
+    "personal_call":   "personal-call-v3",      # personal_call.jinja (v3: a source quote + time per point)
+    "personal_ask":    "personal-ask-v2",       # personal_ask.jinja (Ask Yaad; v2: [n] citations, follow-ups, earlier turns)
     "personal_digest": "personal-digest-v1",    # personal_digest.jinja (Yaad daily email)
+    "personal_folder": "personal-folder-v1",    # personal_folder.jinja (Yaad: which folders a call belongs in)
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied
@@ -177,8 +178,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
     # v4 (M2): the demand brief (open dates, long weekends, festivals); targets, campaigns, 60/30/10 buckets,
     # indicator + stop_if per entry, reactive days.
-    "marketing_plan": "marketing-plan-v7",
-    "marketing_research": "marketing-research-v2",
+    # v8 (Instagram toolkit phase 4): competitor posts ranked by multiple over their own median; outlier formulas.
+    "marketing_plan": "marketing-plan-v8",
+    "marketing_research": "marketing-research-v3",   # v3: ranked posts (multiple over own median + hook formula)
     # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
     "website_generate": "website-generate-v1",
     "website_edit": "website-edit-v1",
@@ -193,7 +195,11 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
     # v5 (M2): approved claims; a post sells exactly its plan entry's target dates.
     # v6 (M3): optional comment_dm ("comment STAY for dates").
-    "marketing_content": "marketing-content-v8",
+    # v9 (Instagram toolkit phase 1): first line whole inside 125 characters, exactly one ask, at most 5 hashtags.
+    # v10 (phase 5): the comment-to-DM delivers first, one how-to line, one short question; public reply sells nothing.
+    "marketing_content": "marketing-content-v10",
+    # Reel hooks (marketing_hooks, Instagram toolkit phase 2): three opening lines from 26 formulas + spoken script.
+    "marketing_reel_hooks": "marketing-reel-hooks-v1",
     # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.
     "marketing_review": "marketing-review-v3",
     # Brand DNA draft (marketing_brand_dna): voice/tone/claims SUGGESTED from the website, captions, property text.

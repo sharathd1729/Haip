@@ -198,6 +198,12 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # partners (drafts: the content model).
     "seo_brief": ("gemini", "gemini-3.1-flash-lite"),
     "seo_outreach": ("gemini", "gemini-3.6-flash"),
+    # Yaad (personal workspaces, services/personal_*.py): never NVIDIA (owner, 15 Nov 2026). The call read and Ask Yaad
+    # on Gemini 3.6 Flash with Flash-Lite as the backup (below); the daily email paragraph is small: Flash-Lite alone.
+    "personal_call": ("gemini", "gemini-3.6-flash"),
+    "personal_ask": ("gemini", "gemini-3.6-flash"),
+    "personal_digest": ("gemini", "gemini-3.1-flash-lite"),
+    "personal_folder": ("gemini", "gemini-3.1-flash-lite"),  # filing calls into the person's own folders: small work
 }
 
 
@@ -227,10 +233,12 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "chief_explain":               45,
     "staff_assistant":             30,
     "website_content":             90,
+    "personal_call":               90,    # Yaad: Gemini 3.6 Flash, then Flash-Lite (never NVIDIA)
+    "personal_ask":                40,    # a person waits: one attempt, then Flash-Lite
 }
 
 # A person waits on these in the UI: one NVIDIA attempt, then the fallback, so the wait is not doubled.
-_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup", "concierge_intent", "staff_assistant"}
+_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup", "concierge_intent", "staff_assistant", "personal_ask"}
 
 
 # LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.
@@ -239,7 +247,7 @@ _CLAUDE_FAST_TASKS = frozenset({
     "marketing_tagging", "marketing_review_reply", "website_copy", "website_change", "seo_brief",
 })
 # The guest reply and the rewrite think least: a person is waiting, and chat does well at low effort.
-_CLAUDE_LOW_EFFORT = _CLAUDE_FAST_TASKS | {"concierge_draft"}
+_CLAUDE_LOW_EFFORT = _CLAUDE_FAST_TASKS | {"concierge_draft", "personal_ask"}
 # Claude's bound where the caller's own outer bound is tighter than 60 s, so the fallback still has time to answer
 # (concierge_draft: 60 s outer for provider "claude"; rewrite_draft: 30 s outer).
 _CLAUDE_TIMEOUTS = {"concierge_draft": 30, "concierge_rewrite": 12, "concierge_intent": 4}
@@ -307,15 +315,17 @@ def _routed_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     adapter = _build_adapter(provider, model)
 
     primary_timeout = _GEMINI_FALLBACK_TASKS.get(task)
-    if primary_timeout is not None and provider == "nvidia" and settings.GEMINI_API_KEY:
+    from app.adapters.llm.gemini import GEMINI_FLASH_LITE
+    # NVIDIA tasks, and Gemini tasks above the low model (Yaad), fall back to Gemini Flash-Lite.
+    backed_up = provider == "nvidia" or (provider == "gemini" and model != GEMINI_FLASH_LITE)
+    if primary_timeout is not None and backed_up and settings.GEMINI_API_KEY:
         from app.adapters.llm.fallback import FallbackAdapter
-        from app.adapters.llm.gemini import GEMINI_FLASH_LITE
         adapter = FallbackAdapter(
             primary=adapter,
             secondary=_build_adapter("gemini", GEMINI_FLASH_LITE),
             task=task,
             primary_timeout=primary_timeout,
-            primary_attempts=1 if task in _SINGLE_PRIMARY_ATTEMPT else 2,
+            primary_attempts=1 if task in _SINGLE_PRIMARY_ATTEMPT or provider == "gemini" else 2,  # Gemini is paid
         )
     return adapter
 

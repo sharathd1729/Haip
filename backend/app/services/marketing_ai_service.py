@@ -278,8 +278,11 @@ def _latest_research(db: Session, tenant_id: str) -> str:
     if brief is None or not brief.assessment:
         return "(none yet)"
     a = brief.assessment
+    outliers = [{"formula": r["formula"], "multiple": r["multiple"], "handle": r["handle"]}
+                for r in (brief.measured or {}).get("ranked") or [] if r.get("band") == "signal" and r.get("formula")]
     return str({"themes": [t["name"] + ": " + t["why_it_works"] for t in a.get("themes", [])],
-                "formats": a.get("formats"), "opportunities": a.get("opportunities"), "avoid": a.get("avoid")})
+                "formats": a.get("formats"), "opportunities": a.get("opportunities"), "avoid": a.get("avoid"),
+                "outlier_formulas": outliers[:8]})
 
 
 def _demand(db: Session, tenant: Tenant) -> Optional[dict]:
@@ -367,6 +370,36 @@ def set_creative_model(db: Session, tenant: Tenant, value: str, actor_id: str) -
     return value
 
 
+def _humanized(kind: str, data: dict, tenant: Tenant) -> tuple[dict, Optional[dict]]:
+    """The AI's draft with stock words, dashes, curly quotes and hidden characters fixed (owner decision: automatic,
+    recorded on the version, one tap to undo). If a fix would break the format (a deletion empties a required field,
+    a swap overruns a length limit), the draft is stored as the AI wrote it."""
+    from app.schemas.marketing import validate_content
+    from app.services import marketing_humanize as human
+
+    cleaned, record = human.clean_payload(data, human.keep_words(tenant))
+    if record is None:
+        return data, None
+    try:
+        validate_content(kind, cleaned)
+    except ValueError:
+        log.info("marketing_humanize_skipped", tenant_id=tenant.id, kind=kind)
+        return data, None
+    return cleaned, record
+
+
+def _reel_hooks(db: Session, tenant: Tenant, item: MarketingContent) -> None:
+    """Three scored opening lines + script for a fresh reel draft (marketing_hooks). Advice: a provider error never
+    loses the draft or retries the whole generation."""
+    from app.services import marketing_hooks as hooks
+    try:
+        hooks.write(db, tenant, item)
+    except Exception as exc:  # noqa: BLE001 -- the draft is already stored; hooks can be asked for again
+        log.warning("marketing_reel_hooks_failed", tenant_id=tenant.id, item_id=item.id, error=str(exc)[:200])
+        item.hook_plan = {"status": "failed", "error": "The AI could not write hook options right now. Write the reel again to retry."}
+        flag_modified(item, "hook_plan")
+
+
 def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[str], brief: Optional[str]) -> MarketingContent:
     item = content_svc.get_item(db, tenant_id, item_id)
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
@@ -389,9 +422,12 @@ def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[st
             for key in ("colour", "accent", "font", "logo_asset_id", "logo_position"):
                 data["design"].pop(key, None)            # the brand kit is applied by the designer step, not the model
         note = " ".join(x for x in ((brief or "")[:500], ("Other first lines: " + " | ".join(hooks)) if hooks else "") if x)
+        data, humanized = _humanized(item.kind, data, tenant)
         content_svc.add_version(db, tenant_id, item.id, data, origin="ai", actor_id=actor_id,
                                 note=note[:1000] or None, prompt_version=get_version("marketing_content"),
-                                model=raw.get("model"))
+                                model=raw.get("model"), humanize=humanized)
+        if item.kind == "reel":
+            _reel_hooks(db, tenant, item)
     except content_svc.MarketingError as exc:
         item.generation_status = "failed"
         item.generation_error = "; ".join([exc.message, *exc.problems])[:2000]

@@ -16,14 +16,14 @@ ig_keyword_match. This module runs a matched rule for one person:
 Every send writes an outbound Message (sender_kind "automation", never counted as a person's contact) and an
 ig_automation_events row; the events drive once-per-person, the hourly caps and the stats.
 """
+
 from __future__ import annotations
 
 import logging
 import random
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -34,22 +34,48 @@ logger = logging.getLogger(__name__)
 
 PAYLOAD_PREFIX = "igauto:"
 SENT_KINDS = ("dm_sent", "link_sent", "gate_asked")
-TENANT_HOURLY_CAP = 200   # automated sends per workspace per hour (Meta rate limits)
-GUEST_HOURLY_CAP = 5      # automated sends per person per hour
+TENANT_HOURLY_CAP = 200  # automated sends per workspace per hour (Meta rate limits)
+GUEST_HOURLY_CAP = 5  # automated sends per person per hour
 DEFAULT_ACK = "Check your DMs! 📥"
 
 
 # ── small helpers ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-def log_event(db: Session, tenant_id: str, rule_id: str, kind: str, guest_id: Optional[str] = None,
-              media_id: Optional[str] = None, detail: Optional[str] = None) -> None:
-    db.add(IgAutomationEvent(tenant_id=tenant_id, rule_id=rule_id, kind=kind, guest_id=guest_id,
-                             media_id=(media_id or None) and media_id[:64], detail=(detail or None) and detail[:300]))
+
+def log_event(
+    db: Session,
+    tenant_id: str,
+    rule_id: str,
+    kind: str,
+    guest_id: str | None = None,
+    media_id: str | None = None,
+    detail: str | None = None,
+) -> None:
+    db.add(
+        IgAutomationEvent(
+            tenant_id=tenant_id,
+            rule_id=rule_id,
+            kind=kind,
+            guest_id=guest_id,
+            media_id=(media_id or None) and media_id[:64],
+            detail=(detail or None) and detail[:300],
+        )
+    )
 
 
 def _log_run(db: Session, tenant_id: str, rule: AutomationRule, status: str, detail: str, context: dict) -> None:
-    db.add(AutomationRun(id=str(uuid.uuid4()), tenant_id=tenant_id, automation_id=rule.id, automation_name=rule.name,
-                         status=status, trigger_event=rule.trigger, context=context, detail=detail[:500]))
+    db.add(
+        AutomationRun(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            automation_id=rule.id,
+            automation_name=rule.name,
+            status=status,
+            trigger_event=rule.trigger,
+            context=context,
+            detail=detail[:500],
+        )
+    )
 
 
 def _adapter(db: Session, tenant_id: str):
@@ -57,10 +83,15 @@ def _adapter(db: Session, tenant_id: str):
     from app.core.encryption import decrypt_credentials
     from app.models.integration import INSTAGRAM_INBOUND_STATUSES, Integration
 
-    integ = (db.query(Integration)
-             .filter(Integration.tenant_id == tenant_id, Integration.kind == "instagram",
-                     Integration.status.in_(INSTAGRAM_INBOUND_STATUSES))
-             .first())
+    integ = (
+        db.query(Integration)
+        .filter(
+            Integration.tenant_id == tenant_id,
+            Integration.kind == "instagram",
+            Integration.status.in_(INSTAGRAM_INBOUND_STATUSES),
+        )
+        .first()
+    )
     if not integ or not integ.credentials_kms_blob:
         return None
     creds = decrypt_credentials(integ.credentials_kms_blob)
@@ -69,14 +100,29 @@ def _adapter(db: Session, tenant_id: str):
     return InstagramGraphAdapter(access_token=token, ig_account_id=account) if token and account else None
 
 
+def _keep_words(db: Session, tenant_id: str):
+    """Words the humanizer must leave alone for this workspace (Instagram toolkit phase 5)."""
+    from app.models.tenant import Tenant
+    from app.services.marketing_humanize import keep_words
+
+    return keep_words(db.query(Tenant).filter_by(id=tenant_id).first())
+
+
 def _render(text: str, guest) -> str:
     name = (getattr(guest, "name", "") or "").strip().lstrip("@")
     first = name.split()[0] if name and not name.startswith("IG User") else "there"
     return (text or "").replace("{first_name}", first)
 
 
-def _count(db: Session, tenant_id: str, *, rule_id: Optional[str] = None, guest_id: Optional[str] = None,
-           kinds=SENT_KINDS, since: Optional[datetime] = None) -> int:
+def _count(
+    db: Session,
+    tenant_id: str,
+    *,
+    rule_id: str | None = None,
+    guest_id: str | None = None,
+    kinds=SENT_KINDS,
+    since: datetime | None = None,
+) -> int:
     q = db.query(IgAutomationEvent).filter(IgAutomationEvent.tenant_id == tenant_id, IgAutomationEvent.kind.in_(kinds))
     if rule_id:
         q = q.filter(IgAutomationEvent.rule_id == rule_id)
@@ -87,34 +133,50 @@ def _count(db: Session, tenant_id: str, *, rule_id: Optional[str] = None, guest_
     return q.count()
 
 
-def skip_reason(db: Session, tenant_id: str, rule: AutomationRule, guest_id: Optional[str], *, starting: bool) -> Optional[str]:
+def skip_reason(
+    db: Session, tenant_id: str, rule: AutomationRule, guest_id: str | None, *, starting: bool
+) -> str | None:
     """Why this rule must not message this person now, or None."""
     from app.services.sales_agent_service import guest_said_stop
 
     if guest_said_stop(db, tenant_id, guest_id):
         return "guest_said_stop"
-    hour = datetime.now(timezone.utc) - timedelta(hours=1)
+    hour = datetime.now(UTC) - timedelta(hours=1)
     if _count(db, tenant_id, since=hour) >= TENANT_HOURLY_CAP:
         return "workspace_hourly_cap"
     if guest_id and _count(db, tenant_id, guest_id=guest_id, since=hour) >= GUEST_HOURLY_CAP:
         return "person_hourly_cap"
-    if starting and (rule.action_config or {}).get("once_per_person", True) and guest_id \
-            and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=("dm_sent", "link_sent")):
+    if (
+        starting
+        and (rule.action_config or {}).get("once_per_person", True)
+        and guest_id
+        and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=("dm_sent", "link_sent"))
+    ):
         return "already_sent_to_this_person"
     return None
 
 
-def _record(db: Session, tenant_id: str, conversation_id: Optional[str], text: str, result: dict, rule_id: str) -> None:
+def _record(db: Session, tenant_id: str, conversation_id: str | None, text: str, result: dict, rule_id: str) -> None:
     """The DM as an outbound Message so it shows in the Inbox thread (the echo webhook dedups on the same mid)."""
     if not conversation_id:
         return
     from app.models.conversation import ChannelType, Message, MessageDeliveryState, MessageDirection
 
     mid = (result or {}).get("message_id")
-    db.add(Message(tenant_id=tenant_id, conversation_id=conversation_id, direction=MessageDirection.OUTBOUND,
-                   channel=ChannelType.INSTAGRAM, body=text, channel_message_id=mid, channel_status="sent",
-                   delivery_state=MessageDeliveryState.SENT, sender_kind="automation",
-                   channel_metadata={"automation_rule_id": rule_id}))
+    db.add(
+        Message(
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+            direction=MessageDirection.OUTBOUND,
+            channel=ChannelType.INSTAGRAM,
+            body=text,
+            channel_message_id=mid,
+            channel_status="sent",
+            delivery_state=MessageDeliveryState.SENT,
+            sender_kind="automation",
+            channel_metadata={"automation_rule_id": rule_id},
+        )
+    )
 
 
 def tracked_url(db: Session, tenant_id: str, rule_id: str, target_url: str) -> str:
@@ -124,7 +186,9 @@ def tracked_url(db: Session, tenant_id: str, rule_id: str, target_url: str) -> s
 
     row = db.query(IgTrackedLink).filter_by(tenant_id=tenant_id, rule_id=rule_id, target_url=target_url).first()
     if row is None:
-        row = IgTrackedLink(tenant_id=tenant_id, rule_id=rule_id, target_url=target_url, code=secrets.token_urlsafe(8)[:10])
+        row = IgTrackedLink(
+            tenant_id=tenant_id, rule_id=rule_id, target_url=target_url, code=secrets.token_urlsafe(8)[:10]
+        )
         db.add(row)
         db.flush()
     slug = db.query(Tenant.slug).filter(Tenant.id == tenant_id).scalar()
@@ -142,9 +206,19 @@ def _quick(title: str, rule_id: str, step: str) -> list[dict]:
 
 # ── the steps ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-def start(db: Session, tenant_id: str, rule: AutomationRule, *, recipient_id: str, guest_id: Optional[str],
-          conversation_id: Optional[str], comment_id: Optional[str] = None, media_id: Optional[str] = None,
-          guest=None) -> bool:
+
+def start(
+    db: Session,
+    tenant_id: str,
+    rule: AutomationRule,
+    *,
+    recipient_id: str,
+    guest_id: str | None,
+    conversation_id: str | None,
+    comment_id: str | None = None,
+    media_id: str | None = None,
+    guest=None,
+) -> bool:
     """Run a matched rule for one person. True when the DM went out. Commits."""
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "comment_id": comment_id, "media_id": media_id}
@@ -161,8 +235,16 @@ def start(db: Session, tenant_id: str, rule: AutomationRule, *, recipient_id: st
         db.commit()
         return False
 
+    from app.services import ig_automation_copy as copy_rules
+
+    keep = _keep_words(db, tenant_id)
+    notes: list[str] = []
+
     if comment_id:
         ack = random.choice(cfg.get("public_ack_pool") or [DEFAULT_ACK])
+        ack, _changes, replaced = copy_rules.prepare_public(ack, keep)
+        if replaced:
+            notes.append(f"public reply replaced: {replaced}")
         try:
             adapter.reply_to_comment(comment_id, ack)
             log_event(db, tenant_id, rule.id, "public_reply", guest_id, media_id)
@@ -171,7 +253,7 @@ def start(db: Session, tenant_id: str, rule: AutomationRule, *, recipient_id: st
 
     gate = cfg.get("follow_gate") or {}
     needs_tap = bool(cfg.get("button") or gate.get("enabled"))
-    text = _render(cfg.get("opener") if needs_tap else cfg["message"], guest)
+    text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else cfg["message"], guest), keep)
     quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else None
     try:
         if comment_id:
@@ -190,22 +272,36 @@ def start(db: Session, tenant_id: str, rule: AutomationRule, *, recipient_id: st
     _record(db, tenant_id, conversation_id, text, result, rule.id)
     log_event(db, tenant_id, rule.id, "dm_sent", guest_id, media_id)
     rule.run_count = (rule.run_count or 0) + 1
-    rule.last_run_at = datetime.now(timezone.utc)
-    _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}", ctx)
+    rule.last_run_at = datetime.now(UTC)
+    if not comment_id and rule.trigger == "ig_dm_received" and (cfg.get("follow_up") or "").strip():
+        from app.services.ig_quick_reply import _queue_follow_up
+
+        notes.append(
+            _queue_follow_up(tenant_id, rule, recipient_id, guest_id, conversation_id, copy_rules.follow_up_hours(cfg))
+        )
+    _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}" + (f" ({'; '.join(notes)})" if notes else ""), ctx)
     db.commit()
     return True
 
 
-def parse_payload(payload: Optional[str]) -> Optional[tuple[str, str]]:
+def parse_payload(payload: str | None) -> tuple[str, str] | None:
     """(rule_id, step) from an igauto:<rule>:<step> quick-reply / postback payload, else None."""
     if not payload or not payload.startswith(PAYLOAD_PREFIX):
         return None
-    parts = payload[len(PAYLOAD_PREFIX):].split(":")
+    parts = payload[len(PAYLOAD_PREFIX) :].split(":")
     return (parts[0], parts[1]) if len(parts) == 2 and parts[1] in ("open", "followed") else None
 
 
-def handle_payload(db: Session, tenant_id: str, payload: str, *, recipient_id: str, guest_id: Optional[str],
-                   conversation_id: Optional[str], guest=None) -> bool:
+def handle_payload(
+    db: Session,
+    tenant_id: str,
+    payload: str,
+    *,
+    recipient_id: str,
+    guest_id: str | None,
+    conversation_id: str | None,
+    guest=None,
+) -> bool:
     """A tap on one of our buttons. True when it was ours (handled, even if nothing was sent). Commits."""
     parsed = parse_payload(payload)
     if not parsed:
@@ -217,7 +313,7 @@ def handle_payload(db: Session, tenant_id: str, payload: str, *, recipient_id: s
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "step": step}
     if guest_id and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=("link_sent",)):
-        return True                                   # already has the link; a second tap sends nothing
+        return True  # already has the link; a second tap sends nothing
     reason = skip_reason(db, tenant_id, rule, guest_id, starting=False)
     adapter = None if reason else _adapter(db, tenant_id)
     if not reason and adapter is None:
@@ -230,7 +326,7 @@ def handle_payload(db: Session, tenant_id: str, payload: str, *, recipient_id: s
     gate = cfg.get("follow_gate") or {}
     if gate.get("enabled"):
         follows = adapter.follows_us(recipient_id)
-        trusted_tap = follows is None and step == "followed"   # Meta would not say: take the tap at its word
+        trusted_tap = follows is None and step == "followed"  # Meta would not say: take the tap at its word
         if follows or trusted_tap:
             log_event(db, tenant_id, rule.id, "followed", guest_id, detail="checked" if follows else "self_confirmed")
         else:
@@ -238,8 +334,9 @@ def handle_payload(db: Session, tenant_id: str, payload: str, *, recipient_id: s
             if asked < int(gate.get("max_asks") or 3):
                 text = _render(gate.get("ask_text") or "Please follow us first, then tap below 👇", guest)
                 try:
-                    result = adapter.send_quick_replies(recipient_id, text,
-                                                        _quick(gate.get("button_title") or "I'm following", rule.id, "followed"))
+                    result = adapter.send_quick_replies(
+                        recipient_id, text, _quick(gate.get("button_title") or "I'm following", rule.id, "followed")
+                    )
                 except Exception as exc:  # noqa: BLE001
                     log_event(db, tenant_id, rule.id, "dm_failed", guest_id, detail=str(exc))
                     db.commit()
@@ -253,15 +350,36 @@ def handle_payload(db: Session, tenant_id: str, payload: str, *, recipient_id: s
                 db.commit()
                 return True
 
-    _send_final(db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id,
-                conversation_id=conversation_id, guest=guest, ctx=ctx)
+    _send_final(
+        db,
+        tenant_id,
+        rule,
+        adapter,
+        recipient_id=recipient_id,
+        guest_id=guest_id,
+        conversation_id=conversation_id,
+        guest=guest,
+        ctx=ctx,
+    )
     return True
 
 
-def _send_final(db: Session, tenant_id: str, rule: AutomationRule, adapter, *, recipient_id: str,
-                guest_id: Optional[str], conversation_id: Optional[str], guest, ctx: dict) -> None:
+def _send_final(
+    db: Session,
+    tenant_id: str,
+    rule: AutomationRule,
+    adapter,
+    *,
+    recipient_id: str,
+    guest_id: str | None,
+    conversation_id: str | None,
+    guest,
+    ctx: dict,
+) -> None:
     cfg = rule.action_config or {}
-    text = _render(cfg.get("message") or "", guest)
+    from app.services import ig_automation_copy as copy_rules
+
+    text, _changes = copy_rules.prepare_dm(_render(cfg.get("message") or "", guest), _keep_words(db, tenant_id))
     button = cfg.get("button") or {}
     try:
         if button.get("url"):
@@ -285,31 +403,38 @@ def _send_final(db: Session, tenant_id: str, rule: AutomationRule, adapter, *, r
     db.commit()
 
 
-def bind_next_post(db: Session, tenant_id: str, media_id: Optional[str]) -> None:
+def bind_next_post(db: Session, tenant_id: str, media_id: str | None) -> None:
     """A "next post" rule not yet tied to a post takes the first post published after the rule was made, found on that
     post's first comment (one Graph lookup per post, cached a week). Commits only when it binds."""
     if not media_id:
         return
     from sqlalchemy.orm.attributes import flag_modified
 
-    unbound = [r for r in db.query(AutomationRule).filter_by(tenant_id=tenant_id, is_active=True,
-                                                             action="send_instagram_quick_reply").all()
-               if (r.trigger_config or {}).get("scope") == "next_post" and not (r.trigger_config or {}).get("media_id")]
+    unbound = [
+        r
+        for r in db.query(AutomationRule)
+        .filter_by(tenant_id=tenant_id, is_active=True, action="send_instagram_quick_reply")
+        .all()
+        if (r.trigger_config or {}).get("scope") == "next_post" and not (r.trigger_config or {}).get("media_id")
+    ]
     if not unbound:
         return
     posted = _media_time(db, tenant_id, media_id)
     if posted is None:
         return
     for rule in unbound:
-        made = rule.created_at if rule.created_at.tzinfo else rule.created_at.replace(tzinfo=timezone.utc)
+        made = rule.created_at if rule.created_at.tzinfo else rule.created_at.replace(tzinfo=UTC)
         if posted > made:
-            rule.trigger_config = {**(rule.trigger_config or {}), "media_id": media_id,
-                                   "media_bound_at": datetime.now(timezone.utc).isoformat()}
+            rule.trigger_config = {
+                **(rule.trigger_config or {}),
+                "media_id": media_id,
+                "media_bound_at": datetime.now(UTC).isoformat(),
+            }
             flag_modified(rule, "trigger_config")
     db.commit()
 
 
-def _media_time(db: Session, tenant_id: str, media_id: str) -> Optional[datetime]:
+def _media_time(db: Session, tenant_id: str, media_id: str) -> datetime | None:
     from app.core import cache
 
     key = f"igmedia_ts:{tenant_id}:{media_id}"

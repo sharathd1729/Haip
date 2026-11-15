@@ -1005,7 +1005,7 @@ def _serialize_call_detail(call: Call, db) -> dict:
                 "name":       (rubric.get(cid) or {}).get("name"),
                 "method":     method,
                 "score":      c.get("score", 0),
-                "max_score":  c.get("max_score") or (3 if method == "ZERO_THREE" else 1 if method else 3),
+                "max_score":  c.get("max_score") or (3 if method == "ZERO_THREE" else 1),  # qa_service: anything but ZERO_THREE is 0-1
                 "evidence":   c.get("evidence_span", c.get("evidence", "")),
                 "overridden": bool(c.get("overridden")),
             })

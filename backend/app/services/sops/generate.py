@@ -309,6 +309,8 @@ def build_steps(t: Template, inp: dict, text: dict, today: date) -> list[dict]:
             "photos": None,
             "rules": [rules.ref(e, today) for e in (rules.get(k) for k in s.rules) if e is not None],
         }
+        if s.points:
+            step["points"] = s.points  # only when set, so other templates' step hashes do not change
         for slot in s.slots:
             _fill(slot, t, inp, text, step)
         step["step_sha"] = _sha({k: v for k, v in step.items() if k != "rules"})

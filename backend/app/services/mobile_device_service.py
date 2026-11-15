@@ -45,7 +45,7 @@ from app.core.database import set_tenant_context
 from app.models.call import Call, RecordingStatus
 from app.models.mobile_device import MobileCallPending, MobileDevice
 from app.models.user import User
-from app.schemas.mobile_device import DeviceCallBatch, DeviceRegister, DeviceSettings
+from app.schemas.mobile_device import ContactNameBatch, DeviceCallBatch, DeviceRegister, DeviceSettings
 from app.services.personal_calls import is_personal
 
 TOKEN_PREFIX = "haip_dev_"
@@ -256,10 +256,12 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
         .filter(Call.tenant_id == tenant_id, Call.ivr_call_id.in_(list(ids.values())))
         .all()
     }
-    results, to_queue = [], []
+    results, to_queue, names = [], [], []
     for c in batch.calls:
         ivr_call_id = ids[c.device_call_id]
         e164 = phone_identity.normalize(c.number, region)
+        if e164 and c.contact_name:
+            names.append((e164, c.contact_name))
         if ivr_call_id in seen:
             status = "duplicate"
         elif not e164:
@@ -314,12 +316,53 @@ def upload_calls(db: Session, device: MobileDevice, batch: DeviceCallBatch) -> l
             )
         else:
             row.payload = payload
+    if keep_all:
+        apply_contact_names(db, tenant_id, names)  # before ingest, so the call lands on the named person
     device.last_seen_at = datetime.now(UTC)
     db.commit()  # signals attached above must be visible to the ingest tasks
     set_tenant_context(db, tenant_id)
     for payload in to_queue:
         ingest_call.delay(payload, tenant_id, PROVIDER)
     return results
+
+
+def apply_contact_names(db: Session, tenant_id: str, pairs: list[tuple[str, str]]) -> int:
+    """Personal workspaces only (callers check): put the phone's saved contact name on the person with that number, made
+    if new (the same phone signal call_ingest resolves). The address book wins over an older name: it is the person's own.
+    A placeholder or a number-as-name is ignored. Returns how many people were (re)named."""
+    from app.models.guest import Guest
+    from app.services import identity_service
+    from app.services.guest_names import real_name
+
+    renamed = 0
+    for e164, raw in pairs:
+        name = real_name(raw)
+        if not name:
+            continue
+        try:
+            guest_id, created = identity_service.resolve_person_by_phone(db, tenant_id, e164, name=name, source=PROVIDER)
+        except ValueError:
+            continue
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+        if guest is not None and (created or guest.name != name):
+            guest.name = name
+            renamed += 1
+    return renamed
+
+
+def name_contacts(db: Session, device: MobileDevice, batch: ContactNameBatch) -> int:
+    """POST /device-calls/names: Yaad's catch-up of saved names for numbers already sent. Ignored (0) outside a personal
+    workspace."""
+    from app.services import phone_identity
+
+    tenant_id = device.tenant_id
+    if not is_personal(db, tenant_id):
+        return 0
+    region = phone_identity.region_for_tenant(db, tenant_id)
+    pairs = [(e, n.name) for n in batch.names if (e := phone_identity.normalize(n.number, region))]
+    renamed = apply_contact_names(db, tenant_id, pairs)
+    db.commit()
+    return renamed
 
 
 # ─── Recordings (step 2) ─────────────────────────────────────────────────────

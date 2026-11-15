@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, Stat, StatusPill } from "@/components/ui/kit";
 import { DemandCard } from "./BrainPanels";
+import { ProfileScoreCard } from "./ProfileScore";
 import { KIND_LABEL, STUDIO, btn, btnPrimary, day, inputCls, studioError, when, type Audit, type Plan } from "./types";
 
 const NUM = new Intl.NumberFormat("en-IN");
@@ -39,6 +40,7 @@ export function AuditTab() {
         <p className="text-sm text-[var(--haip-fg-muted)]">{a ? `Last audit ${when(a.created_at)}` : "No audit yet."}</p>
         <button type="button" className={btnPrimary} disabled={run.isPending || a?.status === "pending"} onClick={() => run.mutate()}>Run a new audit</button>
       </div>
+      <ProfileScoreCard />
       {audits.isLoading ? <Skeleton className="h-48 w-full" /> : audits.isError ? (
         <Card><EmptyState title="Could not load audits" hint={studioError(audits.error, "Try again.")} /></Card>
       ) : !a ? (

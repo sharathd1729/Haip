@@ -35,6 +35,11 @@ class Prefs(context: Context) {
         get() = sp.getLong("sync_floor_ms", 0L)
         set(v) = sp.edit().putLong("sync_floor_ms", v).apply()
 
+    /** Yaad: the saved names of already-sent numbers went to HAIP once (CallSync.catchUpNames). */
+    var namesCaughtUp: Boolean
+        get() = sp.getBoolean("names_caught_up_v1", false)
+        set(v) = sp.edit().putBoolean("names_caught_up_v1", v).apply()
+
     var lastSyncAt: Long
         get() = sp.getLong("last_sync_at", 0L)
         set(v) = sp.edit().putLong("last_sync_at", v).apply()

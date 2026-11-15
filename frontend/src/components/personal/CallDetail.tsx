@@ -1,14 +1,18 @@
 "use client";
 // One call, the way it is remembered: what it was about, the decision, the reminders, the topics, what is still open,
 // any dated plans, then the recording and the transcript. Share sends the WhatsApp-ready note.
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Calendar, ChevronDown, Copy, Loader2, PhoneIncoming, PhoneOutgoing, Send, Sparkles } from "@/lib/icons";
+import { ArrowLeft, AskBubble, Calendar, ChevronDown, Copy, Loader2, PhoneIncoming, PhoneOutgoing, Send } from "@/lib/icons";
+import { Drawer } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { STATUS_TEXT, calendarLink, dayLabel, durationLabel, istDay, timeLabel, type CallDetail as Detail } from "@/lib/personal";
 import { useCallDetail } from "./hooks";
-import { ReminderRow } from "./ReminderRow";
+import { AskYaad } from "./AskYaad";
+import { Cite, MomentProvider } from "./Cite";
+import { ChipsCard, HistoryButton, HistoryDrawer, OpenPointsCard, SummaryCard, TasksCard, TitleEdit } from "./MemoryEdit";
 
 export function CallDetail({ id, backHref }: { id: string; backHref?: string }) {
   const q = useCallDetail(id);
@@ -27,77 +31,59 @@ export function CallDetail({ id, backHref }: { id: string; backHref?: string }) 
       </Shell>
     );
   }
-  return <Body call={q.data} backHref={backHref} />;
+  return <div key={q.data.id} className="y-enter"><Body call={q.data} backHref={backHref} /></div>;
 }
 
 function Body({ call, backHref }: { call: Detail; backHref?: string }) {
   const m = call.memory;
   const Dir = call.direction === "in" ? PhoneIncoming : PhoneOutgoing;
   const day = call.at ? dayLabel(istDay(new Date(call.at))) : "";
-  return (
+  const [panel, setPanel] = useState<"history" | "ask" | null>(null);
+  const audio = useRef<HTMLAudioElement>(null);
+  const play = useCallback((at: number, start = true) => {
+    const el = audio.current;
+    if (!el) return;
+    el.currentTime = at;
+    el.closest("section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (start) el.play().catch(() => { /* the browser wants a tap on play first */ });
+  }, []);
+  // ?t=42 (a source chip on Reminders, Calendar or Ask): open the recording at that moment, ready to play.
+  const t = Number(useSearchParams().get("t"));
+  useEffect(() => { if (t > 0) play(t, false); }, [t, play]);
+  const body = (
+    // Layout B on a wide screen (xl, 1280px+): Ask Yaad stays docked beside the memory; below that it is a drawer.
+    <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start xl:gap-8">
     <Shell backHref={backHref}>
-      <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--y-ink-3)] [font-variant-numeric:tabular-nums]">
-        <Dir size={14} aria-hidden />
-        {[day, timeLabel(call.at), durationLabel(call.duration_sec)].filter(Boolean).join(" · ")}
-      </p>
-      <h1 className="mt-2 text-[26px] font-semibold leading-[1.18] tracking-[-0.02em] text-[var(--y-ink)] [text-wrap:balance] sm:text-[30px]">
-        {m?.title ?? call.contact}
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--y-ink-3)] [font-variant-numeric:tabular-nums]">
+          <Dir size={14} aria-hidden />
+          {[day, timeLabel(call.at), durationLabel(call.duration_sec)].filter(Boolean).join(" · ")}
+        </p>
+        {m && (
+          <div className="flex items-center gap-1">
+            <HistoryButton count={m.history?.length ?? 0} onOpen={() => setPanel("history")} />
+            <button type="button" onClick={() => setPanel("ask")}
+              className="y-press inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[var(--y-brand)] px-3.5 text-[13.5px] font-semibold text-[var(--y-on-brand)] xl:hidden">
+              <AskBubble size={15} aria-hidden /> Ask Yaad
+            </button>
+          </div>
+        )}
+      </div>
+      {m ? <TitleEdit callId={call.id} title={m.title} /> : (
+        <h1 className="mt-2 text-[26px] font-semibold leading-[1.18] tracking-[-0.02em] [text-wrap:balance] sm:text-[30px]">{call.contact}</h1>
+      )}
       <p className="mt-2 text-[15px] text-[var(--y-ink-2)]">
         {m ? `With ${call.contact}` : call.contact !== call.number ? call.number : call.direction === "in" ? "Incoming call" : "Outgoing call"}
       </p>
 
-      {m && (m.category || m.tags.length > 0) && (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {[m.category, ...m.tags].filter(Boolean).map((t, i) => (
-            <span key={`${t}-${i}`} className={cn(
-              "rounded-full px-3 py-1 text-[13px] font-medium",
-              i === 0 ? "bg-[var(--y-brand)] text-[var(--y-on-brand)]" : "border border-[var(--y-line)] bg-[var(--y-card)] text-[var(--y-ink-2)]",
-            )}>{t}</span>
-          ))}
-        </div>
-      )}
+      {m && <ChipsCard callId={call.id} m={m} folders={call.folders ?? []} />}
 
       {!m && <Pending call={call} />}
       {m && call.share_text && <ShareBar text={call.share_text} />}
 
-      {m?.decision && (
-        <div className="mt-6 rounded-[18px] bg-[var(--y-soft)] px-4 py-3.5">
-          <p className="text-[13px] font-semibold text-[var(--y-soft-ink)]">Decision</p>
-          <p className="mt-1 text-[16px] font-medium leading-snug text-[var(--y-ink)]">{m.decision}</p>
-        </div>
-      )}
-
-      {m && m.action_items.length > 0 && (
-        <Section title="Reminders" count={m.action_items.filter(a => !a.done).length}>
-          <ul className="grid">
-            {m.action_items.map(a => <ReminderRow key={a.id} item={a} callId={call.id} />)}
-          </ul>
-        </Section>
-      )}
-
-      {m && m.sections.length > 0 && (
-        <Section title="Summary">
-          <div className="grid gap-5">
-            {m.sections.map((s, i) => (
-              <div key={i}>
-                <h3 className="text-[15.5px] font-semibold text-[var(--y-ink)]">{s.heading}</h3>
-                <ul className="mt-2 grid list-disc gap-1.5 pl-5 text-[15px] leading-relaxed text-[var(--y-ink)] marker:text-[var(--y-brand)]">
-                  {s.bullets.map((b, j) => <li key={j}>{b}</li>)}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {m && m.open_points.length > 0 && (
-        <Section title="Still open">
-          <ul className="grid list-disc gap-1.5 pl-5 text-[15px] leading-relaxed marker:text-[var(--y-ink-3)]">
-            {m.open_points.map((p, i) => <li key={i}>{p}</li>)}
-          </ul>
-        </Section>
-      )}
+      {m && <SummaryCard callId={call.id} m={m} />}
+      {m && <TasksCard callId={call.id} m={m} />}
+      {m && <OpenPointsCard callId={call.id} m={m} />}
 
       {m && m.upcoming.length > 0 && (
         <Section title="Coming up">
@@ -106,7 +92,7 @@ function Body({ call, backHref }: { call: Detail; backHref?: string }) {
               <li key={i} className="flex items-start gap-3 rounded-[14px] border border-[var(--y-line)] bg-[var(--y-card)] p-3">
                 <Calendar size={18} className="mt-0.5 shrink-0 text-[var(--y-brand)]" aria-hidden />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-medium">{u.what}</span>
+                  <span className="block text-[15px] font-medium">{u.what}<Cite text={u.what} /></span>
                   <span className="text-[13px] text-[var(--y-ink-2)]">{[dayLabel(u.date), u.time, u.place].filter(Boolean).join(" · ")}</span>
                 </span>
                 <a
@@ -123,48 +109,38 @@ function Body({ call, backHref }: { call: Detail; backHref?: string }) {
         </Section>
       )}
 
-      {m?.learning && (
-        <div className="mt-8 flex items-start gap-3 rounded-[18px] border border-[var(--y-line)] bg-[var(--y-card)] p-4">
-          <Sparkles size={18} className="mt-0.5 shrink-0 text-[var(--y-brand)]" aria-hidden />
-          <div>
-            <p className="text-[13px] font-semibold text-[var(--y-ink-2)]">Worth remembering</p>
-            <p className="mt-1 text-[15px] leading-relaxed">{m.learning}</p>
-          </div>
-        </div>
-      )}
-
-      {m && m.participants.length > 0 && (
-        <Section title="On the call">
-          <ul className="flex flex-wrap gap-2">
-            {m.participants.map((p, i) => (
-              <li key={i} className="rounded-full border border-[var(--y-line)] bg-[var(--y-card)] px-3 py-1.5 text-[14px]">
-                <span className="font-medium">{p.name}</span>
-                {p.role && <span className="text-[var(--y-ink-2)]"> · {p.role}</span>}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
       {call.recording_url && (
         <Section title="Recording">
-          <audio controls preload="none" src={call.recording_url} className="w-full [accent-color:var(--y-brand)]">
+          <audio ref={audio} controls preload="none" src={call.recording_url} className="w-full [accent-color:var(--y-brand)]">
             Your browser can't play this recording.
           </audio>
         </Section>
       )}
 
       {call.transcript.length > 0 && <Transcript turns={call.transcript} />}
+
+      {m && <HistoryDrawer callId={call.id} open={panel === "history"} onOpenChange={o => setPanel(o ? "history" : null)} />}
+      <Drawer open={panel === "ask"} onOpenChange={o => setPanel(o ? "ask" : null)} title="Ask Yaad" className="yaad">
+        <AskYaad compact />
+      </Drawer>
     </Shell>
+    {m && (
+      <aside aria-label="Ask Yaad" className="sticky top-0 hidden max-h-[calc(100dvh-6rem)] flex-col overflow-y-auto rounded-[24px] border border-[var(--y-line)] bg-[var(--y-card)] p-5 shadow-[var(--y-shadow)] xl:flex">
+        <h2 className="mb-3 flex items-center gap-2 text-[16px] font-semibold"><AskBubble size={18} aria-hidden /> Ask Yaad</h2>
+        <AskYaad compact />
+      </aside>
+    )}
+    </div>
   );
+  return m ? <MomentProvider memory={m} play={call.recording_url ? play : undefined}>{body}</MomentProvider> : body;
 }
 
 function Shell({ children, backHref }: { children: React.ReactNode; backHref?: string }) {
   return (
-    <article className="mx-auto w-full max-w-[680px] pb-10">
+    <article className="mx-auto w-full max-w-[760px] pb-10">
       {backHref && (
         <Link href={backHref} className="y-press -ml-2 mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-[15px] font-medium text-[var(--y-brand)]">
-          <ArrowLeft size={18} aria-hidden /> Calls
+          <ArrowLeft size={18} aria-hidden /> Memories
         </Link>
       )}
       {children}

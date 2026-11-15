@@ -98,8 +98,9 @@ class ScriptedLLM:
 
     def __init__(self, tool_use=None, recheck=None, error=None, recheck_error=None):
         self.calls = []
-        self._answers = {"call_analysis": tool_use, "deep_reason": recheck}
-        self._errors = {"call_analysis": error, "deep_reason": recheck_error}
+        main = ("call_analysis", "personal_call", "personal_ask", "personal_digest")  # Yaad answers like the call read
+        self._answers = {**dict.fromkeys(main, tool_use), "deep_reason": recheck}
+        self._errors = {**dict.fromkeys(main, error), "deep_reason": recheck_error}
 
     def get_llm(self, task, tenant_id=None):
         llm = self

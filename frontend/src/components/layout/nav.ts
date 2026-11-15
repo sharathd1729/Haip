@@ -135,9 +135,10 @@ export const NOW_HREF = "/dashboard/my-day";
 // Personal workspace (one person's own calls, services/personal_calls.py): only Calls and Reminders, no company screens.
 export const PERSONAL_HOME = "/dashboard/me";
 export const PERSONAL_SECTIONS: NavSection[] = [
-  { title: "Calls", links: [
-    { label: "Calls", href: PERSONAL_HOME, icon: Phone, resource: "profile" },
+  { title: "Yaad", links: [
+    { label: "Memories", href: PERSONAL_HOME, icon: Phone, resource: "profile" },
     { label: "Reminders", href: "/dashboard/me/reminders", icon: ListChecks, resource: "profile" },
+    { label: "Calendar", href: "/dashboard/me/calendar", icon: Calendar, resource: "profile" },
     { label: "Ask Yaad", href: "/dashboard/me/ask", icon: AskBubble, resource: "profile" },
   ] },
   { title: "Settings", links: [
@@ -147,7 +148,7 @@ export const PERSONAL_SECTIONS: NavSection[] = [
     { label: "Help & support", href: "/dashboard/help", icon: HelpCircle, resource: "help" },
   ] },
 ];
-const PERSONAL_TABS = [PERSONAL_HOME, "/dashboard/me/ask", "/dashboard/me/reminders"];
+const PERSONAL_TABS = [PERSONAL_HOME, "/dashboard/me/ask", "/dashboard/me/reminders", "/dashboard/me/calendar"];
 
 export function isVisible(link: NavLink, role: string, businessType: string | null | undefined): boolean {
   return canSeeNav(role, link.resource)

@@ -17,6 +17,7 @@ celery_app = Celery(
         "app.workers.tasks.call_ingest",
         "app.workers.tasks.mobile_calls",
         "app.workers.tasks.personal_ask",
+        "app.workers.tasks.personal_folders",
         "app.workers.tasks.personal_digest",
         "app.workers.tasks.transcription",
         "app.workers.tasks.ai_scoring",
@@ -33,6 +34,7 @@ celery_app = Celery(
         "app.workers.tasks.process_instagram_dm",
         "app.workers.tasks.process_instagram_referral",
         "app.workers.tasks.process_instagram_comment",
+        "app.workers.tasks.ig_follow_up",
         "app.workers.tasks.send_instagram_dm",
         # PMS syncs
         "app.workers.tasks.sync_retalwise",
@@ -212,6 +214,7 @@ celery_app.conf.update(
         "process_instagram_dm":                     {"queue": "replies"},
         "process_instagram_referral":               {"queue": "whatsapp"},
         "process_instagram_comment":                 {"queue": "whatsapp"},
+        "ig_quick_reply.follow_up":                  {"queue": "whatsapp"},   # one follow-up after a keyword DM
         "process_instagram_echo":                    {"queue": "whatsapp"},
         "send_instagram_dm":                        {"queue": "replies"},
         "instagram_mark_seen":                       {"queue": "whatsapp"},
@@ -245,7 +248,10 @@ celery_app.conf.update(
         "call_ingest.process":                       {"queue": "call_ingest"},
         "mobile_calls.purge_stale_pending":          {"queue": "call_ingest"},
         "mobile_calls.requeue_stuck":                {"queue": "call_ingest"},
-        "personal.ask":                              {"queue": "default"},
+        "personal.file_call":                        {"queue": "ai_scoring"},  # Yaad folders: background sorting
+        "personal.sort_folder":                      {"queue": "ai_scoring"},
+        "personal.google_sync":                      {"queue": "default"},  # Yaad calendar -> Google
+        "personal.ask":                              {"queue": "personal"},  # Yaad: worker_replies, never behind transcription
         "personal.daily_digest":                     {"queue": "default"},
         "personal.daily_digest_all_tenants":         {"queue": "default"},
         "calls.requeue_queued_transcriptions":       {"queue": "call_ingest"},

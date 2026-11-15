@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  async redirects() {
+    // The new marketing site was previewed under /site-v2 before it replaced the live pages.
+    return [
+      { source: "/site-v2", destination: "/", permanent: true },
+      { source: "/site-v2/:path*", destination: "/:path*", permanent: true },
+    ];
+  },
   async rewrites() {
     return [
       {

@@ -194,3 +194,25 @@ def test_personal_workspace_keeps_unknown_numbers_at_any_hour(client, db, tenant
     _personal(db, tid)
     body = {"calls": [_call(number="+919811113333", cid=uuid.uuid4().hex[:8])]}
     assert client.post("/api/v1/device-calls", json=body, headers=auth).json()["counts"] == {"queued": 1}
+
+
+def test_me_calls_search_and_category_filter(client, db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    _personal(db, tid)
+    c = _remembered_call(db, tid, from_number="+919845012345")
+    other = _remembered_call(db, tid)
+    pc.store(other, {**pc.memory_of(other), "title": "Diwali train tickets", "category": "Family", "tags": ["Pilgrimage"]})
+    db.commit()
+    headers = _auth(tenant_and_user)
+
+    def ids(**params):
+        return {r["id"] for r in client.get("/api/v1/me/calls", params=params, headers=headers).json()["calls"]}
+
+    assert ids(q="wellness") == {c.id}  # a word in the title
+    assert ids(q="PILGRIM") == {other.id}  # a tag, any case
+    assert ids(q="45012") == {c.id}  # part of the number
+    assert ids(q="100%_") == set()  # LIKE wildcards are literal
+    assert ids(category="Family") == {other.id} and ids(category="Gossip") == {c.id, other.id}  # unknown = no filter
+    assert "upcoming" not in client.get("/api/v1/me/calls", params={"q": "x"}, headers=headers).json()
+    theirs = _remembered_call(db, h.tenant(db).id)
+    assert theirs.id not in ids(q="wellness")
