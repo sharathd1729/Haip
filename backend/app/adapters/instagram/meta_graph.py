@@ -58,7 +58,7 @@ _ALLOWED_MEDIA_HOST_SUFFIXES = (
 
 
 # Webhook fields HAIP handles (webhooks_instagram.py): DMs incl. echoes, button taps, ad referrals, comments.
-WEBHOOK_FIELDS = "messages,messaging_postbacks,messaging_referral,comments"
+WEBHOOK_FIELDS = "messages,messaging_postbacks,messaging_referral,comments,live_comments"
 
 
 def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
@@ -67,10 +67,18 @@ def subscribe_webhooks(access_token: str) -> tuple[bool, str]:
     Without this call Meta sends no DMs for the account even though the token works. Returns (ok, error text);
     never raises, so a failed subscribe never undoes a successful connect.
     """
+    ok, err = _subscribe(access_token, WEBHOOK_FIELDS)
+    if not ok and "live_comments" in WEBHOOK_FIELDS:
+        # Live comments are optional: if Meta refuses that field, still subscribe to the ones DMs need.
+        ok, err = _subscribe(access_token, WEBHOOK_FIELDS.replace(",live_comments", ""))
+    return ok, err
+
+
+def _subscribe(access_token: str, fields: str) -> tuple[bool, str]:
     try:
         resp = httpx.post(
             f"{GRAPH_BASE}/me/subscribed_apps",
-            data={"subscribed_fields": WEBHOOK_FIELDS},
+            data={"subscribed_fields": fields},
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=15,
         )
@@ -152,16 +160,44 @@ class InstagramGraphAdapter:
             "messaging_type": "RESPONSE",
         })
 
-    def send_private_reply(self, comment_id: str, text: str) -> dict:
+    def send_private_reply(self, comment_id: str, text: str, quick_replies: list[dict] | None = None) -> dict:
         """DM someone in response to their comment on our post or ad
         ("private reply"). A plain send_text to a person who has only
         commented is rejected by Meta as "outside of allowed window" -- the
         comment itself is what opens this one reply. Meta allows one private
-        reply per comment, within 7 days of it."""
+        reply per comment, within 7 days of it. quick_replies: a tap on one opens the normal 24h window."""
+        message: dict = {"text": text}
+        if quick_replies:
+            message["quick_replies"] = quick_replies
         return self._post(f"/{self._inbox}/messages", {
             "recipient": {"comment_id": comment_id},
-            "message": {"text": text},
+            "message": message,
         })
+
+    def send_link_button(self, recipient_id: str, text: str, button_title: str, url: str) -> dict:
+        """A message with one link button (generic template; its title holds at most 80 characters, so a longer text goes
+        first as its own message). Raises like _post; callers fall back to plain text + link."""
+        title = text if len(text) <= 80 else button_title
+        if len(text) > 80:
+            self.send_text(recipient_id, text)
+        return self._post(f"/{self._inbox}/messages", {
+            "recipient": {"id": recipient_id},
+            "message": {"attachment": {"type": "template", "payload": {
+                "template_type": "generic",
+                "elements": [{"title": title, "buttons": [{"type": "web_url", "url": url, "title": button_title}]}],
+            }}},
+            "messaging_type": "RESPONSE",
+        })
+
+    def follows_us(self, user_id: str) -> bool | None:
+        """True/False when Meta says whether this person follows the account (is_user_follow_business), None when it
+        will not say (Meta needs the person to have messaged us first; any error)."""
+        try:
+            data = self._get(f"/{user_id}", params={"fields": "is_user_follow_business"})
+        except Exception:  # noqa: BLE001
+            return None
+        value = data.get("is_user_follow_business")
+        return value if isinstance(value, bool) else None
 
     def reply_to_comment(self, comment_id: str, message: str) -> dict:
         """Post a public reply to a comment (T2.3 — comment-sourced quick replies)."""

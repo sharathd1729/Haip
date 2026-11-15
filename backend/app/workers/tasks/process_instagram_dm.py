@@ -368,9 +368,26 @@ def process_instagram_dm(self, payload: dict) -> dict:
         # Priority 3 requirement: auto-reply always wins when both would
         # otherwise fire. AI is strictly for messages no rule matched.
         matched_rule = None
-        if body and body.strip() and not body.startswith("["):
-            from app.services.ig_keyword_match import find_matching_rule
+        from app.services.ig_keyword_match import find_matching_rule
+        # A tap on one of our automation buttons (follow gate / "Send it"): the automation answers, nothing else does.
+        tapped = payload.get("quick_reply_payload") or ""
+        from app.services import ig_automation
+        automation_tap = (not payload.get("suppress_automation")) and ig_automation.parse_payload(tapped) is not None
+        # Story reply / story mention: their own automation triggers (a mention body is "[Story mention]" or an attachment).
+        reply_story = (payload.get("reply_to") or {}).get("story")
+        is_mention = body == "[Story mention]" or any((a or {}).get("type") == "story_mention" for a in attachments or [])
+        if automation_tap:
+            pass
+        elif is_mention:
+            matched_rule = find_matching_rule(db, tenant_id, "ig_story_mention_received", body)
+        elif reply_story:
+            matched_rule = find_matching_rule(db, tenant_id, "ig_story_reply_received", text or "")
+        if not automation_tap and matched_rule is None and body and body.strip() and not body.startswith("["):
             matched_rule = find_matching_rule(db, tenant_id, "ig_dm_received", body)
+        if not automation_tap and matched_rule is None and referral:
+            # First message of a chat opened from an ad: the ad welcome (once per person, like every automation).
+            matched_rule = find_matching_rule(db, tenant_id, "ig_ad_chat_started", body,
+                                              ad_id=str((referral or {}).get("ad_id") or "") or None)
 
         # Phase 2.5 agent-accountability instrumentation
         # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): record which of
@@ -390,6 +407,10 @@ def process_instagram_dm(self, payload: dict) -> dict:
         # live behaviour is unchanged.
         if payload.get("suppress_automation"):
             message.automation_outcome = "backfilled_no_automation"
+        elif automation_tap:
+            ig_automation.handle_payload(db, tenant_id, tapped, recipient_id=sender_id, guest_id=guest_id,
+                                         conversation_id=conversation.id, guest=guest)
+            message.automation_outcome = "matched_auto_replied"
         elif matched_rule:
             from app.services.ig_quick_reply import dispatch_quick_reply
             dispatch_quick_reply(

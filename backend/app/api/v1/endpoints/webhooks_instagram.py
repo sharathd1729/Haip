@@ -148,8 +148,8 @@ async def receive_instagram_webhook(request: Request):
             _handle_messaging_event(ig_account_id, messaging_event)
         # T1.1: comment events arrive via entry.changes, not entry.messaging.
         for change in entry.get("changes", []):
-            if change.get("field") == "comments":
-                _handle_comment_event(ig_account_id, change.get("value", {}))
+            if change.get("field") in ("comments", "live_comments"):
+                _handle_comment_event(ig_account_id, change.get("value", {}), live=change.get("field") == "live_comments")
 
     return {"status": "ok"}
 
@@ -208,6 +208,8 @@ def _handle_inbound_dm(ig_account_id: str, sender_id: str, event: dict):
         "attachments": message.get("attachments", []),
         "timestamp": event.get("timestamp"),
         "reply_to": message.get("reply_to", {}),
+        # A tap on a quick reply / button: its payload (igauto:... = one of our automations, services/ig_automation.py).
+        "quick_reply_payload": (message.get("quick_reply") or {}).get("payload", ""),
         # T0.3: ad attribution -- present when the DM originated from a
         # Click-to-Instagram ad. Sibling of "message" in the messaging event,
         # not nested inside it.
@@ -247,7 +249,7 @@ def _handle_outbound_echo(ig_account_id: str, event: dict):
         log.error("instagram_echo_queue_failed", error=str(exc))
 
 
-def _handle_comment_event(ig_account_id: str, value: dict):
+def _handle_comment_event(ig_account_id: str, value: dict, live: bool = False):
     """
     Queue processing for an inbound Instagram comment.
 
@@ -285,6 +287,7 @@ def _handle_comment_event(ig_account_id: str, value: dict):
         # consent is required" for essentially every DM sender). Free,
         # no extra API round trip needed.
         "sender_username": from_obj.get("username", ""),
+        "live": live,  # a comment during an Instagram Live (field live_comments): its own automation trigger
     }
 
     try:
@@ -303,6 +306,7 @@ def _handle_postback(ig_account_id: str, sender_id: str, event: dict):
         "message": {
             "mid": f"postback_{event.get('timestamp', '')}",
             "text": postback.get("title", postback.get("payload", "")),
+            "quick_reply": {"payload": postback.get("payload", "")},
         },
     })
 

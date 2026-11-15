@@ -37,6 +37,7 @@ from app.models.google_surfaces import GbpDailyMetric, GscDailyTotal, GscSearchR
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
 from app.models.mobile_device import MobileCallPending, MobileDevice
+from app.models.ig_automation import IgAutomationEvent, IgTrackedLink
 from app.models.yaad_folder import YaadAsk, YaadEvent, YaadFolder, YaadFolderCall
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
 from app.models.stay_finance import StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest
@@ -106,7 +107,7 @@ __all__ = [
     "OpsFile", "OpsFileEvent", "OpsChecklistTemplate", "OpsJob", "OpsJobItem", "OpsExpense", "OpsExtra",
     "OpsPaper", "OpsDefect", "OpsService", "OpsInventoryItem", "OpsAutoMessage", "OpsGuestForm", "GuestAddonLink", "GuestAddonOrder",
     "GbpDailyMetric", "GscDailyTotal", "GscSearchRow", "PageSpeedRun",
-    "MobileDevice",
+    "MobileDevice", "IgAutomationEvent", "IgTrackedLink",
     "YaadFolder",
     "YaadFolderCall",
     "YaadAsk",

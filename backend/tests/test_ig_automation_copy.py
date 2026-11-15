@@ -60,17 +60,22 @@ def test_dm_is_humanized_ack_replaced_and_one_follow_up_queued(db, ws):
     tid = ws["tenant"].id
     g, c, rule = _setup(db, tid)
     adapter = MagicMock()
+    adapter.send_text.return_value = {"message_id": "m-1"}
+    adapter.send_private_reply.return_value = {"message_id": "m-2"}
     with patch("app.adapters.instagram.meta_graph.InstagramGraphAdapter", return_value=adapter), \
             patch("app.workers.tasks.ig_follow_up.send_follow_up.apply_async") as queued:
         assert qr.dispatch_quick_reply(db, tid, rule, "igsid-1", g.id, c.id)
-    sent = adapter.send_text.call_args.kwargs["text"]
+    sent = adapter.send_text.call_args.args[1]                       # engine: send_text(recipient_id, text)
     assert "—" not in sent and "Get them below" in sent
     assert queued.call_args.kwargs["countdown"] == 20 * 3600 and queued.call_args.kwargs["args"][1] == rule.id
 
     adapter.reset_mock()
+    other = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="Kabir")     # once per person: a new commenter
+    db.add(other)
+    db.commit()
     with patch("app.adapters.instagram.meta_graph.InstagramGraphAdapter", return_value=adapter), \
             patch("app.workers.tasks.ig_follow_up.send_follow_up.apply_async") as queued:
-        qr.dispatch_quick_reply(db, tid, rule, "igsid-1", g.id, c.id, comment_id="cmt-1")
+        qr.dispatch_quick_reply(db, tid, rule, "igsid-2", other.id, c.id, comment_id="cmt-1")
     assert adapter.reply_to_comment.call_args.args[1] == rules.SAFE_PUBLIC_REPLY     # selling ack never posted
     queued.assert_not_called()                                                       # no follow-up after a comment
 
