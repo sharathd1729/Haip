@@ -233,7 +233,7 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate api worker work
 
 | Ask Yaad on its own queue (15 Nov) | `worker_replies` now also consumes queue `personal`: recreate it in the SAME deploy (`up -d worker_replies`), or Ask Yaad questions wait forever. No new connections. |
 
-| MCP connectors for Yaad + public MCP address (15 Nov) | Add `MCP_PUBLIC_URL=https://api.genhaip.com` to `backend/.env` and restart the api. Connector URL for ChatGPT / Claude: `https://api.genhaip.com/mcp` (sign in with the HAIP / Yaad email + password; a Yaad workspace sees only Yaad's tools). Check: `curl -s https://api.genhaip.com/.well-known/oauth-protected-resource/mcp` shows `"resource":"https://api.genhaip.com/mcp"`. |
+| MCP connectors for Yaad + public MCP address (15 Nov) | Add `MCP_PUBLIC_URL=https://api.genhaip.com` to `backend/.env` and restart the api. Connector URLs for ChatGPT / Claude: HAIP `https://api.genhaip.com/mcp` (HAIP sign-in), Yaad `https://api.genhaip.com/yaad/mcp` (signs in on yaad.genhaip.com; needs `YAAD_URL` set). nginx on api.genhaip.com must pass `/yaad/` to the api like `/mcp`. Check: `curl -s https://api.genhaip.com/.well-known/oauth-protected-resource/mcp` shows `"resource":"https://api.genhaip.com/mcp"`. |
 
 | Yaad folders + calendar + Google Calendar sync + Ask chats (15 Nov) | Migrations 207-209 run with the deploy. In Google Cloud (the Business Profile OAuth client), add the redirect URI `{API_BASE_URL}/api/v1/me/calendar/google/oauth-callback` and the scope `https://www.googleapis.com/auth/calendar.events` to the consent screen; Google must verify the app before more than 100 people can connect (sensitive scope). No new env vars. |
 

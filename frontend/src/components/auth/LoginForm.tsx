@@ -16,7 +16,7 @@ export interface LoginBrand {
   signupLabel: string;
   signupHref: string;
   defaultCallback: string;   // where to go when no (safe) callbackUrl was given
-  callbackUnder?: string;    // only return to pages at or below this path
+  callbackUnder?: string | string[];    // only return to pages at or below this path
 }
 
 export const HAIP_LOGIN: LoginBrand = {

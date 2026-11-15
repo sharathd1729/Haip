@@ -42,6 +42,8 @@ from app.mcp.tools_yaad import YAAD_INSTRUCTIONS, YAAD_TOOLS, YAAD_TOOLS_BY_NAME
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/mcp", tags=["mcp"])
+# Yaad's own connector address: same server, personal workspaces only (see oauth.YAAD_PATH).
+yaad_router = APIRouter(prefix="/yaad/mcp", tags=["mcp"])
 
 # Newest first. initialize echoes the client's requested version when we
 # support it, else offers our newest -- the spec's negotiation rule. Nothing
@@ -84,11 +86,12 @@ def _jsonrpc_result(request_id, result: dict) -> dict:
     return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
 
-def _unauthorized(request: Request, request_id, message: str) -> JSONResponse:
+def _unauthorized(request: Request, request_id, message: str, yaad_door: bool = False) -> JSONResponse:
+    meta = protected_resource_metadata_url(request, yaad=yaad_door)
     return JSONResponse(
         _jsonrpc_error(request_id, -32001, message),
         status_code=401,
-        headers={"WWW-Authenticate": f'Bearer resource_metadata="{protected_resource_metadata_url(request)}"'},
+        headers={"WWW-Authenticate": f'Bearer resource_metadata="{meta}"'},
     )
 
 
@@ -108,6 +111,8 @@ def _verify_bearer(db, raw_token: str):
 
 @router.get("")
 @router.delete("")
+@yaad_router.get("")
+@yaad_router.delete("")
 async def mcp_no_stream():
     # Stateless server: no server-initiated SSE stream (GET) and no session
     # to terminate (DELETE). 405 is what the Streamable HTTP spec says to
@@ -117,6 +122,15 @@ async def mcp_no_stream():
 
 @router.post("")
 async def mcp_endpoint(request: Request):
+    return await _handle(request, yaad_door=False)
+
+
+@yaad_router.post("")
+async def yaad_mcp_endpoint(request: Request):
+    return await _handle(request, yaad_door=True)
+
+
+async def _handle(request: Request, yaad_door: bool):
     try:
         body = await request.json()
     except ValueError:
@@ -142,7 +156,7 @@ async def mcp_endpoint(request: Request):
     try:
         token_record = _verify_bearer(db, raw_token) if raw_token else None
         if not token_record:
-            return _unauthorized(request, request_id, "Unauthorized: invalid, expired or revoked token")
+            return _unauthorized(request, request_id, "Unauthorized: invalid, expired or revoked token", yaad_door)
 
         set_tenant_context(db, token_record.tenant_id)
         # D1: the PAT itself being valid isn't enough -- a deactivated or
@@ -177,6 +191,8 @@ async def mcp_endpoint(request: Request):
         # A personal (Yaad) workspace gets only Yaad's tools; a business workspace only HAIP's.
         yaad = personal_calls.is_personal(db, token_record.tenant_id)
         tools, tools_by_name = (YAAD_TOOLS, YAAD_TOOLS_BY_NAME) if yaad else (TOOLS, TOOLS_BY_NAME)
+        if yaad_door and not yaad:
+            return _forbidden(request_id, "This is the Yaad connector; this account is a HAIP workspace. Use the HAIP connector.")
 
         if method == "initialize":
             requested = params.get("protocolVersion")

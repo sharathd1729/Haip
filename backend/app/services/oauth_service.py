@@ -151,14 +151,15 @@ def _redirect_matches(registered: str, requested: str) -> bool:
     return False
 
 
-def _resource_ok(resource: Optional[str], mcp_url: str) -> bool:
+def _resource_ok(resource: Optional[str], mcp_url: "str | tuple[str, ...]") -> bool:
     """RFC 8707 resource indicator: a token requested for some other server
-    must not be minted here. Accept the MCP URL or the bare API origin."""
+    must not be minted here. Accept one of the MCP URLs or the bare API origin."""
     if not resource:
         return True
     want = resource.rstrip("/")
-    origin = urlunsplit(urlsplit(mcp_url)[:2] + ("", "", ""))
-    return want in (mcp_url.rstrip("/"), origin.rstrip("/"))
+    urls = (mcp_url,) if isinstance(mcp_url, str) else mcp_url
+    origin = urlunsplit(urlsplit(urls[0])[:2] + ("", "", ""))
+    return want in {u.rstrip("/") for u in urls} | {origin.rstrip("/")}
 
 
 def validate_authorize_request(
@@ -171,7 +172,7 @@ def validate_authorize_request(
     code_challenge_method: Optional[str],
     resource: Optional[str],
     scope: Optional[str],
-    mcp_url: str,
+    mcp_url: "str | tuple[str, ...]",
 ) -> tuple[OAuthClient, list[str]]:
     """Checks everything about an /authorize request that can be checked
     before the user is involved. Raises OAuthError. Called both by the

@@ -10,7 +10,8 @@ const YAAD: LoginBrand = {
   signupLabel: "Create your account",
   signupHref: "/yaad/signup",
   defaultCallback: "/dashboard/me",
-  callbackUnder: "/dashboard/me",
+  // Yaad's screens, plus the AI-assistant consent page the Yaad connector signs in through.
+  callbackUnder: ["/dashboard/me", "/connect"],
 };
 
 export default function YaadLoginPage() {

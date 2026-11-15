@@ -156,3 +156,83 @@ def test_discovery_points_at_the_public_mcp_address(client, db):
     assert resp.status_code == 401
     assert 'resource_metadata="https://api.example.test/.well-known/' in resp.headers["www-authenticate"]
     assert meta["resource"] == "https://api.example.test/mcp"
+
+
+# ── Yaad's own connector address: /yaad/mcp signs in on Yaad's page ──────────────────────────────────────────────────
+
+API = "https://api.example.test"
+YAAD_RESOURCE = f"{API}/yaad/mcp"
+
+
+def _oauth():
+    from tests import test_mcp_oauth as o
+
+    return o
+
+
+def test_yaad_address_has_its_own_discovery(client, db):
+    with patch("app.mcp.oauth.settings.MCP_PUBLIC_URL", API):
+        meta = client.get("/.well-known/oauth-protected-resource/yaad/mcp").json()
+        resp = client.post("/yaad/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize"})
+    assert meta["resource"] == YAAD_RESOURCE and meta["resource_name"] == "Yaad"
+    assert meta["authorization_servers"] == [API]
+    assert resp.status_code == 401
+    assert (
+        f'resource_metadata="{API}/.well-known/oauth-protected-resource/yaad/mcp"' in resp.headers["www-authenticate"]
+    )
+
+
+def test_yaad_connector_signs_in_on_yaad(client, db):
+    o = _oauth()
+    with patch("app.middleware.rate_limit._check_limit", return_value=(True, 0)):
+        client_id = o._register(client, db).json()["client_id"]
+    _, challenge = o._pkce()
+    params = {
+        "client_id": client_id,
+        "redirect_uri": o.CLAUDE_REDIRECT,
+        "response_type": "code",
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+    }
+    with (
+        patch("app.mcp.oauth.settings.MCP_PUBLIC_URL", API),
+        patch("app.mcp.oauth.settings.YAAD_URL", "https://yaad.example.test"),
+        patch("app.mcp.oauth.settings.FRONTEND_URL", "https://www.example.test"),
+        o._Session(db),
+    ):
+        yaad = client.get("/oauth/authorize", params={**params, "resource": YAAD_RESOURCE}, follow_redirects=False)
+        haip = client.get("/oauth/authorize", params={**params, "resource": f"{API}/mcp"}, follow_redirects=False)
+    assert yaad.headers["location"].startswith("https://yaad.example.test/connect/authorize?")
+    assert haip.headers["location"].startswith("https://www.example.test/connect/authorize?")
+
+
+def test_yaad_consent_refuses_a_business_account(client, db):
+    o = _oauth()
+    business = o._make_tenant(db)
+    owner = o._make_user(db, business.id)
+    personal = o._make_tenant(db)
+    me = o._make_user(db, personal.id)
+    db.commit()
+    _personal(db, personal.id)
+    with patch("app.middleware.rate_limit._check_limit", return_value=(True, 0)):
+        client_id = o._register(client, db).json()["client_id"]
+    _, challenge = o._pkce()
+    with patch("app.mcp.oauth.settings.MCP_PUBLIC_URL", API):
+        refused = o._consent(client, owner, client_id, challenge, resource=YAAD_RESOURCE)
+        allowed = o._consent(client, me, client_id, challenge, resource=YAAD_RESOURCE)
+    assert refused.status_code == 400 and "Yaad connector" in refused.json()["detail"]
+    assert allowed.status_code == 200 and "code=" in allowed.json()["redirect_to"]
+
+
+def test_yaad_address_serves_only_personal_workspaces(client, db, tenant_and_user):
+    tenant, user = tenant_and_user["tenant"], tenant_and_user["user"]
+    _setup(db, tenant.id, personal=False)
+    token, _ = token_service.generate_token(db, tenant.id, user.id, "Claude")
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+    with patch("app.mcp.server.SessionLocal", return_value=_NoCloseSessionWrapper(db)):
+        business = client.post("/yaad/mcp", json=body, headers={"Authorization": f"Bearer {token}"})
+        _personal(db, tenant.id)
+        personal = client.post("/yaad/mcp", json=body, headers={"Authorization": f"Bearer {token}"})
+    assert business.status_code == 403
+    names = {t["name"] for t in personal.json()["result"]["tools"]}
+    assert names and all(n.startswith("yaad_") for n in names)

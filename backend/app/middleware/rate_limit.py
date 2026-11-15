@@ -192,7 +192,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # directly rather than doing a DB lookup in middleware (keeps this
         # cheap, and throttles a bad/expired token attempt same as a valid
         # one -- both are "someone hammering this endpoint").
-        if path.startswith("/mcp"):
+        if path.startswith(("/mcp", "/yaad/mcp")):
             if r is not None:
                 auth_header = request.headers.get("authorization", "")
                 raw_token = auth_header[7:] if auth_header.lower().startswith("bearer ") else ""

@@ -42,17 +42,24 @@ function isForbidden(err: unknown): boolean {
   return (err as { response?: { status?: number } })?.response?.status === 403;
 }
 
+// The Yaad connector (resource .../yaad/mcp) uses Yaad's words and Yaad's sign-in page; read from the URL so the
+// server and client render the same thing.
+function isYaadConnector(resource: string | null): boolean {
+  return !!resource && resource.replace(/\/+$/, "").endsWith("/yaad/mcp");
+}
+
 function reauthenticate() {
   const back = window.location.pathname + window.location.search;
-  signOut({ callbackUrl: `/login?callbackUrl=${encodeURIComponent(back)}` }).catch(() => {
-    window.location.href = `/login?callbackUrl=${encodeURIComponent(back)}`;
+  const login = isYaadConnector(new URLSearchParams(window.location.search).get("resource")) ? "/yaad/login" : "/login";
+  signOut({ callbackUrl: `${login}?callbackUrl=${encodeURIComponent(back)}` }).catch(() => {
+    window.location.href = `${login}?callbackUrl=${encodeURIComponent(back)}`;
   });
 }
 
-function errorText(err: unknown, fallback: string): string {
+function errorText(err: unknown, fallback: string, product = "HAIP"): string {
   const e = err as { response?: { status?: number; data?: { detail?: string } } };
   if (e?.response?.status === 403) {
-    return "Only owners and managers can connect AI assistants to HAIP. Ask your workspace owner to connect it.";
+    return `Only owners and managers can connect AI assistants to ${product}. Ask your workspace owner to connect it.`;
   }
   return e?.response?.data?.detail || fallback;
 }
@@ -66,6 +73,8 @@ function ConsentCard() {
   const [forbidden, setForbidden] = useState(false);
 
   const clientId = params.get("client_id");
+  const yaad = isYaadConnector(params.get("resource"));
+  const product = yaad ? "Yaad" : "HAIP";
   const redirectHost = hostOf(params.get("redirect_uri"));
 
   const { data: client, isLoading, error: clientError } = useQuery<{ client_id: string; client_name: string }>({
@@ -99,7 +108,7 @@ function ConsentCard() {
         return;
       }
       setForbidden(isForbidden(err));
-      setError(errorText(err, "Couldn't complete the connection. Start again from the app."));
+      setError(errorText(err, "Couldn't complete the connection. Start again from the app.", product));
       setSubmitting(null);
     }
   };
@@ -108,13 +117,13 @@ function ConsentCard() {
     return (
       <Notice
         title="This link is incomplete"
-        body="Open HAIP's connector from Claude, ChatGPT or your AI app again — it will bring you back here with the right details."
+        body={`Open ${product}'s connector from Claude, ChatGPT or your AI app again — it will bring you back here with the right details.`}
       />
     );
   }
 
   if (sessionExpired) {
-    return <Notice title="Your HAIP session expired" body="Taking you to sign in — you'll come straight back here." />;
+    return <Notice title={`Your ${product} session expired`} body="Taking you to sign in — you'll come straight back here." />;
   }
 
   if (clientError) {
@@ -132,7 +141,7 @@ function ConsentCard() {
         </div>
         <div className="min-w-0">
           <h1 className="text-lg font-semibold leading-snug" style={{ color: "var(--haip-fg)", textWrap: "balance" }}>
-            {isLoading ? "Loading…" : `${appName} wants to connect to HAIP`}
+            {isLoading ? "Loading…" : `${appName} wants to connect to ${product}`}
           </h1>
           {redirectHost && (
             <p className="text-xs mt-0.5 truncate" style={{ color: "var(--haip-fg-subtle)" }}>
@@ -143,7 +152,7 @@ function ConsentCard() {
       </div>
 
       <div className="text-sm leading-relaxed flex flex-col gap-2" style={{ color: "var(--haip-fg)" }}>
-        <p>It will act as you{user?.name ? <> (<strong>{user.name}</strong>)</> : null} and see what you can see in HAIP:</p>
+        <p>It will act as you{user?.name ? <> (<strong>{user.name}</strong>)</> : null} and see what you can see in {product}:</p>
         {user?.name && (
           <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
             Not {user.name}?{" "}
@@ -151,16 +160,15 @@ function ConsentCard() {
                 browser -- this is how an owner connects from a shared
                 machine an agent last used. */}
             <button type="button" onClick={reauthenticate} className="font-medium text-[var(--haip-status-success-fg)] underline underline-offset-2">
-              Use a different HAIP account
+              Use a different {product} account
             </button>
           </p>
         )}
         <ul className="flex flex-col gap-1.5 pl-1">
-          {[
-            "Leads, pipeline stages and notes",
-            "Guest conversations and call summaries",
-            "Bookings, revenue and team scorecards",
-          ].map(item => (
+          {(yaad
+            ? ["Your call memories, decisions and transcripts", "Your reminders and folders", "Your Yaad calendar"]
+            : ["Leads, pipeline stages and notes", "Guest conversations and call summaries", "Bookings, revenue and team scorecards"]
+          ).map(item => (
             <li key={item} className="flex items-start gap-2">
               <Check size={14} className="text-[var(--haip-status-success-fg)] mt-0.5 flex-shrink-0" />
               <span>{item}</span>
@@ -168,7 +176,9 @@ function ConsentCard() {
           ))}
         </ul>
         <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
-          Guest phone numbers and emails stay masked. It can never message a guest.
+          {yaad
+            ? "Phone numbers and emails stay masked. It can only tick reminders and add calendar events, and asks you first."
+            : "Guest phone numbers and emails stay masked. It can never message a guest."}
         </p>
       </div>
 
@@ -239,7 +249,8 @@ function ConsentCard() {
       </div>
 
       <p className="text-[11px] leading-relaxed" style={{ color: "var(--haip-fg-subtle)" }}>
-        Every action it takes is recorded in the audit log. Disconnect any time from Settings → AI Assistants.
+        Every action it takes is recorded in the audit log.{" "}
+        {yaad ? "Disconnect any time from the assistant's own settings." : "Disconnect any time from Settings → AI Assistants."}
       </p>
     </div>
   );
