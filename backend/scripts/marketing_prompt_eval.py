@@ -36,6 +36,7 @@ def _prompts() -> dict:
         "marketing_audit": (p.AUDIT_SYSTEM, [p.AUDIT_TOOL]),
         "marketing_plan": (p.PLAN_SYSTEM, [p.PLAN_TOOL]),
         "marketing_content": (p.CONTENT_SYSTEM, [p.content_tool(k) for k in CONTENT_KINDS if k != "article"]),
+        "marketing_reel_hooks": (p.REEL_HOOKS_SYSTEM, [p.REEL_HOOKS_TOOL]),
         "marketing_research": (p.RESEARCH_SYSTEM, [p.RESEARCH_TOOL]),
         "marketing_review": (p.REVIEW_SYSTEM, [p.REVIEW_TOOL]),
         "marketing_brand_dna": (dna.SYSTEM, [dna._tool()]),

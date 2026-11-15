@@ -4,14 +4,14 @@ One row per chat: title (its first question), optional folder (answers only from
 JSON (question, answer with [n] markers, sources with the call and the moment in the recording, follow-up questions).
 tenant_id + forced RLS. Idempotent (IF NOT EXISTS, guarded policy) because production runs create_all at startup.
 
-Revision ID: 207
-Revises: 206
+Revision ID: 209
+Revises: 208
 """
 
 from alembic import op
 
-revision = "207"
-down_revision = "206"
+revision = "209"
+down_revision = "208"
 branch_labels = None
 depends_on = None
 

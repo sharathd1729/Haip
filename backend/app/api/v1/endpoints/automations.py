@@ -166,11 +166,30 @@ ONE_CLICK_ACTIONS = {
 }
 
 
-def _validate(trigger: str, action: str):
+def _validate(trigger: str, action: str, action_config: Optional[dict] = None):
     if trigger not in VALID_TRIGGERS:
         raise HTTPException(status_code=422, detail=f"Unknown trigger: {trigger}")
     if action not in VALID_ACTIONS:
         raise HTTPException(status_code=422, detail=f"Unknown action: {action}")
+    if action == "send_instagram_quick_reply":
+        _validate_ig_copy(trigger, action_config or {})
+
+
+def _validate_ig_copy(trigger: str, cfg: dict) -> None:
+    """Instagram toolkit phase 5 (ig_automation_copy): public replies never sell or link; the one follow-up exists only
+    for DM keywords (Instagram allows a single private reply to a commenter until they write back)."""
+    from app.services import ig_automation_copy as copy_rules
+
+    for ack in cfg.get("public_ack_pool") or []:
+        bad = [f["message"] for f in copy_rules.check_public_reply(str(ack)) if f["status"] == "bad"]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"Public reply \"{str(ack)[:60]}\": {bad[0]}")
+    follow_up = (cfg.get("follow_up") or "").strip()
+    if follow_up and trigger != "ig_dm_received":
+        raise HTTPException(status_code=422, detail="A follow-up can only follow a DM keyword: Instagram allows one "
+                                                    "private reply to a commenter until they write back.")
+    if len(follow_up) > 500:
+        raise HTTPException(status_code=422, detail="Keep the follow-up under 500 characters.")
 
 
 # ─── Rules endpoints ──────────────────────────────────────────────────────────
@@ -195,7 +214,7 @@ def create_rule(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
 ):
-    _validate(body.trigger, body.action)
+    _validate(body.trigger, body.action, body.action_config)
     rule = AutomationRule(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
@@ -228,7 +247,7 @@ def update_rule(
     update_data = body.model_dump(exclude_unset=True)
     trigger = update_data.get("trigger", rule.trigger)
     action = update_data.get("action", rule.action)
-    _validate(trigger, action)
+    _validate(trigger, action, update_data.get("action_config", rule.action_config))
 
     for field, value in update_data.items():
         setattr(rule, field, value)

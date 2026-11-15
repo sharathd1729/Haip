@@ -5,14 +5,14 @@ A summarised call is filed into every folder its keywords or prompt match (sourc
 "manual") or remove a call: a removed call keeps its row with excluded = true, so sorting never puts it back.
 tenant_id + forced RLS on both. Idempotent (IF NOT EXISTS, guarded policy) because production runs create_all at startup.
 
-Revision ID: 205
-Revises: 204
+Revision ID: 207
+Revises: 206
 """
 
 from alembic import op
 
-revision = "205"
-down_revision = "204"
+revision = "207"
+down_revision = "206"
 branch_labels = None
 depends_on = None
 

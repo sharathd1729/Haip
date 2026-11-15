@@ -260,10 +260,10 @@ class InstagramGraphAdapter:
             return []
 
     def get_account_fields(self) -> dict:
-        """followers_count, follows_count (following), media_count, name,
-        biography -- plain object fields, not the /insights sub-endpoint."""
+        """followers_count, follows_count (following), media_count, name, biography, username, website -- plain
+        object fields, not the /insights sub-endpoint (username/website feed the profile score, phase 3)."""
         return self._get(f"/{self._account_id}", params={
-            "fields": "followers_count,follows_count,media_count,name,biography",
+            "fields": "followers_count,follows_count,media_count,name,biography,username,website",
         })
 
     def get_recent_media(self, limit: int = 12) -> list[dict]:

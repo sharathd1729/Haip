@@ -80,3 +80,15 @@ def test_other_workspaces_and_agents_cannot_correct(client, db, tenant_and_user)
         u.role = UserRole.CONCIERGE
     db.commit()
     assert client.post(f"/api/v1/qa/scores/{mine.id}/override", json=body, headers=_h(tenant_and_user)).status_code == 403
+
+
+def test_call_page_shows_each_criterion_on_the_scale_it_is_scored_and_corrected_on(client, db, tenant_and_user):
+    # a criterion with no method is 0-1 in qa_service (scoring + override), so the call page must say /1, not /3
+    s, c = _score(db, _tid(tenant_and_user))
+    s.rubric_snapshot = CRITERIA + [{"id": "plain", "name": "Plain"}]
+    s.criterion_scores = s.criterion_scores + [{"id": "plain", "score": 1}]
+    db.commit()
+    r = client.get(f"/api/v1/calls/{c.id}", headers=_h(tenant_and_user))
+    assert r.status_code == 200
+    maxes = {x["id"]: x["max_score"] for x in r.json()["score"]["criteria"]}
+    assert maxes == {"greet": 1, "probe": 3, "rude": 1, "plain": 1}

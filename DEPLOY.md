@@ -233,7 +233,7 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate api worker work
 
 | Ask Yaad on its own queue (15 Nov) | `worker_replies` now also consumes queue `personal`: recreate it in the SAME deploy (`up -d worker_replies`), or Ask Yaad questions wait forever. No new connections. |
 
-| Yaad folders + calendar + Google Calendar sync + Ask chats (15 Nov) | Migrations 205-207 run with the deploy. In Google Cloud (the Business Profile OAuth client), add the redirect URI `{API_BASE_URL}/api/v1/me/calendar/google/oauth-callback` and the scope `https://www.googleapis.com/auth/calendar.events` to the consent screen; Google must verify the app before more than 100 people can connect (sensitive scope). No new env vars. |
+| Yaad folders + calendar + Google Calendar sync + Ask chats (15 Nov) | Migrations 207-209 run with the deploy. In Google Cloud (the Business Profile OAuth client), add the redirect URI `{API_BASE_URL}/api/v1/me/calendar/google/oauth-callback` and the scope `https://www.googleapis.com/auth/calendar.events` to the consent screen; Google must verify the app before more than 100 people can connect (sensitive scope). No new env vars. |
 
 Add a row here whenever a release needs more than "pull, build, migrate, up".
 

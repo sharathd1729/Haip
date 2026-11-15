@@ -5,14 +5,14 @@ source_key = one per call plan, so a re-read never duplicates it; dismissed sugg
 people (stakeholders) are editable. google = the person chose to have it in Google Calendar; google_event_id is the copy's
 id once pushed (sync is a later step). tenant_id + forced RLS. Idempotent: production runs create_all at startup.
 
-Revision ID: 206
-Revises: 205
+Revision ID: 208
+Revises: 207
 """
 
 from alembic import op
 
-revision = "206"
-down_revision = "205"
+revision = "208"
+down_revision = "207"
 branch_labels = None
 depends_on = None
 

@@ -6,11 +6,16 @@ so a model that ignores the schema produces a recorded failure, never stored con
 v2 techniques (judge against the account's own median, STOP/KEEP/TEST, "not enough signal", first comment, carousel
 slide rules, one-ask story arcs, 3-5 pillars with out-of-scope) are adapted from Ootto-AI/claude-content-skills,
 MIT licence, Copyright (c) 2026 Ootto. Notice: docs/marketing-website/THIRD_PARTY_NOTICES.md.
+Content v10: the keyword-delivery DM and public-reply rules adapt instagram-agent-skill `ig-dm` / `ig-reply` (MIT).
+Reel hooks v1: the 26 hook formulas, the hook score and the beat sheet adapt instagram-agent-skill `ig-reel` (MIT).
+Content v9: the 125-character first line, one ask and the 5-hashtag cap adapt Jakeschincariol/instagram-agent-skill
+`ig-caption` (MIT, Copyright (c) 2026 Jake Schincariol).
 M1 (content v4, review v1): the AI-tell list, carousel frameworks and [NEED: ...] discipline adapt
 coreyhaines31/marketingskills (MIT, Copyright (c) 2025 Corey Haines); the brand review structure (We are / We are not,
 tone by channel, severity findings, compliance flags) adapts anthropics/knowledge-work-plugins (Apache-2.0).
 """
 from app.schemas.marketing import AIBrandReview, AuditAssessment, MarketingPlanBody, CONTENT_MODELS
+from app.schemas.marketing_hooks import ReelHookDraft
 from app.schemas.marketing_research import ResearchBrief
 
 _COMMON_RULES = """Rules you must follow:
@@ -46,7 +51,9 @@ Produce:
 - a realistic cadence for a small team, and a dated calendar inside the requested period (at most one entry per day,
   every entry's pillar exactly one of the pillar names).
 Base it on the business facts, the audit's stop/keep/test lists and, when given, the competitor research (borrow
-what works in the segment; never copy a competitor's post).
+what works in the segment; never copy a competitor's post). "Competitor research" may list `outlier_formulas`: hook
+formulas behind competitor posts that beat their own account's median 3x or more; prefer those formulas for the "new"
+share, adapted to these facts.
 Demand comes first. The "Demand" data lists open dates per vehicle/property (gaps), long weekends and festivals:
 - every post that sells a stay names the exact open dates or occasion it sells in `targets` (copy the dates from the
   gaps; never invent dates or say dates are open that are not in the gaps); group related posts into `campaigns`
@@ -63,9 +70,14 @@ Answer only by calling the tool.
 """ + _COMMON_RULES
 
 CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce exactly one piece of the requested kind.
-- Caption: the first line is the only one shown before "more", so make it earn the tap; then 2-4 short lines of
-  substance; then one clear call to action (usually "DM us" or "link in bio"). No hashtags inside the caption.
-- hashtags: 5-15 relevant ones, a mix of broad, mid and niche; no banned or spammy tags.
+- Caption: the feed shows only about the first 125 characters before "... more", so the first line carries the
+  hook whole inside 125 characters (a place, a time, a detail; never a greeting, a hashtag or a mention); then 2-4
+  short lines of substance; then exactly ONE call to action (usually "DM us", "comment STAY" or "link in bio"), never
+  two. Name the place people would search for (the town or region) in the caption. No hashtags inside the caption.
+- hashtags: at most 5 (Instagram's cap since 18 Dec 2025; tags past the fifth do not count), specific to the place
+  and the stay; no generic tags (#travel, #instagood, #explore), no banned or spammy tags.
+- Plain typing: no em dashes, curly quotes or stock words (delve, elevate, unlock, seamless, curated); HAIP removes
+  them after you write, so write without them.
 - first_comment: one warm question that invites replies (no link, no hashtags).
 - Carousel: first choose `framework`: list (N reasons/places), itinerary (day by day), walkthrough (a tour of the
   stay), problem_proof (the trip people want, and why this stay gives it) or guide (how to plan it). Slide 1 is the
@@ -85,9 +97,11 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
   bullets; stock phrases (nestled, hidden gem, look no further, unforgettable experience, hustle and bustle, embark on,
   elevate your, a haven of, awaits you, imagine waking up, in the heart of); guarantees; superlatives you can't prove;
   other businesses' names; invented guest quotes.
-- To turn comments into DMs, set `comment_dm`: a one-word keyword (e.g. STAY), the DM to send (what they asked for,
-  then how to book), and optionally a short public reply; the caption must tell people to comment that word. Use it
-  for posts that sell dates or a package, not for every post.
+- To turn comments into DMs, set `comment_dm`: a one-word keyword (e.g. STAY), the DM to send, and optionally a short
+  public reply; the caption must tell people to comment that word. Use it for posts that sell dates or a package, not
+  for every post. The DM delivers what they asked for FIRST (never "before I send it, can I ask..."), then one line on
+  how to use it or book, then ONE short question they can answer in a few words, last. The public reply is one short
+  idea: no selling, no prices, no links, no stock phrase ("Check your DMs" is fine).
 - `profile.claims` are facts the owner approved for public use: use them as written. When the plan entry names
   `targets` (open dates or an occasion), the post sells exactly those; never say other dates are available.
 - Use only figures that are in the facts. If you need a fact you don't have (a distance, a time, what's included),
@@ -102,6 +116,23 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
 Answer only by calling the tool.
 """ + _COMMON_RULES
 
+
+REEL_HOOKS_SYSTEM = """You write the opening of an Instagram Reel for a hospitality brand, and the spoken script after it.
+The Reel is cut from the property's own clips (listed in the draft); a host or staff member may say the script to camera
+or it may be shown as text. Produce:
+- options: exactly THREE opening lines, each from a DIFFERENT formula in the list (give its number as formula_id).
+  `spoken` is the first thing said: 5-12 words, sayable in about two seconds, with one concrete thing (a place, an
+  hour, a detail from the facts) at the front. `on_screen` is the first thing read: six words or fewer, blunter than
+  the spoken line. No greeting, no "in this reel", no hashtags, no emoji.
+- script: 3-8 lines after the hook. Line 1 is why it matters to the viewer; then one idea per line, each with `shot`:
+  which clip from the draft is on screen (use its footage words) or what to film; the last line delivers what the hook
+  promised and carries the ONE ask (DM us, comment a word, link in bio), and echoes one word from the hook.
+  15-30 seconds in all (about 40-80 words).
+- Speak as the host ("we"), to one guest ("you"). Choose formulas that fit a stay; a creator formula about money lost
+  or followers gained only fits if the facts give it something true to say.
+- Only facts given. Never invent numbers, awards, reviews, dates or availability.
+Answer only by calling the tool.
+""" + _COMMON_RULES
 
 def rules(price_mode: str) -> dict:
     return {"price_rule": PRICE_RULE_GROUNDED if price_mode == "grounded" else PRICE_RULE_HANDOFF}
@@ -153,6 +184,8 @@ def _schema(model) -> dict:
 
 AUDIT_TOOL = {"name": "submit_audit", "description": "Return the audit assessment.", "input_schema": _schema(AuditAssessment)}
 PLAN_TOOL = {"name": "submit_plan", "description": "Return the marketing plan.", "input_schema": _schema(MarketingPlanBody)}
+REEL_HOOKS_TOOL = {"name": "submit_reel_hooks", "description": "Return three hook options and the script.",
+                   "input_schema": _schema(ReelHookDraft)}
 
 
 def content_tool(kind: str) -> dict:
@@ -174,6 +207,9 @@ Reach and saves of other accounts are not available; never estimate them.
 - themes: what the best-performing competitor posts have in common, each with why it likely works and up to 5
   example permalinks copied exactly from the data.
 - formats: which formats earn the most engagement per follower.
+- `ranked` lists posts by their multiple over THAT account's own recent median (band signal = 3x or more, a real
+  signal; normal = an ordinary day) with the hook formula their first line follows. Build themes on the signal posts
+  and name the formula when one repeats; never treat raw likes or views as proof.
 - opportunities: what this brand could do that competitors are not doing well, grounded in the business facts.
 - avoid: patterns that consistently under-perform.
 - If the data is thin, say what is missing in not_enough_signal instead of guessing.

@@ -80,6 +80,7 @@ def get_research(user: User = Depends(get_current_user), db: Session = Depends(g
                          "error": (integ.config or {}).get("last_error") if integ else None,
                          "source": (integ.config or {}).get("source", "facebook_login") if integ else None,
                          "login_available": bool(settings.META_APP_ID and settings.API_BASE_URL)},
+            "ranked": research.ranked(db, user.tenant_id),      # what really worked: multiple over own median
             "brief": brief and {"id": brief.id, "status": brief.status, "error": brief.error, "measured": brief.measured,
                                 "assessment": brief.assessment, "created_at": brief.created_at, "model": brief.model}}
 
