@@ -1,5 +1,6 @@
 "use client";
 import type { RefObject } from "react";
+import { LabelFilter } from "../LabelFilter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User, Check } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,7 @@ export function InboxListPane({
   mobileView, setMobileView, onlineUsers, savedViews, setActiveView, activeView, displayConversations, scopedFeed,
   conversations, listLoading, activeConversationId, setActiveConversation, inboxView, setInboxView, viewCounts,
   channelFilter, setChannelFilter, hasMoreConversations, fetchNextConversationPage, isLoadingMoreConversations,
-  clickToCallMutation,
+  clickToCallMutation, labelFilter, setLabelFilter,
 }: {
   mobileView: "list" | "thread"; setMobileView: (v: "list" | "thread") => void;
   onlineUsers: { id: string; name: string; role: string }[];
@@ -37,6 +38,7 @@ export function InboxListPane({
   channelFilter: string; setChannelFilter: (v: string) => void;
   hasMoreConversations: boolean | undefined; fetchNextConversationPage: () => void; isLoadingMoreConversations: boolean;
   clickToCallMutation: Mut;
+  labelFilter: string; setLabelFilter: (v: string) => void;
 }) {
   const queryClient = useQueryClient();
   const phone = useIsPhone();
@@ -44,6 +46,7 @@ export function InboxListPane({
   if (phone) {
     return (
       <div className={cn("flex-col bg-card", mobileView === "list" ? "flex w-full" : "hidden")}>
+        <LabelFilter value={labelFilter} onChange={setLabelFilter} />
         <PhoneInboxList
           conversations={displayConversations ?? (scopedFeed ? [] : conversations)} isLoading={listLoading}
           view={inboxView} onViewChange={setInboxView} counts={viewCounts}
@@ -62,6 +65,7 @@ export function InboxListPane({
       )}
         style={{ borderColor: "var(--haip-border)" }}
       >
+        <LabelFilter value={labelFilter} onChange={setLabelFilter} />
         {/* W18: online agents indicator */}
         {onlineUsers.length > 0 && (
           <div className="hidden md:flex px-3 py-1.5 items-center gap-1.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>

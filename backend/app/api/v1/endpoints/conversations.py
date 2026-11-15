@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+import re
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, update
@@ -58,6 +59,30 @@ def _parse_cursor(value: str, param_name: str) -> datetime:
         raise HTTPException(status_code=422, detail=f"Invalid `{param_name}` timestamp")
 
 
+_LABEL_RE = re.compile(r"^[\w &\-]{1,24}$")
+
+
+def _clean_label(value: str) -> str | None:
+    """A chat label as stored: trimmed, single spaces, letters/digits/space/&/- only, 1-24 characters; else None."""
+    v = " ".join((value or "").split())
+    return v if v and _LABEL_RE.match(v) and '"' not in v else None
+
+
+@router.get("/labels")
+def list_labels(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """The workspace's chat labels with how many open conversations carry each, most used first."""
+    from collections import Counter
+    counts: Counter = Counter()
+    rows = (db.query(Conversation.labels)
+            .filter(Conversation.tenant_id == current_user.tenant_id, Conversation.is_open.is_(True),
+                    Conversation.labels.isnot(None))
+            .limit(5000).all())
+    for (labels,) in rows:
+        for lab in labels or []:
+            counts[lab] += 1
+    return [{"label": k, "count": v} for k, v in counts.most_common(50)]
+
+
 @router.get("", response_model=List[ConversationOut])
 def list_conversations(
     channel: str = None,
@@ -68,6 +93,7 @@ def list_conversations(
     sort: str = Query(default="smart", pattern="^(smart|recent|unread)$"),
     limit: int = Query(default=50, le=200),
     before: str | None = Query(None, description="ISO timestamp cursor (last_message_at) -- return conversations older than this, for 'load more'"),
+    label: str | None = Query(None, max_length=24, description="Only conversations carrying this chat label"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -87,6 +113,13 @@ def list_conversations(
         q = q.filter(or_(Conversation.source.is_(None), Conversation.source != "personal_bridge"))
     if is_open is not None:
         q = q.filter_by(is_open=is_open)
+    if label:
+        clean = _clean_label(label)
+        if not clean:
+            raise HTTPException(status_code=422, detail="Invalid label")
+        # labels is a JSON list stored as text: match the quoted value so "VIP" never matches "VIP guest".
+        from sqlalchemy import String, cast
+        q = q.filter(cast(Conversation.labels, String).like(f'%"{clean}"%'))
     if view:
         from app.services import inbox_service
         q = inbox_service.apply_view(db, q, current_user.tenant_id, view, current_user.id)
@@ -889,6 +922,18 @@ def update_conversation(
         conv.is_open = bool(body["is_open"])
     if "assigned_to" in body:
         conv.assigned_to = body["assigned_to"]
+    if "labels" in body:
+        raw = body["labels"] if isinstance(body["labels"], list) else None
+        if raw is None or len(raw) > 10:
+            raise HTTPException(status_code=422, detail="labels must be a list of at most 10")
+        cleaned: list[str] = []
+        for item in raw:
+            c = _clean_label(str(item or ""))
+            if not c:
+                raise HTTPException(status_code=422, detail="A label uses letters, numbers, spaces, - or & (up to 24 characters).")
+            if c.lower() not in {x.lower() for x in cleaned}:
+                cleaned.append(c)
+        conv.labels = cleaned or None
     if "ai_enabled" in body:
         # Pause/resume the AI for this one guest. "off" is the only
         # per-conversation value ai_mode_service.resolve_mode honours; any
@@ -904,7 +949,7 @@ def update_conversation(
                  actor_user_id=current_user.id, ai_enabled=body["ai_enabled"])
     db.commit()
     return {
-        "status": "updated", "is_open": conv.is_open, "assigned_to": conv.assigned_to,
+        "status": "updated", "is_open": conv.is_open, "assigned_to": conv.assigned_to, "labels": conv.labels or [],
         "ai_enabled": (conv.ai_mode or "").lower() != "off",
     }
 
@@ -1076,6 +1121,7 @@ def get_conversation_detail(
         "guest_name": guest.name if guest else None,
         "guest_phone": guest.phone if guest else "",
         "channel": channel_val,
+        "labels": conv.labels or [],
         "source": conv.source,
         "status": status,
         "last_inbound_at": last_inbound_at,

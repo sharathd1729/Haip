@@ -40,6 +40,7 @@ class ConversationOut(BaseModel):
     last_message_at: Optional[datetime] = None
     last_inbound_at: Optional[datetime] = None  # D9: last inbound message timestamp (computed)
     snoozed_until: Optional[Union[datetime, str]] = None
+    labels: Optional[List[str]] = None  # chat labels the team set (migration 212)
     guest_name: Optional[str] = None
     last_message: Optional[str] = None
     ad_title: Optional[str] = None  # T0.5: set when the conversation originated from a Click-to-Instagram ad

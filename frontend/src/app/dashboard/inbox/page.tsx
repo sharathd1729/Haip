@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import { ReplyButtonsBar } from "@/components/inbox/ReplyButtonsBar";
+import { LabelEditor } from "@/components/inbox/LabelEditor";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -91,6 +92,7 @@ function InboxPageInner() {
   // Filter chip (Needs reply / Unassigned / Mine / All) -- applied
   // server-side, so it covers the whole inbox, not just the loaded page.
   const [inboxView, setInboxView] = useState<InboxView>("");
+  const [labelFilter, setLabelFilter] = useState("");
   const [replyText, setReplyText] = useState("");
   const [aiTyping, setAiTyping] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
@@ -191,13 +193,14 @@ function InboxPageInner() {
     hasNextPage: hasMoreFilteredConversations,
     isFetchingNextPage: isLoadingMoreFilteredConversations,
   } = useInfiniteQuery({
-    queryKey: ["conversations", channelFilter, inboxView],
+    queryKey: ["conversations", channelFilter, inboxView, labelFilter],
     queryFn: ({ pageParam }: { pageParam?: string }) =>
       api.get("/conversations", {
         params: {
           limit: CONVERSATION_PAGE_SIZE,
           ...(channelFilter ? channelQueryParams(channelFilter) : {}),
           ...(inboxView ? { view: inboxView } : {}),
+          ...(labelFilter ? { label: labelFilter } : {}),
           ...(pageParam ? { before: pageParam } : {}),
         },
       }).then(r => r.data as any[]),
@@ -206,11 +209,11 @@ function InboxPageInner() {
       lastPage.length === CONVERSATION_PAGE_SIZE
         ? lastPage[lastPage.length - 1]?.last_message_at
         : undefined,
-    enabled: !!channelFilter || !!inboxView,
+    enabled: !!channelFilter || !!inboxView || !!labelFilter,
     staleTime: 30_000,
   });
 
-  const scopedFeed = !!channelFilter || !!inboxView;
+  const scopedFeed = !!channelFilter || !!inboxView || !!labelFilter;
   const { data: viewCounts } = useQuery<{ needs_reply: number; unassigned: number; mine: number }>({
     queryKey: ["conversations", "counts"],
     queryFn: () => api.get("/conversations/counts").then(r => r.data),
@@ -700,6 +703,7 @@ function InboxPageInner() {
         channelFilter={channelFilter} setChannelFilter={setChannelFilter}
         hasMoreConversations={hasMoreConversations} fetchNextConversationPage={() => fetchNextConversationPage()}
         isLoadingMoreConversations={isLoadingMoreConversations} clickToCallMutation={clickToCallMutation}
+        labelFilter={labelFilter} setLabelFilter={setLabelFilter}
       />
 
       {/* Center: message thread — full-width on mobile when mobileView==="thread" */}
@@ -768,6 +772,9 @@ function InboxPageInner() {
               setShowTemplatePicker={setShowTemplatePicker} setIsInternalNote={setIsInternalNote}
               channel={detail?.channel} onStartWhatsApp={canStartWa ? openStartWa : undefined}
             />
+            {activeConversationId && detail && canSend && (
+              <LabelEditor key={activeConversationId} conversationId={activeConversationId} labels={(detail as { labels?: string[] | null }).labels ?? []} />
+            )}
 
             {!canSend ? (
               <div
