@@ -301,9 +301,9 @@ def run() -> None:
 
     # ── calls (answered with transcripts + scores; two missed -> callback) ───────────────────────────────────
     rubric = Rubric(id=uid(), tenant_id=tid, name="Demo sales call", is_default=True, criteria=[
-        {"id": "greet", "name": "Greeting", "weight": 1, "method": "llm", "description": "Warm greeting"},
-        {"id": "needs", "name": "Needs discovery", "weight": 2, "method": "llm", "description": "Asks dates and party"},
-        {"id": "next", "name": "Next step", "weight": 2, "method": "llm", "description": "Agrees a next step"}])
+        {"id": "greet", "name": "Greeting", "weight": 1, "method": "YES_NO", "description": "Warm greeting"},
+        {"id": "needs", "name": "Needs discovery", "weight": 2, "method": "ZERO_THREE", "description": "Asks dates and party"},
+        {"id": "next", "name": "Next step", "weight": 2, "method": "YES_NO", "description": "Agrees a next step"}])
     db.add(rubric)
     leads = db.query(Inquiry).filter_by(tenant_id=tid).order_by(Inquiry.created_at.desc()).all()
     disp = [CallDisposition.HOT, CallDisposition.QUOTED, CallDisposition.LOST, CallDisposition.BOOKED]
@@ -327,7 +327,9 @@ def run() -> None:
         pct = 62 + 9 * k
         db.add(CallScore(id=uid(), tenant_id=tid, call_id=call.id, rubric_id=rubric.id, rubric_snapshot=rubric.criteria,
                          total_score=pct / 20, max_score=5, percentage=pct, model_used="demo-seed",
-                         criterion_scores=[{"criterion_id": c["id"], "score": 1 + (k + j) % 2, "confidence": 0.8}
+                         # scores on the rubric's own scale: YES_NO 0-1, ZERO_THREE 0-3
+                         criterion_scores=[{"criterion_id": c["id"], "confidence": 0.8,
+                                            "score": 1 + (k + j) % 3 if c["method"] == "ZERO_THREE" else (k + j + 1) % 2}
                                            for j, c in enumerate(rubric.criteria)]))
     for k in range(2):
         g = db.get(Guest, leads[k].guest_id)

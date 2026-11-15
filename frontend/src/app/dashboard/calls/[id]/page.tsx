@@ -3,14 +3,13 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { CorrectScore } from "@/components/calls/CorrectScore";
+import { QaScoreCard, type QaScore } from "@/components/calls/QaScoreCard";
 import Link from "next/link";
-import { ArrowLeft, Phone, Clock, User, ChevronDown, ChevronRight, CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy, Star, BookmarkIcon, MessageSquare, X, Heart, TrendingUp, Target, AlertTriangle, Globe, Layers } from "@/lib/icons";
+import { ArrowLeft, Phone, Clock, User, AlertCircle, Save, Loader2, ExternalLink, Play, Star, BookmarkIcon, MessageSquare, X, Heart, TrendingUp, Target, AlertTriangle, Globe, Layers } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { CallPlayer } from "@/components/calls/CallPlayer";
 import { TranscriptTurn } from "@/components/calls/TranscriptTurn";
-import { ScoreRing } from "@/components/calls/ScoreRing";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
@@ -27,18 +26,6 @@ interface Turn {
   t0: number;
   t1: number;
   text: string;
-}
-
-interface CriterionScore {
-  criterion: string;
-  id?: string;
-  name?: string | null;
-  method?: string | null;
-  overridden?: boolean;
-  score: number;
-  max_score: number;
-  evidence: string;
-  evidence_spans?: { start: number; end: number; label?: string; sentiment?: "positive" | "negative" | "neutral" }[];
 }
 
 interface Layer2 {
@@ -71,22 +58,7 @@ interface CallDetail {
   ivr_provider?: string;
   transcript?: { turns: Turn[] } | null;
   layer2?: Layer2 | null;
-  score?: {
-  score_id?: string;
-  is_overridden?: boolean;
-  override_reason?: string | null;
-  total_score: number;
-  max_score: number;
-  confidence: number;
-  criteria: CriterionScore[];
-  summary?: string;
-  agent_strengths?: string[];
-  agent_growth_areas?: string[];
-  missed_revenue?: number;
-  suggested_disposition?: string;
-  next_action?: string;
-  ai_summary?: string;
-  };
+  score?: QaScore;
   recommended_actions?: RecommendedAction[];
   // wrap_up v5 (backend calls.ai_insights): next best action, blocker + counter, temperature, missed revenue, updates.
   ai_insights?: Actionable | null;
@@ -128,10 +100,7 @@ export default function CallDetailPage() {
   const [playheadTime, setPlayheadTime] = useState(0);
   const [disposition, setDisposition] = useState("");
   const [wrapUpNotes, setWrapUpNotes] = useState("");
-  const [showAllCriteria, setShowAllCriteria] = useState(false);
   const [processing, setProcessing] = useState(false);
-  // C3: track which criteria are expanded (multiple can be open simultaneously)
-  const [expandedCriteria, setExpandedCriteria] = useState<Set<number>>(new Set());
   // C8: per-turn bookmarks (stored locally, keyed by turn index)
   const [bookmarks, setBookmarks] = useState<Set<number>>(new Set());
   // C7: per-turn coaching notes (local, keyed by turn index)
@@ -236,7 +205,6 @@ export default function CallDetailPage() {
 
   const dispOpt = DISPOSITION_OPTIONS.find(d => d.value === disposition) ?? DISPOSITION_OPTIONS[0];
   const criteria = call.score?.criteria ?? [];
-  const visibleCriteria = showAllCriteria ? criteria : criteria.slice(0, 5);
 
   return (
   <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
@@ -570,123 +538,8 @@ export default function CallDetailPage() {
   <div className="col-span-12 lg:col-span-5 space-y-5">
   {/* QA Score card */}
   {call.score ? (
-  <div className="haip-card p-5">
-  <div className="flex items-center gap-4 mb-5">
-  <ScoreRing score={(call.score.total_score / call.score.max_score) * 100} size={72} />
-  <div>
-  <h2 className="text-sm font-semibold text-[var(--haip-fg)]">QA Score</h2>
-  <p className="text-2xl font-black text-[var(--haip-fg)] mt-0.5">
-  {call.score.total_score}
-  <span className="text-base font-normal text-[var(--haip-fg-subtle)]">/{call.score.max_score}</span>
-  </p>
-  {call.score.confidence && (
-  <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">
-  Confidence: {Math.round(call.score.confidence * 100)}%
-  </p>
-  )}
-  </div>
-  </div>
-
-  {/* Criteria breakdown — C3: click to expand evidence */}
-  <div className="space-y-2">
-  {visibleCriteria.map((c, i) => {
-  const pct = Math.round((c.score / c.max_score) * 100);
-  const isExpanded = expandedCriteria.has(i);
-  return (
-  <div key={i} className="rounded-xl border border-[var(--haip-border)] overflow-hidden">
-  <button
-  className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-[var(--haip-surface)] transition-colors"
-  onClick={() => setExpandedCriteria(prev => {
-  const next = new Set(prev);
-  isExpanded ? next.delete(i) : next.add(i);
-  return next;
-  })}
-  >
-  {isExpanded
-  ? <ChevronDown size={12} className="text-[var(--haip-fg-subtle)] flex-shrink-0" />
-  : <ChevronRight size={12} className="text-[var(--haip-fg-subtle)] flex-shrink-0" />}
-  <span className="text-xs text-[var(--haip-fg-2)] font-medium capitalize flex-1">{(c.name ?? c.criterion).replace(/_/g, " ")}{c.overridden ? " · corrected" : ""}</span>
-  <span className="text-xs text-[var(--haip-fg-subtle)] font-mono flex-shrink-0">{c.score}/{c.max_score}</span>
-  </button>
-  <div className="px-3 pb-2">
-  <div className="h-1.5 bg-[var(--haip-surface)] rounded-full overflow-hidden mb-1">
-  <div
-  className={cn("h-full rounded-full", pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-[var(--haip-accent)]" : "bg-[var(--haip-status-danger-fg)]")}
-  style={{ width: `${pct}%` }}
-  />
-  </div>
-  {/* Collapsed: one-line preview */}
-  {c.evidence && !isExpanded && (
-  <p className="text-[11px] text-[var(--haip-fg-subtle)] italic line-clamp-1">{c.evidence}</p>
-  )}
-  </div>
-  {/* Expanded: full evidence + copy */}
-  {isExpanded && c.evidence && (
-  <div className="px-3 pb-3 border-t border-[var(--haip-border)] pt-2">
-  <div className="flex items-start justify-between gap-2">
-  <p className="text-xs text-[var(--haip-fg-2)] leading-relaxed flex-1">{c.evidence}</p>
-  <button
-  onClick={() => navigator.clipboard.writeText(c.evidence)}
-  title="Copy evidence"
-  className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] transition-colors flex-shrink-0"
-  >
-  <Copy size={12} />
-  </button>
-  </div>
-  </div>
-  )}
-  </div>
-  );
-  })}
-  </div>
-
-  {criteria.length > 5 && (
-  <button
-  onClick={() => setShowAllCriteria(v => !v)}
-  className="mt-3 text-xs text-primary hover:text-primary font-medium flex items-center gap-1"
-  >
-  {showAllCriteria ? "Show less" : `+${criteria.length - 5} more criteria`}
-  <ChevronDown size={12} className={cn("transition-transform", showAllCriteria && "rotate-180")} />
-  </button>
-  )}
-
-  {call.score.is_overridden && (
-  <p className="mt-3 text-[11px] text-[var(--haip-fg-subtle)]">Corrected by a person{call.score.override_reason ? `: ${call.score.override_reason}` : ""}</p>
-  )}
-  {call.score.score_id && ["owner", "manager", "compliance"].includes(String(session?.user?.role)) && (
-  <CorrectScore scoreId={call.score.score_id} criteria={criteria} onDone={() => queryClient.invalidateQueries({ queryKey: ["call", id] })} />
-  )}
-
-  {/* Strengths & growth areas */}
-  {(call.score.agent_strengths?.length || call.score.agent_growth_areas?.length) && (
-  <div className="mt-4 pt-4 border-t border-[var(--haip-border)] grid grid-cols-2 gap-3">
-  {call.score.agent_strengths?.length ? (
-  <div>
-  <p className="text-[11.5px] font-bold uppercase tracking-wider text-primary mb-1.5">Strengths</p>
-  <ul className="space-y-1">
-  {call.score.agent_strengths.slice(0, 3).map((s, i) => (
-  <li key={i} className="text-xs text-[var(--haip-fg-2)] flex items-start gap-1.5">
-  <CheckCircle2 size={11} className="text-primary mt-0.5 flex-shrink-0" /> {s}
-  </li>
-  ))}
-  </ul>
-  </div>
-  ) : null}
-  {call.score.agent_growth_areas?.length ? (
-  <div>
-  <p className="text-[11.5px] font-bold uppercase tracking-wider text-[var(--haip-status-warning-fg)] mb-1.5">Improve</p>
-  <ul className="space-y-1">
-  {call.score.agent_growth_areas.slice(0, 3).map((s, i) => (
-  <li key={i} className="text-xs text-[var(--haip-fg-2)] flex items-start gap-1.5">
-  <AlertCircle size={11} className="text-[var(--haip-accent-ink)] mt-0.5 flex-shrink-0" /> {s}
-  </li>
-  ))}
-  </ul>
-  </div>
-  ) : null}
-  </div>
-  )}
-  </div>
+  <QaScoreCard score={call.score} canCorrect={["owner", "manager", "compliance"].includes(String(session?.user?.role))}
+    onCorrected={() => queryClient.invalidateQueries({ queryKey: ["call", id] })} />
   ) : (
   <div className="haip-card p-6 text-center border-dashed">
   <Loader2 size={24} className="text-[var(--haip-fg-subtle)] mx-auto mb-2 animate-spin" />
