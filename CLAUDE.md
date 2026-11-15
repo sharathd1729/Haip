@@ -276,12 +276,7 @@ Every table must have tenant_id.
 - Predictive (no-show / cancellation risk)
 - Two-way Google Calendar sync of bookings (plan drafted, not built)
 - Marketing channels beyond Meta ads (Google Ads, ROAS by other sources)
-- Voice of Guest thematic analysis
-- Multi-region tenancy
-- BYOK (customer-managed KMS)
-- White-label
-- Vendor marketplace
-- Travel agent portal
+- Voice of Guest thematic analysis · multi-region tenancy · BYOK (customer-managed KMS) · white-label · vendor marketplace · travel agent portal
 - Channel manager (direct, beyond Hostaway sync)
 
 ## FILE CREATION ORDER — ALWAYS FOLLOW THIS SEQUENCE
