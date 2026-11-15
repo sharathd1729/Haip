@@ -6,16 +6,20 @@ import { GitBranch, ToggleLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VariableMapping, defaultMap, type VariableMap } from "@/components/messaging/VariableMapping";
+import type { Template } from "@/components/messaging/templateModel";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface FlowNode {
   id: string;
-  type: "trigger" | "message" | "condition" | "delay" | "action" | "end";
+  type: "trigger" | "message" | "template" | "condition" | "delay" | "action" | "end";
   label: string;
   content?: string;
   condition?: string;
   delay_minutes?: number;
+  template_id?: string;
+  variable_map?: VariableMap;
   x: number;
   y: number;
 }
@@ -43,6 +47,7 @@ interface Flow {
 const NODE_TYPES = {
   trigger: { label: "Trigger", icon: <Zap size={14} />, color: "bg-[var(--haip-status-warning-bg)] border-[var(--haip-status-warning-border)] text-[var(--haip-status-warning-fg)]", dot: "bg-[var(--haip-amber)]" },
   message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
+  template: { label: "Send Template", icon: <Send size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
   condition: { label: "Condition", icon: <GitBranch size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
   delay: { label: "Wait / Delay", icon: <Clock size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
   action: { label: "Action", icon: <Zap size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
@@ -159,6 +164,31 @@ function FlowCanvas({
 
 // ─── Node Editor Panel ────────────────────────────────────────────────────────
 
+// A flow "template" step (flow_engine._send_flow_template): an approved template, sent even outside the 24-hour window.
+function TemplateStepFields({ local, setLocal }: { local: FlowNode; setLocal: (f: (l: FlowNode) => FlowNode) => void }) {
+  const { data: templates = [] } = useQuery<Template[]>({
+    queryKey: ["wa-templates"],
+    queryFn: () => api.get("/messaging/templates").then(r => r.data).catch(() => []),
+    staleTime: 60_000,
+  });
+  const approved = (templates as (Template & { id: string; name: string; status: string })[]).filter(t => t.status === "approved");
+  const picked = approved.find(t => t.id === local.template_id);
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Approved template</label>
+        <select value={local.template_id ?? ""} className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm"
+          onChange={e => { const t = approved.find(x => x.id === e.target.value); setLocal(l => ({ ...l, template_id: e.target.value, variable_map: defaultMap(t) })); }}>
+          <option value="">Select template…</option>
+          {approved.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Templates reach the guest even after the 24-hour window, unlike a plain message.</p>
+      </div>
+      {picked && <VariableMapping template={picked} value={local.variable_map ?? {}} onChange={(m: VariableMap) => setLocal(l => ({ ...l, variable_map: m }))} />}
+    </div>
+  );
+}
+
 function NodeEditorPanel({
   node,
   onUpdate,
@@ -216,6 +246,8 @@ function NodeEditorPanel({
             <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Use {`{{name}}`}, {`{{property}}`} etc. for personalization.</p>
           </div>
         )}
+
+        {local.type === "template" && <TemplateStepFields local={local} setLocal={setLocal} />}
 
         {local.type === "condition" && (
           <div>
