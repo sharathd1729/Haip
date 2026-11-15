@@ -205,6 +205,10 @@ def _describe_other_message(msg_type: str, msg: dict) -> str:
         b = msg.get("button") or {}
         return str(b.get("text") or b.get("payload") or "")
     if msg_type == "interactive":                              # reply to an interactive message
+        from app.services import wa_booking_form
+        form = wa_booking_form.describe(msg)                   # answers from HAIP's booking form (WhatsApp Flow)
+        if form:
+            return form
         i = msg.get("interactive") or {}
         r = i.get("button_reply") or i.get("list_reply") or {}
         return str(r.get("title") or "")
@@ -662,6 +666,26 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             return
     except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
         log.warning("playbook_callback_tap_failed", tenant_id=tenant.id, error=str(exc)[:200])
+
+    # ── Growth links, packages and the booking form (WhatsApp step 3) ──────
+    # A first message carrying "(ref w-xxxxxxxx)" counts a chat for that click-to-chat link; a tap on a package row or
+    # its buttons is answered by wa_catalog; booking-form answers are saved on the enquiry. The AI stays out of the last two.
+    try:
+        from app.services import wa_booking_form, wa_catalog, wa_entry_links
+        if body and wa_entry_links.count_chat(db, tenant.id, body):
+            db.commit()
+        if msg_type == "interactive":
+            if wa_booking_form.apply(db, tenant.id, guest, conversation, msg):
+                message.automation_outcome = "booking_form_answered"
+                db.commit()
+                return
+            if wa_catalog.handle(db, tenant.id, guest, conversation, msg):
+                message.automation_outcome = "packages_answered"
+                db.commit()
+                return
+    except Exception as exc:  # noqa: BLE001 -- fall through to the normal reply path
+        db.rollback()
+        log.warning("wa_growth_inbound_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
     # ── WhatsApp keyword auto-replies (services/wa_keyword_replies.py) ─────
     # An active "wa_message_received" rule whose keyword is in the message answers it; the AI then stays out.

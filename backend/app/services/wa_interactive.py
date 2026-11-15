@@ -1,4 +1,4 @@
-"""WhatsApp interactive messages (reply buttons, a link button, a list, a location request).
+"""WhatsApp interactive messages (reply buttons, a link button, a list, a location request, a WhatsApp Flow form).
 
 A message carries its interactive part in ``message.channel_metadata["interactive"]`` as a small spec; the
 send_whatsapp task turns it into Meta's ``interactive`` object with ``payload()``. Interactive messages are
@@ -28,8 +28,12 @@ class ListSection(BaseModel):
 
 
 class InteractiveSpec(BaseModel):
-    kind: Literal["buttons", "cta_url", "list", "location_request"]
+    kind: Literal["buttons", "cta_url", "list", "location_request", "flow"]
     buttons: list[str] = Field(default_factory=list, max_length=3)  # reply buttons: the tapped title comes back as text
+    button_ids: list[str] = Field(default_factory=list, max_length=3)  # optional ids sent back on a tap (else btn_0..)
+    flow_id: str | None = Field(default=None, max_length=64)        # flow: the published Flow (wa_booking_form)
+    flow_token: str | None = Field(default=None, max_length=200)    # flow: comes back with the answers
+    flow_screen: str | None = Field(default=None, max_length=64)
     title: str | None = Field(default=None, max_length=20)  # cta_url button text
     url: str | None = Field(default=None, max_length=2000)
     button: str | None = Field(default=None, max_length=20)  # list: the button that opens it
@@ -50,6 +54,10 @@ class InteractiveSpec(BaseModel):
     def _shape(self):
         if self.kind == "buttons" and not self.buttons:
             raise ValueError("Add at least one button.")
+        if self.button_ids and (len(self.button_ids) != len(self.buttons) or any(not 0 < len(i) <= 200 for i in self.button_ids)):
+            raise ValueError("Each button needs one id.")
+        if self.kind == "flow" and not (self.flow_id and self.title and self.flow_token and self.flow_screen):
+            raise ValueError("A form needs its id, button text, token and first screen.")
         if self.kind == "cta_url":
             p = urlparse((self.url or "").strip())
             if not self.title or p.scheme != "https" or not p.netloc:
@@ -76,8 +84,13 @@ def payload(spec: dict, body: str) -> dict:
     text = (body or "").strip()[:1024] or " "
     if s.kind == "buttons":
         out = {"type": "button", "body": {"text": text}, "action": {"buttons": [
-            {"type": "reply", "reply": {"id": f"btn_{i}", "title": b}} for i, b in enumerate(s.buttons)
+            {"type": "reply", "reply": {"id": s.button_ids[i] if s.button_ids else f"btn_{i}", "title": b}}
+            for i, b in enumerate(s.buttons)
         ]}}
+    elif s.kind == "flow":
+        out = {"type": "flow", "body": {"text": text}, "action": {"name": "flow", "parameters": {
+            "flow_message_version": "3", "flow_token": s.flow_token, "flow_id": s.flow_id, "flow_cta": s.title,
+            "flow_action": "navigate", "flow_action_payload": {"screen": s.flow_screen}}}}
     elif s.kind == "cta_url":
         out = {"type": "cta_url", "body": {"text": text},
                "action": {"name": "cta_url", "parameters": {"display_text": s.title, "url": s.url}}}

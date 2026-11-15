@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import { ReplyButtonsBar } from "@/components/inbox/ReplyButtonsBar";
 import { LabelEditor } from "@/components/inbox/LabelEditor";
+import { ChatSellBar } from "@/components/inbox/ChatSellBar";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -788,6 +789,7 @@ function InboxPageInner() {
             {isWhatsApp && !isInternalNote && !windowBlocked && (
               <ReplyButtonsBar key={activeConversationId ?? "none"} value={replyButtons} onChange={setReplyButtons} />
             )}
+            {isWhatsApp && !isInternalNote && !windowBlocked && activeConversationId && <ChatSellBar key={`sell-${activeConversationId}`} conversationId={activeConversationId} />}
             <Composer
               isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked} isInternalNote={isInternalNote}
               exitInternalNote={exitInternalNote} replyToMsg={replyToMsg} setReplyToMsg={setReplyToMsg}

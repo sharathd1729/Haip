@@ -71,6 +71,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Campaigns", href: "/dashboard/messaging/campaigns", icon: Megaphone, resource: "campaigns" },
     { label: "Subscribers", href: "/dashboard/messaging/subscribers", icon: UserCheck, resource: "subscribers" },
     { label: "Flow builder", href: "/dashboard/messaging/flows", icon: GitBranch, resource: "flows" },
+    { label: "Growth tools", href: "/dashboard/messaging/growth", icon: Link2, resource: "campaigns", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "Instagram automations", href: "/dashboard/instagram-automations", icon: AtSign, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Saved replies", href: "/dashboard/settings/saved-replies", icon: BookmarkIcon, resource: "templates" },
   ] },
