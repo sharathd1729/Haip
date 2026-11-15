@@ -8,6 +8,7 @@ import { LogOut } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useNav } from "@/components/layout/nav";
 import { YaadWordmark } from "@/components/personal/YaadMark";
+import { FolderLinks } from "@/components/personal/Folders";
 
 export function YaadSideNav({ user }: { user?: { name?: string | null; email?: string | null; role?: string } }) {
   const nav = useNav(user?.role ?? "");
@@ -16,8 +17,9 @@ export function YaadSideNav({ user }: { user?: { name?: string | null; email?: s
     <aside className="yaad hidden w-60 shrink-0 flex-col border-r border-[var(--y-line)] md:flex" aria-label="Yaad">
       <Link href="/dashboard/me" className="px-5 pb-4 pt-6" aria-label="Yaad home"><YaadWordmark /></Link>
       <nav className="flex-1 overflow-y-auto px-3">
-        {nav.sections.map(section => (
+        {nav.sections.map((section, si) => (
           <div key={section.title} className="mb-4">
+            {si === 1 && <FolderLinks variant="side" />}
             <p className="px-3 pb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[var(--y-ink-3)]">{section.title}</p>
             <ul className="grid gap-0.5">
               {section.links.map(link => {

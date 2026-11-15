@@ -146,6 +146,7 @@ Request:
 | `duration_sec` | 0-86400 (`CallLog.Calls.DURATION`) |
 | `answered` | incoming: false = missed / rejected. Outgoing: false = nobody picked up. Send `duration_sec` as logged; HAIP counts an unanswered call as 0 seconds |
 | `sim_slot` | optional 0-9; accepted, not stored |
+| `contact_name` | optional, <= 120: the name saved in the phone's contacts (`CallLog.Calls.CACHED_NAME`, no extra permission). Sent ONLY by the Yaad app; kept only in a personal workspace (put on the person with that number), ignored in a business workspace. A placeholder or number-as-name is ignored. |
 
 Response `200`, one result per call in the same order:
 
@@ -168,6 +169,12 @@ a final status: move the sync cursor past them. On any other response, keep them
 
 If HAIP's queue loses a `queued` call, HAIP queues it again by itself (15 minutes later, up to 5 times). The app does
 not need to resend it.
+
+### `POST /device-calls/names` (device token, Yaad app)
+
+Once after updating, the Yaad app sends the saved names of numbers in its call log since its first sync, so calls sent
+before names existed show names too: `{"names": [{"number": "+9198...", "name": "Kavya Menon"}]}` (1-500 per request).
+Answer `{"renamed": n}`; always 0 in a business workspace. The phone's contacts win over an older name.
 
 ### `POST /device-calls/{device_call_id}/recording` (device token)
 

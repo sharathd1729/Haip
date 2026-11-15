@@ -7,12 +7,13 @@ import android.provider.CallLog
 import org.json.JSONArray
 import org.json.JSONObject
 
-private data class CallRow(val id: Long, val number: String, val type: Int, val dateMs: Long, val durationSec: Int)
+private data class CallRow(val id: Long, val number: String, val type: Int, val dateMs: Long, val durationSec: Int, val name: String?)
 
 /** Sends call-log entries newer than the cursor, 200 at a time. The cursor moves only once HAIP has answered for a batch. */
 class CallSync(private val ctx: Context, private val prefs: Prefs, private val token: String) {
     fun run(): Outcome {
         if (ctx.checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) return Outcome.OK
+        if (BuildConfig.PERSONAL && !prefs.namesCaughtUp && catchUpNames() == Outcome.REVOKED) return Outcome.REVOKED
         while (true) {
             val rows = read(prefs.lastCallId, prefs.syncFloorMs)
             if (rows.isEmpty()) return Outcome.OK
@@ -33,6 +34,8 @@ class CallSync(private val ctx: Context, private val prefs: Prefs, private val t
                             .put("started_at", Logic.iso(row.dateMs))
                             .put("duration_sec", row.durationSec)
                             .put("answered", dir.second)
+                            // Yaad only: the name saved in the phone's contacts. The business Calls app never sends it.
+                            .apply { if (BuildConfig.PERSONAL && !row.name.isNullOrBlank()) put("contact_name", row.name.trim().take(120)) }
                     )
                 }
                 val r = Api.postCalls(token, JSONObject().put("calls", arr))
@@ -79,6 +82,7 @@ class CallSync(private val ctx: Context, private val prefs: Prefs, private val t
         val out = ArrayList<CallRow>()
         val projection = arrayOf(
             CallLog.Calls._ID, CallLog.Calls.NUMBER, CallLog.Calls.TYPE, CallLog.Calls.DATE, CallLog.Calls.DURATION,
+            CallLog.Calls.CACHED_NAME,
         )
         ctx.contentResolver.query(
             CallLog.Calls.CONTENT_URI,
@@ -88,13 +92,33 @@ class CallSync(private val ctx: Context, private val prefs: Prefs, private val t
             "${CallLog.Calls._ID} ASC",
         )?.use { c ->
             while (out.size < BATCH && c.moveToNext()) {
-                out.add(CallRow(c.getLong(0), c.getString(1) ?: "", c.getInt(2), c.getLong(3), c.getLong(4).coerceIn(0, 86_400).toInt()))
+                out.add(CallRow(c.getLong(0), c.getString(1) ?: "", c.getInt(2), c.getLong(3), c.getLong(4).coerceIn(0, 86_400).toInt(), c.getString(5)))
             }
         }
         return out
     }
 
+    /** Yaad, once: the saved names of numbers in the call log since the first sync, so calls sent before names were sent
+     *  show names too. Not done (busy server) = tried again on the next sync; the normal call sync goes on either way. */
+    private fun catchUpNames(): Outcome {
+        val rows = ArrayList<Pair<String, String?>>()
+        ctx.contentResolver.query(
+            CallLog.Calls.CONTENT_URI, arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME),
+            "${CallLog.Calls.DATE} >= ?", arrayOf(prefs.syncFloorMs.toString()), "${CallLog.Calls._ID} ASC",
+        )?.use { c -> while (c.moveToNext()) rows.add((c.getString(0) ?: "") to c.getString(1)) }
+        for (chunk in Logic.contactNames(rows, prefs.personalKeys).chunked(NAMES_BATCH)) {
+            val arr = JSONArray()
+            chunk.forEach { (number, name) -> arr.put(JSONObject().put("number", number.take(40)).put("name", name)) }
+            val r = Api.postNames(token, JSONObject().put("names", arr))
+            if (r.code == 401) return Outcome.REVOKED
+            if (r.code != 200) return Outcome.RETRY
+        }
+        prefs.namesCaughtUp = true
+        return Outcome.OK
+    }
+
     companion object {
         const val BATCH = 200
+        const val NAMES_BATCH = 500
     }
 }

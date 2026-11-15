@@ -67,7 +67,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "lead-autopilot": "Lead autopilot",
   "lead-rules":   "Lead rules",
   gps:          "GPS trackers",
-  me:           "Calls",
+  me:           "Memories",
   reminders:    "Reminders",
   ask:          "Ask Yaad",
   "calls-app":  "Calls app phones",
@@ -101,7 +101,8 @@ function PageTitle() {
   const segments = pathname.split("/").filter(Boolean);
   // Dynamic-id routes (/dashboard/leads/{inquiryId}, /dashboard/calls/{id}, ...) have no label for their last segment
   // (a raw id); walk back to the nearest labelled ancestor instead of showing the id. The page body names the record.
-  let label: string | undefined = PATH_LABELS[pathname.replace(/\/$/, "")];
+  let label: string | undefined = PATH_LABELS[pathname.replace(/\/$/, "")]
+    ?? (pathname.startsWith("/dashboard/me/calls/") ? "Memory" : undefined);  // Yaad: one memory, not HAIP's Calls
   for (let i = segments.length - 1; i >= 0 && !label; i--) {
     label = ROUTE_LABELS[segments[i]];
     if (label) break;

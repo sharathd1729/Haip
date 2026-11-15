@@ -76,6 +76,12 @@ object Api {
             .post(body.toString().toRequestBody(JSON_TYPE)).build()
     )
 
+    /** Yaad: saved contact names of numbers already sent (POST /device-calls/names). */
+    fun postNames(token: String, body: JSONObject): Resp = send(
+        Request.Builder().url(v1("/device-calls/names")).header("Authorization", "Bearer $token")
+            .post(body.toString().toRequestBody(JSON_TYPE)).build()
+    )
+
     /** Streams the file; its known length gives the request a Content-Length (the server requires one). */
     fun uploadRecording(token: String, deviceCallId: String, resolver: ContentResolver, uri: Uri, ext: String, length: Long): Resp {
         val file = object : RequestBody() {

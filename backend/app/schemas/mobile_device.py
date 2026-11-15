@@ -51,7 +51,21 @@ class DeviceCallIn(BaseModel):
     duration_sec: int = Field(ge=0, le=86400)
     answered: bool
     sim_slot: int | None = Field(None, ge=0, le=9)
+    # The name saved for this number in the phone's contacts (CallLog CACHED_NAME). Sent only by the Yaad app, and kept
+    # only in a personal workspace (it is the person's own address book); ignored elsewhere.
+    contact_name: str | None = Field(None, max_length=120)
 
 
 class DeviceCallBatch(BaseModel):
     calls: list[DeviceCallIn] = Field(min_length=1, max_length=200)
+
+
+class ContactNameIn(BaseModel):
+    number: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=120)
+
+
+class ContactNameBatch(BaseModel):
+    """Yaad's one-time catch-up: the saved names of numbers already sent, so older calls show names too."""
+
+    names: list[ContactNameIn] = Field(min_length=1, max_length=500)

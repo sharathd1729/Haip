@@ -22,6 +22,12 @@ class LogicTest {
         assertNull(Logic.direction(6, 0)) // blocked: never sent
     }
 
+    @Test fun contactNamesOnePerNumberNeverPersonal() {
+        val rows = listOf("+91 98123 45678" to "Kavya", "9812345678" to "Kavya Menon", "9800000001" to " ",
+                          "9800000002" to "Amma", "" to "Withheld")
+        assertEquals(listOf("9812345678" to "Kavya Menon"), Logic.contactNames(rows, setOf("9800000002")))
+    }
+
     @Test fun numbersCompareByLastTenDigits() {
         assertEquals("9812345678", Logic.key("+91 98123-45678"))
         assertEquals(Logic.key("09812345678"), Logic.key("+919812345678"))

@@ -38,9 +38,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # call_scores.analysis_version stores this string (one score row per call per version).
     "call_analysis":   "call-analysis-v6",      # call_analysis.jinja
     # Personal workspaces (one person's own phone calls, NeoSapien-style read instead of the hospitality QA + wrap-up).
-    "personal_call":   "personal-call-v2",      # personal_call.jinja
-    "personal_ask":    "personal-ask-v1",       # personal_ask.jinja (Ask Yaad)
+    "personal_call":   "personal-call-v3",      # personal_call.jinja (v3: a source quote + time per point)
+    "personal_ask":    "personal-ask-v2",       # personal_ask.jinja (Ask Yaad; v2: [n] citations, follow-ups, earlier turns)
     "personal_digest": "personal-digest-v1",    # personal_digest.jinja (Yaad daily email)
+    "personal_folder": "personal-folder-v1",    # personal_folder.jinja (Yaad: which folders a call belongs in)
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied

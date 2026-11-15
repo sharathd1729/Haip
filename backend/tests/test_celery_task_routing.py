@@ -22,6 +22,8 @@ import pytest
 _CONSUMED_QUEUES = {"transcription", "ai_scoring", "whatsapp", "call_ingest", "default",
                     # consumed only by the worker_replies service (guest replies, docker-compose.prod.yml)
                     "replies",
+                    # Ask Yaad, also consumed by worker_replies (docker-compose.prod.yml)
+                    "personal",
                     # consumed only by the opt-in research_collector service (docker-compose.prod.yml profile "research")
                     "research_collect"}
 
@@ -170,7 +172,7 @@ def test_replies_queue_has_its_own_worker_in_production():
     import re
 
     compose = (pathlib.Path(__file__).resolve().parents[2] / "docker-compose.prod.yml").read_text(encoding="utf-8")
-    assert re.search(r"--queues=replies\s", compose), "worker_replies must consume the replies queue"
+    assert re.search(r"--queues=replies,personal\s", compose), "worker_replies must consume replies + personal (Ask Yaad)"
     assert "--queues=transcription,ai_scoring,whatsapp,call_ingest,default" in compose  # main worker keeps its five
 
 

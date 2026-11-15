@@ -2,6 +2,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeader } from "@/components/layout/MobileHeader";
 import { HybridTopNav } from "@/components/shell/HybridTopNav";
 import { YaadSideNav } from "@/components/personal/YaadSideNav";
+import { NotForYaad } from "@/components/personal/NotForYaad";
 import { redirect } from "next/navigation";
 import type { Viewport } from "next";
 import { auth } from "@/lib/auth";
@@ -86,12 +87,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           {/* Health status bar (X8) — visible only when degraded; desktop
               only, it took too much room above the content on phones. */}
-          <div className="hidden md:block">
-            <StatusBarSlot />
-          </div>
+          <NotForYaad>
+            <div className="hidden md:block">
+              <StatusBarSlot />
+            </div>
+          </NotForYaad>
 
           {/* Sample data banner (O2) — amber strip when viewing sample data */}
-          <SampleDataBanner />
+          <NotForYaad><SampleDataBanner /></NotForYaad>
 
           {/* Page content — flex column so children can use h-full */}
           <main
@@ -110,7 +113,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
 
       {/* SSE bridge — rendered once, outside layout columns */}
-      <DashboardSSEBridge />
+      <NotForYaad><DashboardSSEBridge /></NotForYaad>
 
       {/* Client-side overlays: CommandPalette, StatusBar */}
       <DashboardClientShell />

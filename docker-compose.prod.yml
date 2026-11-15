@@ -65,6 +65,8 @@ services:
 
   # Guest replies only (queue "replies": inbound WhatsApp/Instagram message -> AI draft -> send, missed-reply recovery),
   # so a reply never waits behind campaigns, Meta Ads syncs or marketing agency runs on the main worker.
+  # Also queue "personal" (Ask Yaad, a person waiting; <= 100 a day per workspace).
+  # shortcut: shares the 2 reply slots; give Yaad its own worker once it has many users.
   # Max DB connections: 2 processes x (2 + 1) = 6.
   worker_replies:
     build:
@@ -86,7 +88,7 @@ services:
       celery -A app.workers.celery_app worker
       --loglevel=info
       --concurrency=2
-      --queues=replies
+      --queues=replies,personal
       -n replies@%h
     volumes:
       - uploads:/app/uploads

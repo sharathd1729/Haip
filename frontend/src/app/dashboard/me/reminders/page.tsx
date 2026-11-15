@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { istDay, isMine, type Reminder } from "@/lib/personal";
 import { useReminders } from "@/components/personal/hooks";
 import { ReminderRow } from "@/components/personal/ReminderRow";
+import { SourceChip } from "@/components/personal/Cite";
 import { YaadWordmark } from "@/components/personal/YaadMark";
 
 type Who = "all" | "mine" | "others";
@@ -31,7 +32,7 @@ export default function YaadRemindersPage() {
     <div className="yaad min-h-full px-4 py-5 sm:px-6">
       <div className="mx-auto max-w-[680px]">
         <div className="mb-5 hidden min-[600px]:block md:hidden"><YaadWordmark /></div>
-        <h1 className="text-[26px] font-semibold tracking-[-0.02em]">Reminders</h1>
+        <h1 className="text-[26px] font-semibold tracking-[-0.02em] max-md:sr-only">Reminders</h1>
         <p className="mt-1 text-[14.5px] text-[var(--y-ink-2)]">What you and others said you would do, from your calls.</p>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -58,7 +59,8 @@ export default function YaadRemindersPage() {
             </div>
           ) : tab === "done" ? (
             <ul className="rounded-[20px] border border-[var(--y-line)] bg-[var(--y-card)] px-4 py-1">
-              {items.map(r => <ReminderRow key={`${r.call_id}-${r.id}`} item={r} callId={r.call_id} source={{ title: r.call_title, contact: r.contact }} />)}
+              {items.map(r => <ReminderRow key={`${r.call_id}-${r.id}`} item={r} callId={r.call_id} source={{ title: r.call_title, contact: r.contact }}
+                cite={r.ref ? <SourceChip n={1} quote={r.ref.quote} at={r.ref.at} callId={r.call_id} /> : undefined} />)}
             </ul>
           ) : (
             <div className="grid gap-6">
@@ -68,7 +70,8 @@ export default function YaadRemindersPage() {
                     {g.title} · {g.items.length}
                   </h2>
                   <ul className="rounded-[20px] border border-[var(--y-line)] bg-[var(--y-card)] px-4 py-1 shadow-[var(--y-shadow)]">
-                    {g.items.map(r => <ReminderRow key={`${r.call_id}-${r.id}`} item={r} callId={r.call_id} source={{ title: r.call_title, contact: r.contact }} />)}
+                    {g.items.map(r => <ReminderRow key={`${r.call_id}-${r.id}`} item={r} callId={r.call_id} source={{ title: r.call_title, contact: r.contact }}
+                cite={r.ref ? <SourceChip n={1} quote={r.ref.quote} at={r.ref.at} callId={r.call_id} /> : undefined} />)}
                   </ul>
                 </section>
               ))}
