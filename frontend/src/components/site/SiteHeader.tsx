@@ -7,7 +7,7 @@ export default function SiteHeader() {
 </div></div><header className="gut"><div className="wrap"><nav className="nav" aria-label="Main">
   <img className="logo" src="/logo-wordmark.png" alt="HAIP" />
   <div className="links">
-    <a href="/site-v2/features">Product </a><a href="/site-v2/solutions/villas">Solutions </a><a href="/integrations">Integrations</a><a href="#hero">Resources </a><a href="/site-v2/pricing">Pricing</a>
+    <a href="/features">Product </a><a href="/solutions/villas">Solutions </a><a href="/integrations">Integrations</a><a href="#hero">Resources </a><a href="/pricing">Pricing</a>
   </div>
   <div className="right"><a className="btn login" href="/login">Log in</a><a className="btn outline" href="/book-demo">Book a demo</a></div>
 </nav></div></header></div>

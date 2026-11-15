@@ -43,8 +43,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
   const { type } = await params;
   if (!(type in SLUGS)) return {};
   const slug = type as Slug;
-  // Preview: noindex until /site-v2 replaces the live pages; the canonical already points at the final address.
-  return pageMetadata({ ...SEO[slug], path: `/solutions/${slug}`, keywords: [...KEYWORDS[SLUGS[slug]]], noindex: true });
+  return pageMetadata({ ...SEO[slug], path: `/solutions/${slug}`, keywords: [...KEYWORDS[SLUGS[slug]]] });
 }
 
 export default async function SolutionPage({ params }: { params: Promise<{ type: string }> }) {

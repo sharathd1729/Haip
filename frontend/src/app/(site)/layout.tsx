@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Anton, JetBrains_Mono, Onest } from "next/font/google";
 import "./site.css";
 
-// Preview route for the new marketing site (approved mockup, ported). Not indexed until it replaces "/".
+// The marketing site: "/", /features, /pricing, /solutions/*. Has its own header and footer, so it sits outside (marketing).
 // site.css is global by Next's rules, so every selector in it is scoped under .site and its keyframes are prefixed s-.
 const display = Anton({
   subsets: ["latin"],
@@ -27,7 +27,6 @@ export const metadata: Metadata = {
   title: "HAIP: no guest left on read",
   description:
     "HAIP answers your guests on WhatsApp and Instagram, records every call, and runs bookings, payments and the stay for villas, resorts, homestays, hotels and caravans in India.",
-  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

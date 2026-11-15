@@ -16,14 +16,12 @@ const FAQ = [
   ["I have more properties. What do I pay?", "Scale covers several properties. For larger groups, talk to us and we will price it for your setup."],
 ] as const;
 
-// Preview: noindex until /site-v2 replaces the live pages; the canonical already points at the final address.
 export const metadata = pageMetadata({
   title: "Pricing: simple plans from ₹3,999 a month | HAIP",
   description:
     "HAIP plans for villas, resorts, homestays, hotels and caravans in India. Starter ₹3,999, Growth ₹6,999, Scale ₹9,999 a month. 14-day free trial, no card, cancel any time.",
   path: "/pricing",
   keywords: [...KEYWORDS.pricing],
-  noindex: true,
 });
 
 export default function PricingPage() {
