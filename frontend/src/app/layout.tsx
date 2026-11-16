@@ -77,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `
           try {
             var p = window.location.pathname;
-            var isApp = p.startsWith('/dashboard') || p.startsWith('/onboarding') || p.startsWith('/login') || p.startsWith('/register');
+            var isApp = p.startsWith('/dashboard') || p.startsWith('/w/') || p.startsWith('/onboarding') || p.startsWith('/login') || p.startsWith('/register');
             if (isApp) {
               var s = localStorage.getItem('haip_color_scheme');
               var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

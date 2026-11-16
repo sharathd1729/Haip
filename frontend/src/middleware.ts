@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
 import { isYaadScreen } from "@/lib/authRedirect";
+import { hasPublicAddress, toAppPath, toWorkspacePath, workspaceSlugOf } from "@/lib/workspacePath";
 
 // Subdomains that map directly to a marketing page path.
 // e.g. status.haip.app/ → /status
@@ -80,6 +81,33 @@ export default auth((req: NextRequest & { auth: any }) => {
     return NextResponse.next();
   }
 
+  // ── Workspace addresses (genhaip.com/w/<slug>/...) ─────────────────────────
+  // The pages live under /dashboard: /w/<slug>/x is served from /dashboard/x (a rewrite, the address bar keeps the
+  // slug), and a /dashboard/x link sends the signed-in workspace to /w/<slug>/x. A link for another workspace lands
+  // on the signed-in workspace's home (its data stays server-checked either way). Sessions from before the slug
+  // was in the token (tenantSlug missing) and Yaad's personal workspaces keep /dashboard.
+  const mySlug = req.auth?.user?.tenantSlug as string | null | undefined;
+  const linkSlug = workspaceSlugOf(pathname);
+  if (linkSlug !== null) {
+    if (!isLoggedIn) {
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search);
+      return NextResponse.redirect(loginUrl);
+    }
+    if (hasPublicAddress(mySlug) && linkSlug !== mySlug) {
+      return NextResponse.redirect(new URL(`/w/${mySlug}`, req.url));
+    }
+    const appUrl = req.nextUrl.clone();
+    appUrl.pathname = toAppPath(pathname);
+    return NextResponse.rewrite(appUrl);
+  }
+  if (isLoggedIn && hasPublicAddress(mySlug) && !isYaadScreen(pathname)
+      && (pathname === "/dashboard" || pathname.startsWith("/dashboard/"))) {
+    const wsUrl = req.nextUrl.clone();
+    wsUrl.pathname = toWorkspacePath(pathname, mySlug);
+    return NextResponse.redirect(wsUrl);
+  }
+
   // ── Logged-in users ────────────────────────────────────────────────────────
   if (isLoggedIn) {
     // Send away from auth/marketing entry pages straight into the app.
@@ -131,6 +159,7 @@ export const config = {
     "/onboarding",
     "/yaad/:path*",
     "/dashboard/:path*",
+    "/w/:path*",
     "/connect/:path*",
   ],
 };

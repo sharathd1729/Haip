@@ -176,7 +176,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             const me = await meRes.json();
             return {
               id: me.id, name: me.full_name ?? me.name, email: me.email,
-              role: me.role, tenantId: me.tenant_id ?? "haip-villa",
+              role: me.role, tenantId: me.tenant_id ?? "haip-villa", tenantSlug: me.tenant?.slug ?? null,
               accessToken: preAuthAccessToken,
               refreshToken: preAuthRefreshToken,
               accessTokenExpires: getTokenExpiry(preAuthAccessToken),
@@ -219,7 +219,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               console.log("[AUTH] me data:", JSON.stringify(me).slice(0, 200));
               return {
                 id: me.id, name: me.full_name ?? me.name, email: me.email,
-                role: me.role, tenantId: me.tenant_id ?? "haip-villa",
+                role: me.role, tenantId: me.tenant_id ?? "haip-villa", tenantSlug: me.tenant?.slug ?? null,
                   accessToken,
                 refreshToken: data.refresh_token ?? "",
                 accessTokenExpires: getTokenExpiry(accessToken),
@@ -259,6 +259,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role;
         token.tenantId = (user as any).tenantId;
+        token.tenantSlug = (user as any).tenantSlug ?? null;   // the workspace address /w/<slug> (middleware.ts)
         token.accessToken = (user as any).accessToken;
         token.refreshToken = (user as any).refreshToken ?? "";
         token.accessTokenExpires = (user as any).accessTokenExpires ?? 0;
@@ -334,6 +335,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.id = token.id as string;
       session.user.role = token.role as string;
       session.user.tenantId = token.tenantId as string;
+      session.user.tenantSlug = token.tenantSlug ?? null;
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
       (session as any).errorSince = token.errorSince;

@@ -5,7 +5,8 @@
 // everywhere. Visibility rules (role via canSeeNav, onlyRoles, business type, owner-only) live here only.
 // Plan: claude.ai/artifact/TmeAnWuJg4XTagvhdhrkpf. URLs are unchanged in this step.
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useAppPathname } from "@/lib/useAppPathname";
 import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
@@ -217,7 +218,7 @@ function filterSection(s: NavSection, role: string, businessType: string | null 
 /** Everything the shell needs: visible areas, a lookup by href, live badge counts, the active area and the active test. */
 export function useNav(role: string) {
   const businessType = useBusinessType();
-  const pathname = usePathname() ?? "";
+  const pathname = useAppPathname();
   const search = useSearchParams()?.toString() ?? "";
   // Yaad's own pages are personal by definition: no flash of the business tabs while the workspace context loads.
   const personal = usePersonalMode() || pathname === PERSONAL_HOME || pathname.startsWith(PERSONAL_HOME + "/");

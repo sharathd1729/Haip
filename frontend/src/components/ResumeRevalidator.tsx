@@ -31,7 +31,7 @@ export function ResumeRevalidator() {
 
     async function onResume() {
       // Only meaningful once inside the app -- skip marketing/login/etc.
-      if (!window.location.pathname.startsWith("/dashboard")) return;
+      if (!/^\/(dashboard|w)(\/|$)/.test(window.location.pathname)) return;
 
       const now = Date.now();
       if (now - lastRun < MIN_RUN_INTERVAL_MS) return;

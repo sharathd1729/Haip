@@ -4,7 +4,8 @@
 // because this bar already names the page, so every route needs a ROUTE_LABELS entry.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAppPathname } from "@/lib/useAppPathname";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Menu, Sun, Moon, Monitor } from "@/lib/icons";
@@ -99,7 +100,7 @@ const PATH_LABELS: Record<string, string> = {
 };
 
 function PageTitle() {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const segments = pathname.split("/").filter(Boolean);
   // Dynamic-id routes (/dashboard/leads/{inquiryId}, /dashboard/calls/{id}, ...) have no label for their last segment
   // (a raw id); walk back to the nearest labelled ancestor instead of showing the id. The page body names the record.
@@ -148,7 +149,7 @@ function timeAgo(ts: number): string {
 export function MobileHeader({ user }: MobileHeaderProps) {
   const [bellOpen, setBellOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const router = useRouter();
   const items = useNotificationsStore(s => s.items);
   const markAllRead = useNotificationsStore(s => s.markAllRead);

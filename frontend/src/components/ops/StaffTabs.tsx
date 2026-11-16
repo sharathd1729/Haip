@@ -2,7 +2,7 @@
 // Ops › Staff sub-pages: People (everyone reads), Who is on duty and If nobody answers (owner/manager: they set the roster
 // and the alert chain, ops.manage on the server). Links styled like the kit's Tabs track; scrolls inside itself on a phone.
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@/lib/useAppPathname";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { canManageOps } from "@/lib/ops";
@@ -14,7 +14,7 @@ const LINKS = [
 ];
 
 export function StaffTabs() {
-  const path = usePathname();
+  const path = useAppPathname();
   const manage = canManageOps(useSession().data?.user?.role);
   if (!manage) return null;
   return (

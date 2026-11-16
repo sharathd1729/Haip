@@ -2,7 +2,7 @@
 // The Ops screens side by side: Today (what needs you), Fleet (each vehicle's papers, defects, services, stock), Map (live
 // GPS) and Staff (drivers and helpers; they never log in, they use WhatsApp). Pills, 44px tall, scrolls sideways never.
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@/lib/useAppPathname";
 import { cn } from "@/lib/utils";
 import { useSegment } from "@/lib/segments";
 
@@ -15,7 +15,7 @@ const LINKS = [
 const VEHICLE_ONLY = ["/dashboard/ops/fleet", "/dashboard/ops/map"];
 
 export function OpsNav() {
-  const path = usePathname();
+  const path = useAppPathname();
   const fleet = useSegment().ops.fleet;  // Fleet + Map = vehicles: trip segments only
   return (
     <nav aria-label="Ops" className="flex gap-2">
