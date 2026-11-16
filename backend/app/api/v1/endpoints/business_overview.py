@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_current_user, require_module
+from app.api.v1.deps import get_current_user, require_module, require_roles
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
@@ -72,3 +72,29 @@ def business_overview(
     )
     tenant = db.query(Tenant).filter_by(id=tid).first()
     return svc.build(db, params, tenant)
+
+
+# ── Home dashboard tabs with numbers of their own (services/dashboard_tabs.py) ──────────────────────────────────
+
+@router.get("/payments")
+def payments_tab(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("bookings.read")),
+):
+    """Bookings & payments tab: balances still owed (overdue, due this week), unpaid payment links, deposits held and to
+    give back. Amounts need revenue.read (else null and money_restricted)."""
+    from app.services import booking_agenda_service, dashboard_tabs
+    money = "revenue.read" in get_capabilities(db, current_user)
+    return dashboard_tabs.payments(db, current_user.tenant_id, booking_agenda_service.tenant_today(db, current_user.tenant_id),
+                                   money=money)
+
+
+@router.get("/ops-board")
+def ops_tab(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Ops tab: the next 7 days of arrivals with each one's ID form state, and post-stay review answers (30 days)."""
+    from app.services import booking_agenda_service, dashboard_tabs
+    return dashboard_tabs.ops(db, current_user.tenant_id, booking_agenda_service.tenant_today(db, current_user.tenant_id))

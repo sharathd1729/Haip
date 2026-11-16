@@ -26,6 +26,11 @@ import { periodLabel, type BusinessOverview } from "./types";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneHome } from "@/components/dashboard/phone/PhoneHome";
 import type { OwnerBlock } from "./owner";
+import { HomeTabBar, useHomeTab } from "@/components/dashboard/tabs/HomeTabs";
+import { PaymentsTab } from "@/components/dashboard/tabs/PaymentsTab";
+import { OpsTab } from "@/components/dashboard/tabs/OpsTab";
+import { MarketingTab } from "@/components/dashboard/tabs/MarketingTab";
+import { InboxAnalytics } from "@/components/messaging/InboxAnalytics";
 
 const INITIAL: Filters = { preset: "today", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
 export type Overview = BusinessOverview & { owner?: OwnerBlock };
@@ -87,12 +92,25 @@ function Loading() {
   );
 }
 
-/** Phones get their own Home (components/dashboard/phone/PhoneHome.tsx); tablets and desktops keep this page unchanged. */
+/** Phones get their own Home for the Overview tab (components/dashboard/phone/PhoneHome.tsx); every other tab, and every tab on
+ *  tablets and desktops, is this page. The tab bar sits on top of both (workspace redesign Phase 2). */
 export function CommandCenter() {
-  return useIsPhone() ? <PhoneHome /> : <DesktopCommandCenter />;
+  const home = useHomeTab();
+  const phone = useIsPhone();
+  if (phone && home.tab === "overview") {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="shrink-0 px-3 pt-2.5"><HomeTabBar {...home} /></div>
+        <div className="min-h-0 flex-1"><PhoneHome /></div>
+      </div>
+    );
+  }
+  return <DesktopCommandCenter home={home} />;
 }
 
-function DesktopCommandCenter() {
+function DesktopCommandCenter({ home }: { home: ReturnType<typeof useHomeTab> }) {
+  const tab = home.tab;
+  const ownData = tab === "bookings" || tab === "ops";      // these tabs read their own endpoints, not the period overview
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
   const caravan = useBusinessType() === "caravan";
@@ -108,7 +126,7 @@ function DesktopCommandCenter() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data, error, isPending, isError, isFetching, isPlaceholderData, refetch } = useBusinessOverview(effective, windowDays);
+  const { data, error, isPending, isError, isFetching, isPlaceholderData, refetch } = useBusinessOverview(effective, windowDays, !ownData);
   const tenantWide = data?.access.tenant_wide ?? true;
 
   const { data: properties = [] } = useQuery<{ id: string; name: string }[]>({
@@ -137,6 +155,9 @@ function DesktopCommandCenter() {
             </div>
           } />
 
+        <HomeTabBar {...home} />
+
+        {tab === "bookings" ? <PaymentsTab /> : tab === "ops" ? <OpsTab /> : <>
         <PeriodBar custom value={preset} onChange={pickPeriod}
           caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{range}</span><span> · India time (IST), full days</span></> : undefined} />
         <Controls value={effective} onChange={next => { setFilters(next); if (next.preset !== "custom" && next.preset !== period) setPeriod(next.preset as PeriodValue); }}
@@ -172,21 +193,33 @@ function DesktopCommandCenter() {
           </div>
         ) : (
           <div className={isPlaceholderData ? "space-y-4 opacity-60 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5" : "space-y-4 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5"}>
-            <NeedsAttention cards={owner.attention} />
-            <OwnerKpis kpis={owner.kpis} period={periodText} />
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <TargetCard target={owner.target} />
-              <ArrivalsCard movements={owner.movements} windowDays={windowDays} onWindow={setWindowDays} pending={isPlaceholderData} />
-            </div>
-            <LeadsRowCards owner={owner} sources={data.sources} period={periodText} />
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <CaravansCard caravans={owner.caravans} caravan={caravan} />
+            {tab === "overview" && <>
+              <NeedsAttention cards={owner.attention} />
+              <OwnerKpis kpis={owner.kpis} period={periodText} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <TargetCard target={owner.target} />
+                <ArrivalsCard movements={owner.movements} windowDays={windowDays} onWindow={setWindowDays} pending={isPlaceholderData} />
+              </div>
+            </>}
+            {tab === "leads" && <>
+              <OwnerKpis kpis={owner.kpis} period={periodText} />
+              <LeadsRowCards owner={owner} sources={data.sources} period={periodText} />
               <AiCallsCard data={owner.ai_calls} period={presetLabel} />
-            </div>
-            <TeamCard team={owner.team} />
+            </>}
+            {tab === "revenue" && <>
+              <TargetCard target={owner.target} />
+              <CaravansCard caravans={owner.caravans} caravan={caravan} />
+              <Link href="/dashboard/targets" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline">Targets and the revenue report</Link>
+            </>}
+            {tab === "marketing" && <MarketingTab data={data} period={periodText} />}
+            {tab === "team" && <>
+              <TeamCard team={owner.team} />
+              <InboxAnalytics days={30} />
+            </>}
             <Definitions data={data} />
           </div>
         )}
+        </>}
       </div>
     </div>
   );
