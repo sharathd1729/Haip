@@ -64,7 +64,7 @@ function Rows({ rows, total }: { rows: Record<string, unknown>[]; total: number 
   );
 }
 
-export function AskHaip() {
+export function AskHaip({ initialQuestion }: { initialQuestion?: string } = {}) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -76,6 +76,8 @@ export function AskHaip() {
   });
 
   useEffect(() => { setTurns(load()); }, []);
+  // A question typed in the command bar (?q=) is asked once on arrival.
+  const askedInitial = useRef(false);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [turns]);
 
   const update = (id: string, patch: Partial<Turn>) =>
@@ -110,6 +112,13 @@ export function AskHaip() {
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!initialQuestion || askedInitial.current) return;
+    askedInitial.current = true;
+    void ask(initialQuestion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival
+  }, [initialQuestion]);
 
   const suggestions = [...(recent.data?.questions.map(q => q.question) ?? []), ...PROMPTS].filter((q, i, a) => a.indexOf(q) === i).slice(0, 6);
 

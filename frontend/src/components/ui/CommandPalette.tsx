@@ -13,30 +13,16 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, MessageSquare, Phone, Users, Settings, BarChart2, Shield, FileText, Inbox, ArrowRight, Clock, User, Building2, HelpCircle } from "@/lib/icons";
+import { Search, MessageSquare, Users, FileText, ArrowRight, Clock, User, Sparkles } from "@/lib/icons";
+import { useNav } from "@/components/layout/nav";
+import { COMMAND_EVENT } from "@/components/shell/CommandBar";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
-// ── Static page items ──────────────────────────────────────────────────────────
-
-const PAGES = [
-  // "dashboard" and "analytics" entries removed 2026-08-08 -- deactivated,
-  // being rebuilt from scratch.
-  { id: "inbox",        label: "Inbox",              href: "/dashboard/inbox",            icon: <Inbox size={14} />,            group: "Pages" },
-  { id: "calls",        label: "Calls",              href: "/dashboard/calls",            icon: <Phone size={14} />,            group: "Pages" },
-  { id: "leads",        label: "Leads",              href: "/dashboard/leads",            icon: <FileText size={14} />,         group: "Pages" },
-  { id: "guests",       label: "Bookings",           href: "/dashboard/bookings",           icon: <Users size={14} />,            group: "Pages" },
-  { id: "properties",   label: "Properties",         href: "/dashboard/properties",       icon: <Building2 size={14} />,        group: "Pages" },
-  { id: "compliance",   label: "Compliance",         href: "/dashboard/compliance",       icon: <Shield size={14} />,           group: "Pages" },
-  { id: "settings",     label: "Settings",           href: "/dashboard/settings",         icon: <Settings size={14} />,         group: "Pages" },
-  { id: "integrations", label: "Integrations",       href: "/dashboard/settings/integrations", icon: <Settings size={14} />, group: "Pages" },
-  { id: "team",         label: "Team members",       href: "/dashboard/settings/team",    icon: <Users size={14} />,            group: "Pages" },
-  { id: "templates",    label: "Saved replies",      href: "/dashboard/settings/saved-replies", icon: <MessageSquare size={14} />, group: "Pages" },
-  { id: "meta-quality", label: "Meta WABA quality",  href: "/dashboard/settings/integrations/meta-quality", icon: <Settings size={14} />, group: "Pages" },
-  { id: "grievance",    label: "Grievance form",     href: "/grievance",                  icon: <HelpCircle size={14} />,       group: "Pages" },
-];
-
+// Pages come from the one nav model (components/layout/nav.ts), so every page the person can open is findable and
+// nothing they can't open is offered.
 const ACTIONS = [
   { id: "new-inquiry",  label: "New lead",           href: "/dashboard/leads",            icon: <FileText size={14} />,         group: "Actions" },
   { id: "invite-team",  label: "Invite teammate",    href: "/dashboard/settings/team",    icon: <Users size={14} />,            group: "Actions" },
@@ -68,6 +54,12 @@ function fuzzyMatch(query: string, text: string): boolean {
 
 export function CommandPalette() {
   const router = useRouter();
+  const role = (useSession().data?.user as { role?: string } | undefined)?.role ?? "";
+  const nav = useNav(role);
+  const PAGES: ResultItem[] = nav.sections.flatMap(section => section.links.map(link => ({
+    id: `page-${link.href}`, label: link.label, subtitle: section.title, href: link.href,
+    icon: <link.icon size={14} />, group: "Pages",
+  })));
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -113,6 +105,11 @@ export function CommandPalette() {
     staleTime: 5_000,
   });
 
+  // Ask HAIP (owner, POST /analyst/ask-haip): any typed question can go straight to it.
+  const askItem: ResultItem[] = role === "owner" && query.trim().length >= 3 ? [{
+    id: "ask-haip", label: `Ask HAIP: ${query.trim()}`, subtitle: "Answers from your live leads, calls, bookings and revenue",
+    href: `/dashboard/analyst?tab=ask&q=${encodeURIComponent(query.trim())}`, icon: <Sparkles size={14} />, group: "Ask HAIP",
+  }] : [];
   // Static filtered results
   const staticResults: ResultItem[] = query
     ? [
@@ -122,6 +119,7 @@ export function CommandPalette() {
     : [...PAGES.slice(0, 6), ...ACTIONS];
 
   const allResults: ResultItem[] = [
+    ...askItem,
     ...(query.length >= 2 ? backendResults : []),
     ...staticResults,
   ];
@@ -158,6 +156,13 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", handler);
   }, [open, cursor, flat, router]);
 
+  // The command bar's box opens the palette.
+  useEffect(() => {
+    const show = () => { setOpen(true); setQuery(""); setCursor(0); };
+    window.addEventListener(COMMAND_EVENT, show);
+    return () => window.removeEventListener(COMMAND_EVENT, show);
+  }, []);
+
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
@@ -186,7 +191,8 @@ export function CommandPalette() {
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search pages, guests, conversations…"
+              placeholder={role === "owner" ? "Ask HAIP, or search pages, guests, conversations…" : "Search pages, guests, conversations…"}
+              aria-label="Ask HAIP or search"
               className="flex-1 text-sm text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] outline-none bg-transparent"
             />
             <kbd className="hidden sm:flex items-center gap-0.5 text-[11.5px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] rounded px-1.5 py-0.5 font-mono">
