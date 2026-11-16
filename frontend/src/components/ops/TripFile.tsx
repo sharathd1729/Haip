@@ -19,6 +19,7 @@ import { AddonsCard } from "./AddonsCard";
 import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
 import { StayFile } from "./StayFile";
 import { TripGps } from "./TripGps";
+import { FileMoneyCard } from "./money/FileMoneyCard";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -203,29 +204,29 @@ export function TripFile({ id }: { id: string }) {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader title="Money" description="This trip so far, GST included"
-          actions={write && f.state !== "closed" ? <button type="button" className="haip-btn-secondary min-h-11" onClick={() => setSheet("expense")}>Add expense</button> : undefined} />
-        <CardBody className="px-4 pb-3">
-          <Row label="Package" value={rupees(a.package_total)} />
-          {Number(a.addons_total) > 0 && <Row label="Extras and extra distance" value={rupees(a.addons_total)}
-            hint={a.extra_km ? `${a.extra_km.toLocaleString("en-IN")} km over the ${Number(a.allowance_km ?? 0).toLocaleString("en-IN")} km included` : undefined} />}
-          <Row label="Total" value={rupees(a.total_revenue)} />
-          <Row label="Paid" value={rupees(a.paid)} />
-          <Row label="Balance" value={rupees(a.outstanding)} strong={Number(a.outstanding) > 0} />
-          {a.deposit && <Row label="Deposit" value={rupees(a.deposit.amount)} hint={a.deposit.status === "held" ? "Held, refund within 48 h of return" : a.deposit.status} />}
-          {Object.entries(a.expenses_by_category).map(([k, v]) => <Row key={k} label={`Expense: ${EXPENSE_LABELS[k] ?? k}`} value={rupees(v)} />)}
-          <Row label="Net after expenses" value={rupees(a.net_cash)} />
+      <FileMoneyCard fileId={f.id} guest={s.guest_name} total={Number(a.total_revenue)} paid={Number(a.paid)}
+        outstanding={Number(a.outstanding)} word="trip"
+        headerAction={write && f.state !== "closed" ? <button type="button" className="haip-btn-secondary min-h-11" onClick={() => setSheet("expense")}>Add expense</button> : undefined}
+        footer={<div className="flex flex-col gap-2">
           {f.state === "on_trip" && (
-            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" onClick={() => setSheet("return")}>Vehicle is back: enter odometer</button>
+            <button type="button" className="haip-btn-secondary min-h-12 w-full" onClick={() => setSheet("return")}>Vehicle is back: enter odometer</button>
           )}
           {manage && (
-            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" disabled={report.isPending} onClick={() => report.mutate()}>
+            <button type="button" className="haip-btn-secondary min-h-12 w-full" disabled={report.isPending} onClick={() => report.mutate()}>
               {report.isPending ? "Making the report…" : "Trip account report (PDF)"}
             </button>
           )}
-        </CardBody>
-      </Card>
+        </div>}>
+        <Row label="Package" value={rupees(a.package_total)} />
+        {Number(a.addons_total) > 0 && <Row label="Extras and extra distance" value={rupees(a.addons_total)}
+          hint={a.extra_km ? `${a.extra_km.toLocaleString("en-IN")} km over the ${Number(a.allowance_km ?? 0).toLocaleString("en-IN")} km included` : undefined} />}
+        <Row label="Total" value={rupees(a.total_revenue)} />
+        <Row label="Paid" value={rupees(a.paid)} />
+        <Row label="Balance" value={rupees(a.outstanding)} strong={Number(a.outstanding) > 0} />
+        {a.deposit && <Row label="Deposit" value={rupees(a.deposit.amount)} hint={a.deposit.status === "held" ? "Held, refund within 48 h of return" : a.deposit.status} />}
+        {Object.entries(a.expenses_by_category).map(([k, v]) => <Row key={k} label={`Expense: ${EXPENSE_LABELS[k] ?? k}`} value={rupees(v)} />)}
+        <Row label="Net after expenses" value={rupees(a.net_cash)} />
+      </FileMoneyCard>
 
       {!beforeRoad && f.state !== "cancelled" && <TripGps fileId={f.id} live={f.state === "on_trip"} />}
 

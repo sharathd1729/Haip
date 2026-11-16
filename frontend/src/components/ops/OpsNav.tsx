@@ -1,5 +1,5 @@
 "use client";
-// The Ops screens side by side: Today (what needs you), Fleet (each vehicle's papers, defects, services, stock), Map (live
+// The Ops screens side by side: Today (what needs you), Money (what stays owe, Phase 4), Fleet (each vehicle's papers, defects, services, stock), Map (live
 // GPS) and Staff (drivers and helpers; they never log in, they use WhatsApp). Pills, 44px tall, scrolls sideways never.
 import Link from "next/link";
 import { useAppPathname } from "@/lib/useAppPathname";
@@ -8,6 +8,7 @@ import { useSegment } from "@/lib/segments";
 
 const LINKS = [
   { href: "/dashboard/ops", label: "Today" },
+  { href: "/dashboard/ops/money", label: "Money" },
   { href: "/dashboard/ops/fleet", label: "Fleet" },
   { href: "/dashboard/ops/map", label: "Map" },
   { href: "/dashboard/ops/staff", label: "Staff" },

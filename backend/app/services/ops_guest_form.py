@@ -228,10 +228,14 @@ def _foreign(g: GuestEntryIn, cc: str, who: str, uploads: dict, today: date, err
     return block, id_type, number
 
 
-def build(body: GuestFormIn, uploads: dict | None = None, today: date | None = None) -> dict:
-    """Validate the form; every problem is reported at once (one 422 listing them)."""
+def build(body: GuestFormIn, uploads: dict | None = None, today: date | None = None, cfg=None) -> dict:
+    """Validate the form against the workspace's form (guest_form_config; None = the defaults); every problem is reported
+    at once (one 422 listing them)."""
+    from app.schemas.guest_form_config import GuestFormConfig
+    from app.services import guest_form_config
+
     errors: list[str] = []
-    uploads, today = uploads or {}, today or datetime.now(UTC).date()
+    uploads, today, cfg = uploads or {}, today or datetime.now(UTC).date(), cfg or GuestFormConfig()
     guests = []
     for n, g in enumerate(body.guests, start=1):
         who = f"Guest {n}"
@@ -243,7 +247,9 @@ def build(body: GuestFormIn, uploads: dict | None = None, today: date | None = N
             errors.append(f"{who}: choose a nationality")
             cc = "IN"
         age = None
-        if g.age.strip():
+        if cfg.age == "req" and not g.age.strip():
+            errors.append(f"{who}: age is required")
+        if cfg.age != "off" and g.age.strip():
             try:
                 age = int(g.age)
             except ValueError:
@@ -256,11 +262,20 @@ def build(body: GuestFormIn, uploads: dict | None = None, today: date | None = N
         else:
             entry["foreign"], entry["id_type"], entry["id_number"] = _foreign(g, cc, who, uploads, today, errors)
         guests.append(entry)
-    phone = re.sub(r"[^\d+]", "", body.emergency_phone)
-    if not _clean(body.emergency_name, 80):
-        errors.append("Emergency contact name is required")
-    if len(re.sub(r"\D", "", phone)) < 10:
-        errors.append("Emergency contact phone needs at least 10 digits")
+    phone = re.sub(r"[^\d+]", "", body.emergency_phone) if cfg.emergency != "off" else ""
+    e_name = _clean(body.emergency_name, 80) if cfg.emergency != "off" else ""
+    if cfg.emergency == "req" or (cfg.emergency == "ask" and (e_name or phone)):  # asked: both or neither
+        if not e_name:
+            errors.append("Emergency contact name is required")
+        if len(re.sub(r"\D", "", phone)) < 10:
+            errors.append("Emergency contact phone needs at least 10 digits")
+    food = _clean(body.food, 300) if cfg.food != "off" else ""
+    requests = _clean(body.requests, 600) if cfg.requests != "off" else ""
+    if cfg.food == "req" and not food:
+        errors.append("Please tell us about food")
+    if cfg.requests == "req" and not requests:
+        errors.append("Please fill in your requests")
+    answers = guest_form_config.answers(cfg, body.answers, errors)
     if not body.agreed:
         errors.append("Please tick the box to accept the booking terms")
     if not _clean(body.signed_name, 80):
@@ -269,10 +284,11 @@ def build(body: GuestFormIn, uploads: dict | None = None, today: date | None = N
         raise HTTPException(status_code=422, detail="; ".join(errors))
     return {
         "guests": guests,
-        "emergency_name": _clean(body.emergency_name, 80),
+        "emergency_name": e_name,
         "emergency_phone": phone,
-        "food": _clean(body.food, 300),
-        "requests": _clean(body.requests, 600),
+        "food": food,
+        "requests": requests,
+        "answers": answers,
         "signed_name": _clean(body.signed_name, 80),
     }
 
@@ -311,7 +327,13 @@ def public_view(db: Session, form: OpsGuestForm) -> dict:
     first = ((stay.guest.name if stay.guest else "") or "").split(" ")[0] or "there"
     word = file_word(f)
     place = db.query(Property.name).filter_by(id=stay.property_id, tenant_id=stay.tenant_id).scalar()
+    from app.models.tenant import Tenant
+    from app.services import guest_form_config
+
+    tenant = db.get(Tenant, form.tenant_id)
     return {
+        "business": tenant.name if tenant else None,
+        "form": guest_form_config.get(tenant).model_dump(),
         "guest_first_name": first,
         "check_in": stay.check_in.isoformat(),
         "check_out": stay.check_out.isoformat(),
@@ -369,9 +391,12 @@ def submit(db: Session, form: OpsGuestForm, body: GuestFormIn) -> list[str]:
     f = _open_file(db, form)
     prior = dict(form.data or {})
     uploads = prior.pop("uploads", None) or {}
+    from app.models.tenant import Tenant
+    from app.services import guest_form_config
     from app.services.booking_agenda_service import tenant_today
 
-    data = build(body, uploads, tenant_today(db, form.tenant_id))  # expiry dates against the workspace's own date
+    cfg = guest_form_config.get(db.get(Tenant, form.tenant_id))
+    data = build(body, uploads, tenant_today(db, form.tenant_id), cfg)  # expiry dates against the workspace's own date
     form.signed_name = data.pop("signed_name")
     form.data = {**prior, **data}
     form.consent_version, form.submitted_at = CONSENT_VERSION, datetime.now(UTC)
@@ -437,6 +462,7 @@ def staff_view(db: Session, f: OpsFile, with_link: bool) -> dict:
                 "emergency_phone": d.get("emergency_phone"),
                 "food": d.get("food"),
                 "requests": d.get("requests"),
+                "answers": d.get("answers") or [],
                 "signed_name": form.signed_name,
                 "consent_version": form.consent_version,
             }

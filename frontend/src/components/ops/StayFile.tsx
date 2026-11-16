@@ -15,6 +15,7 @@ import { TripSheets, type SheetKind } from "./TripSheets";
 import { StaySheets, type StaySheetKind } from "./StaySheets";
 import { AddonsCard } from "./AddonsCard";
 import { GuestFormCard } from "./TripCards";
+import { FileMoneyCard } from "./money/FileMoneyCard";
 
 type Submit = (path: string, body?: object, method?: "post" | "put" | "delete") => Promise<boolean>;
 
@@ -230,36 +231,36 @@ export function StayFile({ f, submit, busy, write, manage, onReport, reportBusy 
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader title="Money" description="This stay so far, GST included"
-          actions={write && !over ? <button type="button" className="haip-btn-secondary min-h-11" onClick={() => setSheet("expense")}>Add expense</button> : undefined} />
-        <CardBody className="px-4 pb-3">
-          <Row label="Stay" value={rupees(a.package_total)} />
-          {Number(a.addons_total) > 0 && <Row label="Extras" value={rupees(a.addons_total)} />}
-          <Row label="Total" value={rupees(a.total_revenue)} />
-          <Row label="Paid" value={rupees(a.paid)} />
-          <Row label="Balance" value={rupees(a.outstanding)} strong={Number(a.outstanding) > 0} />
-          {deposit && (
-            <Row label="Security deposit" value={rupees(deposit.amount)}
-              hint={deposit.status === "held" ? "Held. Decide after the check-out inspection"
-                : deposit.status === "pending" ? "Not collected"
-                : Number(deposit.deducted) > 0 ? `${rupees(deposit.deducted)} kept${d.deposit_reason ? `: ${d.deposit_reason}` : ""}` : "Refunded in full"} />
-          )}
-          {Object.entries(a.expenses_by_category).map(([k, v]) => <Row key={k} label={`Expense: ${EXPENSE_LABELS[k] ?? k}`} value={rupees(v)} />)}
-          <Row label="Net after expenses" value={rupees(a.net_cash)} />
+      <FileMoneyCard fileId={f.id} guest={s.guest_name} total={Number(a.total_revenue)} paid={Number(a.paid)}
+        outstanding={Number(a.outstanding)} word="stay"
+        headerAction={write && !over ? <button type="button" className="haip-btn-secondary min-h-11" onClick={() => setSheet("expense")}>Add expense</button> : undefined}
+        footer={<div className="flex flex-col gap-2">
           {manage && f.state === "settling" && deposit?.status === "held" && (
-            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" onClick={() => setStay("deposit")}>Decide the deposit</button>
+            <button type="button" className="haip-btn-secondary min-h-12 w-full" onClick={() => setStay("deposit")}>Decide the deposit</button>
           )}
           {f.state === "staying" && write && (
-            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" disabled={busy} onClick={() => submit(`${base}/check-out`)}>Guest has left: check out</button>
+            <button type="button" className="haip-btn-secondary min-h-12 w-full" disabled={busy} onClick={() => submit(`${base}/check-out`)}>Guest has left: check out</button>
           )}
           {manage && (
-            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" disabled={reportBusy} onClick={onReport}>
+            <button type="button" className="haip-btn-secondary min-h-12 w-full" disabled={reportBusy} onClick={onReport}>
               {reportBusy ? "Making the report…" : "Stay account report (PDF)"}
             </button>
           )}
-        </CardBody>
-      </Card>
+        </div>}>
+        <Row label="Stay" value={rupees(a.package_total)} />
+        {Number(a.addons_total) > 0 && <Row label="Extras" value={rupees(a.addons_total)} />}
+        <Row label="Total" value={rupees(a.total_revenue)} />
+        <Row label="Paid" value={rupees(a.paid)} />
+        <Row label="Balance" value={rupees(a.outstanding)} strong={Number(a.outstanding) > 0} />
+        {deposit && (
+          <Row label="Security deposit" value={rupees(deposit.amount)}
+            hint={deposit.status === "held" ? "Held. Decide after the check-out inspection"
+              : deposit.status === "pending" ? "Not collected"
+              : Number(deposit.deducted) > 0 ? `${rupees(deposit.deducted)} kept${d.deposit_reason ? `: ${d.deposit_reason}` : ""}` : "Refunded in full"} />
+        )}
+        {Object.entries(a.expenses_by_category).map(([k, v]) => <Row key={k} label={`Expense: ${EXPENSE_LABELS[k] ?? k}`} value={rupees(v)} />)}
+        <Row label="Net after expenses" value={rupees(a.net_cash)} />
+      </FileMoneyCard>
 
       <AddonsCard fileId={f.id} canWrite={write} />
       <GuestFormCard f={f} canWrite={write} canManage={manage}

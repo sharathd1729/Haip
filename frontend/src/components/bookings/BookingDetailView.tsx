@@ -16,6 +16,7 @@ import { Card, CardBody, CardHeader, StatusPill, Timeline } from "@/components/u
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { AddOnsPanel } from "@/components/bookings/AddOnsPanel";
 import { PaymentsPanel } from "@/components/bookings/PaymentsPanel";
+import { BookingThread } from "@/components/bookings/BookingThread";
 import { SchedulePanel } from "@/components/bookings/SchedulePanel";
 import { DepositPanel } from "@/components/bookings/DepositPanel";
 import { ServiceRequestsPanel } from "@/components/bookings/ServiceRequestsPanel";
@@ -402,6 +403,8 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
           </Card>
         )}
 
+        {!pane && <BookingThread bookingId={booking.id} />}
+
         {booking.next_due && !cancelled && (
           <p className={cn("rounded-lg border px-3 py-2 text-xs",
             booking.next_due.overdue
@@ -413,7 +416,7 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
         )}
 
         {/* The money: total, paid, still due, the plan for the rest, and the deposit kept apart (never revenue). */}
-        <div className="grid items-start gap-3 @3xl:grid-cols-2">
+        <div id="payments" className="grid scroll-mt-24 items-start gap-3 @3xl:grid-cols-2">
           <PaymentsPanel booking={booking} onChange={setBooking} onCollect={canEdit ? () => setSheet("collect") : undefined} />
           <SchedulePanel booking={booking} onChange={setBooking} />
           <DepositPanel booking={booking} onChange={setBooking} />

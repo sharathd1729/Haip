@@ -13,7 +13,7 @@ import {
   AtSign, BadgeCheck, BarChart2, BellRing, Bot, BookOpen, BookmarkIcon, Building, Building2, Calculator, Calendar, CalendarClock,
   ClipboardList, CreditCard, FileText, FlaskConical, Globe, HelpCircle, Key, KeyRound, Link2, ListChecks, MapPin, Megaphone,
   AskBubble, MessageCircle, Palette, Phone, Send, Settings, Shield, ShieldCheck, Shuffle, Sparkles, Target, TrendingUp, UserCircle,
-  UsersRound, Workflow, Zap,
+  UsersRound, Wallet, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { ROUTE_ICONS as I } from "./PageIcon";
@@ -59,6 +59,7 @@ const SETTINGS_GROUPS: { title: string; links: NavLink[] }[] = [
     { label: "Notifications", href: "/dashboard/settings?tab=notifications", icon: BellRing, resource: "settings" },
     { label: "Branding", href: "/dashboard/settings/branding", icon: Palette, resource: "branding" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: MANAGERS },
+    { label: "Guest details form", href: "/dashboard/settings/guest-form", icon: ClipboardList, resource: "settings", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
     { label: "Packages and routes", href: "/dashboard/settings/quotes", icon: Calculator, resource: "settings", onlyRoles: MANAGERS, onlyForBusinessTypes: ["caravan"] },
   ] },
   { title: "Team and access", links: [
@@ -116,6 +117,7 @@ export const NAV_SECTIONS: NavSection[] = [
   // Ops module: every segment with an ops pack (lib/segments.ts). Roster and alert chain: owner/manager (ops.manage).
   { key: "ops", title: "Ops", icon: I["/dashboard/ops"], links: [
     { label: "Today and trip files", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
+    { label: "Money", href: "/dashboard/ops/money", icon: Wallet, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
     { label: "Vehicle map", href: "/dashboard/ops/map", icon: MapPin, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
     { label: "Who is on duty", href: "/dashboard/ops/staff/duty", icon: CalendarClock, resource: "inbox", onlyRoles: MANAGERS, onlyForBusinessTypes: STAFF_TYPES },
     { label: "If nobody answers", href: "/dashboard/ops/staff/alerts", icon: BellRing, resource: "inbox", onlyRoles: MANAGERS, onlyForBusinessTypes: STAFF_TYPES },

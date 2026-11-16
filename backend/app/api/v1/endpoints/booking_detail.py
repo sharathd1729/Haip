@@ -142,6 +142,15 @@ def get_booking(booking_id: str, current_user: User = Depends(get_current_user),
     return _detail(db, current_user.tenant_id, _get_stay(db, current_user, booking_id))
 
 
+@router.get("/{booking_id}/thread")
+def get_booking_thread(booking_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                       _cap=Depends(require_capability("bookings.read"))):
+    """The booking's thread across modules (record_thread): enquiry, chats, quote, money, guest form, ops file, review,
+    and the guest's other records. Each step links to its own page."""
+    from app.services import record_thread
+    return record_thread.for_booking(db, current_user.tenant_id, _get_stay(db, current_user, booking_id), money=True)
+
+
 class CalendarSyncBody(BaseModel):
     locked: bool
 
