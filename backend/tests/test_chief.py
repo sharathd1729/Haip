@@ -351,3 +351,17 @@ def test_only_business_hours_count():
     a = datetime(2026, 11, 3, 20, 0, tzinfo=IST)
     b = datetime(2026, 11, 4, 10, 0, tzinfo=IST)
     assert integration_health._business_hours_between(a, b) == 2.0      # 20-21 and 9-10, never the night
+
+
+def test_duties_list_the_five_with_their_state(client, db):
+    w = world(db, brand_config=ON)
+    out = client.get(f"{R}/duties", headers=_h(w.owner))
+    assert out.status_code == 200, out.text
+    duties = {d["key"]: d for d in out.json()["duties"]}
+    assert list(duties) == ["morning_brief", "watch_list", "proposals", "weekly_review", "explains"]
+    assert duties["watch_list"]["on"] is True and duties["proposals"]["count"] == 0
+    assert duties["morning_brief"]["on"] is True                     # default on for the person
+    assert all(d["href"].startswith("/dashboard/") and d["what"] and d["when"] for d in duties.values())
+    off = world(db)
+    assert {d["key"]: d["on"] for d in client.get(f"{R}/duties", headers=_h(off.owner)).json()["duties"]}["watch_list"] is False
+    assert client.get(f"{R}/duties", headers=_h(w.foh)).status_code == 403

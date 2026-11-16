@@ -2,6 +2,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeader } from "@/components/layout/MobileHeader";
 import { RailNav } from "@/components/shell/RailNav";
 import { CommandBar } from "@/components/shell/CommandBar";
+import { AskHaipLauncher } from "@/components/shell/AskHaipLauncher";
 import { YaadSideNav } from "@/components/personal/YaadSideNav";
 import { NotForYaad } from "@/components/personal/NotForYaad";
 import { redirect } from "next/navigation";
@@ -116,6 +117,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* ── Mobile bottom nav (fixed, outside flow) ─────────────── */}
         <MobileNav user={user} />
       </div>
+
+      {/* Ask HAIP on every page (owners): floating button + side panel */}
+      <NotForYaad><AskHaipLauncher user={user} /></NotForYaad>
 
       {/* SSE bridge — rendered once, outside layout columns */}
       <NotForYaad><DashboardSSEBridge /></NotForYaad>

@@ -1,6 +1,7 @@
 """The AI Executive for the founders (owner / manager reads; only an OWNER approves or rejects).
 
 GET  /chief/home                       open findings by role (older insights included), counts, the latest daily pulse
+GET  /chief/duties                     the Executive's five duties: schedule, on/off here, last run
 GET  /chief/findings?status=&role=     open | resolved | dismissed
 POST /chief/findings/{id}/dismiss      {reason, note}: hidden and snoozed 7 days, reason kept, audited chief.finding_dismissed
 POST /chief/run                        queue a full check now (Celery)                                                202
@@ -45,6 +46,13 @@ def _tenant(db: Session, user: User) -> Tenant:
 @router.get("/home")
 def home(current_user: User = Depends(_readers), db: Session = Depends(get_db)):
     return findings.home(db, _tenant(db, current_user))
+
+
+@router.get("/duties")
+def duties(current_user: User = Depends(_readers), db: Session = Depends(get_db)):
+    """The HAIP Executive's five duties: what, when, on or off here, and when it last did it (services/chief/duties.py)."""
+    from app.services.chief import duties as duties_svc
+    return {"duties": duties_svc.duties(db, _tenant(db, current_user), current_user)}
 
 
 @router.get("/findings")

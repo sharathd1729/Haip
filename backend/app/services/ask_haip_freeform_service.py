@@ -245,6 +245,7 @@ async def answer_freeform_question(
     tenant_id: str,
     user_id: str,
     question: str,
+    session_id: Optional[str] = None,
 ) -> dict:
     """
     Full pipeline: NL -> SQL -> validate/scope -> execute (read-only role,
@@ -254,7 +255,7 @@ async def answer_freeform_question(
     start = time.monotonic()
     audit = AskHaipFreeformQuery(
         id=gen_uuid(), tenant_id=tenant_id, user_id=user_id,
-        question=question, status="error",
+        question=question, status="error", session_id=session_id,
     )
 
     try:
@@ -264,6 +265,7 @@ async def answer_freeform_question(
             audit.status = "ok"
             audit.generated_sql = "-- shared metrics: " + ", ".join(kpi["metrics"])
             audit.row_count = kpi["row_count"]
+            audit.narrative = kpi.get("narrative")
             return kpi
 
         sql_llm = get_llm("ask_haip_freeform_sql")
@@ -308,6 +310,7 @@ async def answer_freeform_question(
 
         audit.status = "ok"
         audit.chart_spec = parsed.get("chart")
+        audit.narrative = parsed.get("narrative", "") or None
         return {
             "narrative": parsed.get("narrative", ""),
             "chart": parsed.get("chart") if parsed.get("chart", {}).get("type") else None,

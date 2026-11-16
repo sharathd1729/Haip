@@ -7,6 +7,7 @@ POST /analyst/reports/{id}/recommendations/{i}/assign  {user_id} give a recommen
 POST /analyst/ask                      {report_id, question} queue a follow-up answered from the report's facts     202
 POST /analyst/ask-haip                 {question} owner only, module ask_haip: queue a free-form question (Ask HAIP)  202
 GET  /analyst/ask-haip/recent          owner: the workspace's last questions that were answered
+GET  /analyst/ask-haip/history         owner: their Ask HAIP chats (last 30 days), newest first, each with its turns
 GET  /analyst/ask-haip/{job_id}        owner: pending | done (narrative, rows, chart, sql) | failed (error)
 GET  /analyst/settings                 brand_config.analyst (+ defaults)
 PUT  /analyst/settings                 owner only, audited ``analyst.settings_changed``
@@ -100,11 +101,14 @@ _owner = require_roles(UserRole.OWNER)  # the free-form analyst is owner-only (m
 
 @router.post("/ask-haip", status_code=202, dependencies=[Depends(require_module("ask_haip"))])
 def ask_haip(body: AskHaipIn, current_user: User = Depends(_owner)):
+    import uuid
+
     from app.services.analyst import ask_haip_jobs as jobs
     from app.workers.tasks.analyst_tasks import ask_haip as task
 
     question = body.question.strip()
-    job_id = jobs.start(current_user.tenant_id, question)
+    session_id = body.session_id or uuid.uuid4().hex
+    job_id = jobs.start(current_user.tenant_id, question, session_id)
     if job_id is None:
         raise HTTPException(status_code=429, detail="That's a lot of questions today. Ask again tomorrow.")
     try:
@@ -113,7 +117,27 @@ def ask_haip(body: AskHaipIn, current_user: User = Depends(_owner)):
         jobs.finish(current_user.tenant_id, job_id, {"status": "failed", "question": question,
                                                      "error": "HAIP couldn't start on that. Try again in a minute."})
         raise HTTPException(status_code=503, detail="HAIP couldn't start on that. Try again in a minute.") from None
-    return {"id": job_id, "status": "pending"}
+    return {"id": job_id, "status": "pending", "session_id": session_id}
+
+
+@router.get("/ask-haip/history", dependencies=[Depends(require_module("ask_haip"))])
+def ask_haip_history(current_user: User = Depends(_owner), db: Session = Depends(get_db)):
+    """The person's own Ask HAIP chats from the last 30 days (answered and failed turns), newest chat first."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.ask_haip import AskHaipFreeformQuery as Q
+
+    rows = (db.query(Q).filter(Q.tenant_id == current_user.tenant_id, Q.user_id == current_user.id,
+                               Q.created_at >= datetime.now(UTC) - timedelta(days=30))
+            .order_by(Q.created_at.asc()).limit(500).all())
+    chats: dict[str, dict] = {}
+    for r in rows:
+        key = r.session_id or r.id               # questions from before chats were kept stand alone
+        chat = chats.setdefault(key, {"id": key, "title": r.question[:80], "turns": []})
+        chat["turns"].append({"question": r.question, "narrative": r.narrative, "status": r.status,
+                              "row_count": r.row_count, "at": r.created_at.isoformat() if r.created_at else None})
+        chat["last_at"] = chat["turns"][-1]["at"]
+    return {"chats": sorted(chats.values(), key=lambda c: c["last_at"] or "", reverse=True)[:50]}
 
 
 @router.get("/ask-haip/recent", dependencies=[Depends(require_module("ask_haip"))])

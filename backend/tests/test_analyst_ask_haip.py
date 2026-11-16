@@ -117,3 +117,53 @@ def test_recent_lists_this_workspaces_answered_questions_once(client, db, tenant
 def test_too_short_questions_are_refused(client, db, tenant_and_user, q):
     _entitle(db, _tid(tenant_and_user))
     assert client.post(URL, json={"question": q}, headers=_auth(tenant_and_user)).status_code == 422
+
+
+# ── workspace redesign Phase 3: chats kept on the server, sources, record links, follow-ups ──────────────────────
+
+def test_extras_name_the_source_link_records_and_suggest_next_questions():
+    out = jobs.extras({"sql": "SELECT id, guest_name FROM stays WHERE tenant_id = :tenant_id", "row_count": 2,
+                       "rows": [{"id": "s1", "guest_name": "Ananya"}, {"guest_name": "no id"}]})
+    assert out["source"] == {"label": "Bookings", "shared_metrics": False, "row_count": 2}
+    assert out["rows"][0]["_href"] == "/dashboard/bookings/s1" and "_href" not in out["rows"][1]
+    assert "Which of these still owe money?" in out["followups"]
+    kpi = jobs.extras({"metrics": ["leads.new"], "rows": [{"metric": "leads.new", "value": 4}], "row_count": 1})
+    assert kpi["source"]["label"] == "Leads" and kpi["source"]["shared_metrics"] is True
+    assert jobs.extras({"sql": None, "rows": []})["source"]["label"] == "Your data"
+
+
+def test_a_question_starts_or_continues_a_chat(client, db, tenant_and_user):
+    _entitle(db, _tid(tenant_and_user))
+    with _Store(), patch("app.workers.tasks.analyst_tasks.ask_haip.delay"):
+        first = client.post(URL, json={"question": "How many leads this week?"}, headers=_auth(tenant_and_user))
+        sid = first.json()["session_id"]
+        again = client.post(URL, json={"question": "And last week?", "session_id": sid}, headers=_auth(tenant_and_user))
+        bad = client.post(URL, json={"question": "Hello there", "session_id": "not-a-chat"}, headers=_auth(tenant_and_user))
+    assert first.status_code == 202 and len(sid) == 32
+    assert again.json()["session_id"] == sid
+    assert bad.status_code == 422
+
+
+def test_history_groups_my_chats_and_never_shows_others(client, db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    _entitle(db, tid)
+    me = tenant_and_user["user"]
+    me_id = me["id"] if isinstance(me, dict) else me.id
+    other_user = User(id=str(uuid.uuid4()), tenant_id=tid, name="M", email=f"m-{uuid.uuid4().hex[:6]}@t.com",
+                      hashed_password="x", role=UserRole.MANAGER, is_active=True)
+    db.add(other_user)
+    sid = uuid.uuid4().hex
+    for q, who, s in (("Leads this week?", me_id, sid), ("And last week?", me_id, sid), ("Missed calls?", me_id, None),
+                      ("Not mine", other_user.id, None)):
+        db.add(AskHaipFreeformQuery(id=str(uuid.uuid4()), tenant_id=tid, user_id=who, question=q, status="ok",
+                                    narrative=f"Answer to {q}", session_id=s))
+    db.add(AskHaipFreeformQuery(id=str(uuid.uuid4()), tenant_id=str(uuid.uuid4()), user_id=me_id, question="Other workspace",
+                                status="ok", session_id=sid))
+    db.commit()
+    r = client.get(URL + "/history", headers=_auth(tenant_and_user))
+    assert r.status_code == 200, r.text
+    chats = r.json()["chats"]
+    by_title = {c["title"]: c for c in chats}
+    assert set(by_title) == {"Leads this week?", "Missed calls?"}
+    assert [t["question"] for t in by_title["Leads this week?"]["turns"]] == ["Leads this week?", "And last week?"]
+    assert by_title["Leads this week?"]["turns"][1]["narrative"] == "Answer to And last week?"

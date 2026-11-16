@@ -19,6 +19,7 @@ import { Recommendations } from "@/components/analyst/Recommendations";
 import { ChangesBoard } from "@/components/analyst/ChangesBoard";
 import { ExecutiveToday } from "@/components/analyst/ExecutiveToday";
 import { AskHaip } from "@/components/analyst/AskHaip";
+import { Duties } from "@/components/analyst/Duties";
 import { KIND_LABEL, STATUS_TONE, periodText, FOLLOWUP_FAILURE, type Kind, type Report, type ReportSummary } from "@/components/analyst/types";
 
 const KINDS: Kind[] = ["daily_pulse", "weekly_brief", "monthly_review"];
@@ -125,6 +126,7 @@ export default function AnalystPage() {
           } />
         <Tabs label="Analyst sections" value={tab} onChange={setTab}
           items={[{ value: "today", label: "Today" }, ...(role === "owner" ? [{ value: "ask", label: "Ask HAIP" }] : []), { value: "brief", label: "Brief" }, { value: "changes", label: "Changes & tests" }, { value: "history", label: "History" }]} />
+        {tab === "today" && <Duties />}
         {tab === "today" && <ExecutiveToday isOwner={role === "owner"} onOpenBrief={() => { setKind("daily_pulse"); setTab("brief"); }} />}
         {(tab === "brief" || tab === "history") && <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Report">
           {KINDS.map(k => (
