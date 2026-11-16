@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { X, Download, Loader2, AlertCircle, Search, CheckCircle2, Eye, Send, MessageSquare } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { CampaignMoney, type CampaignMoneyData } from "./CampaignMoney";
 
 interface Recipient {
   id: string; phone: string; name: string | null; status: "queued" | "sent" | "delivered" | "read" | "failed";
@@ -13,7 +14,9 @@ interface Recipient {
 }
 interface Failure { code: string | null; reason: string; group: string; group_label: string; hint: string | null; count: number }
 interface Report {
-  campaign: { id: string; name: string; status: string; template_name: string | null; scheduled_at: string | null };
+  campaign: { id: string; name: string; status: string; template_name: string | null; scheduled_at: string | null;
+              paused_reason?: string | null; link_url?: string | null };
+  money?: CampaignMoneyData;
   summary: { total: number; sent: number; delivered: number; read: number; failed: number; queued: number;
              delivery_rate: number | null; read_rate: number | null; failure_rate: number | null;
              replied: number; reply_rate: number | null };
@@ -123,8 +126,12 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
           )}
           {isLoading && !data && <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-[var(--haip-fg-subtle)]/70" /></div>}
 
+          {data?.campaign.paused_reason && (
+            <p className="text-xs text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] rounded-xl px-3 py-2">{data.campaign.paused_reason}</p>
+          )}
           {s && (
             <>
+              {data?.money && s.sent > 0 && <CampaignMoney campaignId={campaignId} money={data.money} />}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <Tile label="Accepted" value={s.sent} sub={s.total ? `by WhatsApp, of ${s.total.toLocaleString()} guests` : undefined} icon={<Send size={12} />} tone="text-[var(--haip-status-info-fg)]" />
                 <Tile label="Delivered" value={s.delivered} sub={`${pct(s.delivery_rate)} of accepted`} icon={<CheckCircle2 size={12} />} tone="text-primary" />

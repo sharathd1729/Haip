@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CampaignReport } from "@/components/messaging/CampaignReport";
 import { WhatsAppHealthCard } from "@/components/messaging/WhatsAppHealthCard";
+import { InboxAnalytics } from "@/components/messaging/InboxAnalytics";
 import { FailureBars, Funnel, HourChart, RateChart, VolumeChart } from "@/components/messaging/analytics/AnalyticsCharts";
 import { CampaignTable, TemplateTable } from "@/components/messaging/analytics/AnalyticsTables";
 import { AutomaticMessages } from "@/components/messaging/analytics/AutomaticMessages";
@@ -132,6 +133,7 @@ export default function MessagingOverviewPage() {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <WhatsAppHealthCard />
+        {seesTeam && <InboxAnalytics days={days} />}
         {isError && !data ? (
           <div className="py-20 text-center">
             <AlertCircle size={32} className="text-[var(--haip-status-danger-fg)] mx-auto mb-3" />

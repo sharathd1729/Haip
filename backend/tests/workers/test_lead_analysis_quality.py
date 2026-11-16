@@ -4,6 +4,7 @@ The model is replaced by a scripted fake that records the context it was given, 
 built from (the real stage, the real booking state, the earlier summary, only messages the guest actually saw) and what happens to
 what comes back (validated, never contradictory, never an impossible trip).
 """
+from tests._wa_window import open_window
 import json
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -39,6 +40,8 @@ def _setup(db, **inquiry_kw):
     conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, inquiry_id=inquiry.id,
                         channel=ChannelType.WHATSAPP, is_open=True)
     db.add(conv)
+    db.flush()
+    open_window(db, conv)
     db.commit()
     return tenant.id, guest.id, inquiry.id, conv.id
 
@@ -273,6 +276,8 @@ def test_a_message_the_team_sends_refreshes_the_analysis(db, client, tenant_and_
     conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, inquiry_id=inquiry.id,
                         channel=ChannelType.WHATSAPP, is_open=True)
     db.add(conv)
+    db.flush()
+    open_window(db, conv)
     db.commit()
     with patch("app.services.leads_service.trigger_summary_refresh") as refresh, \
          patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay"):

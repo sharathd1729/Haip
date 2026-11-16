@@ -280,6 +280,9 @@ def audience_members(db: Session, tenant_id: str, audience_filter: Optional[dict
     if (audience_filter or {}).get("type") == "leads":
         from app.services import wa_lead_audience
         return wa_lead_audience.resolve(db, tenant_id, audience_filter).members
+    if (audience_filter or {}).get("type") == "retarget":
+        from app.services import wa_campaign_retarget
+        return wa_campaign_retarget.members(db, tenant_id, audience_filter)
     return audience_subscribers(db, tenant_id, audience_filter)
 
 

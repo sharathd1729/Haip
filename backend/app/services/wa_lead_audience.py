@@ -162,6 +162,10 @@ def prepare_audience_filter(raw: Optional[dict]) -> dict:
     every time and kept with the campaign. Subscriber audiences keep their
     existing shape."""
     raw = raw or {}
+    if raw.get("type") == "retarget":
+        # Made by POST /campaigns/{id}/retarget; only these keys are kept (members() checks the campaign's workspace).
+        return {"type": "retarget", "campaign_id": str(raw.get("campaign_id") or ""),
+                "segment": str(raw.get("segment") or "")}
     if raw.get("type") != "leads":
         return raw
     if raw.get("consent_confirmed") is not True:

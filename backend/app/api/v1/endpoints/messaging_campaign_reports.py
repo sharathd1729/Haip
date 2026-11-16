@@ -102,6 +102,15 @@ def whatsapp_use_waba(
     return {"waba_id": saved}
 
 
+def _money(db: Session, user: User, campaign) -> dict:
+    from app.models.tenant import Tenant
+    from app.services import wa_campaign_money
+    from app.services.authz_service import has_capability
+
+    tenant = db.query(Tenant).filter_by(id=user.tenant_id).first()
+    return wa_campaign_money.report(db, tenant, campaign, money=has_capability(db, user, "revenue.read"))
+
+
 @router.get("/campaigns/{campaign_id}/report")
 def campaign_report(
     campaign_id: str,
@@ -128,7 +137,10 @@ def campaign_report(
         "campaign": {
             "id": campaign.id, "name": campaign.name, "status": campaign.status.value,
             "template_name": tmpl.name if tmpl else None, "scheduled_at": campaign.scheduled_at,
+            "paused_reason": campaign.paused_reason, "link_url": campaign.link_url,
         },
+        # Clicks (tracked link button), leads, bookings, revenue (revenue.read only) and cost (wa_campaign_money).
+        "money": _money(db, current_user, campaign),
         "summary": {
             **counts,
             "delivery_rate": _rate(counts["delivered"], counts["sent"]),

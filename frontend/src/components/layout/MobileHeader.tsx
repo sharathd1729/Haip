@@ -53,6 +53,7 @@ const ROUTE_LABELS: Record<string, string> = {
   campaigns:    "Campaigns",
   subscribers:  "Subscribers",
   flows:        "Flow Builder",
+  growth:       "Growth tools",
   // Static page titles are hidden on phones (this bar names the page), so every route needs its own name here.
   automations:  "Automations",
   calculator:   "Rate calculator",

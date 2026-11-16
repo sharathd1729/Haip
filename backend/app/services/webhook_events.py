@@ -1,4 +1,4 @@
-"""Turns changes to bookings, payments and messages into webhook events.
+"""Turns changes to bookings, payments, messages and new leads into webhook events.
 
 Listeners on the models catch the change wherever it is made (a staff edit, a sold lead, the
 public API, a Razorpay payment, a Celery worker updating a delivery state), note it on the
@@ -80,6 +80,15 @@ def _message_inserted(_m, _c, target: Message):
     if target.direction == MessageDirection.INBOUND and target.channel in (ChannelType.WHATSAPP, ChannelType.INSTAGRAM) \
             and not target.is_internal:
         _note(object_session(target), target.tenant_id, "message_received", target.id)
+
+
+def _guest_lead(_m, _c, target):
+    """lead.created: a guest's lead_identified_at went from empty to set (they shared a usable phone)."""
+    if target.lead_identified_at is None:
+        return
+    changed, old = attr_change(target, "lead_identified_at")
+    if changed and old is None:
+        _note(object_session(target), target.tenant_id, "lead", target.id)
 
 
 def _message_updated(_m, _c, target: Message):
@@ -174,6 +183,13 @@ def _process(session: Session) -> None:
                     "reference": p.reference, "date": p.paid_on.isoformat(), "via_gateway": bool(p.external_id)})
         elif kind == "message_received" and wanted(tenant_id, "message.received"):
             emit(tenant_id, "message.received", _message_payload(session, tenant_id, obj_id, received=True))
+        elif kind == "lead" and wanted(tenant_id, "lead.created"):
+            from app.models.guest import Guest
+            g = session.get(Guest, obj_id)
+            if g is not None and g.tenant_id == tenant_id:
+                emit(tenant_id, "lead.created", {
+                    "id": g.id, "name": g.name, "phone": g.phone, "email": getattr(g, "email", None),
+                    "identified_at": g.lead_identified_at.isoformat() if g.lead_identified_at else None})
         elif kind == "message_status" and wanted(tenant_id, "message.status"):
             emit(tenant_id, "message.status", _message_payload(session, tenant_id, obj_id, received=False))
 
@@ -219,6 +235,9 @@ def register() -> None:
         if model is not StayPayment:
             event.listen(model, "after_insert", _child_changed)
     event.listen(StayPayment, "after_insert", _payment_inserted)
+    from app.models.guest import Guest
+    event.listen(Guest, "after_insert", _guest_lead)
+    event.listen(Guest, "after_update", _guest_lead)
     event.listen(Message, "after_insert", _message_inserted)
     event.listen(Message, "after_update", _message_updated)
     event.listen(Session, "before_commit", _before_commit)

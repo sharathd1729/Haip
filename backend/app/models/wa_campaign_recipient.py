@@ -31,6 +31,9 @@ class WACampaignRecipient(Base, TimestampMixin, TenantMixin):
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
     failed_at = Column(DateTime(timezone=True), nullable=True)
+    # migration 213: this recipient's tracked-link code (GET /api/v1/c/{code}) and when they first tapped it
+    click_code = Column(String(16), nullable=True, unique=True)
+    clicked_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # A guest gets a campaign once: also what stops a retried run from

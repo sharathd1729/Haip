@@ -108,7 +108,8 @@ def apply(db: Session, tenant_id: str, meta_templates: list[dict]) -> dict:
             row.status, row.category, row.rejection_reason = status, category, reason
             row.meta_template_id = str(m["id"])
             if m.get("components"):
-                row.components = m["components"]
+                from app.services.wa_template_service import keep_card_media
+                row.components = keep_card_media(row.components, m["components"])
             if before != (row.status, row.category, row.rejection_reason, row.meta_template_id, row.components):
                 updated += 1
         seen.add(row.id)

@@ -130,6 +130,17 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
             _set_status(db, campaign, CampaignStatus.PAUSED)
             return
 
+        # Tracked link button (wa_campaign_money): every recipient gets their own code as the button's {{1}}.
+        from app.services import wa_campaign_money as money
+        from app.services import wa_send_limits
+        track_index = money.tracked_button_index(template.components)
+        if track_index is not None and not campaign.link_url:
+            log.error("run_campaign_tracked_link_without_target", campaign_id=campaign_id)
+            campaign.paused_reason = "Set where the tracked link button leads, then send again."
+            _set_status(db, campaign, CampaignStatus.PAUSED)
+            return
+        allowance = wa_send_limits.remaining_today(db, tenant_id)   # None = no known daily limit
+
         # ── Send in batches ────────────────────────────────────────────────
         from app.services import wa_campaign_delivery as delivery
         from app.models.wa_campaign_recipient import WACampaignRecipient
@@ -155,6 +166,13 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
                 loop.close()
 
         for i in range(0, total, BATCH_SIZE):
+            # Paused by a person while it ran: stop after the batch already sent.
+            db.refresh(campaign)
+            if campaign.status != CampaignStatus.RUNNING:
+                delivery.refresh_campaign_counters(db, tenant_id, campaign_id)
+                db.commit()
+                log.info("run_campaign_stopped", campaign_id=campaign_id, status=str(campaign.status))
+                return
             batch = recipients[i : i + BATCH_SIZE]
             for sub in batch:
                 row = existing.get(sub.phone)
@@ -164,9 +182,21 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
                 if delivery.should_skip(row):
                     skipped += 1
                     continue
+                if allowance is not None and allowance <= 0:
+                    # WhatsApp's daily limit for this number: wait for the next window (the scheduler relaunches it;
+                    # people already reached are skipped then).
+                    resume_at = wa_send_limits.next_window(db, tenant_id)
+                    delivery.refresh_campaign_counters(db, tenant_id, campaign_id)
+                    campaign.status = CampaignStatus.SCHEDULED
+                    campaign.scheduled_at = resume_at.isoformat()
+                    campaign.paused_reason = "Reached today's WhatsApp messaging limit for this number; continues automatically."
+                    db.commit()
+                    log.warning("run_campaign_daily_limit", campaign_id=campaign_id, resume_at=resume_at.isoformat())
+                    return
                 try:
                     components = wts.build_send_components(
                         template.components, variable_map, sub, header_media_link=header_link,
+                        button_params={track_index: money.click_code(db, row)} if track_index is not None else None,
                     )
                     response = _run_async(
                         adapter.send_template(
@@ -177,6 +207,8 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
                         )
                     )
                     delivery.mark_sent(row, response)
+                    if allowance is not None:
+                        allowance -= 1
                     from app.services import wa_campaign_inbox
                     wa_campaign_inbox.record_send(db, tenant_id, campaign, template, sub, components, response)
                     consecutive_fatal = 0
@@ -217,6 +249,7 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
         # ── Finalise ───────────────────────────────────────────────────────
         delivery.refresh_campaign_counters(db, tenant_id, campaign_id)
         campaign.status = CampaignStatus.COMPLETED
+        campaign.paused_reason = None
         db.commit()
 
         log.info(

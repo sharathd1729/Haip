@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { WhatsAppPreview } from "./WhatsAppPreview";
 import { BodyField, ButtonsField, Counter, HeaderField } from "./TemplateEditorFields";
+import { CardsField, FormatField, OfferField } from "./TemplateFormatFields";
 import {
   LANGUAGES, LIMITS, buildComponents, emptyForm, formFromTemplate, localProblems,
   type Template, type TemplateForm,
@@ -127,7 +128,9 @@ export function TemplateEditor({ template, duplicateOf, onClose, onSaved }: {
                   <label key={c.value} className={cn("flex flex-col gap-0.5 p-2.5 rounded-xl border cursor-pointer text-xs transition-colors",
                     form.category === c.value ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]")}>
                     <input type="radio" name="category" value={c.value} checked={form.category === c.value}
-                      onChange={() => patch(f => ({ ...f, category: c.value }))} className="sr-only" />
+                      onChange={() => patch(f => ({ ...f, category: c.value,
+                        // Offers, carousels and offer codes are marketing-only at Meta.
+                        ...(c.value === "MARKETING" ? {} : { format: "standard" as const, buttons: f.buttons.filter(b => b.type !== "COPY_CODE") }) }))} className="sr-only" />
                     <span className="font-semibold text-[var(--haip-fg)] capitalize">{c.value.toLowerCase()}</span>
                     <span className="text-[11.5px] text-[var(--haip-fg-subtle)] leading-snug">{c.hint}</span>
                   </label>
@@ -135,18 +138,21 @@ export function TemplateEditor({ template, duplicateOf, onClose, onSaved }: {
               </div>
             </div>
 
-            <HeaderField form={form} patch={patch} />
+            {form.category === "MARKETING" && <FormatField form={form} patch={patch} />}
+            {form.format !== "carousel" && <HeaderField form={form} patch={patch} />}
             <BodyField form={form} patch={patch} />
+            {form.format === "offer" && <OfferField form={form} patch={patch} />}
+            {form.format === "carousel" && <CardsField form={form} patch={patch} />}
 
-            <div>
+            {form.format === "standard" && <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold text-[var(--haip-fg-2)]">Footer <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
                 <Counter value={form.footer.length} max={LIMITS.footer} />
               </div>
               <input value={form.footer} onChange={e => patch(f => ({ ...f, footer: e.target.value }))} placeholder="Reply STOP to opt out" className={INPUT} />
-            </div>
+            </div>}
 
-            <ButtonsField form={form} patch={patch} />
+            {form.format !== "carousel" && <ButtonsField form={form} patch={patch} />}
           </div>
 
           {/* Preview + checks */}

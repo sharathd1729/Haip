@@ -83,6 +83,9 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     # W14: Snooze
     snoozed_until = Column(DateTime(timezone=True), nullable=True)
 
+    # Chat labels the team sets ("VIP", "Wedding", "Corporate"); the inbox filters on them (migration 212).
+    labels = Column(JSON, nullable=True)
+
     # O2: sample data flag
     is_sample = Column(Boolean, default=False, nullable=False, index=True)
 

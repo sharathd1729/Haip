@@ -9,6 +9,7 @@ HAIP mirrors the agent's personal WhatsApp only to measure response time; it can
 Booking / quote / invoice messages (wa_booking_messages, quote_send_service) are deliberate official-number sends by staff and
 are NOT blocked here. Celery queues and the Meta API are faked.
 """
+from tests._wa_window import open_window
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -185,7 +186,7 @@ def test_send_on_a_bridge_thread_is_refused_and_nothing_is_queued(wa_send, clien
     db.commit()
     _is_read_only(client.post(f"/api/v1/conversations/{conv.id}/messages", json={"body": "Hello"}, headers=_headers(db, tid)))
     wa_send.assert_not_called()
-    assert db.query(Message).filter_by(conversation_id=conv.id).count() == 0
+    assert db.query(Message).filter_by(conversation_id=conv.id, direction="outbound").count() == 0
 
 
 @patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay")
@@ -203,6 +204,7 @@ def test_an_internal_note_on_a_bridge_thread_is_still_allowed(wa_send, client, d
 def test_send_on_an_official_thread_still_queues_the_send(wa_send, client, db, tenant_and_user):
     tid = _tid(tenant_and_user)
     conv = _conv(db, tid)
+    open_window(db, conv)
     db.commit()
     res = client.post(f"/api/v1/conversations/{conv.id}/messages", json={"body": "Hello"}, headers=_headers(db, tid))
     assert res.status_code == 201, res.text

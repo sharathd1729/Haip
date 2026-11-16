@@ -65,6 +65,10 @@ async def whatsapp_webhook(request: Request):
     db: Session = SessionLocal()
     try:
         tenant = resolve_wa_tenant(db, phone_number_id)
+        if not tenant and not phone_number_id:
+            # Template status / quality events are per WhatsApp Business Account: no phone number, the WABA id is entry.id.
+            from app.services.wa_template_events import tenant_for_waba
+            tenant = tenant_for_waba(db, str((payload_peek.get("entry") or [{}])[0].get("id") or ""))
         if not tenant:
             log.warning("whatsapp_webhook_tenant_not_found", phone_number_id=phone_number_id)
             raise HTTPException(status_code=404, detail="Tenant not found for this WhatsApp number")

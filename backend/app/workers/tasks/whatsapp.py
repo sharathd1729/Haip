@@ -39,10 +39,30 @@ def process_whatsapp_message(self, payload: dict):
         for entry in entry_list:
             for change in entry.get("changes", []):
                 value = change.get("value", {})
+                if change.get("field") in _TEMPLATE_FIELDS:
+                    _process_template_event(str(entry.get("id") or ""), change.get("field"), value)
+                    continue
                 _process_value(value)
     except Exception as exc:
         log.error("whatsapp_processing_failed", error=str(exc))
         raise self.retry(exc=exc)
+
+
+_TEMPLATE_FIELDS = ("message_template_status_update", "message_template_quality_update", "template_category_update")
+
+
+def _process_template_event(waba_id: str, field: str, value: dict) -> None:
+    """Template approved / rejected / paused etc. (services/wa_template_events.py), per WhatsApp Business Account."""
+    from app.services import wa_template_events
+
+    db = SessionLocal()
+    try:
+        wa_template_events.handle(db, waba_id, field, value or {})
+    except Exception as exc:  # noqa: BLE001 -- the 30-minute template sync still catches the change
+        db.rollback()
+        log.warning("wa_template_event_failed", waba_id=waba_id, field=field, error=str(exc)[:200])
+    finally:
+        db.close()
 
 
 def resolve_wa_tenant(db, phone_number_id: str) -> Tenant | None:
@@ -185,6 +205,10 @@ def _describe_other_message(msg_type: str, msg: dict) -> str:
         b = msg.get("button") or {}
         return str(b.get("text") or b.get("payload") or "")
     if msg_type == "interactive":                              # reply to an interactive message
+        from app.services import wa_booking_form
+        form = wa_booking_form.describe(msg)                   # answers from HAIP's booking form (WhatsApp Flow)
+        if form:
+            return form
         i = msg.get("interactive") or {}
         r = i.get("button_reply") or i.get("list_reply") or {}
         return str(r.get("title") or "")
@@ -643,14 +667,43 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
         log.warning("playbook_callback_tap_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
+    # ── Growth links, packages and the booking form (WhatsApp step 3) ──────
+    # A first message carrying "(ref w-xxxxxxxx)" counts a chat for that click-to-chat link; a tap on a package row or
+    # its buttons is answered by wa_catalog; booking-form answers are saved on the enquiry. The AI stays out of the last two.
+    try:
+        from app.services import wa_booking_form, wa_catalog, wa_entry_links
+        if body and wa_entry_links.count_chat(db, tenant.id, body):
+            db.commit()
+        if msg_type == "interactive":
+            if wa_booking_form.apply(db, tenant.id, guest, conversation, msg):
+                message.automation_outcome = "booking_form_answered"
+                db.commit()
+                return
+            if wa_catalog.handle(db, tenant.id, guest, conversation, msg):
+                message.automation_outcome = "packages_answered"
+                db.commit()
+                return
+    except Exception as exc:  # noqa: BLE001 -- fall through to the normal reply path
+        db.rollback()
+        log.warning("wa_growth_inbound_failed", tenant_id=tenant.id, error=str(exc)[:200])
+
+    # ── WhatsApp keyword auto-replies (services/wa_keyword_replies.py) ─────
+    # An active "wa_message_received" rule whose keyword is in the message answers it; the AI then stays out.
+    if body and body.strip() and msg_type not in _NO_AI_TYPES:
+        try:
+            from app.services import wa_keyword_replies
+            if wa_keyword_replies.handle(db, tenant.id, guest, conversation, body.strip()):
+                message.automation_outcome = "matched_auto_replied"
+                db.commit()
+                return
+        except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
+            db.rollback()
+            log.warning("wa_keyword_reply_failed", tenant_id=tenant.id, error=str(exc)[:200])
+
     # ── Trigger AI Concierge ───────────────────────────────────────────────
     # Only trigger for text/interactive messages (not raw media without caption)
-    # Phase 2.5 agent-accountability instrumentation
-    # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): WhatsApp has no
-    # keyword-rule engine (that's Instagram-only, ig_keyword_match.py), so
-    # every inbound message here is effectively "no_match" -- outcome is
-    # just AI-drafted vs no response, same vocabulary as the IG side so
-    # downstream queries don't need a per-channel case split.
+    # Phase 2.5 agent-accountability instrumentation (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): a message that
+    # reaches here matched no keyword reply -- outcome is AI-drafted vs no response, same vocabulary as the IG side.
     if body and body.strip() and msg_type not in _NO_AI_TYPES:
         try:
             from app.workers.tasks.concierge_draft import concierge_draft
@@ -702,6 +755,13 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
 
     if not wamid or meta_status not in _META_STATUS_MAP:
         return  # ignore unknown statuses
+
+    # Meta's pricing for this message (category, billable): kept once per message for cost reports (wa_costs).
+    try:
+        from app.services import wa_costs
+        wa_costs.record(db, str(tenant.id), status_obj)
+    except Exception as exc:  # noqa: BLE001 -- cost is a report; the delivery status still applies
+        log.warning("wa_pricing_record_failed", error=str(exc)[:200])
 
     new_state = _META_STATUS_MAP[meta_status]
 

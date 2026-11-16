@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VariableMapping, defaultMap, templateSections, unmappedVariables, type VariableMap } from "@/components/messaging/VariableMapping";
-import type { Template as FullTemplate } from "@/components/messaging/templateModel";
+import { TRACK_MARKER, type Template as FullTemplate } from "@/components/messaging/templateModel";
 import { CampaignReport } from "@/components/messaging/CampaignReport";
 import { LeadAudiencePicker, type LeadFilter, type Preview } from "@/components/messaging/LeadAudiencePicker";
 
@@ -19,6 +19,8 @@ interface Campaign {
   status: "draft" | "scheduled" | "running" | "completed" | "paused";
   audience_filter: Record<string, any>;
   scheduled_at: string | null;
+  link_url?: string | null;
+  paused_reason?: string | null;
   sent_count: string;
   delivered_count: string;
   read_count: string;
@@ -171,7 +173,7 @@ function CreateCampaignModal({ templates, onClose, onCreated, initialSegment }: 
   onCreated: () => void;
   initialSegment?: string | null;   // a preset id from Leads > Segments (?segment=hot): starts the audience there
 }) {
-  const [form, setForm] = useState({ name: "", template_id: "", scheduled_at: "" });
+  const [form, setForm] = useState({ name: "", template_id: "", scheduled_at: "", link_url: "" });
   const [variableMap, setVariableMap] = useState<VariableMap>({});
   // The default audience is the CRM's own leads; the imported list is the alternative.
   const [audienceKind, setAudienceKind] = useState<"leads" | "list">("leads");
@@ -225,6 +227,7 @@ function CreateCampaignModal({ templates, onClose, onCreated, initialSegment }: 
     }
     const missing = unmappedVariables(selectedTemplate, variableMap);
     if (missing.length > 0) { setError(`Say what to fill in for: ${missing.join(", ")}.`); return; }
+    if (tracked && !/^https:\/\/\S+$/.test(form.link_url.trim())) { setError("Say where the tracked link button leads (a link starting with https://)."); return; }
     setError("");
     setSubmitting(true);
     try {
@@ -243,6 +246,7 @@ function CreateCampaignModal({ templates, onClose, onCreated, initialSegment }: 
         scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
         audience_filter: af,
         variable_map: variableMap,
+        link_url: tracked ? form.link_url.trim() : null,
       });
       onCreated();
       onClose();
@@ -255,6 +259,9 @@ function CreateCampaignModal({ templates, onClose, onCreated, initialSegment }: 
 
   const approvedTemplates = templates.filter(t => t.status === "approved");
   const selectedTemplate = approvedTemplates.find(t => t.id === form.template_id);
+  // A template whose URL button is HAIP's tracking link: each guest gets their own code, taps are counted.
+  const tracked = !!selectedTemplate?.components?.some(c => (c.type || "").toUpperCase() === "BUTTONS" &&
+    (c.buttons || []).some(b => (b.type || "").toUpperCase() === "URL" && (b.url || "").includes(TRACK_MARKER)));
   const chooseTemplate = (id: string) => {
     setForm(f => ({ ...f, template_id: id }));
     setVariableMap(defaultMap(approvedTemplates.find(t => t.id === id)));
@@ -334,6 +341,16 @@ function CreateCampaignModal({ templates, onClose, onCreated, initialSegment }: 
             )}
           </div>
 
+          {tracked && (
+            <div>
+              <label htmlFor="campaign-link" className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Where the button leads</label>
+              <input id="campaign-link" type="url" inputMode="url" value={form.link_url} placeholder="https://yoursite.com/offer"
+                onChange={e => setForm(f => ({ ...f, link_url: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">This template has a tracked link: every guest gets their own link, so the report shows who tapped it.</p>
+            </div>
+          )}
+
           {/* Schedule */}
           <div>
             <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Schedule for later <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
@@ -364,9 +381,10 @@ function CreateCampaignModal({ templates, onClose, onCreated, initialSegment }: 
 
 // ─── Campaign Card ────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: {
+function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule, onPause }: {
   campaign: Campaign;
   onLaunch: (id: string) => void;
+  onPause: (id: string) => void;
   onDelete: (id: string) => void;
   onReport: (c: Campaign) => void;
   onUnschedule: (id: string) => void;
@@ -398,6 +416,12 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
             <button onClick={() => onReport(campaign)}
               className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-3 py-1.5 rounded-lg font-medium hover:bg-[var(--haip-surface)] transition-colors">
               <Eye size={11} /> Report
+            </button>
+          )}
+          {campaign.status === "running" && (
+            <button onClick={() => onPause(campaign.id)}
+              className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-3 py-1.5 rounded-lg font-medium hover:bg-[var(--haip-surface)] transition-colors">
+              <Pause size={11} /> Pause
             </button>
           )}
           {campaign.status === "scheduled" && (
@@ -439,8 +463,11 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
       )}
       {campaign.status === "paused" && (
         <p className="text-[11px] text-[var(--haip-status-warning-fg)] bg-[var(--haip-status-warning-bg)] rounded-lg px-3 py-2 mt-3">
-          Paused after repeated failures — usually the WhatsApp connection or the template. Open the report to see why, fix it, then Resume; guests already messaged won't be messaged again.
+          {campaign.paused_reason || "Paused after repeated failures — usually the WhatsApp connection or the template. Open the report to see why, fix it, then Resume."} Guests already messaged won&apos;t be messaged again.
         </p>
+      )}
+      {campaign.status === "scheduled" && campaign.paused_reason && (
+        <p className="text-[11px] text-[var(--haip-status-info-fg)] bg-[var(--haip-status-info-bg)] rounded-lg px-3 py-2 mt-3">{campaign.paused_reason}</p>
       )}
       {sent === 0 && campaign.status === "draft" && (
         <p className="text-[11px] text-[var(--haip-fg-subtle)] pt-2 border-t border-[var(--haip-border)]">
@@ -488,6 +515,12 @@ export default function CampaignsPage() {
     mutationFn: (id: string) => api.post(`/messaging/campaigns/${id}/launch`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-campaigns"] }); showToast("Campaign is going out.", "success"); },
     onError: (err) => showToast((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Launch failed.", "error"),
+  });
+
+  const pauseMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/messaging/campaigns/${id}/pause`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-campaigns"] }); showToast("Paused. It stops after the batch going out now.", "success"); },
+    onError: (err) => showToast((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Couldn't pause.", "error"),
   });
 
   const unscheduleMutation = useMutation({
@@ -572,6 +605,7 @@ export default function CampaignsPage() {
                 key={c.id}
                 campaign={c}
                 onLaunch={(id) => launchMutation.mutate(id)}
+                onPause={(id) => pauseMutation.mutate(id)}
                 onDelete={(id) => deleteMutation.mutate(id)}
                 onReport={setReportFor}
                 onUnschedule={(id) => unscheduleMutation.mutate(id)}

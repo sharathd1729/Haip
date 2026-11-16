@@ -6,11 +6,19 @@ Kept separate from api/v1/endpoints/messaging.py so the rules can be tested
 without HTTP and reused by the campaign runner.
 
 Scope: TEXT / IMAGE / VIDEO / DOCUMENT headers, a body with {{n}} variables, a
-footer, and up to 10 buttons of type QUICK_REPLY, URL and PHONE_NUMBER. A URL
+footer, and up to 10 buttons of type QUICK_REPLY, URL, PHONE_NUMBER and COPY_CODE. A URL
 button may end in one {{1}} (a dynamic suffix, e.g. "https://rzp.io/{{1}}" for
 a Razorpay link) with an example URL; the suffix is passed per send. A send may
 also override a DOCUMENT header with its own file (e.g. this guest's invoice).
-Carousel, COPY_CODE and LTO/catalog templates are not supported yet.
+
+Marketing formats (WhatsApp step 2e):
+- COPY_CODE button: the guest taps to copy an offer code; the code is sent per message (variable_map["coupon"]["1"]).
+- LIMITED_TIME_OFFER: an offer banner with an optional countdown; when it has an expiry, each send carries it
+  (variable_map["offer"]["expires_at"], ISO time). Needs a URL button; no footer.
+- CAROUSEL: 2-10 swipeable cards (image or video header, short body, 1-2 buttons), after a normal body. Each card's
+  header file is kept by HAIP as ``media_key`` on the card header (stripped before Meta sees it, see
+  meta_components) and attached at send time. Card bodies and card links are fixed text (no variables).
+Catalog / product templates are not supported.
 """
 
 from __future__ import annotations
@@ -48,6 +56,73 @@ MAX_PHONE_BUTTONS = 1
 
 VARIABLE_SOURCES = ("name", "first_name", "phone", "static")
 
+MAX_COUPON = 15            # Meta's COPY_CODE example / code length
+MAX_OFFER_TEXT = 16        # LIMITED_TIME_OFFER banner text
+MAX_CARDS, MIN_CARDS = 10, 2
+MAX_CARD_BODY = 160
+CARD_FORMATS = ("IMAGE", "VIDEO")
+_HAIP_ONLY_KEYS = ("media_key", "media_url")
+
+
+def meta_components(components: list) -> list:
+    """The components as Meta accepts them: HAIP's own bookkeeping (a carousel card's media_key) removed."""
+    def clean(comp: dict) -> dict:
+        out = {k: v for k, v in comp.items() if k not in _HAIP_ONLY_KEYS}
+        if isinstance(out.get("cards"), list):
+            out["cards"] = [{**card, "components": [clean(c) for c in card.get("components") or []]}
+                            for card in out["cards"] if isinstance(card, dict)]
+        return out
+    return [clean(c) for c in components or [] if isinstance(c, dict)]
+
+
+def card_media_keys(components: list) -> list[str]:
+    """Every carousel card's stored header file key (to check they belong to the workspace)."""
+    keys = []
+    for comp in components or []:
+        if (comp.get("type") or "").upper() == "CAROUSEL":
+            for card in comp.get("cards") or []:
+                for c in card.get("components") or []:
+                    if (c.get("type") or "").upper() == "HEADER" and c.get("media_key"):
+                        keys.append(str(c["media_key"]))
+    return keys
+
+
+def keep_card_media(old: list, new: list) -> list:
+    """Meta's copy of a template (sync) with HAIP's carousel card media_keys carried over by card position."""
+    keys = {}
+    for comp in old or []:
+        if (comp.get("type") or "").upper() == "CAROUSEL":
+            for i, card in enumerate(comp.get("cards") or []):
+                for c in card.get("components") or []:
+                    if (c.get("type") or "").upper() == "HEADER" and c.get("media_key"):
+                        keys[i] = c["media_key"]
+    if not keys:
+        return new
+    out = []
+    for comp in new or []:
+        if (comp.get("type") or "").upper() == "CAROUSEL":
+            cards = []
+            for i, card in enumerate(comp.get("cards") or []):
+                parts = [({**c, "media_key": keys[i]} if (c.get("type") or "").upper() == "HEADER" and i in keys else c)
+                         for c in card.get("components") or []]
+                cards.append({**card, "components": parts})
+            comp = {**comp, "cards": cards}
+        out.append(comp)
+    return out
+
+
+def has_copy_code(components: list) -> bool:
+    return any((b.get("type") or "").upper() == "COPY_CODE"
+               for c in components or [] if (c.get("type") or "").upper() == "BUTTONS" for b in c.get("buttons") or [])
+
+
+def offer_expires(components: list) -> bool:
+    """True when the template has a limited-time offer with a countdown (each send then needs an expiry)."""
+    for c in components or []:
+        if (c.get("type") or "").upper() == "LIMITED_TIME_OFFER":
+            return bool((c.get("limited_time_offer") or {}).get("has_expiration"))
+    return False
+
 
 class TemplateError(ValueError):
     """A template or upload the user has to fix; message is safe to show."""
@@ -84,6 +159,15 @@ def unmapped_variables(components: list, variable_map: Optional[dict]) -> list[s
                 missing.append(f"{section} {{{{{i}}}}}")
             elif source == "static" and not str(spec.get("value") or "").strip():
                 missing.append(f"{section} {{{{{i}}}}}")
+    if has_copy_code(components):
+        spec = (variable_map.get("coupon") or {}).get("1") or {}
+        if spec.get("source") not in VARIABLE_SOURCES or (spec.get("source") == "static" and not str(spec.get("value") or "").strip()):
+            missing.append("the offer code")
+    if offer_expires(components):
+        try:
+            _expiry_ms(variable_map)
+        except TemplateError:
+            missing.append("when the offer ends")
     return missing
 
 
@@ -102,11 +186,16 @@ def validate_components(components: list) -> list[str]:
     errors: list[str] = []
     types = [(c.get("type") or "").upper() for c in components or []]
 
-    for single in ("HEADER", "BODY", "FOOTER", "BUTTONS"):
+    for single in ("HEADER", "BODY", "FOOTER", "BUTTONS", "LIMITED_TIME_OFFER", "CAROUSEL"):
         if types.count(single) > 1:
-            errors.append(f"Only one {single.lower()} is allowed.")
+            errors.append(f"Only one {single.lower().replace('_', ' ')} is allowed.")
     if "BODY" not in types:
         errors.append("A body is required.")
+    if "CAROUSEL" in types:
+        if any(t in types for t in ("HEADER", "FOOTER", "BUTTONS", "LIMITED_TIME_OFFER")):
+            errors.append("A carousel has only a message and its cards: put headers and buttons on the cards.")
+    if "LIMITED_TIME_OFFER" in types:
+        errors.extend(_offer_errors(components))
 
     for comp in components or []:
         ctype = (comp.get("type") or "").upper()
@@ -140,17 +229,31 @@ def validate_components(components: list) -> list[str]:
             if variable_indices(text):
                 errors.append("A footer cannot contain variables.")
 
+        elif ctype == "CAROUSEL":
+            errors.extend(_carousel_errors(comp))
+
+        elif ctype == "LIMITED_TIME_OFFER":
+            pass   # checked with the whole template above
+
         elif ctype == "BUTTONS":
             buttons = comp.get("buttons") or []
             if not buttons:
                 errors.append("Buttons section is empty.")
             if len(buttons) > MAX_BUTTONS:
                 errors.append(f"At most {MAX_BUTTONS} buttons are allowed.")
-            counts = {"URL": 0, "PHONE_NUMBER": 0}
+            counts = {"URL": 0, "PHONE_NUMBER": 0, "COPY_CODE": 0}
             groups: list[str] = []
             for b in buttons:
                 btype = (b.get("type") or "").upper()
                 label = (b.get("text") or "").strip()
+                if btype == "COPY_CODE":
+                    # Meta labels it "Copy offer code" itself; the example is a sample code.
+                    counts["COPY_CODE"] += 1
+                    sample = str(b.get("example") or "").strip()
+                    if not sample or len(sample) > MAX_COUPON or not re.fullmatch(r"[A-Za-z0-9]+", sample):
+                        errors.append(f"An offer code button needs a sample code of up to {MAX_COUPON} letters and numbers.")
+                    groups.append(_button_group(btype))
+                    continue
                 if btype not in ("QUICK_REPLY", "URL", "PHONE_NUMBER"):
                     errors.append(f"Button type {btype or '(none)'} is not supported.")
                     continue
@@ -181,11 +284,77 @@ def validate_components(components: list) -> list[str]:
                 errors.append(f"At most {MAX_URL_BUTTONS} link buttons are allowed.")
             if counts["PHONE_NUMBER"] > MAX_PHONE_BUTTONS:
                 errors.append("Only one call button is allowed.")
+            if counts["COPY_CODE"] > 1:
+                errors.append("Only one offer code button is allowed.")
             # Meta wants quick replies together and call-to-action buttons together.
             changes = sum(1 for a, b in zip(groups, groups[1:]) if a != b)
             if changes > 1:
                 errors.append("Keep quick-reply buttons together and link/call buttons together.")
 
+    return errors
+
+
+def _offer_errors(components: list) -> list[str]:
+    errors = []
+    comp = next(c for c in components if (c.get("type") or "").upper() == "LIMITED_TIME_OFFER")
+    lto = comp.get("limited_time_offer") or {}
+    text = str(lto.get("text") or "").strip()
+    if not text or len(text) > MAX_OFFER_TEXT:
+        errors.append(f"The offer banner needs a short line of up to {MAX_OFFER_TEXT} characters.")
+    types = [(c.get("type") or "").upper() for c in components]
+    if "FOOTER" in types:
+        errors.append("A limited-time offer can't have a footer.")
+    header = next((c for c in components if (c.get("type") or "").upper() == "HEADER"), None)
+    if header and (header.get("format") or "TEXT").upper() not in CARD_FORMATS:
+        errors.append("A limited-time offer's header must be an image or a video.")
+    buttons = [b for c in components if (c.get("type") or "").upper() == "BUTTONS" for b in c.get("buttons") or []]
+    if not any((b.get("type") or "").upper() == "URL" for b in buttons):
+        errors.append("A limited-time offer needs a link button.")
+    if lto.get("has_expiration") and not any((b.get("type") or "").upper() == "COPY_CODE" for b in buttons):
+        errors.append("An offer with a countdown needs an offer code button.")
+    return errors
+
+
+def _carousel_errors(comp: dict) -> list[str]:
+    errors = []
+    cards = comp.get("cards") or []
+    if not MIN_CARDS <= len(cards) <= MAX_CARDS:
+        errors.append(f"A carousel needs {MIN_CARDS} to {MAX_CARDS} cards.")
+    formats, button_shapes = set(), set()
+    for n, card in enumerate(cards, start=1):
+        parts = {(c.get("type") or "").upper(): c for c in card.get("components") or []}
+        header, body, buttons = parts.get("HEADER"), parts.get("BODY"), parts.get("BUTTONS")
+        fmt = ((header or {}).get("format") or "").upper()
+        if fmt not in CARD_FORMATS:
+            errors.append(f"Card {n} needs an image or video.")
+        else:
+            formats.add(fmt)
+            handle = ((header.get("example") or {}).get("header_handle") or [])
+            if not handle or not header.get("media_key"):
+                errors.append(f"Upload the file for card {n}.")
+        text = ((body or {}).get("text") or "").strip()
+        if not text:
+            errors.append(f"Card {n} needs some text.")
+        elif len(text) > MAX_CARD_BODY:
+            errors.append(f"Card {n}'s text is over {MAX_CARD_BODY} characters.")
+        elif variable_indices(text):
+            errors.append(f"Card {n}'s text can't have variables.")
+        btns = (buttons or {}).get("buttons") or []
+        if not 1 <= len(btns) <= 2:
+            errors.append(f"Card {n} needs one or two buttons.")
+        for b in btns:
+            btype = (b.get("type") or "").upper()
+            if btype not in ("QUICK_REPLY", "URL", "PHONE_NUMBER"):
+                errors.append(f"Card {n} has a button type cards don't support.")
+            elif not (b.get("text") or "").strip() or len(b.get("text") or "") > MAX_BUTTON_TEXT:
+                errors.append(f"Every card button needs a label of up to {MAX_BUTTON_TEXT} characters.")
+            elif btype == "URL" and (not str(b.get("url") or "").startswith("https://") or variable_indices(b.get("url"))):
+                errors.append(f"Card {n}'s link must be a fixed https:// address.")
+        button_shapes.add(tuple((b.get("type") or "").upper() for b in btns))
+    if len(formats) > 1:
+        errors.append("All cards must use the same kind of file (all images or all videos).")
+    if len(button_shapes) > 1:
+        errors.append("All cards need the same buttons in the same order.")
     return errors
 
 
@@ -255,8 +424,22 @@ def build_send_components(
         elif ctype == "BODY" and variable_indices(comp.get("text")):
             out.append({"type": "body", "parameters": _text_params(comp, "body", variable_map, recipient)})
 
+        elif ctype == "LIMITED_TIME_OFFER" and (comp.get("limited_time_offer") or {}).get("has_expiration"):
+            out.append({"type": "limited_time_offer", "parameters": [
+                {"type": "limited_time_offer", "limited_time_offer": {"expiration_time_ms": _expiry_ms(variable_map)}}]})
+
+        elif ctype == "CAROUSEL":
+            out.append({"type": "carousel", "cards": _carousel_cards(comp)})
+
         elif ctype == "BUTTONS":
             for index, b in enumerate(comp.get("buttons") or []):
+                if (b.get("type") or "").upper() == "COPY_CODE":
+                    code = resolve_variable((variable_map.get("coupon") or {}).get("1") or {}, recipient)
+                    if not code:
+                        raise TemplateError("Say which offer code to send.")
+                    out.append({"type": "button", "sub_type": "copy_code", "index": str(index),
+                                "parameters": [{"type": "coupon_code", "coupon_code": code[:MAX_COUPON]}]})
+                    continue
                 if (b.get("type") or "").upper() != "URL" or not variable_indices(b.get("url")):
                     continue
                 suffix = str(button_params.get(index) or "").strip()
@@ -266,6 +449,36 @@ def build_send_components(
                             "parameters": [{"type": "text", "text": suffix}]})
 
     return out
+
+
+def _expiry_ms(variable_map: dict) -> int:
+    """The offer's end (variable_map["offer"]["expires_at"], ISO time) in epoch ms; must be in the future."""
+    from datetime import UTC, datetime
+
+    raw = str((variable_map.get("offer") or {}).get("expires_at") or "").strip()
+    try:
+        when = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        raise TemplateError("Say when the offer ends.") from None
+    when = when if when.tzinfo else when.replace(tzinfo=UTC)
+    if when <= datetime.now(UTC):
+        raise TemplateError("The offer's end time has passed. Set a new one.")
+    return int(when.timestamp() * 1000)
+
+
+def _carousel_cards(comp: dict) -> list[dict]:
+    """Each card's header file (signed link to the stored copy) for this send. Card text and links are fixed."""
+    from app.services.media_storage import get_presigned_media_url
+
+    cards = []
+    for index, card in enumerate(comp.get("cards") or []):
+        header = next((c for c in card.get("components") or [] if (c.get("type") or "").upper() == "HEADER"), {})
+        fmt = (header.get("format") or "IMAGE").lower()
+        link = get_presigned_media_url(header["media_key"], expires_in=86400) if header.get("media_key") else None
+        if not link:
+            raise TemplateError(f"Card {index + 1}'s file isn't available. Upload it again.")
+        cards.append({"card_index": index, "components": [{"type": "header", "parameters": [{"type": fmt, fmt: {"link": link}}]}]})
+    return cards
 
 
 def _text_params(comp: dict, section: str, variable_map: dict, recipient: Any) -> list[dict]:

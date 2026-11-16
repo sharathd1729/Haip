@@ -133,6 +133,8 @@ VALID_TRIGGERS = {
     "ig_dm_received",
     # Instagram automations (services/ig_automation.py): Live comments, story replies, story mentions, ad-started chats.
     "ig_live_comment_received", "ig_story_reply_received", "ig_story_mention_received", "ig_ad_chat_started",
+    # WhatsApp keyword auto-replies (services/wa_keyword_replies.py), matched inline in workers/tasks/whatsapp.py.
+    "wa_message_received",
 }
 
 VALID_ACTIONS = {
@@ -146,6 +148,8 @@ VALID_ACTIONS = {
     # AI Autonomy Plan Phase 2 ticket 5: approve + queue-send a pending AI
     # draft (next_action_service.get_call_actions' one recognized action).
     "send_whatsapp_draft",
+    # WhatsApp keyword auto-reply: text, reply buttons or a link button (services/wa_keyword_replies.py).
+    "send_whatsapp_reply",
 }
 
 
@@ -195,7 +199,19 @@ def _validate_ig_copy(trigger: str, cfg: dict) -> None:
 
 
 def _ig_configs(trigger: str, action: str, trigger_config: dict, action_config: dict) -> tuple[dict, dict]:
-    """Instagram automation rules: validated + normalised configs (schemas/ig_automation.py); others pass through."""
+    """Instagram automation rules and WhatsApp keyword replies: validated + normalised configs; others pass through."""
+    if action == "send_whatsapp_reply" or trigger == "wa_message_received":
+        if action != "send_whatsapp_reply" or trigger != "wa_message_received":
+            raise HTTPException(status_code=422, detail="A WhatsApp keyword reply needs the 'WhatsApp message' trigger "
+                                                        "and the 'Reply on WhatsApp' action together.")
+        from pydantic import ValidationError
+        from app.services.wa_keyword_replies import validate_rule
+        try:
+            return validate_rule(trigger_config, action_config)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc.errors()[0].get("msg", "Invalid reply")).removeprefix("Value error, "))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
     if action != "send_instagram_quick_reply" or not trigger.startswith("ig_"):
         return trigger_config, action_config
     from pydantic import ValidationError
@@ -269,7 +285,7 @@ def update_rule(
     if "trigger_config" in update_data or "action_config" in update_data or "trigger" in update_data:
         tc, ac = _ig_configs(trigger, action, update_data.get("trigger_config", rule.trigger_config or {}),
                              update_data.get("action_config", rule.action_config or {}))
-        if action == "send_instagram_quick_reply" and trigger.startswith("ig_"):
+        if (action == "send_instagram_quick_reply" and trigger.startswith("ig_")) or action == "send_whatsapp_reply":
             update_data["trigger_config"], update_data["action_config"] = tc, ac
 
     for field, value in update_data.items():

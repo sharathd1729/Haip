@@ -12,6 +12,7 @@ The rewrite endpoints are covered in test_rewrite_authorization.py. Celery ``.de
 is delivered and no provider is contacted. Runs on whatever database DATABASE_URL points at (SQLite locally,
 PostgreSQL in CI); nothing in it is PostgreSQL-specific.
 """
+from tests._wa_window import open_window
 import importlib.util
 import pathlib
 import uuid
@@ -260,7 +261,7 @@ def _conversation(db, tenant_id):
     db.add(guest); db.flush()
     conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id,
                         channel=ChannelType.WHATSAPP, is_open=True)
-    db.add(conv); db.commit()
+    db.add(conv); db.flush(); open_window(db, conv); db.commit()
     return conv
 
 
@@ -281,14 +282,14 @@ def _template(db, tenant_id):
 def _route_send_message(db, tenant_id):
     conv = _conversation(db, tenant_id)
     return {"url": f"/api/v1/conversations/{conv.id}/messages", "json": {"body": "Hello guest"}, "ok": 201,
-            "untouched": lambda: db.query(Message).filter_by(conversation_id=conv.id).count() == 0}
+            "untouched": lambda: db.query(Message).filter_by(conversation_id=conv.id, direction="outbound").count() == 0}
 
 
 def _route_send_template(db, tenant_id):
     conv = _conversation(db, tenant_id)
     tmpl = _template(db, tenant_id)
     return {"url": f"/api/v1/conversations/{conv.id}/send-template", "json": {"template_id": tmpl.id, "variables": ["Priya"]},
-            "ok": 201, "untouched": lambda: db.query(Message).filter_by(conversation_id=conv.id).count() == 0}
+            "ok": 201, "untouched": lambda: db.query(Message).filter_by(conversation_id=conv.id, direction="outbound").count() == 0}
 
 
 def _route_retry(db, tenant_id):
@@ -406,7 +407,7 @@ def test_foh_sends_are_idempotent_and_recorded_in_message_history(client, db):
     # A replay returns the original message (the endpoint keeps status 201); what matters is that nothing new is created.
     assert first.status_code == 201 and second.status_code in (200, 201)
     assert first.json()["id"] == second.json()["id"]
-    rows = db.query(Message).filter_by(conversation_id=conv.id).all()
+    rows = db.query(Message).filter_by(conversation_id=conv.id, direction="outbound").all()
     assert len(rows) == 1 and rows[0].body == "Welcome!" and rows[0].sender_id == foh.id
     assert delivery.fired == 1
 
@@ -419,5 +420,5 @@ def test_a_denied_send_leaves_no_audit_trail_changes_and_no_message(client, db):
         resp = client.post(f"/api/v1/conversations/{conv.id}/messages", json={"body": "hi"},
                            headers=_headers(_user(db, tenant.id, UserRole.MARKETING)))
     assert resp.status_code == 403 and delivery.fired == 0
-    assert db.query(Message).filter_by(conversation_id=conv.id).count() == 0
+    assert db.query(Message).filter_by(conversation_id=conv.id, direction="outbound").count() == 0
     assert db.query(AuditEvent).filter_by(tenant_id=tenant.id).count() == audit_before

@@ -116,6 +116,16 @@ def _evaluate_condition(db: Session, tenant_id: str, guest_id: str, conversation
         )
         return bool(newer_inbound)
 
+    if condition == "not_replied":
+        # Drips: carry on only while the guest hasn't answered the last message (the lone edge is the "true" path).
+        # A drip started by an event (new enquiry, opt-in) has no conversation yet: use the guest's latest WhatsApp chat.
+        if not conversation_id:
+            from app.models.conversation import ChannelType, Conversation
+            conv = (db.query(Conversation.id).filter_by(tenant_id=tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP)
+                    .order_by(Conversation.created_at.desc()).first())
+            conversation_id = conv[0] if conv else None
+        return not _evaluate_condition(db, tenant_id, guest_id, conversation_id, {**node, "condition": "replied"})
+
     if condition == "is_vip":
         from app.models.guest import Guest
         from app.api.v1.endpoints.messaging import WASubscriber
@@ -212,6 +222,18 @@ def run_flow(
             current_id = _next_node_id(edges_by_from, current_id)
             continue
 
+        if node_type == "template":
+            # An approved template works outside the 24-hour window, so it can open or re-open a conversation.
+            try:
+                detail = _send_flow_template(db, tenant_id, guest_id, node)
+                _log_run(db, tenant_id, flow.id, guest_id, node, "success", detail)
+            except FlowMessageNotSent as exc:
+                _log_run(db, tenant_id, flow.id, guest_id, node, "skipped", f"Template not sent: {exc}")
+            except Exception as exc:
+                _log_run(db, tenant_id, flow.id, guest_id, node, "failed", error=str(exc))
+            current_id = _next_node_id(edges_by_from, current_id)
+            continue
+
         if node_type == "action":
             try:
                 detail = _execute_action_node(db, tenant_id, guest_id, node)
@@ -287,3 +309,63 @@ def _send_flow_message(db: Session, tenant_id: str, guest_id: str, conversation_
 
     from app.workers.tasks.send_whatsapp import send_whatsapp
     send_whatsapp.delay(message_id=message.id, tenant_id=tenant_id)
+
+
+def _send_flow_template(db: Session, tenant_id: str, guest_id: str, node: dict) -> str:
+    """Send a flow "template" node: an approved template with its body values filled for this guest (node
+    ``variable_map``, the campaigns' shape: first_name / name / phone / static, with a fallback). Opens the guest's
+    official WhatsApp conversation when there is none. Raises FlowMessageNotSent with the reason it can't go."""
+    import uuid
+    from types import SimpleNamespace
+
+    from app.models.conversation import ChannelType, Message, MessageDeliveryState, MessageDirection
+    from app.models.guest import Guest
+    from app.models.tenant import Tenant
+    from app.services import wa_template_service as wts
+    from app.services import whatsapp_start_service as start
+    from app.workers.tasks.send_whatsapp import _bad_number_reason
+
+    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+    if guest is None:
+        raise FlowMessageNotSent("guest not found")
+    bad = _bad_number_reason((guest.phone or "").strip())
+    if bad:
+        raise FlowMessageNotSent(bad)
+    template_id = node.get("template_id")
+    if not template_id:
+        raise FlowMessageNotSent("no template picked on this step")
+    from app.api.v1.endpoints.messaging import WATemplate
+
+    tmpl_row = db.query(WATemplate).filter_by(id=template_id, tenant_id=tenant_id).first()
+    if tmpl_row is None:
+        raise FlowMessageNotSent("the template no longer exists")
+    vmap = node.get("variable_map") or {}
+    missing = wts.unmapped_variables(tmpl_row.components or [], vmap)
+    if missing:
+        raise FlowMessageNotSent(f"no value set for {', '.join(missing)}")
+    who = SimpleNamespace(name=guest.name, phone=guest.phone)
+    indices = wts.template_variables(tmpl_row.components or []).get("body", [])
+    variables = [wts.resolve_variable((vmap.get("body") or {}).get(str(i)) or {}, who) for i in indices]
+    if any(not v for v in variables):
+        raise FlowMessageNotSent("a template value came out empty and has no fallback")
+    try:
+        tmpl, text = start.template_message(db, tenant_id, template_id, variables)
+    except start.Refused as exc:
+        raise FlowMessageNotSent(str(getattr(exc, "detail", exc))) from None
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    conv, _created = start._open_official_conversation(db, tenant, guest.id)
+    if conv.is_personal_bridge:
+        raise FlowMessageNotSent("the guest's WhatsApp chat is on a personal phone")
+    message = Message(
+        id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id, direction=MessageDirection.OUTBOUND,
+        channel=ChannelType.WHATSAPP, body=text, delivery_state=MessageDeliveryState.QUEUED, channel_status="queued",
+        sender_name="Flow", sender_kind="system",
+        channel_metadata={"template_id": tmpl.id, "template_name": tmpl.name, "source": "flow"},
+    )
+    db.add(message)
+    db.commit()
+    from app.workers.tasks.send_whatsapp import send_whatsapp_template
+
+    send_whatsapp_template.delay(message_id=message.id, tenant_id=tenant_id, template_name=tmpl.name,
+                                 language_code=tmpl.language or "en", variables=variables)
+    return f"Template '{tmpl.name}' sent"

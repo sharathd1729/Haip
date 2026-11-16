@@ -1,5 +1,8 @@
 "use client";
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
+import { ReplyButtonsBar } from "@/components/inbox/ReplyButtonsBar";
+import { LabelEditor } from "@/components/inbox/LabelEditor";
+import { ChatSellBar } from "@/components/inbox/ChatSellBar";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -84,11 +87,13 @@ function InboxPageInner() {
   // Guest 360 panel is desktop-only (hidden md:flex on GuestPanel) -- on
   // mobile it opens as a sheet from the thread header instead.
   const [showGuestSheet, setShowGuestSheet] = useState(false);
+  const [replyButtons, setReplyButtons] = useState<string[]>([]);  // WhatsApp reply buttons on the next message
 
   const [channelFilter, setChannelFilter] = useState("");
   // Filter chip (Needs reply / Unassigned / Mine / All) -- applied
   // server-side, so it covers the whole inbox, not just the loaded page.
   const [inboxView, setInboxView] = useState<InboxView>("");
+  const [labelFilter, setLabelFilter] = useState("");
   const [replyText, setReplyText] = useState("");
   const [aiTyping, setAiTyping] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
@@ -189,13 +194,14 @@ function InboxPageInner() {
     hasNextPage: hasMoreFilteredConversations,
     isFetchingNextPage: isLoadingMoreFilteredConversations,
   } = useInfiniteQuery({
-    queryKey: ["conversations", channelFilter, inboxView],
+    queryKey: ["conversations", channelFilter, inboxView, labelFilter],
     queryFn: ({ pageParam }: { pageParam?: string }) =>
       api.get("/conversations", {
         params: {
           limit: CONVERSATION_PAGE_SIZE,
           ...(channelFilter ? channelQueryParams(channelFilter) : {}),
           ...(inboxView ? { view: inboxView } : {}),
+          ...(labelFilter ? { label: labelFilter } : {}),
           ...(pageParam ? { before: pageParam } : {}),
         },
       }).then(r => r.data as any[]),
@@ -204,11 +210,11 @@ function InboxPageInner() {
       lastPage.length === CONVERSATION_PAGE_SIZE
         ? lastPage[lastPage.length - 1]?.last_message_at
         : undefined,
-    enabled: !!channelFilter || !!inboxView,
+    enabled: !!channelFilter || !!inboxView || !!labelFilter,
     staleTime: 30_000,
   });
 
-  const scopedFeed = !!channelFilter || !!inboxView;
+  const scopedFeed = !!channelFilter || !!inboxView || !!labelFilter;
   const { data: viewCounts } = useQuery<{ needs_reply: number; unassigned: number; mine: number }>({
     queryKey: ["conversations", "counts"],
     queryFn: () => api.get("/conversations/counts").then(r => r.data),
@@ -412,13 +418,14 @@ function InboxPageInner() {
   // the send-message call itself.
 
   const sendMutation = useMutation({
-    mutationFn: ({ text, is_internal, replied_to_message_id, scheduled_for }: { text: string; is_internal?: boolean; replied_to_message_id?: string; scheduled_for?: string | null }) =>
+    mutationFn: ({ text, is_internal, replied_to_message_id, scheduled_for, buttons }: { text: string; is_internal?: boolean; replied_to_message_id?: string; scheduled_for?: string | null; buttons?: string[] }) =>
       api.post(`/conversations/${activeConversationId}/messages`, {
         body: text,
         direction: "outbound",
         is_internal: is_internal ?? false,
         replied_to_message_id: replied_to_message_id ?? null,
         scheduled_for: scheduled_for ?? null,
+        ...(buttons && buttons.length ? { interactive: { kind: "buttons", buttons } } : {}),
       }),
     // Optimistic insert — show the message immediately instead of waiting on
     // the full send round trip (Meta API call + DB write can take several
@@ -584,12 +591,15 @@ function InboxPageInner() {
     if (!activeConversationId) return;
     // D9: block free-form send when service window is closed (except internal notes)
     if (windowBlocked) return;
+    const buttons = isWhatsApp && !isInternalNote ? replyButtons.map(b => b.trim()).filter(Boolean) : [];
     sendMutation.mutate({
       text: replyText.trim(),
       is_internal: isInternalNote,
       replied_to_message_id: replyToMsg?.id,
       scheduled_for: overrideScheduled !== undefined ? overrideScheduled : scheduledFor,
+      buttons,
     });
+    setReplyButtons([]);
   };
 
   // W4: quick schedule options
@@ -694,6 +704,7 @@ function InboxPageInner() {
         channelFilter={channelFilter} setChannelFilter={setChannelFilter}
         hasMoreConversations={hasMoreConversations} fetchNextConversationPage={() => fetchNextConversationPage()}
         isLoadingMoreConversations={isLoadingMoreConversations} clickToCallMutation={clickToCallMutation}
+        labelFilter={labelFilter} setLabelFilter={setLabelFilter}
       />
 
       {/* Center: message thread — full-width on mobile when mobileView==="thread" */}
@@ -762,6 +773,9 @@ function InboxPageInner() {
               setShowTemplatePicker={setShowTemplatePicker} setIsInternalNote={setIsInternalNote}
               channel={detail?.channel} onStartWhatsApp={canStartWa ? openStartWa : undefined}
             />
+            {activeConversationId && detail && canSend && (
+              <LabelEditor key={activeConversationId} conversationId={activeConversationId} labels={(detail as { labels?: string[] | null }).labels ?? []} />
+            )}
 
             {!canSend ? (
               <div
@@ -771,6 +785,11 @@ function InboxPageInner() {
                 You have view-only access to this inbox, so you can read conversations but not reply to guests.
               </div>
             ) : (
+            <>
+            {isWhatsApp && !isInternalNote && !windowBlocked && (
+              <ReplyButtonsBar key={activeConversationId ?? "none"} value={replyButtons} onChange={setReplyButtons} />
+            )}
+            {isWhatsApp && !isInternalNote && !windowBlocked && activeConversationId && <ChatSellBar key={`sell-${activeConversationId}`} conversationId={activeConversationId} />}
             <Composer
               isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked} isInternalNote={isInternalNote}
               exitInternalNote={exitInternalNote} replyToMsg={replyToMsg} setReplyToMsg={setReplyToMsg}
@@ -784,6 +803,7 @@ function InboxPageInner() {
               showSchedule={showSchedule} setShowSchedule={setShowSchedule} handleTextChange={handleTextChange}
               handleKeyDown={handleKeyDown} handleSend={handleSend} sendMutation={sendMutation}
             />
+            </>
             )}
           </>
         )}

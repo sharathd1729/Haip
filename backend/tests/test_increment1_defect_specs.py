@@ -7,6 +7,7 @@ must keep passing (they stop an over-eager fix from breaking legitimate behaviou
 
 Registered, not hidden: these are the only expected failures in the suite (see CLAUDE.md "no known failures").
 """
+from tests._wa_window import open_window
 import os
 import threading
 import uuid
@@ -61,13 +62,15 @@ def _h(user):
     return {"Authorization": "Bearer " + create_access_token({"sub": user.id, "tenant_id": user.tenant_id, "role": user.role.value})}
 
 
-def _conv(db, tenant_id):
+def _conv(db, tenant_id, window=False):
     g = Guest(id=str(uuid.uuid4()), tenant_id=tenant_id, name="G", phone=f"+9199990{uuid.uuid4().int % 100000:05d}")      # digits only: a hex letter makes the number invalid and the sender refuses it
     db.add(g)
     db.flush()
     c = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True)
     db.add(c)
     db.flush()
+    if window:                     # a guest message a minute ago: the 24-hour window is open for a free-text send
+        open_window(db, c)
     return g, c
 
 
@@ -347,7 +350,7 @@ def test_control_a_utility_template_is_still_delivered_after_a_marketing_opt_out
 # ═══ D. Scheduled sends (PR-4) ═════════════════════════════════════════════════════════════════════════════
 
 def test_control_scheduling_a_message_stores_it_and_sends_nothing_now(db, client, world):
-    g, c = _conv(db, world.t.id)
+    g, c = _conv(db, world.t.id, window=True)
     db.commit()
     with patch(DELAY) as send:
         r = client.post(f"/api/v1/conversations/{c.id}/messages",

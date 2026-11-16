@@ -14,6 +14,7 @@ Covers:
 - Unknown Meta status is ignored
 """
 
+from tests._wa_window import open_window
 import uuid
 import pytest
 from unittest.mock import patch, MagicMock, PropertyMock
@@ -266,6 +267,8 @@ def conversation(db, tenant_and_user):
         is_open=True,
     )
     db.add(conv)
+    db.flush()
+    open_window(db, conv)
     db.commit()
     return conv
 

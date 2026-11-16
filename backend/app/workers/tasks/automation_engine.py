@@ -254,10 +254,37 @@ def _action_send_wa_template(db, cfg: dict, context: dict, tenant_id: str) -> st
         finally:
             loop.close()
 
+    # Fill the template's {{n}} variables, header file and link-button suffixes the same way campaigns do
+    # (wa_template_service.build_send_components). It used to send the name only, so Meta rejected every template
+    # with a variable or a media header.
+    from types import SimpleNamespace
+
+    from app.services import wa_template_service as wts
+
+    vmap = cfg.get("variable_map") or {}
+    missing = wts.unmapped_variables(template.components or [], vmap)
+    if missing:
+        return f"skipped — no value set for {', '.join(missing)}; set them on the automation"
+    link = None
+    if template.header_media_key:
+        from app.services.media_storage import get_presigned_media_url
+
+        link = get_presigned_media_url(template.header_media_key, expires_in=3600)
+    raw_buttons = cfg.get("button_params") if isinstance(cfg.get("button_params"), dict) else {}
+    buttons = {int(k): str(v) for k, v in raw_buttons.items() if str(k).isdigit()}
+    try:
+        components = wts.build_send_components(
+            template.components or [], vmap, SimpleNamespace(name=guest.name, phone=guest.phone),
+            header_media_link=link, button_params=buttons,
+        )
+    except wts.TemplateError as exc:
+        return f"skipped — {exc}"
+
     _run(adapter.send_template(
         to=guest.phone,
         template_name=template.name,
         language_code=template.language or "en",
+        components=components or None,
     ))
     return f"Template '{template.name}' sent to guest"
 

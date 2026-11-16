@@ -6,16 +6,21 @@ import { GitBranch, ToggleLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DELAY_UNITS, appendIndex, describeDelay, insertNode, moveNode, splitDelay } from "@/components/flows/flowOrder";
+import { VariableMapping, defaultMap, type VariableMap } from "@/components/messaging/VariableMapping";
+import type { Template } from "@/components/messaging/templateModel";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface FlowNode {
   id: string;
-  type: "trigger" | "message" | "condition" | "delay" | "action" | "end";
+  type: "trigger" | "message" | "template" | "condition" | "delay" | "action" | "end";
   label: string;
   content?: string;
   condition?: string;
   delay_minutes?: number;
+  template_id?: string;
+  variable_map?: VariableMap;
   x: number;
   y: number;
 }
@@ -43,6 +48,7 @@ interface Flow {
 const NODE_TYPES = {
   trigger: { label: "Trigger", icon: <Zap size={14} />, color: "bg-[var(--haip-status-warning-bg)] border-[var(--haip-status-warning-border)] text-[var(--haip-status-warning-fg)]", dot: "bg-[var(--haip-amber)]" },
   message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
+  template: { label: "Send Template", icon: <Send size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
   condition: { label: "Condition", icon: <GitBranch size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
   delay: { label: "Wait / Delay", icon: <Clock size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
   action: { label: "Action", icon: <Zap size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
@@ -76,6 +82,24 @@ function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error";
 
 // ─── Flow Canvas (simplified visual builder) ──────────────────────────────────
 
+// Drag a step (or a palette item) onto a connector to place it there. Keyboard: the arrow buttons on each step.
+const DRAG_NODE = "application/x-haip-flow-node";
+const DRAG_TYPE = "application/x-haip-flow-type";
+
+function DropZone({ index, onDropAt, children }: { index: number; onDropAt: (index: number, dt: DataTransfer) => void; children: React.ReactNode }) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      onDragOver={e => { if (e.dataTransfer.types.includes(DRAG_NODE) || e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); setOver(true); } }}
+      onDragLeave={() => setOver(false)}
+      onDrop={e => { e.preventDefault(); setOver(false); onDropAt(index, e.dataTransfer); }}
+      className={cn("flex flex-col items-center py-1 rounded-xl transition-colors", over && "bg-[var(--haip-primary-tint)] outline outline-2 outline-dashed outline-primary")}
+    >
+      {children}
+    </div>
+  );
+}
+
 function FlowCanvas({
   nodes,
   edges,
@@ -83,6 +107,8 @@ function FlowCanvas({
   onSelectNode,
   onAddNode,
   onDeleteNode,
+  onMove,
+  onInsertType,
 }: {
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -90,7 +116,19 @@ function FlowCanvas({
   onSelectNode: (id: string | null) => void;
   onAddNode: (type: FlowNode["type"], afterId?: string) => void;
   onDeleteNode: (id: string) => void;
+  onMove: (id: string, toIndex: number) => void;
+  onInsertType: (type: FlowNode["type"], index: number) => void;
 }) {
+  const dropAt = (index: number, dt: DataTransfer) => {
+    const id = dt.getData(DRAG_NODE);
+    if (id) {
+      const from = nodes.findIndex(n => n.id === id);
+      onMove(id, from >= 0 && from < index ? index - 1 : index);   // index counts the dragged step itself
+      return;
+    }
+    const type = dt.getData(DRAG_TYPE) as FlowNode["type"];
+    if (type && type in NODE_TYPES) onInsertType(type, index);
+  };
   return (
     <div className="relative w-full overflow-auto bg-[var(--haip-surface)]" style={{ minHeight: "500px", backgroundImage: "radial-gradient(circle, var(--haip-border) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
       <div className="p-8 flex flex-col items-start gap-0 min-w-[600px]">
@@ -104,9 +142,12 @@ function FlowCanvas({
             <div key={node.id} className="flex flex-col items-center">
               {/* Node */}
               <div
+                draggable={node.type !== "trigger"}
+                onDragStart={e => { e.dataTransfer.setData(DRAG_NODE, node.id); e.dataTransfer.effectAllowed = "move"; }}
                 onClick={() => onSelectNode(isSelected ? null : node.id)}
                 className={cn(
                   "w-72 rounded-2xl border-2 p-4 cursor-pointer transition-all shadow-sm hover:shadow-md group relative",
+                  node.type !== "trigger" && "active:cursor-grabbing",
                   cfg.color,
                   isSelected && "ring-2 ring-offset-2 ring-primary shadow-md"
                 )}
@@ -118,6 +159,14 @@ function FlowCanvas({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="text-[11.5px] font-bold uppercase tracking-wide opacity-60">{cfg.label}</span>
+                      {node.type !== "trigger" && (
+                        <span className="ml-auto mr-1 flex opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                          <button type="button" aria-label={`Move ${node.label} up`} disabled={idx <= 1}
+                            onClick={e => { e.stopPropagation(); onMove(node.id, idx - 1); }} className="px-1 disabled:opacity-30">↑</button>
+                          <button type="button" aria-label={`Move ${node.label} down`} disabled={idx >= nodes.length - 1}
+                            onClick={e => { e.stopPropagation(); onMove(node.id, idx + 1); }} className="px-1 disabled:opacity-30">↓</button>
+                        </span>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); onDeleteNode(node.id); }}
                         className="opacity-0 group-hover:opacity-100 text-[var(--haip-status-danger-fg)] hover:text-[var(--haip-status-danger-fg)] transition-all"
@@ -127,14 +176,14 @@ function FlowCanvas({
                     </div>
                     <p className="text-sm font-semibold mt-0.5 truncate">{node.label}</p>
                     {node.content && <p className="text-[11px] opacity-60 mt-0.5 truncate">{node.content}</p>}
-                    {node.delay_minutes && <p className="text-[11px] opacity-60 mt-0.5">Wait {node.delay_minutes} min</p>}
+                    {node.delay_minutes && <p className="text-[11px] opacity-60 mt-0.5">{describeDelay(node.delay_minutes)}</p>}
                   </div>
                 </div>
               </div>
 
               {/* Connector + add button */}
               {node.type !== "end" && (
-                <div className="flex flex-col items-center py-1">
+                <DropZone index={idx + 1} onDropAt={dropAt}>
                   <div className="w-0.5 h-4 bg-[var(--haip-border-strong)]" />
                   {edge?.label && (
                     <span className="text-[11.5px] bg-white border border-[var(--haip-border)] rounded px-1.5 py-0.5 text-[var(--haip-fg-subtle)] font-medium">{edge.label}</span>
@@ -147,7 +196,7 @@ function FlowCanvas({
                     <Plus size={12} />
                   </button>
                   <div className="w-0.5 h-4 bg-[var(--haip-border-strong)]" />
-                </div>
+                </DropZone>
               )}
             </div>
           );
@@ -158,6 +207,31 @@ function FlowCanvas({
 }
 
 // ─── Node Editor Panel ────────────────────────────────────────────────────────
+
+// A flow "template" step (flow_engine._send_flow_template): an approved template, sent even outside the 24-hour window.
+function TemplateStepFields({ local, setLocal }: { local: FlowNode; setLocal: (f: (l: FlowNode) => FlowNode) => void }) {
+  const { data: templates = [] } = useQuery<Template[]>({
+    queryKey: ["wa-templates"],
+    queryFn: () => api.get("/messaging/templates").then(r => r.data).catch(() => []),
+    staleTime: 60_000,
+  });
+  const approved = (templates as (Template & { id: string; name: string; status: string })[]).filter(t => t.status === "approved");
+  const picked = approved.find(t => t.id === local.template_id);
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Approved template</label>
+        <select value={local.template_id ?? ""} className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm"
+          onChange={e => { const t = approved.find(x => x.id === e.target.value); setLocal(l => ({ ...l, template_id: e.target.value, variable_map: defaultMap(t) })); }}>
+          <option value="">Select template…</option>
+          {approved.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Templates reach the guest even after the 24-hour window, unlike a plain message.</p>
+      </div>
+      {picked && <VariableMapping template={picked} value={local.variable_map ?? {}} onChange={(m: VariableMap) => setLocal(l => ({ ...l, variable_map: m }))} />}
+    </div>
+  );
+}
 
 function NodeEditorPanel({
   node,
@@ -217,6 +291,8 @@ function NodeEditorPanel({
           </div>
         )}
 
+        {local.type === "template" && <TemplateStepFields local={local} setLocal={setLocal} />}
+
         {local.type === "condition" && (
           <div>
             <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Condition</label>
@@ -225,18 +301,32 @@ function NodeEditorPanel({
               <option value="">Select condition…</option>
               <option value="message_read">Message was read</option>
               <option value="replied">Contact replied</option>
+              <option value="not_replied">Contact has not replied (drips)</option>
               <option value="is_vip">Contact is VIP tag</option>
               <option value="has_booking">Has active booking</option>
             </select>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">If the answer is no, the flow stops here.</p>
           </div>
         )}
 
         {local.type === "delay" && (
           <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Wait duration (minutes)</label>
-            <input type="number" min={1} value={local.delay_minutes ?? 60}
-              onChange={e => setLocal(l => ({ ...l, delay_minutes: parseInt(e.target.value) || 60 }))}
-              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Wait</label>
+            {(() => {
+              const { amount, unit } = splitDelay(local.delay_minutes ?? 60);
+              const per = (u: string) => DELAY_UNITS.find(d => d.value === u)?.minutes ?? 1;
+              return (
+                <div className="flex gap-2">
+                  <input type="number" min={1} value={amount} aria-label="Wait amount"
+                    onChange={e => setLocal(l => ({ ...l, delay_minutes: Math.max(1, parseInt(e.target.value) || 1) * per(unit) }))}
+                    className="w-24 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  <select value={unit} aria-label="Wait unit" onChange={e => setLocal(l => ({ ...l, delay_minutes: amount * per(e.target.value) }))}
+                    className="flex-1 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    {DELAY_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -285,11 +375,29 @@ function makeDefaultFlow(name: string): { nodes: FlowNode[]; edges: FlowEdge[] }
   };
 }
 
+// Owner-built drip: approved templates (they reach guests outside the 24-hour window), spaced by waits, and each later
+// message only goes if the guest hasn't replied yet (condition "not_replied").
+function makeDripFlow(): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  const steps: FlowNode[] = [
+    { id: "d1", type: "trigger", label: "New inquiry created", content: "new_inquiry", x: 0, y: 0 },
+    { id: "d2", type: "template", label: "Day 0: welcome template", x: 0, y: 0 },
+    { id: "d3", type: "delay", label: "Wait 1 day", delay_minutes: 1440, x: 0, y: 0 },
+    { id: "d4", type: "condition", label: "Still no reply?", condition: "not_replied", x: 0, y: 0 },
+    { id: "d5", type: "template", label: "Day 1: follow-up template", x: 0, y: 0 },
+    { id: "d6", type: "delay", label: "Wait 3 days", delay_minutes: 4320, x: 0, y: 0 },
+    { id: "d7", type: "condition", label: "Still no reply?", condition: "not_replied", x: 0, y: 0 },
+    { id: "d8", type: "template", label: "Day 4: last nudge template", x: 0, y: 0 },
+    { id: "d9", type: "end", label: "End of drip", x: 0, y: 0 },
+  ];
+  return { nodes: steps, edges: steps.slice(0, -1).map((n, i) => ({ id: `de${i}`, from: n.id, to: steps[i + 1].id })) };
+}
+
 // ─── Create Flow Modal ────────────────────────────────────────────────────────
 
 function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreated: (flow: Flow) => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [preset, setPreset] = useState<"welcome" | "drip">("welcome");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -298,7 +406,7 @@ function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreate
     setError("");
     setSubmitting(true);
     try {
-      const { nodes, edges } = makeDefaultFlow(name);
+      const { nodes, edges } = preset === "drip" ? makeDripFlow() : makeDefaultFlow(name);
       const res = await api.post("/messaging/flows", { name, description, nodes, edges });
       onCreated(res.data);
       onClose();
@@ -327,6 +435,18 @@ function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Sent to new opt-ins"
               className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
+          <fieldset>
+            <legend className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Start from</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {([["welcome", "Welcome series", "Opt-in, wait a day, follow up"], ["drip", "Lead nurture drip", "3 templates over 4 days, stops when they reply"]] as const).map(([v, label, hint]) => (
+                <label key={v} className={cn("flex flex-col gap-0.5 p-2.5 rounded-xl border cursor-pointer text-xs", preset === v ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)]")}>
+                  <input type="radio" name="flow-preset" value={v} checked={preset === v} onChange={() => setPreset(v)} className="sr-only" />
+                  <span className="font-semibold text-[var(--haip-fg)]">{label}</span>
+                  <span className="text-[11.5px] text-[var(--haip-fg-subtle)] leading-snug">{hint}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           {error && <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
         </div>
         <div className="px-6 pb-5 flex gap-3">
@@ -390,6 +510,16 @@ function FlowEditor({ flow: initialFlow, onBack, onSaved }: {
     setSelectedNodeId(newNode.id);
   }, []);
 
+  const moveStep = useCallback((id: string, toIndex: number) => {
+    setFlow(f => ({ ...f, ...moveNode(f.nodes, f.edges, id, toIndex) }));
+  }, []);
+
+  const insertStep = useCallback((type: FlowNode["type"], index: number) => {
+    const node: FlowNode = { id: `n${Date.now()}`, type, label: NODE_TYPES[type].label, x: 0, y: 0, ...(type === "delay" ? { delay_minutes: 1440 } : {}) };
+    setFlow(f => ({ ...f, ...insertNode(f.nodes, f.edges, node, index) }));
+    setSelectedNodeId(node.id);
+  }, []);
+
   const updateNode = useCallback((id: string, changes: Partial<FlowNode>) => {
     setFlow(f => ({
       ...f,
@@ -445,9 +575,11 @@ function FlowEditor({ flow: initialFlow, onBack, onSaved }: {
 
         <div className="flex items-center gap-2">
           {/* Add node buttons */}
-          {(["message", "condition", "delay", "action"] as const).map(t => (
-            <button key={t} onClick={() => addNode(t)}
-              className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] transition-colors font-medium">
+          {(["message", "template", "condition", "delay", "action", "end"] as const).map(t => (
+            <button key={t} onClick={() => insertStep(t, appendIndex(flow.nodes))} draggable
+              onDragStart={e => { e.dataTransfer.setData(DRAG_TYPE, t); e.dataTransfer.effectAllowed = "copy"; }}
+              title="Click to add at the end, or drag onto a connector"
+              className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] transition-colors font-medium cursor-grab">
               <Plus size={11} />
               {NODE_TYPES[t].label}
             </button>
@@ -471,6 +603,8 @@ function FlowEditor({ flow: initialFlow, onBack, onSaved }: {
             onSelectNode={setSelectedNodeId}
             onAddNode={addNode}
             onDeleteNode={deleteNode}
+            onMove={moveStep}
+            onInsertType={insertStep}
           />
         </div>
         {selectedNode && (
