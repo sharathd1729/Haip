@@ -1,10 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, BellOff, BellRing, Bot, ChevronRight, KeyRound, Lock, BookOpen, MessageCircle } from "@/lib/icons";
+import { useSearchParams } from "next/navigation";
+import { Building2, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, BellOff, BellRing, Bot, KeyRound, Lock, BookOpen, MessageCircle } from "@/lib/icons";
 import { PageHeader } from "@/components/ui/page";
-import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { getPushStatus, subscribeToPush, isIOSStandaloneRequired, type PushStatus } from "@/components/PWARegister";
@@ -26,125 +25,18 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; desc: string }[] = 
 ];
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("workspace");
-  useEffect(() => {      // after mount: the first render must match the server's
-    const want = new URLSearchParams(window.location.search).get("tab");
-    if (want && TABS.some(t => t.id === want)) setTab(want as Tab);
-  }, []);
-  const router = useRouter();
-  const { data: session } = useSession();
-  const isOwner = session?.user?.role === "owner";
+  // Which section shows comes from ?tab= (the Settings hub panel and phone menu link to each one; nav.ts SETTINGS_GROUPS).
+  const want = useSearchParams()?.get("tab");
+  const tab: Tab = TABS.some(t => t.id === want) ? (want as Tab) : "workspace";
 
   return (
-    <div className="flex h-full">
-      {/* Left nav */}
-      <div
-        className="w-56 flex-shrink-0 bg-card p-3 flex flex-col gap-0.5"
-        style={{ borderRight: "1px solid var(--haip-border)" }}
-      >
-        <p className="haip-label px-3 py-2">Settings</p>
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group",
-              tab === t.id ? "bg-[var(--haip-primary-tint)] text-primary" : "text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
-            )}
-          >
-            <span className={tab === t.id ? "text-primary" : "text-[var(--haip-fg-subtle)]"}>{t.icon}</span>
-            <div>
-              <div className="text-sm font-medium">{t.label}</div>
-              <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">{t.desc}</div>
-            </div>
-            <ChevronRight size={13} className={cn("ml-auto transition-opacity", tab === t.id ? "opacity-100 text-primary" : "opacity-0 group-hover:opacity-40")} />
-          </button>
-        ))}
-
-        {/* Team — separate page */}
-        <button
-          onClick={() => router.push("/dashboard/settings/team")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
-        >
-          <span className="text-[var(--haip-fg-subtle)]"><Users size={15} /></span>
-          <div>
-            <div className="text-sm font-medium">Team</div>
-            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">Invite members, manage roles</div>
-          </div>
-          <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
-        </button>
-
-        {/* AI Knowledge Base — what the concierge knows */}
-        <button
-          onClick={() => router.push("/dashboard/settings/knowledge")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
-        >
-          <span className="text-[var(--haip-fg-subtle)]"><BookOpen size={15} /></span>
-          <div>
-            <div className="text-sm font-medium">AI Knowledge Base</div>
-            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">FAQs, amenities, add-ons, routes</div>
-          </div>
-          <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
-        </button>
-
-        {/* External Assistant Access (Perisclaw / MCP) — separate page */}
-        <button
-          onClick={() => router.push("/dashboard/settings/mcp-access")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
-        >
-          <span className="text-[var(--haip-fg-subtle)]"><KeyRound size={15} /></span>
-          <div>
-            <div className="text-sm font-medium">AI Assistants</div>
-            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">Connect Claude, ChatGPT, Gemini</div>
-          </div>
-          <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
-        </button>
-
-        {/* Personal WhatsApp bridge — every agent pairs their own */}
-        <button
-          onClick={() => router.push("/dashboard/settings/whatsapp-personal")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
-        >
-          <span className="text-[var(--haip-fg-subtle)]"><MessageCircle size={15} /></span>
-          <div>
-            <div className="text-sm font-medium">Personal WhatsApp</div>
-            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">Pair your own phone, track chats in HAIP</div>
-          </div>
-          <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
-        </button>
-
-        {/* Roles & Permissions (capability matrix) — owner-only */}
-        {isOwner && (
-          <button
-            onClick={() => router.push("/dashboard/settings/permissions")}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
-          >
-            <span className="text-[var(--haip-fg-subtle)]"><Lock size={15} /></span>
-            <div>
-              <div className="text-sm font-medium">Roles &amp; Permissions</div>
-              <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">What each role can access</div>
-            </div>
-            <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
-          </button>
-        )}
-
-        <div className="mt-auto pt-4 border-t border-[var(--haip-border)]">
-          <p className="text-[11.5px] text-[var(--haip-fg-subtle)] px-3">
-            IVR, WhatsApp, Instagram, and PMS settings are managed in{" "}
-            <a href="/dashboard/settings/integrations" className="text-primary hover:underline font-medium">Integrations →</a>
-          </p>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-6">
         <div className="max-w-2xl">
           {tab === "workspace"     && <WorkspaceSettings />}
           {tab === "ai"            && <AISettings />}
           {tab === "notifications" && <NotificationSettings />}
           {tab === "security"      && <SecuritySettings />}
         </div>
-      </div>
     </div>
   );
 }

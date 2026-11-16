@@ -56,6 +56,7 @@ export const SETTINGS_KEY = "settings";
 const SETTINGS_GROUPS: { title: string; links: NavLink[] }[] = [
   { title: "Business", links: [
     { label: "Business details", href: "/dashboard/settings", icon: Settings, resource: "settings" },
+    { label: "Notifications", href: "/dashboard/settings?tab=notifications", icon: BellRing, resource: "settings" },
     { label: "Branding", href: "/dashboard/settings/branding", icon: Palette, resource: "branding" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: MANAGERS },
     { label: "Packages and routes", href: "/dashboard/settings/quotes", icon: Calculator, resource: "settings", onlyRoles: MANAGERS, onlyForBusinessTypes: ["caravan"] },
@@ -63,6 +64,7 @@ const SETTINGS_GROUPS: { title: string; links: NavLink[] }[] = [
   { title: "Team and access", links: [
     { label: "Team", href: "/dashboard/settings/team", icon: UsersRound, resource: "users" },
     { label: "Roles and permissions", href: "/dashboard/settings/permissions", icon: ShieldCheck, resource: "users", onlyRoles: ["owner"] },
+    { label: "Security and sign-in", href: "/dashboard/settings?tab=security", icon: Shield, resource: "settings" },
   ] },
   { title: "Channels and integrations", links: [
     { label: "Integrations", href: "/dashboard/settings/integrations", icon: Link2, resource: "integrations" },
