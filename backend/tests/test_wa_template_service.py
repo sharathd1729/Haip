@@ -71,8 +71,11 @@ def test_button_rules():
         [BODY, _buttons({"type": "QUICK_REPLY", "text": ""})]))
     assert any("25" in e for e in wts.validate_components(
         [BODY, _buttons({"type": "QUICK_REPLY", "text": "z" * 26})]))
-    assert any("not supported" in e for e in wts.validate_components(
+    # COPY_CODE is supported since WhatsApp step 2e, but needs a sample code
+    assert any("offer code" in e for e in wts.validate_components(
         [BODY, _buttons({"type": "COPY_CODE", "text": "Copy"})]))
+    assert any("not supported" in e for e in wts.validate_components(
+        [BODY, _buttons({"type": "CATALOG", "text": "View"})]))
 
 
 def test_more_than_ten_buttons_is_rejected():
