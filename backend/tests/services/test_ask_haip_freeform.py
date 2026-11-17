@@ -202,3 +202,50 @@ async def test_fails_closed_when_ro_database_not_configured(db, monkeypatch):
 
     audit = db.query(AskHaipFreeformQuery).filter_by(tenant_id=tenant.id).first()
     assert audit.status == "rejected"
+
+
+# ── A broken generation gets one retry, and the owner never sees parser text ─
+
+@pytest.mark.asyncio
+async def test_broken_sql_is_retried_once_with_its_error_then_rejected_in_plain_words(db, monkeypatch):
+    from app.services.ask_haip_freeform_service import REJECTED_MESSAGE
+
+    tenant = _make_tenant(db)
+    db.commit()
+    asks = []
+
+    class _FakeLLM:
+        async def complete(self, **kwargs):
+            asks.append(kwargs["user_message"])
+            return {"content": "SELECT source, count(*) FROM inquiries WHERE source IN ('META_IG')) GROUP BY source LIMIT '"}
+
+    monkeypatch.setattr("app.services.ask_haip_freeform_service.get_llm", lambda task: _FakeLLM())
+    result = await answer_freeform_question(db=db, tenant_id=tenant.id, user_id="u1", question="Show enquiry counts by budget band")
+    assert len(asks) == 2 and "Your previous SQL was rejected" in asks[1] and asks[0] == "Show enquiry counts by budget band"
+    assert result["error"] == REJECTED_MESSAGE and "parse" not in result["error"].lower()
+    audit = db.query(AskHaipFreeformQuery).filter_by(tenant_id=tenant.id).first()
+    assert audit.status == "rejected" and "Could not parse" in audit.reject_reason
+
+
+@pytest.mark.asyncio
+async def test_a_corrected_retry_goes_on_to_run(db, monkeypatch):
+    tenant = _make_tenant(db)
+    db.commit()
+    answers = iter(["SELECT count(*) FROM inquiries WHERE (", "SELECT count(*) AS n FROM inquiries"])
+
+    class _FakeLLM:
+        async def complete(self, **kwargs):
+            return {"content": next(answers)}
+
+    class _Stop(Exception):
+        pass
+
+    def _engine():
+        raise _Stop("reached the database step")
+
+    monkeypatch.setattr("app.services.ask_haip_freeform_service.get_llm", lambda task: _FakeLLM())
+    monkeypatch.setattr("app.services.ask_haip_freeform_service._get_ro_engine", _engine)
+    await answer_freeform_question(db=db, tenant_id=tenant.id, user_id="u1", question="Show enquiry counts by budget band")
+    audit = db.query(AskHaipFreeformQuery).filter_by(tenant_id=tenant.id).first()
+    assert audit.status == "error" and "reached the database step" in audit.reject_reason  # validated SQL got as far as running
+    assert "tenant_id" in audit.generated_sql

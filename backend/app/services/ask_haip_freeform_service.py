@@ -119,6 +119,12 @@ resulting rows (as JSON), respond with JSON:
 Return ONLY the JSON object."""
 
 
+REJECTED_MESSAGE = (
+    "I couldn't work that one out from your data. Try asking it another way, with the period and what to count, "
+    'for example "How many bookings came from Instagram last month?"'
+)
+
+
 class FreeformRejected(Exception):
     """The generated SQL failed validation -- never reaches the DB."""
 
@@ -269,14 +275,24 @@ async def answer_freeform_question(
             return kpi
 
         sql_llm = get_llm("ask_haip_freeform_sql")
-        with llm_scope(tenant_id=tenant_id, module="ask_haip", ref_type="ask_haip_query", ref_id=audit.id):
-            gen = await sql_llm.complete(
-                system_prompt=SQL_SYSTEM_PROMPT, user_message=question, max_tokens=400,
-            )
-        raw_sql = gen.get("content", "").strip().strip("`").removeprefix("sql\n").strip()
-        audit.generated_sql = raw_sql
-
-        scoped_sql = _validate_and_scope(raw_sql, tenant_id)
+        # One retry when the SQL does not parse or breaks a rule (a cut-off answer, an unbalanced quote): the model sees
+        # its own error once. A second failure is a rejection; nothing unvalidated ever runs.
+        ask = question
+        for attempt in (1, 2):
+            with llm_scope(tenant_id=tenant_id, module="ask_haip", ref_type="ask_haip_query", ref_id=audit.id):
+                gen = await sql_llm.complete(system_prompt=SQL_SYSTEM_PROMPT, user_message=ask, max_tokens=800)
+            raw_sql = gen.get("content", "").strip().strip("`").removeprefix("sql\n").strip()
+            audit.generated_sql = raw_sql
+            try:
+                scoped_sql = _validate_and_scope(raw_sql, tenant_id)
+                break
+            except FreeformRejected as exc:
+                if attempt == 2:
+                    raise
+                ask = (
+                    f"{question}\n\nYour previous SQL was rejected: {exc}\nPrevious SQL:\n{raw_sql}\n"
+                    "Return ONE corrected PostgreSQL SELECT only, complete, with balanced quotes and parentheses."
+                )
         audit.generated_sql = scoped_sql
 
         engine = _get_ro_engine()
@@ -323,7 +339,8 @@ async def answer_freeform_question(
         audit.status = "rejected"
         audit.reject_reason = str(exc)
         log.warning("ask_haip_freeform_rejected", tenant_id=tenant_id, reason=str(exc))
-        return {"narrative": None, "error": str(exc), "chart": None, "rows": [], "row_count": 0, "sql": None}
+        # The reason (parser text, rule broken) stays in the audit row; the owner gets a sentence they can act on.
+        return {"narrative": None, "error": REJECTED_MESSAGE, "chart": None, "rows": [], "row_count": 0, "sql": None}
 
     except Exception as exc:
         audit.status = "error"

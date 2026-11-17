@@ -93,7 +93,7 @@ def test_get_llm_does_not_wrap_without_a_gemini_key(monkeypatch):
 def test_get_llm_leaves_other_tasks_alone(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     assert not isinstance(get_llm("concierge_draft").inner, FallbackAdapter)   # already Gemini
-    assert not isinstance(get_llm("ask_haip_freeform_sql").inner, FallbackAdapter)
+    assert not isinstance(get_llm("ask_haip_freeform_summary").inner, FallbackAdapter)
 
 
 class _SlowThenFast(LLMAdapter):
