@@ -322,8 +322,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return { ...token, error: "RefreshAccessTokenError", errorSince: (token.errorSince as number) || Date.now() };
       }
       const r = refreshed as { accessToken: string; refreshToken: string; accessTokenExpires: number };
+      // A session signed in before workspace addresses existed has no tenantSlug (undefined, not null): ask once, so it
+      // moves to /w/<slug> at its next refresh instead of only after a new sign-in. null = asked, no public address.
+      let tenantSlug = token.tenantSlug;
+      if (tenantSlug === undefined) {
+        try {
+          const apiBase = (process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+          const me = await fetch(`${apiBase}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${r.accessToken}` } });
+          if (me.ok) tenantSlug = ((await me.json()) as { tenant?: { slug?: string } }).tenant?.slug ?? null;
+        } catch { /* left undefined: tried again at the next refresh */ }
+      }
       return {
         ...token,
+        tenantSlug,
         accessToken: r.accessToken,
         refreshToken: r.refreshToken,
         accessTokenExpires: r.accessTokenExpires,
