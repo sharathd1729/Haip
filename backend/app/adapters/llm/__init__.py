@@ -79,7 +79,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # Ask HAIP free-form analyst: SQL generation needs real reasoning (same
     # tier as deep_reason), summarizing already-fetched rows
     # into a narrative + chart spec is cheap classification-tier work.
-    "ask_haip_freeform_sql":     ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
+    # Owner, 17 Nov 2026: query writing moved to Gemini like Ask Yaad (the NVIDIA model wrote unparseable SQL on
+    # cross-table questions); Flash-Lite is the backup (_GEMINI_FALLBACK_TASKS). The question and table descriptions
+    # reach Google; the rows never do (they go to ask_haip_freeform_summary, still NVIDIA).
+    "ask_haip_freeform_sql":     ("gemini", "gemini-3.6-flash"),
     "ask_haip_freeform_summary": ("nvidia", "openai/gpt-oss-20b"),
     # mistral-medium-3.5-128b reached end of life on 2026-08-07 and the
     # endpoint now returns HTTP 410, so this route was dead. mistral-nemotron
@@ -235,10 +238,11 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "website_content":             90,
     "personal_call":               90,    # Yaad: Gemini 3.6 Flash, then Flash-Lite (never NVIDIA)
     "personal_ask":                40,    # a person waits: one attempt, then Flash-Lite
+    "ask_haip_freeform_sql":       40,    # Ask HAIP: Gemini 3.6 Flash, then Flash-Lite; the owner waits
 }
 
 # A person waits on these in the UI: one NVIDIA attempt, then the fallback, so the wait is not doubled.
-_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup", "concierge_intent", "staff_assistant", "personal_ask"}
+_SINGLE_PRIMARY_ATTEMPT = {"analyst_followup", "concierge_intent", "staff_assistant", "personal_ask", "ask_haip_freeform_sql"}
 
 
 # LLM_FORCE_PROVIDER=claude: Claude for every task, the normal route as the fallback. Fast, cheap work on Haiku.

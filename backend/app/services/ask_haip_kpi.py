@@ -1,4 +1,4 @@
-"""Ask HAIP: KPI questions (leads, bookings, revenue, occupancy, SLA) are answered from the shared metric definitions
+"""Ask HAIP: KPI questions (leads, bookings, revenue, occupancy, SLA) and their splits (ask_haip_breakdowns) are answered from the shared metric definitions
 (kpi_metrics, lead_metrics; docs/analytics/KPI_METRIC_CATALOGUE.md), never from model-written SQL, so Ask HAIP gives
 the same number as the dashboards. Deterministic: no LLM, no SQL generated."""
 from __future__ import annotations
@@ -58,6 +58,11 @@ def _money(value: float) -> str:
 
 def answer(db: Session, tenant_id: str, question: str) -> Optional[dict]:
     """Shared-metric answer in the freeform result shape, or None when the question is not about a KPI."""
+    from app.services import ask_haip_breakdowns  # splits by source / unit / owner / month (the dashboards' breakdowns)
+
+    split = ask_haip_breakdowns.answer(db, tenant_id, question, period(question))
+    if split is not None:
+        return split
     asked = families(question)
     if not asked:
         return None

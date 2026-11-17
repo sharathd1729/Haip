@@ -4,7 +4,7 @@ test for a bug where _build_adapter() computed the right (provider, model)
 pair from _TASK_ROUTES but discarded `model` when constructing the
 adapter, so every .complete() call without an explicit model= kwarg
 silently used the adapter class's own hardcoded default instead of the
-routed model. Discovered live: ask_haip_freeform_sql was routed to
+routed model. Discovered live: ask_haip_freeform_sql (Gemini since 17 Nov 2026; deep_reason is the example now) was routed to
 nemotron-3-ultra-550b-a55b but every call actually ran on
 llama-3.3-nemotron-super-49b-v1.5 (the NvidiaNIMAdapter class default).
 """
@@ -38,7 +38,7 @@ async def test_complete_without_explicit_model_uses_the_routed_default():
         mock_response.usage.total_tokens = 10
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-        llm = get_llm("ask_haip_freeform_sql")
+        llm = get_llm("deep_reason")
         await llm.complete(system_prompt="sys", user_message="hi", max_tokens=50)
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -69,7 +69,7 @@ async def test_explicit_model_kwarg_still_overrides_the_routed_default():
         mock_response.usage.total_tokens = 10
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-        llm = get_llm("ask_haip_freeform_sql")
+        llm = get_llm("deep_reason")
         await llm.complete(system_prompt="sys", user_message="hi", model="openai/gpt-oss-20b", max_tokens=50)
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -259,3 +259,19 @@ def test_yaad_folder_sorting_routes_to_gemini_flash_lite():
 
     assert personal_folders.LLM_TASK == "personal_folder"
     assert _TASK_ROUTES["personal_folder"] == ("gemini", "gemini-3.1-flash-lite")
+
+
+def test_ask_haip_query_writing_runs_on_gemini_with_flash_lite_behind_it(monkeypatch):
+    """Owner, 17 Nov 2026: Ask HAIP's SQL is written by Gemini 3.6 Flash (like Ask Yaad), one attempt, then Flash-Lite. The
+    summary of the rows stays on NVIDIA, so query results never go to Google."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+
+    assert _TASK_ROUTES["ask_haip_freeform_sql"] == ("gemini", "gemini-3.6-flash")
+    assert _TASK_ROUTES["ask_haip_freeform_summary"][0] == "nvidia"
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("ask_haip_freeform_sql").inner
+    assert isinstance(adapter, FallbackAdapter) and _GEMINI_FALLBACK_TASKS["ask_haip_freeform_sql"] == 40
+    assert adapter._primary.provider == "gemini" and adapter._primary._default_model == "gemini-3.6-flash"
+    assert adapter._secondary._default_model == "gemini-3.1-flash-lite" and adapter._primary_attempts == 1

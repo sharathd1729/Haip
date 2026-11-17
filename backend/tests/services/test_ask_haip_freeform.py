@@ -220,8 +220,8 @@ async def test_broken_sql_is_retried_once_with_its_error_then_rejected_in_plain_
             return {"content": "SELECT source, count(*) FROM inquiries WHERE source IN ('META_IG')) GROUP BY source LIMIT '"}
 
     monkeypatch.setattr("app.services.ask_haip_freeform_service.get_llm", lambda task: _FakeLLM())
-    result = await answer_freeform_question(db=db, tenant_id=tenant.id, user_id="u1", question="Which source brought the most?")
-    assert len(asks) == 2 and "Your previous SQL was rejected" in asks[1] and asks[0] == "Which source brought the most?"
+    result = await answer_freeform_question(db=db, tenant_id=tenant.id, user_id="u1", question="Show enquiry counts by budget band")
+    assert len(asks) == 2 and "Your previous SQL was rejected" in asks[1] and asks[0] == "Show enquiry counts by budget band"
     assert result["error"] == REJECTED_MESSAGE and "parse" not in result["error"].lower()
     audit = db.query(AskHaipFreeformQuery).filter_by(tenant_id=tenant.id).first()
     assert audit.status == "rejected" and "Could not parse" in audit.reject_reason
