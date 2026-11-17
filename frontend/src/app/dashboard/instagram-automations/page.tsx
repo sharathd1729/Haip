@@ -2,6 +2,7 @@
 // Instagram automations (ReplyRush / SuperProfile style): comment / Live / story / DM keyword → DM, with stats.
 // Rules are automation_rules rows (GET/PATCH/DELETE /automations); stats from GET /instagram/automations/stats.
 import { useState } from "react";
+import { AutomationsNav } from "@/components/automations/AutomationsNav";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, MessageSquare } from "@/lib/icons";
 import api from "@/lib/api";
@@ -97,6 +98,7 @@ export default function InstagramAutomationsPage() {
 
   return (
     <div className="mx-auto grid max-w-5xl gap-5">
+      <AutomationsNav />
       <PageHeader title="Instagram automations" subtitle="Reply to comments, story replies and DMs automatically: a public reply plus a DM with your link."
         actions={
           <div className="flex flex-wrap gap-2">

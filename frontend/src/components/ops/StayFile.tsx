@@ -16,6 +16,7 @@ import { StaySheets, type StaySheetKind } from "./StaySheets";
 import { AddonsCard } from "./AddonsCard";
 import { GuestFormCard } from "./TripCards";
 import { FileMoneyCard } from "./money/FileMoneyCard";
+import { BookingThread } from "@/components/bookings/BookingThread";
 
 type Submit = (path: string, body?: object, method?: "post" | "put" | "delete") => Promise<boolean>;
 
@@ -105,6 +106,8 @@ export function StayFile({ f, submit, busy, write, manage, onReport, reportBusy 
         <PageHeader title={s.guest_name} keepOnPhone icon={false}
           subtitle={`${day(s.check_in)} – ${day(s.check_out)}${s.check_in_time ? `, arrives ${s.check_in_time}` : ""} · ${party}`} />
       </div>
+
+      <BookingThread bookingId={s.id} />
 
       <div aria-label={`Step ${f.stage.step} of 6: ${f.stage.step_name}`}>
         <div className="flex gap-1">

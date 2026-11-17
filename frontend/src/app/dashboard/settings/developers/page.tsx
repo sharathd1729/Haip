@@ -145,7 +145,7 @@ export default function DevelopersPage() {
             <div className="haip-card p-4 space-y-4">
               <p className="text-sm font-semibold text-[var(--haip-fg)]">Create an API key</p>
               <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)]">Name
-                <input className={cn(field, "mt-1")} placeholder="e.g. Ratha operations platform" value={name} onChange={e => setName(e.target.value)} maxLength={100} />
+                <input className={cn(field, "mt-1")} placeholder="e.g. Our operations platform" value={name} onChange={e => setName(e.target.value)} maxLength={100} />
               </label>
               <fieldset className="space-y-2">
                 <legend className="text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">What can this key do?</legend>

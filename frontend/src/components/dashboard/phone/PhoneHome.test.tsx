@@ -6,6 +6,7 @@ const get = vi.fn();
 vi.mock("@/lib/api", () => ({ default: { get: (...a: unknown[]) => get(...a), post: vi.fn() } }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { name: "Sharath D", role: "owner", tenantId: "t1" } }, status: "authenticated" }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("@/components/providers/WorkspaceProvider", async (orig) => ({ ...(await orig<object>()), useBusinessType: () => "caravan" }));   // the caravan words ("Trips next 7 days")
 
 import { PhoneHome, dueThisWeek } from "./PhoneHome";
 import { waitingBreakdown } from "./WaitingBanner";

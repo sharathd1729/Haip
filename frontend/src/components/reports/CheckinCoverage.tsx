@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill } from "@/components/ui/kit";
 
 interface Cover { valid: number; reviewed_valid: number; stage_valid: number; below_target: boolean; booked_vehicles: string[] }
@@ -28,9 +29,10 @@ function Count({ c, target, by }: { c: Cover; target: number; by: string }) {
 }
 
 function Booked({ names, total }: { names: string[]; total: number }) {
+  const unit = useSegment().unit.one;
   return (
     <span className="text-[12.5px] text-[var(--haip-fg-muted)]">
-      {names.length ? `Booked: ${names.join(", ")}` : "No vehicle booked"}{total ? ` (${names.length} of ${total})` : ""}
+      {names.length ? `Booked: ${names.join(", ")}` : `No ${unit} booked`}{total ? ` (${names.length} of ${total})` : ""}
     </span>
   );
 }

@@ -220,3 +220,5 @@ export const EXPENSE_LABELS: Record<string, string> = {
   fuel: "Fuel", toll: "Toll", parking: "Parking", driver: "Driver", helper: "Helper", repair: "Repair",
   consumables: "Consumables", groceries: "Groceries", other: "Other",
 };
+/** Expense kinds that only a trip (a vehicle on the road) can have; a stay's expense sheet leaves them out. */
+export const TRIP_ONLY_EXPENSES = ["fuel", "toll", "parking", "driver"];

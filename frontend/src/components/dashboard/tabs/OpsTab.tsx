@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { Card, CardBody, CardHeader, EmptyState, Stat, StatusPill, type Tone } from "@/components/ui/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -29,6 +30,7 @@ const pct = (v: number | null) => (v == null ? "No data" : `${v}%`);
 const when = (d: number, iso: string) => (d === 0 ? "Today" : d === 1 ? "Tomorrow" : new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }));
 
 export function OpsTab() {
+  const fileWord = useSegment().booking.one;   // trip | stay
   const board = useQuery<Board>({ queryKey: ["dashboard-ops-board"], queryFn: () => api.get("/dashboard/ops-board").then(r => r.data), staleTime: 60_000 });
   const metrics = useQuery<Metrics>({ queryKey: ["ops-metrics", 30], queryFn: () => api.get("/ops/files/metrics", { params: { days: 30 } }).then(r => r.data), staleTime: 5 * 60_000 });
   if (board.isPending) return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-28" />)}</div>;
@@ -59,7 +61,7 @@ export function OpsTab() {
                   <Link href={i.href} className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-[var(--haip-surface)]">
                     <span className="w-24 shrink-0 text-[13px] font-semibold text-[var(--haip-fg-2)]">{when(i.days_from_today, i.check_in)}</span>
                     <span className="min-w-0 flex-1"><span className="block font-semibold text-[var(--haip-fg)]">{i.guest}</span>
-                      <span className="block text-[13px] text-[var(--haip-fg-subtle)]">{i.property}{i.file_state ? "" : " · no trip file yet"}</span></span>
+                      <span className="block text-[13px] text-[var(--haip-fg-subtle)]">{i.property}{i.file_state ? "" : ` · no ${fileWord} file yet`}</span></span>
                     <StatusPill tone={FORM[i.id_form].tone}>{FORM[i.id_form].label}</StatusPill>
                   </Link>
                 </li>

@@ -6,6 +6,7 @@
 // actions or column settings on the phone. Data: GET /leads?stage= (one stage at a time) and GET /leads/needs-action.
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSegment } from "@/lib/segments";
 import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -55,6 +56,7 @@ function Row({ lead, stageLabel, onOpen }: { lead: LeadCard; stageLabel?: string
 }
 
 export function PhoneLeads() {
+  const booking = useSegment().booking.one;
   const { data: session } = useSession();
   const role = session?.user?.role;
   const { data: stages = [] } = usePipelineStages();
@@ -106,7 +108,7 @@ export function PhoneLeads() {
       <div className="grid gap-3 px-4 pb-24 pt-3">
         {/* "New lead" in words next to search: the floating "+" alone was missed on phones (owner feedback, Oct 2026). */}
         <div className="flex items-center gap-2">
-          <FilterSearch value={q} onChange={setQ} placeholder="Name or trip" label="Search leads" className="min-w-0 max-w-none" />
+          <FilterSearch value={q} onChange={setQ} placeholder={`Name or ${booking}`} label="Search leads" className="min-w-0 max-w-none" />
           <NewLeadAction primary />
         </div>
         <ChipRow label="Leads by stage" value={chip} onChange={setChip} items={items} onFilters={() => setShowFilters(true)} filterCount={nFilters} />
@@ -120,7 +122,7 @@ export function PhoneLeads() {
             action={<button type="button" onClick={() => (onStage ? list.refetch() : needs.refetch())} className="haip-btn-secondary min-h-11">Try again</button>} /></div>
         ) : rows.length === 0 ? (
           <div className="haip-card"><EmptyState title={q ? "No leads match" : onStage ? `Nothing in ${label[chip] ?? "this stage"}` : "Nothing needs action"}
-            hint={q ? "Try another name or trip." : onStage ? "Leads that reach this stage appear here." : "Every lead has had its next step."} /></div>
+            hint={q ? `Try another name or ${booking}.` : onStage ? "Leads that reach this stage appear here." : "Every lead has had its next step."} /></div>
         ) : (
           <>
             <RowList label={onStage ? label[chip] : "Needs action"}>

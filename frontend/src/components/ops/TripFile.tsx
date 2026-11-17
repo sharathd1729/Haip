@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/bookingAgenda";
+import { useSegment } from "@/lib/segments";
 import { DOWNLOAD_TIMEOUT_MS, downloadErrorMessage, saveBlob, toBlob } from "@/lib/download";
 import { canManageOps, canWriteOps, EXPENSE_LABELS, nextAction, rupees, type ChecklistItem, type OpsFileFull } from "@/lib/ops";
 import { useToast } from "@/components/ui/toast";
@@ -20,6 +21,7 @@ import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
 import { StayFile } from "./StayFile";
 import { TripGps } from "./TripGps";
 import { FileMoneyCard } from "./money/FileMoneyCard";
+import { BookingThread } from "@/components/bookings/BookingThread";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -50,6 +52,7 @@ export function TripFile({ id }: { id: string }) {
   const role = session?.user?.role;
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [item, setItem] = useState<ChecklistItem | null>(null);
+  const word = useSegment().booking;   // the error card shows before the file says trip or stay
 
   const { data: f, isPending, isError, error, refetch } = useQuery<OpsFileFull>({
     queryKey: ["ops-file", id], queryFn: () => api.get(`/ops/files/${id}`).then(r => r.data), staleTime: 10_000, refetchInterval: 60_000,
@@ -84,7 +87,7 @@ export function TripFile({ id }: { id: string }) {
     const status = (error as { response?: { status?: number } })?.response?.status;
     return (
       <Card className="mx-auto mt-4 w-[calc(100%-2rem)] max-w-3xl sm:mt-6">
-        <EmptyState title={status === 404 ? "Trip not found" : status === 403 ? "You don't have access to Ops" : "Couldn't load this trip"}
+        <EmptyState title={status === 404 ? `${word.One} not found` : status === 403 ? "You don't have access to Ops" : `Couldn't load this ${word.one}`}
           hint={status === 404 || status === 403 ? undefined : "Check your connection, then try again."}
           action={status === 404 || status === 403
             ? <Link href="/dashboard/ops" className="haip-btn-secondary min-h-12">Back to Ops today</Link>
@@ -123,6 +126,8 @@ export function TripFile({ id }: { id: string }) {
         <PageHeader title={s.guest_name} keepOnPhone icon={false}
           subtitle={`${f.details.route ?? "Route not set yet"} · ${dates} · ${party}`} />
       </div>
+
+      <BookingThread bookingId={s.id} />
 
       <div aria-label={`Step ${f.stage.step} of 6: ${f.stage.step_name}`}>
         <div className="flex gap-1">

@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Send } from "@/lib/icons";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { cn, timeAgo } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,11 +16,16 @@ import { errorMessage, fmtDate, type BookingDetail, type WhatsAppState } from "@
 
 const TemplatePickerModal = dynamic(() => import("@/components/inbox/TemplatePickerModal").then(m => m.TemplatePickerModal), { ssr: false });
 
-const QUICK = ["Your driver will call 30 minutes before pickup.", "Sharing the payment link now.", "Your pickup time is confirmed."];
+// Quick replies in the workspace's words: a driver calls only where there is a fleet (lib/segments).
+const quickReplies = (seg: ReturnType<typeof useSegment>) => [
+  seg.ops.fleet ? `Your driver will call 30 minutes before ${seg.start}.` : `We'll call you 30 minutes before ${seg.start}.`,
+  "Sharing the payment link now.", `Your ${seg.start} time is confirmed.`,
+];
 
 export function WhatsAppSheet({ bookingId, open, onClose }: { bookingId: string; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const seg = useSegment();
   const { data: b } = useQuery<BookingDetail>({
     queryKey: ["booking", bookingId], queryFn: () => api.get(`/bookings/${bookingId}`).then(r => r.data), enabled: open,
   });
@@ -63,11 +69,11 @@ export function WhatsAppSheet({ bookingId, open, onClose }: { bookingId: string;
                 ? `${first} wrote ${timeAgo(wa.last_inbound_at)}: the 24-hour window is open, so any message can go.`
                 : `${first} ${wa?.last_inbound_at ? `last wrote ${timeAgo(wa.last_inbound_at)}` : "has not written on WhatsApp yet"}. WhatsApp only allows an approved template until they reply.`}
             </div>
-            <p className="text-[13px] text-[var(--haip-fg-subtle)]">{b.property?.name ?? "No vehicle yet"} · {fmtDate(b.check_in, false)} to {fmtDate(b.check_out, false)}</p>
+            <p className="text-[13px] text-[var(--haip-fg-subtle)]">{b.property?.name ?? `No ${seg.unit.one} yet`} · {fmtDate(b.check_in, false)} to {fmtDate(b.check_out, false)}</p>
             {wa?.window_open && wa.conversation_id ? (
               <>
                 <div className="flex flex-wrap gap-1.5">
-                  {QUICK.map(q => <SheetChip key={q} on={text === q} onClick={() => setText(q)}>{q}</SheetChip>)}
+                  {quickReplies(seg).map(q => <SheetChip key={q} on={text === q} onClick={() => setText(q)}>{q}</SheetChip>)}
                 </div>
                 <label className={sheetLabel}>Message
                   <textarea className={`${sheetInput} min-h-24 py-2`} rows={3} value={text} onChange={e => setText(e.target.value)} placeholder="Type a message" />

@@ -1,6 +1,7 @@
 "use client";
 // Home › Bookings & payments (workspace redesign Phase 2). GET /dashboard/payments (services/dashboard_tabs.py): what live
-// bookings still owe (overdue first), unpaid payment links, deposits held and to give back. Every figure opens its list.
+// bookings still owe (overdue first), unpaid payment links, deposits held and to give back. Every figure opens its list
+// (balances: Bookings; links and deposits: Ops › Money on the matching tab).
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -41,8 +42,12 @@ export function PaymentsTab() {
         <Link href={b.href} className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <Stat label="Due this week" value={amount(b.this_week, r)} hint={sub(b.this_week, r, "bookings, next 7 days")} />
         </Link>
-        <Stat label="Payment links not paid" value={amount(data.links_unpaid, r)} hint={data.links_unpaid.oldest ? `${data.links_unpaid.count} link${data.links_unpaid.count === 1 ? "" : "s"}, oldest ${day(data.links_unpaid.oldest)}` : "none open"} />
-        <Stat label="Deposits to give back" value={amount(data.deposits.to_give_back, r)} hint={`${data.deposits.held.count} held in all`} />
+        <Link href="/dashboard/ops/money?view=owes" className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <Stat label="Payment links not paid" value={amount(data.links_unpaid, r)} hint={data.links_unpaid.oldest ? `${data.links_unpaid.count} link${data.links_unpaid.count === 1 ? "" : "s"}, oldest ${day(data.links_unpaid.oldest)}` : "none open"} />
+        </Link>
+        <Link href="/dashboard/ops/money?view=deposit" className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <Stat label="Deposits to give back" value={amount(data.deposits.to_give_back, r)} hint={`${data.deposits.held.count} held in all`} />
+        </Link>
       </div>
       {r && <p className="text-[13px] text-[var(--haip-fg-subtle)]">Amounts are hidden for your role; counts are shown.</p>}
 

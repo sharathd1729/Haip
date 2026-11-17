@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { Pencil, Truck } from "@/lib/icons";
 import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
@@ -17,6 +18,9 @@ interface Field { key: string; label: string; kind: Kind; wide?: boolean; value:
 export function TripFields({ lead, feed, canEdit }: { lead: LeadDetail; feed?: LeadFeed; canEdit: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const seg = useSegment();
+  const booking = seg.booking.One;   // Trip | Stay
+  const trip_ = seg.sections.bookingDetail.route;  // route + pickup are trip things: villas and other stays have neither
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const trip = feed?.trip ?? {};
@@ -25,7 +29,7 @@ export function TripFields({ lead, feed, canEdit }: { lead: LeadDetail; feed?: L
   const save = useMutation({
     mutationFn: (patch: Record<string, string | number>) => api.patch(`/inquiries/${lead.inquiry_id}`, patch),
     onSuccess: () => {
-      toast({ variant: "success", title: "Trip details saved" });
+      toast({ variant: "success", title: `${booking} details saved` });
       qc.invalidateQueries({ queryKey: ["lead", lead.inquiry_id] });
       qc.invalidateQueries({ queryKey: ["lead-feed", lead.inquiry_id] });
     },
@@ -36,13 +40,13 @@ export function TripFields({ lead, feed, canEdit }: { lead: LeadDetail; feed?: L
   });
 
   const fields: Field[] = [
-    { key: "route_mentioned", label: "Destination / route", kind: "text", value: trip.route ?? "", display: trip.route || "Add", wide: true },
+    ...(trip_ ? [{ key: "route_mentioned", label: "Destination / route", kind: "text", value: trip.route ?? "", display: trip.route || "Add", wide: true } as Field] : []),
     { key: "check_in", label: "Check-in", kind: "date", value: lead.check_in ?? "", display: lead.check_in ? istDate(lead.check_in) : "Add" },
     { key: "check_out", label: "Check-out", kind: "date", value: lead.check_out ?? "", display: lead.check_out ? istDate(lead.check_out) : "Add" },
     { key: "nights", label: "Nights", kind: "text", value: "", display: n == null ? "—" : `${n} night${n === 1 ? "" : "s"}`, readOnly: true },
     { key: "adults", label: "Adults", kind: "number", value: lead.adults ? String(lead.adults) : "", display: lead.adults ? String(lead.adults) : "Add" },
     { key: "children", label: "Children", kind: "number", value: lead.children ? String(lead.children) : "", display: lead.children ? String(lead.children) : "None" },
-    { key: "pickup", label: "Pickup", kind: "text", value: trip.pickup ?? "", display: trip.pickup || "Add" },
+    ...(trip_ ? [{ key: "pickup", label: "Pickup", kind: "text", value: trip.pickup ?? "", display: trip.pickup || "Add" } as Field] : []),
     { key: "guest_location", label: "Guest location (city)", kind: "text", value: lead.guest_location ?? "", display: lead.guest_location || "Add" },
     { key: "budget", label: "Budget (₹)", kind: "number", value: lead.budget_estimate ? String(lead.budget_estimate) : "",
       display: lead.budget_range_label || (lead.budget_estimate ? inr(lead.budget_estimate) : "Add") },
@@ -73,7 +77,7 @@ export function TripFields({ lead, feed, canEdit }: { lead: LeadDetail; feed?: L
   const vehicles = feed?.availability ?? [];
   return (
     <Card>
-      <CardHeader title="Trip" description={canEdit ? "Tap a value to change it" : undefined} />
+      <CardHeader title={booking} description={canEdit ? "Tap a value to change it" : undefined} />
       <CardBody className="grid gap-3 pt-1">
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
           {fields.map(f => (

@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { ExternalLink, IndianRupee, MessageCircle } from "@/lib/icons";
 import { formatINR } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { BottomSheet, RowTag, SheetActions, SheetLine, sheetActionCls } from "@/components/ui/kit";
 import { guestName, isOverdue, nights, shortDay, type AgendaRow } from "@/lib/bookingAgenda";
 
@@ -20,6 +21,7 @@ export function BookingRowSheet({ row, today, canCollect, onClose, onCollect, on
   row: AgendaRow | null; today: string; canCollect: boolean; onClose: () => void;
   onCollect: (id: string) => void; onWhatsApp: (id: string) => void;
 }) {
+  const seg = useSegment();
   if (!row) return null;
   const name = guestName(row);
   const guests = row.adults + row.children;
@@ -42,14 +44,14 @@ export function BookingRowSheet({ row, today, canCollect, onClose, onCollect, on
         <div className="flex flex-wrap gap-1.5">
           {row.property?.name && <RowTag tone="brand">{row.property.name}</RowTag>}
           {guests > 0 && <RowTag>{row.adults} adult{row.adults === 1 ? "" : "s"}{row.children ? `, ${row.children} child${row.children === 1 ? "" : "ren"}` : ""}</RowTag>}
-          <RowTag>{n > 0 ? `${n} night${n === 1 ? "" : "s"}` : "day trip"}</RowTag>
+          <RowTag>{n > 0 ? `${n} night${n === 1 ? "" : "s"}` : seg.dayUse}</RowTag>
           {row.raw_status === "cancelled" && <RowTag tone="danger">Cancelled</RowTag>}
         </div>
         {row.total > 0 ? (
           <div>
             <SheetLine label="Total" value={formatINR(row.total)} strong />
             <SheetLine label="Paid" value={formatINR(row.total_paid)} />
-            {owes && <SheetLine label={overdue ? "Overdue" : "Still due before trip"} value={formatINR(row.total_outstanding)} tone="due" />}
+            {owes && <SheetLine label={overdue ? "Overdue" : `Still due before ${seg.booking.one === "trip" ? "trip" : seg.start}`} value={formatINR(row.total_outstanding)} tone="due" />}
             {owes && row.next_payment_due_date && !overdue && (
               <p className="pt-1 text-[12.5px] text-[var(--haip-fg-subtle)]">Next instalment {formatINR(row.next_payment_amount)} due {shortDay(row.next_payment_due_date)}</p>
             )}

@@ -8,6 +8,7 @@ const post = vi.fn();
 const toast = vi.fn();
 vi.mock("@/lib/api", () => ({ default: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) } }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast }) }));
+vi.mock("@/components/providers/WorkspaceProvider", async (orig) => ({ ...(await orig<object>()), useBusinessType: () => "caravan" }));   // the caravan experience
 vi.mock("next/link", () => ({ default: ({ href, children, ...p }: { href: string; children: React.ReactNode }) => <a href={href} {...p}>{children}</a> }));
 
 import type React from "react";

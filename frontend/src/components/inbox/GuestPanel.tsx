@@ -13,6 +13,7 @@ import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
 import { useToast } from "@/components/ui/toast";
 import { askReason, reasonNeeded, stageErrorText } from "@/lib/stageMove";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { StayCard } from "./StayCard";
 
@@ -96,6 +97,7 @@ interface TeamMember {
 export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDetail; mobileVariant?: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const seg = useSegment();
   const { data: session } = useSession();
   const inquiryId = detail.inquiry_id ?? null;
   const currentUserId = session?.user?.id;
@@ -281,7 +283,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 <div className="haip-card p-3.5 space-y-2" style={{ background: "var(--muted)" }}>
                   <p className="text-[11.5px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
                     <FileText size={11} />
-                    Trip Details
+                    {seg.booking.One} Details
                   </p>
                   <div className="grid grid-cols-2 gap-2 text-[11px]">
                     {guestCountLabel && (

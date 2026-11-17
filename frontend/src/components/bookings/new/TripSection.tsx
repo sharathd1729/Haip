@@ -4,6 +4,7 @@
 import { BTN, Field, INPUT, Stepper } from "@/components/quotes/ui";
 import { StatusPill } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { addDays, clock, cleanNumber, money, nightsBetween, packageLength } from "./helpers";
 import type { BookingForm, ComposeSetup } from "./types";
 import { HINT } from "./ui";
@@ -11,11 +12,12 @@ import { HINT } from "./ui";
 const PICKUPS = ["Koramangala", "HSR Layout", "Indiranagar", "Hebbal", "Whitefield", "Jakkur"];
 
 export function TripSection({ form, set, setup }: { form: BookingForm; set: (patch: Partial<BookingForm>) => void; setup: ComposeSetup }) {
+  const seg = useSegment();
   const pkg = setup.packages.find(p => p.key === form.packageKey);
   const dayTrip = !!form.checkIn && form.checkOut === form.checkIn;
   const n = nightsBetween(form.checkIn, form.checkOut);
   const len = !form.checkIn || !form.checkOut || form.checkOut < form.checkIn ? ""
-    : dayTrip ? `Day trip · ${clock(form.checkInTime)} → ${clock(form.checkOutTime)}`
+    : dayTrip ? `${seg.dayUse[0].toUpperCase()}${seg.dayUse.slice(1)} · ${clock(form.checkInTime)} → ${clock(form.checkOutTime)}`
       : `${n} night${n > 1 ? "s" : ""} · charged as ${Math.max(1, n)} day${n > 1 ? "s" : ""} on per-day packages`;
   const pickPackage = (key: string) => {
     if (key === "__custom") return set({ mode: "custom" });
@@ -39,14 +41,14 @@ export function TripSection({ form, set, setup }: { form: BookingForm; set: (pat
         <select id="nb-pkg" className={INPUT} value={form.mode === "custom" ? "__custom" : form.packageKey} onChange={e => pickPackage(e.target.value)}>
           <option value="">Pick a package</option>
           {setup.packages.map(p => <option key={p.key} value={p.key}>{p.name} · {p.basis === "per_day" ? `${money(p.price)} a day` : money(p.price)}</option>)}
-          <option value="__custom">Custom trip</option>
+          <option value="__custom">Custom {seg.booking.one}</option>
         </select>
       </Field>
-      {form.mode === "fixed" && <p className={HINT}>Same price on both caravans. HAIP holds whichever one is free.</p>}
+      {form.mode === "fixed" && <p className={HINT}>Same price on every {seg.unit.one}. HAIP holds whichever one is free.</p>}
       {form.mode === "custom" && (
         <>
           <div className="grid grid-cols-2 gap-2.5">
-            <Field label="Trip name" htmlFor="nb-ctitle">
+            <Field label={`${seg.booking.One} name`} htmlFor="nb-ctitle">
               <input id="nb-ctitle" className={INPUT} maxLength={120} value={form.customTitle} onChange={e => set({ customTitle: e.target.value })} />
             </Field>
             <Field label="Rate per day (₹)" htmlFor="nb-crate">
@@ -54,7 +56,7 @@ export function TripSection({ form, set, setup }: { form: BookingForm; set: (pat
             </Field>
           </div>
           <p className={HINT}>
-            {Number(setup.custom.included_km_per_day)} km a day and {setup.custom.free_guests} guests are included. Extra guests {money(setup.custom.extra_guest_per_day)} each {setup.custom.extra_guest_unit === "trip" ? "per trip" : "a day"}.
+            {seg.sections.bookingDetail.kmAndDriver ? `${Number(setup.custom.included_km_per_day)} km a day and ` : ""}{setup.custom.free_guests} guests are included. Extra guests {money(setup.custom.extra_guest_per_day)} each {setup.custom.extra_guest_unit === "trip" ? `per ${seg.booking.one}` : "a day"}.
           </p>
         </>
       )}
@@ -62,13 +64,13 @@ export function TripSection({ form, set, setup }: { form: BookingForm; set: (pat
         <Field label="Check-in date" htmlFor="nb-ci">
           <input id="nb-ci" type="date" className={INPUT} min={setup.today} value={form.checkIn} onChange={e => setCheckIn(e.target.value)} />
         </Field>
-        <Field label="Pickup time" htmlFor="nb-cit">
+        <Field label={`${seg.start[0].toUpperCase()}${seg.start.slice(1)} time`} htmlFor="nb-cit">
           <input id="nb-cit" type="time" step={900} className={INPUT} value={form.checkInTime} onChange={e => set({ checkInTime: e.target.value })} />
         </Field>
         <Field label="Check-out date" htmlFor="nb-co">
           <input id="nb-co" type="date" className={INPUT} min={form.checkIn || setup.today} value={form.checkOut} onChange={e => set({ checkOut: e.target.value })} />
         </Field>
-        <Field label="Return time" htmlFor="nb-cot">
+        <Field label={`${seg.end[0].toUpperCase()}${seg.end.slice(1)} time`} htmlFor="nb-cot">
           <input id="nb-cot" type="time" step={900} className={INPUT} value={form.checkOutTime} onChange={e => set({ checkOutTime: e.target.value })} />
         </Field>
       </div>
@@ -76,7 +78,7 @@ export function TripSection({ form, set, setup }: { form: BookingForm; set: (pat
         {len ? <StatusPill tone="info">{len}</StatusPill> : <span className={HINT}>Nights are worked out from the dates.</span>}
         {form.checkIn && !dayTrip && (
           <button type="button" className={BTN} onClick={() => set({ checkOut: form.checkIn, ...(form.checkOutTime <= form.checkInTime ? { checkInTime: "10:00", checkOutTime: "20:00" } : {}) })}>
-            Make it a day trip
+            Make it {seg.dayUse}
           </button>
         )}
       </div>
@@ -84,11 +86,13 @@ export function TripSection({ form, set, setup }: { form: BookingForm; set: (pat
         <Stepper id="nb-guests" label="Guests" value={form.guests} min={1} max={50} onChange={v => set({ guests: v })} />
         <span className={HINT}>{free ? `${free} included. Extra guests are charged per the package.` : "Adults and children together."}</span>
       </div>
-      <Field label="Pickup point" htmlFor="nb-pickup">
-        <input id="nb-pickup" className={INPUT} list="nb-pickups" placeholder="Area or landmark" value={form.pickup} maxLength={200}
-          onChange={e => set({ pickup: e.target.value })} />
-      </Field>
-      <datalist id="nb-pickups">{PICKUPS.map(p => <option key={p} value={p} />)}</datalist>
+      {seg.sections.bookingDetail.route && <>{/* a pickup point is a trip thing: villas and other stays have none */}
+        <Field label="Pickup point" htmlFor="nb-pickup">
+          <input id="nb-pickup" className={INPUT} list="nb-pickups" placeholder="Area or landmark" value={form.pickup} maxLength={200}
+            onChange={e => set({ pickup: e.target.value })} />
+        </Field>
+        <datalist id="nb-pickups">{PICKUPS.map(p => <option key={p} value={p} />)}</datalist>
+      </>}
     </>
   );
 }

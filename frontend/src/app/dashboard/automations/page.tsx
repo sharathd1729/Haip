@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { AutomationsNav } from "@/components/automations/AutomationsNav";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Zap, Plus, CheckCircle2, PauseCircle, XCircle, MessageSquare, Phone, Clock, ChevronRight, AlertCircle, Loader2, Settings2, Pencil, Trash2, X, ChevronDown, Info, CornerDownRight, Tag } from "@/lib/icons";
 import { ToggleLeft, ToggleRight } from "lucide-react";
@@ -654,6 +655,7 @@ export default function AutomationsPage() {
 
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-5 bg-white border-b border-[var(--haip-border)]">
+        <AutomationsNav className="mb-4" />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-[22px] font-bold text-[var(--haip-fg)]">Automations</h1>

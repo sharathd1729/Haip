@@ -21,7 +21,7 @@ export const SECTION_NAMES: Record<SectionType, [string, string]> = {
   hero: ["Top of the page", "Big photo, headline and a WhatsApp button."],
   stays: ["Your stays", "Your caravans, villas or rooms from Properties."],
   booking: ["Check dates", "Guests pick dates and send them to you."],
-  packages: ["Trips and packages", "Your published packages."],
+  packages: ["Packages", "Your published packages."],
   itinerary: ["Day-by-day route", "One published itinerary, day by day."],
   gallery: ["Photos", "Your approved photos."],
   reviews: ["Guest reviews", "Reviews guests agreed to share."],

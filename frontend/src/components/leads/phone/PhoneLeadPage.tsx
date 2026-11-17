@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useSegment } from "@/lib/segments";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -44,6 +45,7 @@ const LIVE_QUOTE = new Set(["issued", "pending_approval", "accepted"]);
 const status = (e: unknown) => (e as { response?: { status?: number } })?.response?.status;
 
 export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
+  const seg = useSegment();
   const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -112,7 +114,7 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
     openQuote: quote ? { amount: quote.amount, validUntil: quote.valid_until, sharedVia: quote.shared_via, status: quote.status } : null,
     booking: booking ? { id: booking.booking_id, outstanding: booking.amount_restricted ? null : booking.outstanding, checkIn: booking.check_in,
       checkOut: booking.check_out, propertyName: booking.property_name } : null,
-    pastBooking: (feed.bookings ?? []).some(b => b.inquiry_id === inquiryId && b.status === "checked_out"),
+    pastBooking: (feed.bookings ?? []).some(b => b.inquiry_id === inquiryId && b.status === "checked_out"), words: seg,
   }) : null;
 
   const message = () => { setTab("activity"); setTimeout(() => composer.current?.focus("whatsapp"), 250); };
@@ -187,7 +189,7 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
         </section>
 
         <Tabs label="Lead sections" value={tab} onChange={v => setTab(v as Tab)} className="w-full [&>button]:flex-1 [&>button]:justify-center [&>button]:px-2"
-          items={[{ value: "activity", label: "Activity" }, { value: "trip", label: "Trip" }, { value: "quotes", label: "Quotes", count: lead.quote_history?.length || undefined },
+          items={[{ value: "activity", label: "Activity" }, { value: "trip", label: seg.booking.One }, { value: "quotes", label: "Quotes", count: lead.quote_history?.length || undefined },
             { value: "evidence", label: "Evidence" }]} />
 
         {tab === "activity" && (

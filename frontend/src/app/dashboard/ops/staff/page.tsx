@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/bookingAgenda";
+import { useSegment } from "@/lib/segments";
 import { canManageOps, DUTY_LABELS, expiryLevel, type OpsStaff } from "@/lib/ops";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +35,8 @@ export default function OpsStaffPage() {
   const { toast } = useToast();
   const role = useSession().data?.user?.role;
   const manage = canManageOps(role);
+  const seg = useSegment();
+  const crew = seg.ops.fleet ? "drivers and helpers" : "caretakers and helpers";
   const [form, setForm] = useState<Form | null>(null);
   const [showAll, setShowAll] = useState(false);
 
@@ -70,7 +73,7 @@ export default function OpsStaffPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-4 sm:p-6">
-      <PageHeader title="Staff" subtitle="Drivers and helpers. They use WhatsApp, not HAIP."
+      <PageHeader title="Staff" subtitle={`${crew[0].toUpperCase()}${crew.slice(1)}. They use WhatsApp, not HAIP.`}
         actions={manage ? <button type="button" className="haip-btn-primary min-h-12" onClick={() => setForm({ ...EMPTY })}>Add a person</button> : undefined} />
       <OpsNav />
       <StaffTabs />
@@ -80,7 +83,7 @@ export default function OpsStaffPage() {
         <Card><EmptyState title="Couldn't load your staff" hint="Check your connection, then try again."
           action={<button type="button" className="haip-btn-primary min-h-12" onClick={() => refetch()}>Try again</button>} /></Card>
       ) : rows.length === 0 ? (
-        <Card><EmptyState title="No staff yet" hint="Add your drivers and helpers so you can put them on trips."
+        <Card><EmptyState title="No staff yet" hint={`Add your ${crew} so you can put them on ${seg.booking.many}.`}
           action={manage ? <button type="button" className="haip-btn-primary min-h-12" onClick={() => setForm({ ...EMPTY })}>Add a person</button> : undefined} /></Card>
       ) : (
         <Card>
@@ -139,7 +142,7 @@ export default function OpsStaffPage() {
             )}
             <label className="flex min-h-11 items-center gap-3 text-[15px]">
               <input type="checkbox" className="size-5" checked={form.optIn} onChange={e => setForm({ ...form, optIn: e.target.checked })} />
-              They agreed to get trip messages on WhatsApp
+              They agreed to get {seg.booking.one} messages on WhatsApp
             </label>
             {form.id && (
               <label className="flex min-h-11 items-center gap-3 text-[15px]">

@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { Calculator, Calendar, CheckSquare, ChevronDown, ChevronLeft, Eye, Flag, LayoutGrid, Phone, Send, Sparkles, User } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/page";
@@ -34,6 +35,7 @@ import { firstName, inr, istDate, nights } from "@/components/leads/lead-page/fo
 import type { LeadActionKey, LeadDetail, LeadFeed, PipelineStage } from "@/components/leads/lead-page/types";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneLeadPage } from "@/components/leads/phone/PhoneLeadPage";
+import { BookingThread } from "@/components/bookings/BookingThread";
 
 const WIDE = "(min-width: 1200px)";
 const LIVE_QUOTE = new Set(["issued", "pending_approval", "accepted"]);
@@ -65,6 +67,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const seg = useSegment();
   const { data: session } = useSession();
   const user = session?.user as { role?: string; id?: string } | undefined;
   const role = user?.role ?? "";
@@ -135,7 +138,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
     openQuote: quote ? { amount: quote.amount, validUntil: quote.valid_until, sharedVia: quote.shared_via, status: quote.status } : null,
     booking: booking ? { id: booking.booking_id, outstanding: booking.amount_restricted ? null : booking.outstanding, checkIn: booking.check_in,
       checkOut: booking.check_out, propertyName: booking.property_name } : null,
-    pastBooking,
+    pastBooking, words: seg,
   };
   // Until the thread is in, the facts are unknown: show no step rather than a wrong one.
   const step = feed ? deriveNextStep(facts) : null;
@@ -205,9 +208,13 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
   const buttons = step ? stepButtons(step, perms).slice(0, 2) : [];
 
   const panel = (
-    <LeadDetailsPanel lead={lead} feed={feed} stages={stages} step={step} temp={temp} perms={perms} run={run} meRole={role}
-      onClose={() => setPanelOpen(false)} onRefresh={() => refresh.mutate()} refreshing={refresh.isPending}
-      onAddSignal={["owner", "manager", "reservations"].includes(role) ? () => setSignalOpen(true) : undefined} />
+    <>
+      {/* The booking this lead became, across modules (money, guest form, ops file, review): Phase 4 linked records. */}
+      {booking && perms.canOpenBookings && <div className="pt-3"><BookingThread bookingId={booking.booking_id} /></div>}
+      <LeadDetailsPanel lead={lead} feed={feed} stages={stages} step={step} temp={temp} perms={perms} run={run} meRole={role}
+        onClose={() => setPanelOpen(false)} onRefresh={() => refresh.mutate()} refreshing={refresh.isPending}
+        onAddSignal={["owner", "manager", "reservations"].includes(role) ? () => setSignalOpen(true) : undefined} />
+    </>
   );
 
   return (
@@ -229,7 +236,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
         </header>
 
         <button type="button" onClick={() => setPanelOpen(true)} className="flex min-h-11 shrink-0 items-center justify-between gap-2 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 py-2 text-left text-[13.5px] text-[var(--haip-fg-2)] min-[1200px]:hidden">
-          <span className="min-w-0 truncate">{trip || "No trip details yet"}{quote ? <> · <strong className="tabular-nums">{inr(quote.amount)}</strong> quoted</> : null}</span>
+          <span className="min-w-0 truncate">{trip || `No ${seg.booking.one} details yet`}{quote ? <> · <strong className="tabular-nums">{inr(quote.amount)}</strong> quoted</> : null}</span>
           <ChevronDown size={14} className="shrink-0" aria-hidden />
         </button>
 
@@ -303,7 +310,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
         { key: "task" as const, label: "Add a task", icon: <CheckSquare size={15} aria-hidden />, onClick: () => setSheet("task") },
         ...(perms.canEdit ? [{ key: "owner" as const, label: "Change owner", hint: `Now: ${lead.assigned_agent_name || "nobody"}`, icon: <User size={15} aria-hidden />, onClick: () => setSheet("owner") }] : []),
         ...(perms.canReveal && hasPhone ? [{ key: "reveal" as const, label: "Show full phone number", hint: "Shown for 30 seconds · logged", icon: <Eye size={15} aria-hidden />, onClick: () => { setSheet(null); reveal.reveal(); } }] : []),
-        { key: "more" as const, label: "Lead details", hint: "Trip, tasks, quotes, contact", onClick: () => { setSheet(null); setPanelOpen(true); } },
+        { key: "more" as const, label: "Lead details", hint: `${seg.booking.One}, tasks, quotes, contact`, onClick: () => { setSheet(null); setPanelOpen(true); } },
       ]} />
     </div>
   );

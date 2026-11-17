@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Loader2 } from "@/lib/icons";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui/kit";
+import { useSegment } from "@/lib/segments";
 
 type Level = "watch" | "suggest" | "act";
 interface Settings {
@@ -24,6 +25,8 @@ const AREA_TEXT: Record<string, { title: string; desc: string }> = {
   replies: { title: "Replies and wording", desc: "Opening line, question order, follow-up style and timing. Tested first, kept only if better." },
   prices: { title: "Prices", desc: "Published prices only; a discount only within your published discount policy, never on peak dates." },
   routes: { title: "Routes and packages", desc: "Published routes; Build Your Own only within the driving limit and with a free vehicle." },
+  // the same area for a stay business: no routes, no driving limit, no vehicles
+  routes_stay: { title: "Packages", desc: "Published packages only; a custom stay only on dates that are free." },
   holds_payments: { title: "Holding dates, payment links", desc: "A manager taps once to send." },
   policy_rules: { title: "Changing a price, policy or discount rule", desc: "Always a suggestion for the owner. Never automatic." },
   ads_budget: { title: "Ads budget", desc: "Suggestions only; Marketing Studio's caps still apply." },
@@ -42,6 +45,8 @@ function Toggle({ label, hint, checked, disabled, onChange }: { label: string; h
 
 export default function LearningSettingsPage() {
   const { data: session } = useSession();
+  const tripWords = useSegment().sections.bookingDetail.route;
+  const text = (key: string) => AREA_TEXT[key === "routes" && !tripWords ? "routes_stay" : key];
   const role = session?.user?.role;
   const canView = role === "owner" || role === "manager";
   const canEdit = role === "owner";
@@ -82,9 +87,9 @@ export default function LearningSettingsPage() {
           <CardBody className="space-y-4">
             {data.areas.map(a => (
               <div key={a.key} className="border-t border-[var(--haip-border)] pt-3 first:border-t-0 first:pt-0">
-                <p className="text-sm font-semibold text-[var(--haip-fg)]">{AREA_TEXT[a.key]?.title ?? a.key} {cfg.areas[a.key] === a.default && <StatusPill tone="neutral">Default</StatusPill>}</p>
-                <p className="mb-2 text-xs text-[var(--haip-fg-subtle)]">{AREA_TEXT[a.key]?.desc}</p>
-                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={AREA_TEXT[a.key]?.title ?? a.key}>
+                <p className="text-sm font-semibold text-[var(--haip-fg)]">{text(a.key)?.title ?? a.key} {cfg.areas[a.key] === a.default && <StatusPill tone="neutral">Default</StatusPill>}</p>
+                <p className="mb-2 text-xs text-[var(--haip-fg-subtle)]">{text(a.key)?.desc}</p>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={text(a.key)?.title ?? a.key}>
                   {LEVELS.filter(l => order.indexOf(l.id) <= order.indexOf(a.max)).map(l => (
                     <button key={l.id} type="button" role="radio" aria-checked={cfg.areas[a.key] === l.id} disabled={!canEdit}
                       onClick={() => set({ areas: { ...cfg.areas, [a.key]: l.id } })}

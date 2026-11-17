@@ -87,7 +87,7 @@ export function HeaderField({ form, patch }: { form: TemplateForm; patch: Patch 
             <div className="mt-2 p-2.5 bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl">
               <p className="text-[11.5px] font-semibold text-[var(--haip-status-warning-fg)] mb-1.5">Example for {`{{1}}`} <span className="font-normal text-[var(--haip-status-warning-fg)]">— Meta needs this to review it</span></p>
               <input value={form.headerExample} onChange={e => patch(f => ({ ...f, headerExample: e.target.value }))}
-                placeholder="e.g. Ratha Retreats"
+                placeholder="e.g. Sunrise Stays"
                 className="w-full px-2.5 py-1.5 border border-[var(--haip-status-warning-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--haip-accent)]/30" />
             </div>
           )}

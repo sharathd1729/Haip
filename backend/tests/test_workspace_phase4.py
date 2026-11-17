@@ -183,3 +183,4 @@ def test_thread_hides_amounts_when_told(db, tenant_and_user):
     out = record_thread.for_booking(db, tid, late, money=False)
     money = next(s for s in out["steps"] if s["key"] == "money")
     assert "₹" not in money["value"] and out["money_restricted"] is True
+

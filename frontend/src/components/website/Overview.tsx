@@ -238,7 +238,7 @@ export function NoSite({ canCreate }: { canCreate: boolean }) {
     onError: e => toast({ variant: "error", title: "Couldn't create the website", description: webError(e, "Try again.") }) });
   return (
     <Card><EmptyState title="Make your website in one tap"
-      hint="HAIP builds it for you from what it already knows: your stays, photos, trips, reviews, questions and contact details. Nobody sees it until you publish."
+      hint="HAIP builds it for you from what it already knows: your stays, photos, packages, reviews, questions and contact details. Nobody sees it until you publish."
       action={canCreate ? <button className={btnPrimary} disabled={create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Making your website…" : "Make my website"}</button>
         : <span className="text-sm">Ask an owner or manager to create it.</span>} /></Card>
   );

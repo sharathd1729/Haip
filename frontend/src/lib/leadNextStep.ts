@@ -30,6 +30,8 @@ export interface NextStepFacts {
   booking?: { id: string; outstanding?: number | null; checkIn?: string | null; checkOut?: string | null; propertyName?: string | null } | null;
   /** This lead has a booking that is over (checked out): a Sold lead with one is done, not missing its booking. */
   pastBooking?: boolean;
+  /** The workspace's words (lib/segments: seg.start, seg.booking); without them, the caravan words. */
+  words?: { start: string; booking: { one: string; One: string } };
   now?: Date;
 }
 
@@ -93,6 +95,7 @@ const withPhone = (f: NextStepFacts, actions: NextStepAction[]) => actions.filte
 export function deriveNextStep(f: NextStepFacts): NextStep {
   const now = f.now ?? new Date();
   const name = f.name || "them";
+  const w = f.words ?? { start: "pickup", booking: { one: "trip", One: "Trip" } };
   const s = f.stage;
   const key = (s.key || "").toLowerCase();
 
@@ -111,11 +114,11 @@ export function deriveNextStep(f: NextStepFacts): NextStep {
         why: `The booking is confirmed but the lead still shows ${s.label || "an open stage"}. Sold keeps reports and reminders right.` };
     }
     if (due > 0) {
-      return { key: "collect_payment", title: `Collect ${inr(due)} before pickup`, tone: "urgent", actions: ["open_booking", "message"],
+      return { key: "collect_payment", title: `Collect ${inr(due)} before ${w.start}`, tone: "urgent", actions: ["open_booking", "message"],
         why: `${what}. Send the payment link from the booking so the dates stay held.` };
     }
     return { key: "booked", title: "Booked — nothing due", tone: "done", actions: ["open_booking"],
-      why: `${what}. The booking is paid; use the booking page for the trip details and the handover.` };
+      why: `${what}. The booking is paid; use the booking page for the ${w.booking.one} details and the handover.` };
   }
   if (s.is_closed_lost || key === "lost") {
     const why = f.lostReason ? `Reason: ${LOST_REASON_LABEL[f.lostReason] ?? f.lostReason}.` : "No reason was recorded.";
@@ -128,7 +131,7 @@ export function deriveNextStep(f: NextStepFacts): NextStep {
   }
 
   if (s.is_closed_won && f.pastBooking) {
-    return { key: "trip_done", title: "Trip done — nothing to do", tone: "done", actions: [],
+    return { key: "trip_done", title: `${w.booking.One} done — nothing to do`, tone: "done", actions: [],
       why: `${name}'s booking is over. A new enquiry from them opens a new lead.` };
   }
   if (s.is_closed_won) {
@@ -189,7 +192,7 @@ export function deriveNextStep(f: NextStepFacts): NextStep {
   }
   if (s.category === "invalid" || key === "general_enquiry" || key === "rnr") {
     return { key: "qualify", title: key === "rnr" ? `Try ${name} once more` : `Call ${name} to qualify`, tone: "normal",
-      actions: withPhone(f, ["call", "stage"]), why: "Confirm the dates, group size and pickup, then move the lead to Active." };
+      actions: withPhone(f, ["call", "stage"]), why: `Confirm the dates, group size and ${w.start}, then move the lead to Active.` };
   }
   return { key: "send_quote_new", title: `Send ${name} a quote`, tone: "normal", actions: withPhone(f, ["quote", "call"]),
     why: "No quote has gone out on this lead yet." };

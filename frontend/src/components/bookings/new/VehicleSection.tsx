@@ -3,6 +3,7 @@
 // times (the server's rule); the interior (Black / White) and staff notes go to the booking's staff notes.
 import { BTN, Chip, Field, INPUT } from "@/components/quotes/ui";
 import { StatusPill } from "@/components/ui/kit";
+import { useSegment } from "@/lib/segments";
 import { clock, day } from "./helpers";
 import type { BookingForm, ComposeSetup, Preview } from "./types";
 import { HINT, Note, Opt } from "./ui";
@@ -12,6 +13,7 @@ const PILL = { free: ["success", "Vacant"], tight: ["warning", "Tight"], booked:
 export function VehicleSection({ form, set, setup, preview }: {
   form: BookingForm; set: (patch: Partial<BookingForm>) => void; setup: ComposeSetup; preview: Preview | undefined;
 }) {
+  const seg = useSegment();
   const v = preview?.vehicles ?? null;
   const rows = v?.vehicles ?? [];
   const chosen = form.vehicle === "auto" ? null : rows.find(r => r.property_id === form.vehicle) ?? null;
@@ -19,9 +21,9 @@ export function VehicleSection({ form, set, setup, preview }: {
   const holdingRow = holding ? rows.find(r => r.property_id === holding.property_id) : null;
   return (
     <>
-      {!v && <p className={HINT}>Pick the dates and times first. HAIP then shows which caravan is free.</p>}
-      <div className="grid gap-2" role="radiogroup" aria-label="Caravan">
-        <Opt on={form.vehicle === "auto"} onClick={() => set({ vehicle: "auto" })} title="First free caravan"
+      {!v && <p className={HINT}>Pick the dates and times first. HAIP then shows which {seg.unit.one} is free.</p>}
+      <div className="grid gap-2" role="radiogroup" aria-label={seg.unit.One}>
+        <Opt on={form.vehicle === "auto"} onClick={() => set({ vehicle: "auto" })} title={`First free ${seg.unit.one}`}
           sub={v ? (v.auto ? `${v.auto.name} will be held for these dates` : "None free on these dates")
             : `${setup.vehicles.map(x => x.name).join(", or ")} if the first is taken`}
           right={v?.auto ? <StatusPill tone="success">{v.auto.name}</StatusPill> : undefined} />
@@ -49,8 +51,8 @@ export function VehicleSection({ form, set, setup, preview }: {
         </Note>
       )}
       {form.vehicle === "auto" && v && !v.auto && v.message && <Note tone="bad"><span data-testid="clash-message">{v.message}</span></Note>}
-      {holdingRow?.state === "tight" && holdingRow.message && <Note tone="warn">{holdingRow.message} Tell ops, or move the pickup later.</Note>}
-      <div className="grid gap-1">
+      {holdingRow?.state === "tight" && holdingRow.message && <Note tone="warn">{holdingRow.message} Tell ops, or move the {seg.start} later.</Note>}
+      {seg.ops.fleet && <div className="grid gap-1">{/* Black / White interior: caravans only */}
         <span className="text-xs font-semibold text-[var(--haip-fg-2)]">Interior</span>
         <div className="flex flex-wrap gap-1.5">
           {(["Black", "White", ""] as const).map(x => (
@@ -60,7 +62,7 @@ export function VehicleSection({ form, set, setup, preview }: {
             </Chip>
           ))}
         </div>
-      </div>
+      </div>}
       <Field label="Staff notes (team only)" htmlFor="nb-notes">
         <textarea id="nb-notes" className={`${INPUT} min-h-[72px] py-2`} rows={2} maxLength={2000} value={form.notes}
           placeholder="Anything ops should know: occasion, food, early start" onChange={e => set({ notes: e.target.value })} />

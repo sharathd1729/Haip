@@ -21,7 +21,7 @@ import { OPS_READ_ROLES } from "@/lib/ops";
 import { SOPS_READ_ROLES } from "@/lib/sops";
 import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBusinessType, usePersonalMode } from "@/components/providers/WorkspaceProvider";
-import { OPS_BUSINESS_TYPES } from "@/lib/segments";
+import { OPS_BUSINESS_TYPES, segmentFor } from "@/lib/segments";
 import { useInboxStore } from "@/store/inbox";
 
 export type NavIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
@@ -116,7 +116,7 @@ export const NAV_SECTIONS: NavSection[] = [
   ] },
   // Ops module: every segment with an ops pack (lib/segments.ts). Roster and alert chain: owner/manager (ops.manage).
   { key: "ops", title: "Ops", icon: I["/dashboard/ops"], links: [
-    { label: "Today and trip files", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
+    { label: "Today and {booking} files", href: "/dashboard/ops", icon: I["/dashboard/ops"], resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
     { label: "Money", href: "/dashboard/ops/money", icon: Wallet, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: OPS_BUSINESS_TYPES },
     { label: "Vehicle map", href: "/dashboard/ops/map", icon: MapPin, resource: "inbox", onlyRoles: OPS_READ_ROLES, onlyForBusinessTypes: ["caravan"] },
     { label: "Who is on duty", href: "/dashboard/ops/staff/duty", icon: CalendarClock, resource: "inbox", onlyRoles: MANAGERS, onlyForBusinessTypes: STAFF_TYPES },
@@ -214,9 +214,11 @@ export function areaFor(sections: NavSection[], pathname: string, search = ""): 
 }
 
 function filterSection(s: NavSection, role: string, businessType: string | null | undefined): NavSection {
+  const booking = segmentFor(businessType).booking.one;   // "{booking}" in a label = the segment's word: trip | stay
   const keep = (l: NavLink) => isVisible(l, role, businessType);
-  const groups = s.groups?.map(g => ({ ...g, links: g.links.filter(keep) })).filter(g => g.links.length > 0);
-  return { ...s, links: s.links.filter(keep), ...(groups ? { groups } : {}) };
+  const word = (l: NavLink) => (l.label.includes("{booking}") ? { ...l, label: l.label.replace("{booking}", booking) } : l);
+  const groups = s.groups?.map(g => ({ ...g, links: g.links.filter(keep).map(word) })).filter(g => g.links.length > 0);
+  return { ...s, links: s.links.filter(keep).map(word), ...(groups ? { groups } : {}) };
 }
 
 /** Everything the shell needs: visible areas, a lookup by href, live badge counts, the active area and the active test. */

@@ -41,6 +41,23 @@ def quiet():
         yield type("Q", (), {"conf": conf, "cancel": cancel, "text": text, "tmpl": tmpl})
 
 
+@pytest.fixture(autouse=True)
+def caravan(w, db):
+    """These are Ratha's caravan flows: the workspace's words (trip, pickup, Black / White) follow its business type."""
+    w.t.business_type = "caravan"
+    db.commit()
+
+
+def test_a_villa_gets_stay_words_and_no_caravan_warnings(client, db, w):
+    w.t.business_type = "villa"
+    db.commit()
+    r = client.post(f"{API}/preview", json=body(package_key=None, pickup=None), headers=_h(w.res))
+    assert r.status_code == 200, r.text
+    texts = " ".join(x["message"] for x in r.json()["problems"] + r.json()["warnings"])
+    assert "Pick a package, or Custom stay." in texts
+    assert "pickup" not in texts.lower() and "Black or White" not in texts and "caravan" not in texts.lower()
+
+
 def body(**kw):
     b = {"start_scratch": True, "mode": "fixed", "package_key": "coorg-48", "check_in": CI.isoformat(),
          "check_out": (CI + timedelta(days=2)).isoformat(), "check_in_time": "12:00", "check_out_time": "12:00", "guests": 5,

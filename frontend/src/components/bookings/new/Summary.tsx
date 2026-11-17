@@ -8,6 +8,7 @@ import { Check, X } from "@/lib/icons";
 import { BTN, BTN_PRIMARY } from "@/components/quotes/ui";
 import { Card, CardBody } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { clock, day, firstName, masked, money, nightsBetween, span } from "./helpers";
 import type { BookingForm, ComposeReceipt, ComposeSetup, CreateError, Preview, Problem, Section } from "./types";
 import { HINT, Note } from "./ui";
@@ -26,6 +27,7 @@ function Row({ k, v, sub }: { k: string; v: ReactNode; sub?: ReactNode }) {
 }
 
 export function SummaryRows({ form, setup, preview }: SumProps) {
+  const seg = useSegment();
   const g = form.guest;
   const name = g?.name || form.newGuest?.name || (form.newGuest ? "New guest" : "");
   const pkg = form.mode === "custom" ? form.customTitle : setup.packages.find(p => p.key === form.packageKey)?.name;
@@ -38,10 +40,10 @@ export function SummaryRows({ form, setup, preview }: SumProps) {
     <div className="grid" data-testid="summary">
       <Row k="Guest" v={name || <span className="font-semibold text-[var(--haip-status-danger-fg)]">Not picked</span>}
         sub={g ? `${masked(g.phone_last4)} · ${g.tag}` : form.newGuest ? `new, came from ${src ?? ""}` : undefined} />
-      <Row k="Trip" v={pkg || <span className="font-semibold text-[var(--haip-status-danger-fg)]">No package</span>}
-        sub={form.checkIn && form.checkOut ? `${day(form.checkIn)} ${clock(form.checkInTime)} → ${day(form.checkOut)} ${clock(form.checkOutTime)} · ${n ? `${n} night${n > 1 ? "s" : ""}` : "day trip"} · ${form.guests} guests${form.pickup ? ` · ${form.pickup}` : ""}` : "Dates not picked"} />
-      <Row k="Caravan" v={preview?.vehicle ? `${preview.vehicle.name}${form.vehicle === "auto" ? " (first free)" : ""}` : preview?.vehicles ? "None free" : "After dates"}
-        sub={form.interior ? `Interior: ${form.interior}` : "Interior not picked"} />
+      <Row k={seg.booking.One} v={pkg || <span className="font-semibold text-[var(--haip-status-danger-fg)]">No package</span>}
+        sub={form.checkIn && form.checkOut ? `${day(form.checkIn)} ${clock(form.checkInTime)} → ${day(form.checkOut)} ${clock(form.checkOutTime)} · ${n ? `${n} night${n > 1 ? "s" : ""}` : seg.dayUse} · ${form.guests} guests${form.pickup ? ` · ${form.pickup}` : ""}` : "Dates not picked"} />
+      <Row k={seg.unit.One} v={preview?.vehicle ? `${preview.vehicle.name}${form.vehicle === "auto" ? " (first free)" : ""}` : preview?.vehicles ? "None free" : "After dates"}
+        sub={!seg.ops.fleet ? undefined : form.interior ? `Interior: ${form.interior}` : "Interior not picked"} />
       <Row k="Add-ons" v={on.length ? on.map(a => a.name.replace(/ \(.+\)/, "")).join(", ") : "None"} />
       <Row k="Price" v={<b className="num">{money(p?.total ?? 0)}</b>}
         sub={p ? `${Number(p.gst) ? `${money(p.gst)} GST ${p.prices_include_gst ? "included" : "added"}` : "No GST"}${p.discount ? ` · ${p.discount.percent}% off` : ""}${p.override ? ` · changed: ${form.overrideReason || "no reason yet"}` : ""}` : undefined} />
@@ -87,6 +89,7 @@ function StillNeeded({ problems, showErr, onJump, underline }: { problems: Probl
 export function SummaryAside({ problems, showErr, onJump, onCreate, creating, createError, ...rest }: SumProps & {
   problems: Problem[]; showErr: boolean; onJump: (s: Section) => void; onCreate: () => void; creating: boolean; createError?: CreateError | null;
 }) {
+  const unit = useSegment().unit.one;
   const s = rest.preview?.schedule;
   const due = rest.form.advanceDue || s?.advance_due;
   return (
@@ -101,7 +104,7 @@ export function SummaryAside({ problems, showErr, onJump, onCreate, creating, cr
           </div>
           {createError && <CreateFailed error={createError} onJump={onJump} />}
           {problems.length ? <StillNeeded problems={problems} showErr={showErr} onJump={onJump} />
-            : <Note tone="ok">Ready. {rest.preview?.vehicle?.name ?? "The caravan"} is free and held while you create.</Note>}
+            : <Note tone="ok">Ready. {rest.preview?.vehicle?.name ?? `The ${unit}`} is free and held while you create.</Note>}
           <button type="button" className={cn(BTN_PRIMARY, "min-h-[50px] w-full text-[15.5px]")} onClick={onCreate} disabled={creating}>
             {creating ? "Creating…" : "Create booking"}
           </button>
@@ -133,6 +136,7 @@ export function BottomBar({ problems, showErr, preview, form, onReview }: {
 export function ReviewSheet({ problems, onJump, onClose, onCreate, creating, createError, ...rest }: SumProps & {
   problems: Problem[]; onJump: (s: Section) => void; onClose: () => void; onCreate: () => void; creating: boolean; createError?: CreateError | null;
 }) {
+  const unit = useSegment().unit.one;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.focus();
@@ -161,7 +165,7 @@ export function ReviewSheet({ problems, onJump, onClose, onCreate, creating, cre
         <div className="sticky bottom-0 z-[2] flex items-center gap-2.5 border-t border-[var(--haip-border)] bg-[var(--haip-app-bg)] pb-[calc(10px+env(safe-area-inset-bottom))] pt-2.5">
           <div className="grid min-w-0 flex-1">
             <b className="num font-[family-name:var(--font-display)] text-[20px]">{money(preview?.schedule.total ?? 0)}</b>
-            <span className="truncate text-[12.5px] text-[var(--haip-fg-subtle)]">{preview?.vehicle?.name ?? "No caravan"} · {form.checkIn ? span(form.checkIn, form.checkOut || form.checkIn) : "no dates"}</span>
+            <span className="truncate text-[12.5px] text-[var(--haip-fg-subtle)]">{preview?.vehicle?.name ?? `No ${unit}`} · {form.checkIn ? span(form.checkIn, form.checkOut || form.checkIn) : "no dates"}</span>
           </div>
           <button type="button" className={cn(BTN_PRIMARY, "min-h-[50px] text-[15.5px]")} onClick={onCreate} disabled={creating}>{creating ? "Creating…" : "Create booking"}</button>
         </div>

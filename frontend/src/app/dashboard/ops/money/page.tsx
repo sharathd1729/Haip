@@ -5,6 +5,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { rupees } from "@/lib/ops";
@@ -51,7 +52,8 @@ export default function OpsMoneyPage() {
   const now = new Date();
   const months = [-2, -1, 0, 1, 2].map(n => monthKey(new Date(now.getFullYear(), now.getMonth() + n, 1)));
   const [month, setMonth] = useState(months[2]);
-  const [view, setView] = useState<View>("owes");
+  const asked = useSearchParams().get("view");  // dashboard tiles open a tab: ?view=owes|deposit|paid|payments
+  const [view, setView] = useState<View>(asked === "deposit" || asked === "paid" || asked === "payments" ? asked : "owes");
   const [paying, setPaying] = useState<Row | null>(null);
   const { data, isPending, isError, refetch } = useQuery<Board>({
     queryKey: ["ops-money", month], queryFn: () => api.get("/ops/money", { params: { month } }).then(r => r.data), staleTime: 30_000,

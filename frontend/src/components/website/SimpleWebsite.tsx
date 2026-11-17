@@ -69,7 +69,7 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
       {!isNew && draft.doc && (
         <Card><CardBody className="grid gap-3 sm:flex sm:items-center sm:justify-between">
           <div><p className="font-semibold">Let HAIP make your website</p>
-            <p className="text-sm text-[var(--haip-fg-muted)]">One tap. It uses your stays, photos, trips, reviews and contact details. Nobody sees it until you publish.</p></div>
+            <p className="text-sm text-[var(--haip-fg-muted)]">One tap. It uses your stays, photos, packages, reviews and contact details. Nobody sees it until you publish.</p></div>
           {canApprove && <button className={btnPrimary} disabled={make.isPending} onClick={() => make.mutate()}>{make.isPending ? "Making your website…" : "Make my website"}</button>}
         </CardBody></Card>
       )}
@@ -114,7 +114,7 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
           </div>
           {trips.length > 0 && (
             <Card><CardBody className="grid gap-2">
-              <p className="text-sm font-semibold">{trips.length === 1 ? "1 trip is" : `${trips.length} trips are`} saved as a draft, so guests can&apos;t see {trips.length === 1 ? "it" : "them"}</p>
+              <p className="text-sm font-semibold">{trips.length === 1 ? "1 package is" : `${trips.length} packages are`} saved as a draft, so guests can&apos;t see {trips.length === 1 ? "it" : "them"}</p>
               <p className="text-sm text-[var(--haip-fg-muted)]">{trips.map(d => d.name).join(", ")}</p>
               <button className={btnPrimary} disabled={publishDrafts.isPending} onClick={() => publishDrafts.mutate()}>{publishDrafts.isPending ? "Publishing…" : "Publish them"}</button>
             </CardBody></Card>

@@ -94,7 +94,7 @@ const SEVERITY: Record<Severity, { label: string; tone: Tone; stripe: string }> 
 const LANES: { id: Lane; title: string; hint: string; icon: React.ReactNode }[] = [
   { id: "now",   title: "Call now",                 hint: "they asked, called, or just arrived", icon: <Flame size={14} /> },
   { id: "today", title: "Reply or follow up today", hint: "still a good chance",                 icon: <MessageCircle size={14} /> },
-  { id: "chase", title: "Chase when free",          hint: "gone quiet, no details or trip over",  icon: <Clock size={14} /> },
+  { id: "chase", title: "Chase when free",          hint: "gone quiet, no details or dates gone",icon: <Clock size={14} /> },
 ];
 // The score badge takes its lane's colour, so the order reads at a glance.
 const SCORE_CLS: Record<Lane, string> = {

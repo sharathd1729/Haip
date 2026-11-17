@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { BOOKING_READ_ROLES } from "@/lib/permissions";
 import { ArrowRight, Calendar, Users } from "@/lib/icons";
 import { StatusPill, type Tone } from "@/components/ui/page";
@@ -36,14 +37,20 @@ const PAY: Record<string, { label: string; tone: Tone }> = {
 
 export function StayCard({ guestId, role }: { guestId?: string | null; role?: string }) {
   const allowed = !!guestId && !!role && (BOOKING_READ_ROLES as string[]).includes(role);
+  const seg = useSegment();
   const { data } = useQuery<{ data: BookingRow[] }>({
     queryKey: ["guest-bookings", guestId],
     queryFn: () => api.get("/bookings", { params: { guest_id: guestId, per_page: 20 } }).then(r => r.data),
     enabled: allowed,
     staleTime: 60_000,
   });
+  const pick = allowed ? pickStay(data?.data ?? [], todayIst()) : null;
+  // The same booking's guest form and ops file (GET /bookings/{id}/thread, record_thread): Phase 4 linked records.
+  const thread = useQuery<{ steps: { key: string; label: string; value: string; state: string; href: string | null }[] }>({
+    queryKey: ["booking-thread", pick?.row.id], queryFn: () => api.get(`/bookings/${pick!.row.id}/thread`).then(r => r.data),
+    enabled: !!pick, staleTime: 60_000,
+  });
   if (!allowed) return null;
-  const pick = pickStay(data?.data ?? [], todayIst());
   if (!pick) return null;
   const { row, when } = pick;
   const n = nights(row.checkin, row.checkout);
@@ -51,14 +58,16 @@ export function StayCard({ guestId, role }: { guestId?: string | null; role?: st
   const pay = row.payment_overdue ? { label: "Payment overdue", tone: "danger" as Tone } : PAY[row.payment_status ?? ""];
   const sym = row.currency?.symbol || "₹";
 
+  const extra = (thread.data?.steps ?? []).filter(st => st.key === "form" || st.key === "ops");
   return (
+    <div className="space-y-2">
     <Link href={`/dashboard/bookings/${row.id}`}
       className="block overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--primary)_22%,transparent)] bg-[var(--haip-primary-tint)] transition-shadow hover:shadow-[var(--haip-shadow-md)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
       <div className="flex items-center justify-between gap-2 px-3.5 pt-3">
         <span className="text-[12px] font-semibold text-primary">{when === "today" ? "Arrives today" : when === "now" ? "Staying now" : "Booked"}</span>
         {pay && <StatusPill tone={pay.tone}>{pay.label}</StatusPill>}
       </div>
-      <p className="px-3.5 pt-1 font-[family-name:var(--font-display)] text-[17px] font-semibold leading-tight text-[var(--haip-fg)]">{row.property?.name || "Vehicle not picked yet"}</p>
+      <p className="px-3.5 pt-1 font-[family-name:var(--font-display)] text-[17px] font-semibold leading-tight text-[var(--haip-fg)]">{row.property?.name || `${seg.unit.One} not picked yet`}</p>
       <div className="space-y-1 px-3.5 pb-3 pt-1.5 text-[13px] text-[var(--haip-fg-2)]">
         <p className="flex items-center gap-1.5"><Calendar size={13} className="shrink-0 text-[var(--haip-icon-neutral)]" />{day(row.checkin)} → {day(row.checkout)}<span className="text-[var(--haip-fg-subtle)]">· {n} night{n === 1 ? "" : "s"}</span></p>
         {people && <p className="flex items-center gap-1.5"><Users size={13} className="shrink-0 text-[var(--haip-icon-neutral)]" />{people}</p>}
@@ -72,5 +81,15 @@ export function StayCard({ guestId, role }: { guestId?: string | null; role?: st
         <span className="inline-flex items-center gap-1 font-semibold text-primary">Open<ArrowRight size={13} /></span>
       </div>
     </Link>
+    {extra.length > 0 && (
+      <div className="flex flex-wrap gap-2">
+        {extra.map(st => {
+          const body = <><span className="font-semibold text-[var(--haip-fg)]">{st.label}</span><span className={st.state === "done" ? "text-[var(--haip-status-success-fg)]" : "text-[var(--haip-fg-subtle)]"}>{st.value}</span></>;
+          const cls = "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[13px]";
+          return st.href ? <Link key={st.key} href={st.href} className={`${cls} hover:bg-[var(--haip-surface)]`}>{body}</Link> : <span key={st.key} className={cls}>{body}</span>;
+        })}
+      </div>
+    )}
+    </div>
   );
 }

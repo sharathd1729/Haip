@@ -171,7 +171,7 @@ export const KIND_SPECS: KindSpec[] = [
   },
   {
     kind: "payment_policy", label: "Payment terms", plural: "Payment terms", singleton: true,
-    blurb: "Advance and balance. Cannot be published until Ratha confirms the terms.",
+    blurb: "Advance and balance. Cannot be published until the owner confirms the terms.",
     summary: d => `${s(d.advance_percent)}% advance · balance ${s(d.balance_due_days_before_checkin)} days before`,
     fields: [
       { k: "decimal", name: "advance_percent", label: "Advance", required: true, unit: "%" },
@@ -185,7 +185,7 @@ export const KIND_SPECS: KindSpec[] = [
         { value: "payment_link", label: "Payment link" }, { value: "upi", label: "UPI" }, { value: "card", label: "Card" },
         { value: "bank_transfer", label: "Bank transfer" }, { value: "cash", label: "Cash" }] },
       { k: "int", name: "payment_link_expiry_hours", label: "Payment link valid for (hours)", min: 1, max: 720 },
-      { k: "bool", name: "confirmed_by_ratha", label: "Ratha has confirmed these terms", hint: "Tick only when Ratha has confirmed them. The AI never states unconfirmed terms." },
+      { k: "bool", name: "confirmed_by_ratha", label: "The owner has confirmed these terms", hint: "Tick only when the owner has confirmed them. The AI never states unconfirmed terms." },
     ],
   },
   {
@@ -198,7 +198,7 @@ export const KIND_SPECS: KindSpec[] = [
         { k: "decimal", name: "refund_percent", label: "Refund", required: true, unit: "%" },
       ] },
       { k: "tags", name: "non_refundable_items", label: "Never refunded", placeholder: "e.g. Booking fee" },
-      { k: "bool", name: "confirmed_by_ratha", label: "Ratha has confirmed these terms", hint: "Tick only when Ratha has confirmed them." },
+      { k: "bool", name: "confirmed_by_ratha", label: "The owner has confirmed these terms", hint: "Tick only when the owner has confirmed them." },
     ],
   },
   {
@@ -239,6 +239,17 @@ export const KIND_SPECS: KindSpec[] = [
 ];
 
 export const SPEC_BY_KIND: Record<string, KindSpec> = Object.fromEntries(KIND_SPECS.map(k => [k.kind, k]));
+
+// Kilometres, vehicles, destinations and itineraries are trip (caravan) things: a villa or other stay never sees them.
+const TRIP_FIELDS = new Set(["included_km", "included_km_per_day", "vehicle_property_ids", "extra_km_charge", "destination_keys"]);
+const TRIP_KINDS = new Set(["destination", "itinerary"]);
+
+/** The kinds and fields a workspace edits: everything for trips (segment route on), the stay subset otherwise. */
+export function specsFor(trip: boolean): { kinds: KindSpec[]; byKind: Record<string, KindSpec> } {
+  if (trip) return { kinds: KIND_SPECS, byKind: SPEC_BY_KIND };
+  const kinds = KIND_SPECS.filter(k => !TRIP_KINDS.has(k.kind)).map(k => ({ ...k, fields: k.fields.filter(f => !TRIP_FIELDS.has(f.name)) }));
+  return { kinds, byKind: Object.fromEntries(kinds.map(k => [k.kind, k])) };
+}
 
 export type Json = Record<string, unknown>;
 
