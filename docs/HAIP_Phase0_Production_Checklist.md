@@ -285,6 +285,13 @@ SELECT relrowsecurity FROM pg_class WHERE relname = 'meta_quality_snapshots';
 protect yet. If it exists and `relrowsecurity` is `false`, it holds per-tenant WhatsApp quality data without RLS; it is covered by
 proposed migration 118.
 
+## 4b. Restricted database role (optional, after 118 is live)
+
+`backend/scripts/create_app_db_role.py` prints (dry run) or creates (`--apply`, with `ADMIN_DATABASE_URL` = table owner and
+`APP_DB_PASSWORD`) the role `haip_app`: NOSUPERUSER NOBYPASSRLS, owns nothing, row read/write only. Only once step 0's verifier
+passes **connected as that role** and the no-tenant-context work above is audited may the API's `DATABASE_URL` switch to it;
+migrations and startup `create_all` must keep using the owner URL (the role cannot create tables).
+
 ## 8. After release
 
 - `$dc logs --since 15m worker 2>&1 | grep -iE "error|unregistered"` — nothing new.

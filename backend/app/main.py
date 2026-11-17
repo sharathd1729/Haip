@@ -133,7 +133,7 @@ app.add_middleware(
     allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Idempotency-Key"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Idempotency-Key", "X-HAIP-Workspace"],
     expose_headers=["Content-Length", "X-Request-ID", "Retry-After", "X-RateLimit-Reset"],
 )
 

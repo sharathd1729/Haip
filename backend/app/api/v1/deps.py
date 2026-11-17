@@ -13,7 +13,41 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
+WORKSPACE_HEADER = "X-HAIP-Workspace"
+_SLUGS: dict[str, tuple[float, str | None]] = {}   # tenant_id -> (fetched at, slug); slugs change rarely
+_SLUG_TTL = 300.0
+
+
+def _tenant_slug(db: Session, tenant_id: str) -> str | None:
+    import time
+
+    from app.models.tenant import Tenant
+
+    hit = _SLUGS.get(tenant_id)
+    if hit and time.monotonic() - hit[0] < _SLUG_TTL:
+        return hit[1]
+    slug = db.query(Tenant.slug).filter(Tenant.id == tenant_id).scalar()
+    _SLUGS[tenant_id] = (time.monotonic(), slug)
+    return slug
+
+
+def check_workspace(request: Request | None, db: Session, user: User) -> None:
+    """Workspace redesign Phase 0: a page at /w/<slug>/... sends that slug in X-HAIP-Workspace (frontend lib/api.ts).
+    If it names another workspace than the signed-in one (a tab left open on workspace A after signing in to B, or a
+    pasted link), refuse with 409 ``wrong_workspace`` instead of quietly showing or changing B's data under A's address.
+    No header (other pages, scripts, the public API, the mobile app) = no check; data is always the token's tenant."""
+    wanted = (request.headers.get(WORKSPACE_HEADER) or "").strip().lower() if request is not None else ""
+    if not wanted:
+        return
+    mine = _tenant_slug(db, user.tenant_id)
+    if mine and wanted != mine.lower():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail={"error": "wrong_workspace", "message": "This page belongs to another workspace.",
+                                    "workspace": mine})
+
+
 def get_current_user(
+    request: Request = None,  # FastAPI injects it; None when called directly (auth.py)
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -29,6 +63,7 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     set_tenant_context(db, user.tenant_id)
+    check_workspace(request, db, user)
     return user
 
 
@@ -58,6 +93,7 @@ def get_current_user_flexible(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     set_tenant_context(db, user.tenant_id)
+    check_workspace(request, db, user)
     return user
 
 
