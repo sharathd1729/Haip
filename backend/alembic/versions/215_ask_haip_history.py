@@ -5,6 +5,7 @@ Yaad's. The table already has tenant_id and its RLS policy. Idempotent (producti
 Revision ID: 215
 Revises: 214
 """
+
 from alembic import op
 
 revision = "215"
@@ -16,8 +17,10 @@ depends_on = None
 def upgrade():
     op.execute("ALTER TABLE ask_haip_freeform_queries ADD COLUMN IF NOT EXISTS session_id VARCHAR(40)")
     op.execute("ALTER TABLE ask_haip_freeform_queries ADD COLUMN IF NOT EXISTS narrative TEXT")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_ask_haip_freeform_queries_tenant_session "
-               "ON ask_haip_freeform_queries (tenant_id, session_id)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_ask_haip_freeform_queries_tenant_session "
+        "ON ask_haip_freeform_queries (tenant_id, session_id)"
+    )
 
 
 def downgrade():

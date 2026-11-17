@@ -1,5 +1,6 @@
 """scripts/create_app_db_role.py (workspace redesign Phase 0): dry run by default, never prints the password, refuses to
 apply without the admin URL and a strong password, and the role it makes cannot bypass row-level security."""
+
 import importlib.util
 import pathlib
 

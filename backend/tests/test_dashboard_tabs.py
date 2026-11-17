@@ -1,4 +1,5 @@
 """Home dashboard tabs (workspace redesign Phase 2): Bookings & payments and Ops (services/dashboard_tabs.py)."""
+
 import os
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -39,15 +40,29 @@ def _h(tu):
 
 
 def _role(db, tid, role):
-    u = User(id=str(uuid.uuid4()), tenant_id=tid, name=role, email=f"{role}-{uuid.uuid4().hex[:6]}@t.com",
-             hashed_password=get_password_hash("pw"), role=UserRole(role), is_active=True)
+    u = User(
+        id=str(uuid.uuid4()),
+        tenant_id=tid,
+        name=role,
+        email=f"{role}-{uuid.uuid4().hex[:6]}@t.com",
+        hashed_password=get_password_hash("pw"),
+        role=UserRole(role),
+        is_active=True,
+    )
     db.add(u)
     db.commit()
     return {"Authorization": "Bearer " + create_access_token({"sub": u.id, "tenant_id": tid, "role": role})}
 
 
 def _world(db, tid):
-    p = Property(id=gen_uuid(), tenant_id=tid, name="Cedar Cottage", slug=f"p-{uuid.uuid4().hex[:6]}", type="villa", is_active=True)
+    p = Property(
+        id=gen_uuid(),
+        tenant_id=tid,
+        name="Cedar Cottage",
+        slug=f"p-{uuid.uuid4().hex[:6]}",
+        type="villa",
+        is_active=True,
+    )
     db.add(p)
     db.flush()
 
@@ -55,8 +70,17 @@ def _world(db, tid):
         g = Guest(id=gen_uuid(), tenant_id=tid, name=name, phone=f"+9199{uuid.uuid4().int % 10**8:08d}")
         db.add(g)
         db.flush()
-        s = Stay(id=gen_uuid(), tenant_id=tid, guest_id=g.id, property_id=p.id, check_in=_d(a), check_out=_d(b),
-                 status=status, total_amount=total, channel_source="direct")
+        s = Stay(
+            id=gen_uuid(),
+            tenant_id=tid,
+            guest_id=g.id,
+            property_id=p.id,
+            check_in=_d(a),
+            check_out=_d(b),
+            status=status,
+            total_amount=total,
+            channel_source="direct",
+        )
         db.add(s)
         db.flush()
         if paid:
@@ -67,11 +91,19 @@ def _world(db, tid):
     db.add(StayInstalment(tenant_id=tid, stay_id=late.id, label="Balance", amount=30000, due_date=_d(-2)))
     soon = stay("Vikram Kulkarni", 3, 5, 20000, paid=5000)
     db.add(StayInstalment(tenant_id=tid, stay_id=soon.id, label="Balance", amount=15000, due_date=_d(4)))
-    stay("Meera Pillai", 10, 12, 18000, paid=18000)                       # paid in full: not listed
+    stay("Meera Pillai", 10, 12, 18000, paid=18000)  # paid in full: not listed
     gone = stay("Fatima Shaikh", -4, -1, 12000, paid=12000, status="checked_out")
     db.add(StayDeposit(tenant_id=tid, stay_id=gone.id, amount=5000, status="held"))
-    db.add(StayPaymentLink(tenant_id=tid, stay_id=soon.id, external_id="plink_1", short_url="https://rzp.io/x",
-                           amount=15000, status="created"))
+    db.add(
+        StayPaymentLink(
+            tenant_id=tid,
+            stay_id=soon.id,
+            external_id="plink_1",
+            short_url="https://rzp.io/x",
+            amount=15000,
+            status="created",
+        )
+    )
     db.commit()
     return p, late, soon
 
@@ -118,7 +150,14 @@ def test_payments_endpoint_roles(client, db, tenant_and_user):
 
 def test_ops_board_id_forms_and_reviews(client, db, tenant_and_user):
     tid = _tid(tenant_and_user)
-    p = Property(id=gen_uuid(), tenant_id=tid, name="Hilltop Villa", slug=f"p-{uuid.uuid4().hex[:6]}", type="villa", is_active=True)
+    p = Property(
+        id=gen_uuid(),
+        tenant_id=tid,
+        name="Hilltop Villa",
+        slug=f"p-{uuid.uuid4().hex[:6]}",
+        type="villa",
+        is_active=True,
+    )
     db.add(p)
     db.flush()
     stays = []
@@ -126,8 +165,17 @@ def test_ops_board_id_forms_and_reviews(client, db, tenant_and_user):
         g = Guest(id=gen_uuid(), tenant_id=tid, name=name, phone=f"+9198{uuid.uuid4().int % 10**8:08d}")
         db.add(g)
         db.flush()
-        s = Stay(id=gen_uuid(), tenant_id=tid, guest_id=g.id, property_id=p.id, check_in=_d(day), check_out=_d(day + 2),
-                 status="confirmed", total_amount=10000, channel_source="direct")
+        s = Stay(
+            id=gen_uuid(),
+            tenant_id=tid,
+            guest_id=g.id,
+            property_id=p.id,
+            check_in=_d(day),
+            check_out=_d(day + 2),
+            status="confirmed",
+            total_amount=10000,
+            channel_source="direct",
+        )
         db.add(s)
         db.flush()
         stays.append(s)
@@ -137,20 +185,46 @@ def test_ops_board_id_forms_and_reviews(client, db, tenant_and_user):
         db.add(f)
         db.flush()
         files.append(f)
-    db.add(OpsGuestForm(id=str(uuid.uuid4()), tenant_id=tid, file_id=files[0].id, stay_id=stays[0].id, nonce="n",
-                        token_hash=uuid.uuid4().hex, submitted_at=datetime.now(UTC)))
-    db.add(OpsGuestForm(id=str(uuid.uuid4()), tenant_id=tid, file_id=files[1].id, stay_id=stays[1].id, nonce="n",
-                        token_hash=uuid.uuid4().hex))
-    for f, resp in zip(files, ("5", "2", None), strict=True):          # one ask per stay file
-        db.add(OpsAutoMessage(tenant_id=tid, file_id=f.id, kind="review_request", recipient="guest", status="sent",
-                              sent_at=datetime.now(UTC) - timedelta(days=3), response=resp))
+    db.add(
+        OpsGuestForm(
+            id=str(uuid.uuid4()),
+            tenant_id=tid,
+            file_id=files[0].id,
+            stay_id=stays[0].id,
+            nonce="n",
+            token_hash=uuid.uuid4().hex,
+            submitted_at=datetime.now(UTC),
+        )
+    )
+    db.add(
+        OpsGuestForm(
+            id=str(uuid.uuid4()),
+            tenant_id=tid,
+            file_id=files[1].id,
+            stay_id=stays[1].id,
+            nonce="n",
+            token_hash=uuid.uuid4().hex,
+        )
+    )
+    for f, resp in zip(files, ("5", "2", None), strict=True):  # one ask per stay file
+        db.add(
+            OpsAutoMessage(
+                tenant_id=tid,
+                file_id=f.id,
+                kind="review_request",
+                recipient="guest",
+                status="sent",
+                sent_at=datetime.now(UTC) - timedelta(days=3),
+                response=resp,
+            )
+        )
     db.commit()
     with patch("app.services.vehicle_pool.placeholder_ids", return_value=[]):
         r = client.get("/api/v1/dashboard/ops-board", headers=_h(tenant_and_user))
     assert r.status_code == 200, r.text
     a = r.json()["arrivals"]
     assert a["count"] == 3 and a["id_forms"] == {"submitted": 1, "waiting": 1, "not_sent": 1}
-    assert a["missing_within_48h"] == 1                                    # Sneha (day 2) has a form she has not filled
+    assert a["missing_within_48h"] == 1  # Sneha (day 2) has a form she has not filled
     assert a["items"][0]["href"] == f"/dashboard/ops/files/{files[0].id}"
     rv = r.json()["reviews"]
     assert (rv["asked"], rv["answered"], rv["rated"], rv["average"], rv["low"]) == (3, 2, 2, 3.5, 1)

@@ -55,8 +55,11 @@ def file_money(file_id: str, user: User = Depends(_read), db: Session = Depends(
 
 
 @router.get("/money")
-def money_board(month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"), user: User = Depends(_read),
-                db: Session = Depends(get_db)):
+def money_board(
+    month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    user: User = Depends(_read),
+    db: Session = Depends(get_db),
+):
     from app.services.booking_agenda_service import tenant_today
 
     money = "bookings.read" in get_capabilities(db, user)

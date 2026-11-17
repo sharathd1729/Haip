@@ -8,10 +8,11 @@ const get = vi.fn();
 const post = vi.fn();
 const put = vi.fn();
 vi.mock("@/lib/api", () => ({ default: {
-  // the file's Money card and journey strip read their own data (/money, /thread); every other read goes to the test's mock
+  // the file's Money card and journey strip and add-ons card read their own data (/money, /thread, /addons); every other read goes to the test's mock
   get: (...a: unknown[]) => (String(a[0]).endsWith("/money")
     ? Promise.resolve({ data: { booking_id: "s1", schedule: [], next_due: null, lines: [] } })
-    : String(a[0]).endsWith("/thread") ? Promise.resolve({ data: { steps: [], linked: [] } }) : get(...a)), post: (...a: unknown[]) => post(...a), put: (...a: unknown[]) => put(...a),
+    : String(a[0]).endsWith("/thread") ? Promise.resolve({ data: { steps: [], linked: [] } })
+    : String(a[0]).endsWith("/addons") ? Promise.resolve({ data: { orders: [] } }) : get(...a)), post: (...a: unknown[]) => post(...a), put: (...a: unknown[]) => put(...a),
 } }));
 const session = vi.hoisted(() => ({ role: "manager" }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { role: session.role } }, status: "authenticated" }) }));

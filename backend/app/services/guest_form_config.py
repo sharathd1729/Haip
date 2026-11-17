@@ -42,8 +42,15 @@ def update(db: Session, tenant, actor_id: str | None, new: GuestFormConfig) -> d
         cfg = dict(tenant.brand_config or {})
         cfg[KEY] = after
         tenant.brand_config = cfg
-        append_audit(db, tenant_id=tenant.id, actor_user_id=actor_id, action="ops.guest_form_changed",
-                     target_type="tenant", target_id=tenant.id, payload={"changes": changes})
+        append_audit(
+            db,
+            tenant_id=tenant.id,
+            actor_user_id=actor_id,
+            action="ops.guest_form_changed",
+            target_type="tenant",
+            target_id=tenant.id,
+            payload={"changes": changes},
+        )
     return changes
 
 

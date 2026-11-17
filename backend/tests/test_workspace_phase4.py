@@ -1,5 +1,6 @@
 """Workspace redesign Phase 4: the workspace's own guest details form (guest_form_config), one stay's money ledger and
 Ops › Money (ops_money_board), and a booking's thread across modules (record_thread)."""
+
 import uuid
 from datetime import timedelta
 
@@ -24,7 +25,12 @@ from tests.test_ops_guest_form import OK
 pytestmark = pytest.mark.usefixtures("capabilities_seeded")
 
 Q_PET = {"id": "pet00001", "label": "Bringing a pet?", "kind": "yesno", "required": True}
-Q_TIME = {"id": "time0001", "label": "What time will you reach?", "kind": "choice", "options": ["Before 2 pm", "2 to 6 pm"]}
+Q_TIME = {
+    "id": "time0001",
+    "label": "What time will you reach?",
+    "kind": "choice",
+    "options": ["Before 2 pm", "2 to 6 pm"],
+}
 
 
 def _h(tu):
@@ -49,14 +55,24 @@ def test_defaults_ask_what_the_form_always_asked():
 
 def test_switched_off_questions_are_not_checked_or_kept_and_own_questions_are():
     cfg = GuestFormConfig(emergency="off", food="off", age="req", questions=[Q_PET, Q_TIME])
-    body = {**OK, "emergency_name": "", "emergency_phone": "", "food": "veg", "answers": {"pet00001": "YES", "time0001": "2 to 6 pm",
-                                                                                           "zzz": "ignored"}}
+    body = {
+        **OK,
+        "emergency_name": "",
+        "emergency_phone": "",
+        "food": "veg",
+        "answers": {"pet00001": "YES", "time0001": "2 to 6 pm", "zzz": "ignored"},
+    }
     d = gf.build(GuestFormIn(**body), cfg=cfg)
     assert d["emergency_name"] == "" and d["food"] == ""
-    assert d["answers"] == [{"id": "pet00001", "label": "Bringing a pet?", "kind": "yesno", "value": "Yes"},
-                            {"id": "time0001", "label": "What time will you reach?", "kind": "choice", "value": "2 to 6 pm"}]
+    assert d["answers"] == [
+        {"id": "pet00001", "label": "Bringing a pet?", "kind": "yesno", "value": "Yes"},
+        {"id": "time0001", "label": "What time will you reach?", "kind": "choice", "value": "2 to 6 pm"},
+    ]
     with pytest.raises(HTTPException) as e:
-        gf.build(GuestFormIn(**{**body, "guests": [{**OK["guests"][0], "age": ""}], "answers": {"time0001": "Midnight"}}), cfg=cfg)
+        gf.build(
+            GuestFormIn(**{**body, "guests": [{**OK["guests"][0], "age": ""}], "answers": {"time0001": "Midnight"}}),
+            cfg=cfg,
+        )
     assert "age is required" in e.value.detail and "Please answer: Bringing a pet?" in e.value.detail
     assert "choose one of the options" in e.value.detail
 
@@ -77,11 +93,16 @@ def test_config_endpoint_saves_audits_and_needs_ops_manage(client, db, tenant_an
     body = {**GuestFormConfig().model_dump(), "food": "off", "questions": [Q_PET], "welcome": "Help us  get ready"}
     r = client.put("/api/v1/ops/guest-form/config", json=body, headers=_h(tenant_and_user))
     assert r.status_code == 200, r.text
-    assert r.json()["config"]["welcome"] == "Help us get ready" and r.json()["changed"] == ["food", "questions", "welcome"]
+    assert r.json()["config"]["welcome"] == "Help us get ready" and r.json()["changed"] == [
+        "food",
+        "questions",
+        "welcome",
+    ]
     assert db.query(AuditEvent).filter_by(tenant_id=tid, action="ops.guest_form_changed").count() == 1
     assert client.put("/api/v1/ops/guest-form/config", json=body, headers=_role(db, tid, "foh")).status_code == 403
-    assert client.patch("/api/v1/tenants/me", json={"brand_config": {"guest_form": {}}},
-                        headers=_h(tenant_and_user)).status_code in (400, 403, 422)
+    assert client.patch(
+        "/api/v1/tenants/me", json={"brand_config": {"guest_form": {}}}, headers=_h(tenant_and_user)
+    ).status_code in (400, 403, 422)
 
 
 def test_config_is_per_workspace(db, tenant_and_user):
@@ -117,13 +138,36 @@ def test_stay_ledger_lists_every_dated_line(db):
     stay = _stay(db, t, prop(db, t.id, "Ratha 1"))
     f = trips.ensure_file(db, t.id, stay)
     today = tenant_today(db, t.id)
-    db.add(StayPayment(tenant_id=t.id, stay_id=stay.id, kind="payment", amount=12000, method="upi", reference="UTR431892",
-                       paid_on=today - timedelta(days=3)))
-    db.add(StayPaymentLink(tenant_id=t.id, stay_id=stay.id, external_id="plink_9", short_url="https://rzp.io/a", amount=5000,
-                           status="created"))
+    db.add(
+        StayPayment(
+            tenant_id=t.id,
+            stay_id=stay.id,
+            kind="payment",
+            amount=12000,
+            method="upi",
+            reference="UTR431892",
+            paid_on=today - timedelta(days=3),
+        )
+    )
+    db.add(
+        StayPaymentLink(
+            tenant_id=t.id,
+            stay_id=stay.id,
+            external_id="plink_9",
+            short_url="https://rzp.io/a",
+            amount=5000,
+            status="created",
+        )
+    )
     db.add(StayAddOn(tenant_id=t.id, stay_id=stay.id, name="Bonfire", quantity=2, unit_price=1250))
-    db.add(OpsExpense(tenant_id=t.id, file_id=f.id, category="groceries", amount=3150, bill_date=today - timedelta(days=1)))
-    db.add(StayInstalment(tenant_id=t.id, stay_id=stay.id, label="Advance", amount=12000, due_date=today - timedelta(days=5)))
+    db.add(
+        OpsExpense(tenant_id=t.id, file_id=f.id, category="groceries", amount=3150, bill_date=today - timedelta(days=1))
+    )
+    db.add(
+        StayInstalment(
+            tenant_id=t.id, stay_id=stay.id, label="Advance", amount=12000, due_date=today - timedelta(days=5)
+        )
+    )
     db.commit()
     out = ops_money_board.stay_ledger(db, f)
     kinds = {line["kind"]: line for line in out["lines"]}
@@ -183,4 +227,3 @@ def test_thread_hides_amounts_when_told(db, tenant_and_user):
     out = record_thread.for_booking(db, tid, late, money=False)
     money = next(s for s in out["steps"] if s["key"] == "money")
     assert "₹" not in money["value"] and out["money_restricted"] is True
-

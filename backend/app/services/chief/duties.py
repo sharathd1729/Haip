@@ -34,36 +34,81 @@ def duties(db: Session, tenant, user) -> list[dict]:
     chief_on = chief_settings.get(tenant).enabled
     analyst = analyst_settings.get(tenant)
     brief_on = (user.notification_prefs or {}).get("morning_brief_email", True) is not False
-    last_check = (db.query(func.max(Insight.last_seen_at))
-                  .filter(Insight.tenant_id == tenant.id, Insight.category_code.in_(list(catalogue.BY_CODE))).scalar()
-                  if catalogue.BY_CODE else None)
-    waiting = db.query(ChiefProposal).filter(ChiefProposal.tenant_id == tenant.id,
-                                             ChiefProposal.status == "awaiting_approval").count()
-    newest_plan = (db.query(func.max(ChiefProposal.created_at)).filter(ChiefProposal.tenant_id == tenant.id).scalar())
+    last_check = (
+        db.query(func.max(Insight.last_seen_at))
+        .filter(Insight.tenant_id == tenant.id, Insight.category_code.in_(list(catalogue.BY_CODE)))
+        .scalar()
+        if catalogue.BY_CODE
+        else None
+    )
+    waiting = (
+        db.query(ChiefProposal)
+        .filter(ChiefProposal.tenant_id == tenant.id, ChiefProposal.status == "awaiting_approval")
+        .count()
+    )
+    newest_plan = db.query(func.max(ChiefProposal.created_at)).filter(ChiefProposal.tenant_id == tenant.id).scalar()
     weekly = reports.list_reports(db, tenant.id, "weekly_brief", 1)
-    checked = db.query(ChiefProposal).filter(ChiefProposal.tenant_id == tenant.id, ChiefProposal.outcome.isnot(None),
-                                             ChiefProposal.updated_at >= datetime.now(UTC) - timedelta(days=30)).count()
+    checked = (
+        db.query(ChiefProposal)
+        .filter(
+            ChiefProposal.tenant_id == tenant.id,
+            ChiefProposal.outcome.isnot(None),
+            ChiefProposal.updated_at >= datetime.now(UTC) - timedelta(days=30),
+        )
+        .count()
+    )
     return [
-        {"key": "morning_brief", "title": "Morning brief",
-         "what": "Yesterday in numbers, today's arrivals and what's at risk, by email. An evening check follows at 7 pm.",
-         "when": "Every day, 8:00 am", "on": brief_on, "on_note": "your email" if brief_on else "switched off for you",
-         "last": None, "href": "/dashboard/settings?tab=notifications"},
-        {"key": "watch_list", "title": "Watch list",
-         "what": "Leads not contacted, chats waiting, quotes about to expire, balances due before check-in, ID forms missing, "
-                 "low reviews, campaign cost spikes, a channel or integration down.",
-         "when": "Every 5 minutes, full pass at 6:30 am", "on": chief_on, "on_note": None if chief_on else "the Executive is off",
-         "last": _iso(last_check), "href": "/dashboard/analyst"},
-        {"key": "proposals", "title": "Proposals to approve",
-         "what": "Plans to fix what it finds: send a reminder, reassign a lead, move a stage. Nothing runs without your tap.",
-         "when": "As it finds something", "on": chief_on, "on_note": f"{waiting} waiting for you" if chief_on else "the Executive is off",
-         "last": _iso(newest_plan), "count": waiting, "href": "/dashboard/analyst?tab=changes"},
-        {"key": "weekly_review", "title": "Weekly review",
-         "what": "Wins, losses, what changed and three suggestions for the week ahead.",
-         "when": f"Mondays, {analyst.weekly.time}", "on": bool(analyst.enabled and analyst.weekly.on),
-         "on_note": None if analyst.enabled else "the analyst is off",
-         "last": weekly[0]["created_at"] if weekly else None, "href": "/dashboard/analyst?tab=brief"},
-        {"key": "explains", "title": "Explains itself",
-         "what": "Every alert and plan says why, with the records behind it; each finished fix is checked again 14 days later.",
-         "when": "With every finding and plan", "on": chief_on, "on_note": None,
-         "last": None, "count": checked, "href": "/dashboard/analyst?tab=history"},
+        {
+            "key": "morning_brief",
+            "title": "Morning brief",
+            "what": "Yesterday in numbers, today's arrivals and what's at risk, by email. An evening check follows at 7 pm.",
+            "when": "Every day, 8:00 am",
+            "on": brief_on,
+            "on_note": "your email" if brief_on else "switched off for you",
+            "last": None,
+            "href": "/dashboard/settings?tab=notifications",
+        },
+        {
+            "key": "watch_list",
+            "title": "Watch list",
+            "what": "Leads not contacted, chats waiting, quotes about to expire, balances due before check-in, ID forms missing, "
+            "low reviews, campaign cost spikes, a channel or integration down.",
+            "when": "Every 5 minutes, full pass at 6:30 am",
+            "on": chief_on,
+            "on_note": None if chief_on else "the Executive is off",
+            "last": _iso(last_check),
+            "href": "/dashboard/analyst",
+        },
+        {
+            "key": "proposals",
+            "title": "Proposals to approve",
+            "what": "Plans to fix what it finds: send a reminder, reassign a lead, move a stage. Nothing runs without your tap.",
+            "when": "As it finds something",
+            "on": chief_on,
+            "on_note": f"{waiting} waiting for you" if chief_on else "the Executive is off",
+            "last": _iso(newest_plan),
+            "count": waiting,
+            "href": "/dashboard/analyst?tab=changes",
+        },
+        {
+            "key": "weekly_review",
+            "title": "Weekly review",
+            "what": "Wins, losses, what changed and three suggestions for the week ahead.",
+            "when": f"Mondays, {analyst.weekly.time}",
+            "on": bool(analyst.enabled and analyst.weekly.on),
+            "on_note": None if analyst.enabled else "the analyst is off",
+            "last": weekly[0]["created_at"] if weekly else None,
+            "href": "/dashboard/analyst?tab=brief",
+        },
+        {
+            "key": "explains",
+            "title": "Explains itself",
+            "what": "Every alert and plan says why, with the records behind it; each finished fix is checked again 14 days later.",
+            "when": "With every finding and plan",
+            "on": chief_on,
+            "on_note": None,
+            "last": None,
+            "count": checked,
+            "href": "/dashboard/analyst?tab=history",
+        },
     ]
