@@ -46,7 +46,7 @@ export function LaunchPanel({ canApprove, isNew, onDraft }: { canApprove: boolea
       {st === "ready" && <p className="text-sm">Done: a new draft has the {job.data?.language === "hi" ? "Hindi" : ""} words. Open the preview, add /hi to the address to read them, then publish.
         {job.data?.result?.left_in_english.length ? ` ${job.data.result.left_in_english.length} text(s) stayed in English.` : ""}</p>}
       {st === "failed" && <p className="text-sm">{job.data?.error}</p>}
-      <p className="text-xs text-[var(--haip-fg-muted)]">Only the words you wrote are translated. Stays, trips, reviews and prices come from HAIP and stay as they are.</p>
+      <p className="text-xs text-[var(--haip-fg-muted)]">Only the words you wrote are translated. Stays, packages, reviews and prices come from HAIP and stay as they are.</p>
     </CardBody></Card>
   );
 }

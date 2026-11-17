@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill, type Tone } from "@/components/ui/kit";
@@ -56,6 +57,7 @@ function BriefView({ b, tracking }: { b: Brief; tracking?: { code: string; whats
 }
 
 export function StrategyTab() {
+  const unit = useSegment().unit;
   const { data: session } = useSession();
   const role = session?.user?.role;
   const canApprove = role === "owner" || role === "manager";
@@ -87,7 +89,7 @@ export function StrategyTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader title="Theme radar" description="Top themes for the next 4-8 weeks, scored 0-100 from season, your leads, Google, platforms, past posts, competitor gaps, free vehicles and novelty." />
+        <CardHeader title="Theme radar" description={`Top themes for the next 4-8 weeks, scored 0-100 from season, your leads, Google, platforms, past posts, competitor gaps, free ${unit.many} and novelty.`} />
         <CardBody>
           {radar.isLoading ? <Skeleton className="h-24 w-full" /> : radar.isError ? <EmptyState title="Could not load the radar" hint={studioError(radar.error, "Try again.")} />
             : !radar.data?.top.length ? <p className="text-sm text-[var(--haip-fg-subtle)]">No themes in the next 8 weeks. Add dates to the season calendar below.</p> : (
@@ -113,7 +115,7 @@ export function StrategyTab() {
           <form className="grid gap-2 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); ask.mutate(); }}>
             <p className="font-semibold sm:col-span-2">Shoot brief: {form.theme}</p>
             <input className={inputCls} type="date" aria-label="Shoot date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-            <input className={inputCls} placeholder="Vehicle (e.g. Ratha 1)" value={form.vehicle} onChange={e => setForm({ ...form, vehicle: e.target.value })} />
+            <input className={inputCls} placeholder={unit.One} value={form.vehicle} onChange={e => setForm({ ...form, vehicle: e.target.value })} />
             <input className={inputCls} placeholder="Route or location" value={form.route} onChange={e => setForm({ ...form, route: e.target.value })} />
             <input className={inputCls} placeholder="Who is coming (couple, family...)" value={form.people} onChange={e => setForm({ ...form, people: e.target.value })} />
             <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={form.collab} onChange={e => setForm({ ...form, collab: e.target.checked })} /> With a creator</label>

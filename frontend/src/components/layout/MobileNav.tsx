@@ -67,7 +67,7 @@ export function MobileNav({ user }: MobileNavProps) {
   );
 }
 
-/** The full menu on phones: every page the person can open, grouped like the desktop "More" menu, plus their account. */
+/** The full menu on phones: every page the person can open, by area like the desktop rail (Settings in its groups), plus their account. */
 export function MobileMenuSheet({ open, onClose, user }: { open: boolean; onClose: () => void; user?: MobileNavProps["user"] }) {
   const nav = useNav(user?.role ?? "");
   const { theme } = useBrandTheme();
@@ -90,21 +90,28 @@ export function MobileMenuSheet({ open, onClose, user }: { open: boolean; onClos
         </div>
         <nav aria-label="All pages" className="flex-1 px-3 pb-3">
           {nav.sections.map(section => (
-            <div key={section.title} className="mb-3">
-              <p className="px-2 pb-1 pt-2 text-[12px] font-semibold text-[var(--haip-fg-subtle)]">{section.title}</p>
-              {section.links.map(link => {
-                const active = nav.isActive(link.href);
-                const n = nav.badge(link.href);
-                return (
-                  <Link key={link.href} href={link.href} onClick={onClose} aria-current={active ? "page" : undefined}
-                    className={cn("mb-0.5 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors",
-                      active ? "bg-[var(--haip-tabbar-active-bg)] font-semibold text-[var(--haip-tabbar-active-fg)]" : "text-[var(--haip-fg)] active:bg-[var(--hover-bg)]")}>
-                    <link.icon size={18} className={active ? "text-primary" : "text-[var(--haip-icon-neutral)]"} />
-                    <span className="flex-1">{link.label}</span>
-                    {n > 0 && <span className="num rounded-full bg-[var(--haip-accent)] px-2 text-[11px] font-bold leading-5 text-[var(--haip-on-accent)]">{n > 99 ? "99+" : n}</span>}
-                  </Link>
-                );
-              })}
+            <div key={section.key ?? section.title} className="mb-3">
+              <p className="flex items-center gap-2 px-2 pb-1 pt-2 text-[12px] font-semibold text-[var(--haip-fg-subtle)]">
+                {section.icon && <section.icon size={14} />}{section.title}
+              </p>
+              {(section.groups ?? [{ title: "", links: section.links }]).map(group => (
+                <div key={group.title || "pages"}>
+                  {group.title && <p className="px-3 pb-0.5 pt-1.5 text-[11.5px] font-medium text-[var(--haip-fg-subtle)]">{group.title}</p>}
+                  {group.links.map(link => {
+                    const active = nav.isCurrent(link.href, section.links.map(l => l.href));
+                    const n = nav.badge(link.href);
+                    return (
+                      <Link key={link.href} href={link.href} onClick={onClose} aria-current={active ? "page" : undefined}
+                        className={cn("mb-0.5 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors",
+                          active ? "bg-[var(--haip-tabbar-active-bg)] font-semibold text-[var(--haip-tabbar-active-fg)]" : "text-[var(--haip-fg)] active:bg-[var(--hover-bg)]")}>
+                        <link.icon size={18} className={active ? "text-primary" : "text-[var(--haip-icon-neutral)]"} />
+                        <span className="flex-1">{link.label}</span>
+                        {n > 0 && <span className="num rounded-full bg-[var(--haip-accent)] px-2 text-[11px] font-bold leading-5 text-[var(--haip-on-accent)]">{n > 99 ? "99+" : n}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           ))}
         </nav>
@@ -113,6 +120,12 @@ export function MobileMenuSheet({ open, onClose, user }: { open: boolean; onClos
             <UserAvatar name={user?.name} photoUrl={me?.avatar_url} size="md" className="size-10" />
             <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-semibold">{user?.name ?? "User"}</p><p className="truncate text-[12.5px] text-[var(--haip-fg-subtle)]">{user?.email ?? ""}</p></div>
           </div>
+          {!nav.personal && nav.account.map(link => (
+            <Link key={link.href} href={link.href} onClick={onClose}
+              className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-[15px] text-[var(--haip-fg)] active:bg-[var(--hover-bg)]">
+              <link.icon size={17} className="text-[var(--haip-icon-neutral)]" />{link.label}
+            </Link>
+          ))}
           <button type="button" onClick={() => { clearTokenCache(); signOut({ redirect: false }).then(() => window.location.assign(nav.personal ? "/yaad/login" : "/login")); }}
             className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-[15px] font-semibold text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]">
             <LogOut size={17} />Sign out

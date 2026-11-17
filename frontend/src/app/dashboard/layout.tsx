@@ -1,6 +1,8 @@
 import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeader } from "@/components/layout/MobileHeader";
-import { HybridTopNav } from "@/components/shell/HybridTopNav";
+import { RailNav } from "@/components/shell/RailNav";
+import { CommandBar } from "@/components/shell/CommandBar";
+import { AskHaipLauncher } from "@/components/shell/AskHaipLauncher";
 import { YaadSideNav } from "@/components/personal/YaadSideNav";
 import { NotForYaad } from "@/components/personal/NotForYaad";
 import { redirect } from "next/navigation";
@@ -73,11 +75,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
       >
         {/* Yaad (personal workspace) on desktop: a left sidebar; renders nothing for business workspaces */}
         <YaadSideNav user={user} />
-        {/* ── Main column (Hospitality Hybrid: no sidebar; a top bar on desktop, header + bottom bar on phones) ── */}
+        {/* Desktop: icon rail with the eight areas + the current area's pages (workspace redesign, direction C) */}
+        <div className="hidden md:flex">
+          <RailNav user={user} />
+        </div>
+        {/* ── Main column (a command bar on desktop; header + bottom bar on phones) ── */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Desktop top bar */}
+          {/* Desktop command bar: Ask HAIP and search in one box, notifications, the account menu */}
           <div className="hidden md:block">
-            <HybridTopNav user={user} />
+            <CommandBar user={user} />
           </div>
 
           {/* Mobile header */}
@@ -111,6 +117,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* ── Mobile bottom nav (fixed, outside flow) ─────────────── */}
         <MobileNav user={user} />
       </div>
+
+      {/* Ask HAIP on every page (owners): floating button + side panel */}
+      <NotForYaad><AskHaipLauncher user={user} /></NotForYaad>
 
       {/* SSE bridge — rendered once, outside layout columns */}
       <NotForYaad><DashboardSSEBridge /></NotForYaad>

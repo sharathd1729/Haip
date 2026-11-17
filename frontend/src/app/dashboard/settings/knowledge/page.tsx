@@ -692,7 +692,7 @@ function KnowledgeAndTrainingTab() {
                   value={form.content}
                   onChange={(e) => setForm({ ...form, content: e.target.value })}
                   rows={5}
-                  placeholder="Pets are welcome in our garden caravans at no extra charge…"
+                  placeholder="Pets are welcome at no extra charge…"
                   className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
                 />
                 <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">

@@ -89,7 +89,7 @@ export default function InvoiceSettingsPage() {
         <CardHeader title="Your business" description="As registered for GST. Issued invoices keep what was here when they were issued." />
         <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className={cn(label, "sm:col-span-2")}>Legal name
-            <input className={field} value={form.legal_name ?? ""} onChange={text("legal_name")} placeholder="Ratha Journeys LLP" autoComplete="organization" />
+            <input className={field} value={form.legal_name ?? ""} onChange={text("legal_name")} placeholder="Sunrise Stays LLP" autoComplete="organization" />
           </label>
           <label className={label}>GSTIN <span className="font-normal">(leave empty if not registered)</span>
             <input className={cn(field, "uppercase")} value={form.gstin ?? ""} maxLength={15} onChange={text("gstin")} placeholder="29ABCDE1234F1Z5"

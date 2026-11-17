@@ -4,7 +4,9 @@
 // because this bar already names the page, so every route needs a ROUTE_LABELS entry.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAppPathname } from "@/lib/useAppPathname";
+import { useSegment } from "@/lib/segments";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Menu, Sun, Moon, Monitor } from "@/lib/icons";
@@ -18,6 +20,8 @@ const ROUTE_LABELS: Record<string, string> = {
   dashboard:    "Home",
   "my-day":     "My day",
   ops:          "Ops today",
+  money:        "Money",
+  "guest-form": "Guest details form",
   files:        "Trip",
   fleet:        "Fleet",
   staff:        "Staff",
@@ -83,7 +87,7 @@ const ROUTE_LABELS: Record<string, string> = {
   permissions:  "Roles & permissions",
   "saved-replies": "Saved replies",
   targets:      "Targets",
-  analyst:      "AI Executive",
+  analyst:      "HAIP Executive",
   learning:     "AI learning",
   quotes:       "Quotes",
   "whatsapp-personal": "Personal WhatsApp",
@@ -99,14 +103,15 @@ const PATH_LABELS: Record<string, string> = {
 };
 
 function PageTitle() {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const segments = pathname.split("/").filter(Boolean);
+  const tripFlow = useSegment().ops.flow === "trip";   // an ops file is a trip only for caravans; villas and rooms keep a stay
   // Dynamic-id routes (/dashboard/leads/{inquiryId}, /dashboard/calls/{id}, ...) have no label for their last segment
   // (a raw id); walk back to the nearest labelled ancestor instead of showing the id. The page body names the record.
   let label: string | undefined = PATH_LABELS[pathname.replace(/\/$/, "")]
     ?? (pathname.startsWith("/dashboard/me/calls/") ? "Memory" : undefined);  // Yaad: one memory, not HAIP's Calls
   for (let i = segments.length - 1; i >= 0 && !label; i--) {
-    label = ROUTE_LABELS[segments[i]];
+    label = segments[i] === "files" && !tripFlow ? "Stay" : ROUTE_LABELS[segments[i]];
     if (label) break;
   }
   if (!label) {
@@ -148,7 +153,7 @@ function timeAgo(ts: number): string {
 export function MobileHeader({ user }: MobileHeaderProps) {
   const [bellOpen, setBellOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const router = useRouter();
   const items = useNotificationsStore(s => s.items);
   const markAllRead = useNotificationsStore(s => s.markAllRead);

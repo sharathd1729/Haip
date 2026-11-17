@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { BottomSheet } from "@/components/ui/kit";
-import { EXPENSE_LABELS, type ChecklistItem, type OpsFileFull } from "@/lib/ops";
+import { EXPENSE_LABELS, TRIP_ONLY_EXPENSES, type ChecklistItem, type OpsFileFull } from "@/lib/ops";
 
 export type SheetKind = "accept" | "crew" | "dispatch" | "return" | "expense" | "extra" | "item" | null;
 type Submit = (path: string, body?: object, method?: "post" | "put") => Promise<boolean>;
@@ -51,7 +51,7 @@ export function TripSheets({ file, kind, item, onClose, submit, busy }: {
     else if (kind === "crew") setF({ driver: d.driver_staff_id ?? "", helper: d.helper_staff_id ?? "" });
     else if (kind === "dispatch") setF({ km: d.start_odometer_photo_km ? String(d.start_odometer_photo_km) : "" });
     else if (kind === "return") setF({ km: "" });
-    else if (kind === "expense") setF({ category: "fuel", amount: "", vendor: "" });
+    else if (kind === "expense") setF({ category: file.flow === "trip" ? "fuel" : "groceries", amount: "", vendor: "" });
     else if (kind === "extra") setF({ kind: "upsell", label: "", amount: "" });
     else if (kind === "item") setF({ note: "" });   // a new answer starts a new note (the old one is shown above)
     // Only when a sheet opens: a background refetch of the file must not wipe what the person is typing.
@@ -108,11 +108,11 @@ export function TripSheets({ file, kind, item, onClose, submit, busy }: {
       </Shell>
 
       <Shell open={kind === "expense"} onClose={onClose} title="Add an expense" busy={busy} submitLabel="Add"
-        description="Drivers can also send the bill photo on WhatsApp."
+        description={`${file.flow === "trip" ? "Drivers" : "Staff"} can also send the bill photo on WhatsApp.`}
         onSubmit={() => done(submit(`${base}/expenses`, { category: f.category, amount: num(f.amount ?? ""), vendor: f.vendor || undefined }))}>
         <label className={label}>What for
-          <select className={input} value={f.category ?? "fuel"} onChange={set("category")}>
-            {Object.entries(EXPENSE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <select className={input} value={f.category ?? (file.flow === "trip" ? "fuel" : "groceries")} onChange={set("category")}>
+            {Object.entries(EXPENSE_LABELS).filter(([k]) => file.flow === "trip" || !TRIP_ONLY_EXPENSES.includes(k)).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>
         <label className={label}>Amount (₹, GST included)<input className={input} required inputMode="decimal" value={f.amount ?? ""} onChange={set("amount")} /></label>
@@ -125,7 +125,7 @@ export function TripSheets({ file, kind, item, onClose, submit, busy }: {
         <label className={label}>What<input className={input} required value={f.label ?? ""} onChange={set("label")} placeholder="Bonfire kit" /></label>
         <label className={label}>Type
           <select className={input} value={f.kind ?? "upsell"} onChange={set("kind")}>
-            <option value="upsell">Add-on</option><option value="extra_hours">Extra hours</option><option value="extra_route">Extra stop or route</option>
+            <option value="upsell">Add-on</option><option value="extra_hours">Extra hours</option>{file.flow === "trip" && <option value="extra_route">Extra stop or route</option>}
             <option value="extra_guest">Extra guest</option><option value="damage">Damage</option><option value="other">Other</option>
           </select>
         </label>

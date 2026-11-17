@@ -3,6 +3,7 @@
 // (WhatsApp now with the exact text, or later).
 import { Chip, Field, INPUT } from "@/components/quotes/ui";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { cleanNumber, day, firstName, masked, money, termsAdvance } from "./helpers";
 import type { BookingForm, ComposeSetup, Preview } from "./types";
 import { HINT, Note, Opt } from "./ui";
@@ -11,6 +12,7 @@ type SetFn = (patch: Partial<BookingForm>) => void;
 const METHODS = [["upi", "UPI"], ["cash", "Cash"], ["bank_transfer", "Bank transfer"], ["razorpay", "Razorpay"]] as const;
 
 export function PaymentSection({ form, set, setup, preview }: { form: BookingForm; set: SetFn; setup: ComposeSetup; preview: Preview | undefined }) {
+  const seg = useSegment();
   const s = preview?.schedule;
   const adv = Number(s?.advance ?? 0);
   const bal = Number(s?.balance ?? 0);
@@ -39,7 +41,7 @@ export function PaymentSection({ form, set, setup, preview }: { form: BookingFor
         </Field>
         <Field label="Balance due" htmlFor="nb-bal">
           <select id="nb-bal" className={INPUT} value={form.balanceRule} onChange={e => set({ balanceRule: e.target.value as BookingForm["balanceRule"] })}>
-            <option value="pickup">Before pickup</option>
+            <option value="pickup">Before {seg.start}</option>
             <option value="7_days">7 days before</option>
           </select>
         </Field>
@@ -54,7 +56,7 @@ export function PaymentSection({ form, set, setup, preview }: { form: BookingFor
         </div>
         {bal > 0 && (
           <div className="flex items-center justify-between gap-2.5 border-t border-[var(--haip-border)] px-3 py-2">
-            <span>Balance<span className="block text-[12.5px] text-[var(--haip-fg-subtle)]">due {day(s?.balance_due)}{form.balanceRule === "pickup" ? ", before the caravan leaves" : ""}</span></span>
+            <span>Balance<span className="block text-[12.5px] text-[var(--haip-fg-subtle)]">due {day(s?.balance_due)}{form.balanceRule === "pickup" ? `, before ${seg.start}` : ""}</span></span>
             <b>{money(bal)}</b>
           </div>
         )}
@@ -66,7 +68,7 @@ export function PaymentSection({ form, set, setup, preview }: { form: BookingFor
           </Field>
           <Field label="Collect" htmlFor="nb-depw">
             <select id="nb-depw" className={INPUT} value={form.depositCollect} onChange={e => set({ depositCollect: e.target.value as BookingForm["depositCollect"] })}>
-              <option value="pickup">At pickup</option>
+              <option value="pickup">At {seg.start}</option>
               <option value="balance">With the balance</option>
             </select>
           </Field>
@@ -110,6 +112,7 @@ export function PaymentSection({ form, set, setup, preview }: { form: BookingFor
 }
 
 export function ConfirmSection({ form, set, preview }: { form: BookingForm; set: SetFn; preview: Preview | undefined }) {
+  const seg = useSegment();
   const g = form.guest;
   return (
     <>
@@ -125,7 +128,7 @@ export function ConfirmSection({ form, set, preview }: { form: BookingForm; set:
           </label>
           {preview?.message_text
             ? <div data-testid="wa-preview" className="whitespace-pre-wrap rounded-[12px_12px_12px_4px] bg-[var(--haip-status-success-bg)] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--haip-fg)] [overflow-wrap:anywhere]">{preview.message_text}</div>
-            : <p className={HINT}>The message appears here once the guest, trip, caravan and price are filled in.</p>}
+            : <p className={HINT}>The message appears here once the guest, {seg.booking.one}, {seg.unit.one} and price are filled in.</p>}
           <p className={HINT}>
             {g && preview?.window_open ? `${firstName(g.name)} ${g.wrote ?? "wrote recently"}, so it goes as a normal message.`
               : "Goes with the approved booking confirmation template (with the invoice) if the guest has not written in the last 24 hours."}

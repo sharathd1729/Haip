@@ -124,7 +124,7 @@ export function ExecutiveToday({ isOwner, onOpenBrief }: { isOwner: boolean; onO
   if (!h.settings.enabled) {
     return (
       <Card>
-        <EmptyState title="The AI Executive is off"
+        <EmptyState title="The HAIP Executive is off"
           hint="When it is on, it checks sales, the front desk, ops, payments, ads and integrations every few minutes, tells you what needs you, and suggests fixes. Nothing is changed until you approve it."
           action={isOwner
             ? <button type="button" disabled={save.isPending} onClick={() => save.mutate({ enabled: true })} className={cn(pill, "mt-3 bg-primary text-primary-foreground")}>

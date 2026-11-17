@@ -178,11 +178,12 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
     )
     pack = packs.pack_for_business_type(tenant.business_type if tenant else None) or "caravan_rv"
     spec = packs.get(pack)
+    word = spec.get("file_word", "trip")  # trip | stay: the pack's own word for a booking (villas never read "trip")
 
     needs: list[dict] = []
     file_needs: dict[str, list[dict]] = {}
     for f, stay in rows:
-        fn = _file_needs(db, f, stay, names.get(stay.property_id, "Trip"), now, tz)
+        fn = _file_needs(db, f, stay, names.get(stay.property_id, word.capitalize()), now, tz)
         file_needs[f.id] = fn
         needs += fn
     by_stay = {stay.id: f for f, stay in rows}
@@ -239,7 +240,7 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
                     "name": p.name,
                     "tone": ("red" if any(n["level"] == "red" for n in mine_fleet) else "amber") if mine_fleet else "idle",
                     "status": "Free",
-                    "line": "No trip coming up",
+                    "line": f"No {word} coming up",
                     "problem": mine_fleet[0]["title"] if mine_fleet else None,
                     "file_id": None,
                     "ready_pct": None,
@@ -283,7 +284,7 @@ def build(db: Session, tenant_id: str, *, now: datetime | None = None) -> dict:
     day = []
     horizon = today + timedelta(days=1)
     for f, s in rows:
-        unit = names.get(s.property_id, "Trip")
+        unit = names.get(s.property_id, word.capitalize())
         who = (s.guest.name if s.guest is not None else None) or "Guest"
         if f.state == "on_trip":
             day.append(

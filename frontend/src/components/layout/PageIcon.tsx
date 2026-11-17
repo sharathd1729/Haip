@@ -1,11 +1,11 @@
 "use client";
-// One icon per main destination, shared by the nav model (nav.ts: top bar, More menu, phone bars) and the PageHeader icon
+// One icon per main destination, shared by the nav model (nav.ts: desktop rail and panel, phone bars) and the PageHeader icon
 // tile, so a page wears the same glyph everywhere. Kept apart from nav.ts so the shared PageHeader does not pull in the
 // nav's queries and stores.
 import type { ComponentType } from "react";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@/lib/useAppPathname";
 import {
-  BarChart2, Calendar, CalendarCheck, Home, LayoutGrid, MessageSquare, Phone, Settings, Sparkles, Sun, Truck, Users,
+  BarChart2, Calendar, CalendarCheck, Home, MessageSquare, Phone, Settings, Sparkles, Sun, Truck, Users,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
@@ -26,13 +26,10 @@ export const ROUTE_ICONS = {
   "/dashboard/settings": Settings,
 } satisfies Record<string, RouteIcon>;
 
-/** The "More" menu button in the top bar. */
-export const MORE_ICON: RouteIcon = LayoutGrid;
-
 /** The PageHeader icon tile: 46px, sea green with a lime glyph. Shows only on the main pages (ROUTE_ICONS, exact path)
  *  unless the page passes its own icon; `icon={false}` turns it off. Hidden on phones, where the header bar names the page. */
 export function PageIconTile({ icon }: { icon?: RouteIcon | false }) {
-  const pathname = (usePathname() ?? "").replace(/\/$/, "") || "/";
+  const pathname = useAppPathname().replace(/\/$/, "") || "/";
   const Icon = icon === false ? null : icon ?? (ROUTE_ICONS as Record<string, RouteIcon>)[pathname] ?? null;
   if (!Icon) return null;
   return (

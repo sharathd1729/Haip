@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/bookingAgenda";
+import { useSegment } from "@/lib/segments";
 import { DOWNLOAD_TIMEOUT_MS, downloadErrorMessage, saveBlob, toBlob } from "@/lib/download";
 import { canManageOps, canWriteOps, EXPENSE_LABELS, nextAction, rupees, type ChecklistItem, type OpsFileFull } from "@/lib/ops";
 import { useToast } from "@/components/ui/toast";
@@ -19,6 +20,8 @@ import { AddonsCard } from "./AddonsCard";
 import { GuestFormCard, MessagesList, ReturnCheckCard } from "./TripCards";
 import { StayFile } from "./StayFile";
 import { TripGps } from "./TripGps";
+import { FileMoneyCard } from "./money/FileMoneyCard";
+import { BookingThread } from "@/components/bookings/BookingThread";
 
 const BOX = {
   green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
@@ -49,6 +52,7 @@ export function TripFile({ id }: { id: string }) {
   const role = session?.user?.role;
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [item, setItem] = useState<ChecklistItem | null>(null);
+  const word = useSegment().booking;   // the error card shows before the file says trip or stay
 
   const { data: f, isPending, isError, error, refetch } = useQuery<OpsFileFull>({
     queryKey: ["ops-file", id], queryFn: () => api.get(`/ops/files/${id}`).then(r => r.data), staleTime: 10_000, refetchInterval: 60_000,
@@ -83,7 +87,7 @@ export function TripFile({ id }: { id: string }) {
     const status = (error as { response?: { status?: number } })?.response?.status;
     return (
       <Card className="mx-auto mt-4 w-[calc(100%-2rem)] max-w-3xl sm:mt-6">
-        <EmptyState title={status === 404 ? "Trip not found" : status === 403 ? "You don't have access to Ops" : "Couldn't load this trip"}
+        <EmptyState title={status === 404 ? `${word.One} not found` : status === 403 ? "You don't have access to Ops" : `Couldn't load this ${word.one}`}
           hint={status === 404 || status === 403 ? undefined : "Check your connection, then try again."}
           action={status === 404 || status === 403
             ? <Link href="/dashboard/ops" className="haip-btn-secondary min-h-12">Back to Ops today</Link>
@@ -122,6 +126,8 @@ export function TripFile({ id }: { id: string }) {
         <PageHeader title={s.guest_name} keepOnPhone icon={false}
           subtitle={`${f.details.route ?? "Route not set yet"} · ${dates} · ${party}`} />
       </div>
+
+      <BookingThread bookingId={s.id} />
 
       <div aria-label={`Step ${f.stage.step} of 6: ${f.stage.step_name}`}>
         <div className="flex gap-1">
@@ -203,29 +209,29 @@ export function TripFile({ id }: { id: string }) {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader title="Money" description="This trip so far, GST included"
-          actions={write && f.state !== "closed" ? <button type="button" className="haip-btn-secondary min-h-11" onClick={() => setSheet("expense")}>Add expense</button> : undefined} />
-        <CardBody className="px-4 pb-3">
-          <Row label="Package" value={rupees(a.package_total)} />
-          {Number(a.addons_total) > 0 && <Row label="Extras and extra distance" value={rupees(a.addons_total)}
-            hint={a.extra_km ? `${a.extra_km.toLocaleString("en-IN")} km over the ${Number(a.allowance_km ?? 0).toLocaleString("en-IN")} km included` : undefined} />}
-          <Row label="Total" value={rupees(a.total_revenue)} />
-          <Row label="Paid" value={rupees(a.paid)} />
-          <Row label="Balance" value={rupees(a.outstanding)} strong={Number(a.outstanding) > 0} />
-          {a.deposit && <Row label="Deposit" value={rupees(a.deposit.amount)} hint={a.deposit.status === "held" ? "Held, refund within 48 h of return" : a.deposit.status} />}
-          {Object.entries(a.expenses_by_category).map(([k, v]) => <Row key={k} label={`Expense: ${EXPENSE_LABELS[k] ?? k}`} value={rupees(v)} />)}
-          <Row label="Net after expenses" value={rupees(a.net_cash)} />
+      <FileMoneyCard fileId={f.id} guest={s.guest_name} total={Number(a.total_revenue)} paid={Number(a.paid)}
+        outstanding={Number(a.outstanding)} word="trip"
+        headerAction={write && f.state !== "closed" ? <button type="button" className="haip-btn-secondary min-h-11" onClick={() => setSheet("expense")}>Add expense</button> : undefined}
+        footer={<div className="flex flex-col gap-2">
           {f.state === "on_trip" && (
-            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" onClick={() => setSheet("return")}>Vehicle is back: enter odometer</button>
+            <button type="button" className="haip-btn-secondary min-h-12 w-full" onClick={() => setSheet("return")}>Vehicle is back: enter odometer</button>
           )}
           {manage && (
-            <button type="button" className="haip-btn-secondary mt-2 min-h-12 w-full" disabled={report.isPending} onClick={() => report.mutate()}>
+            <button type="button" className="haip-btn-secondary min-h-12 w-full" disabled={report.isPending} onClick={() => report.mutate()}>
               {report.isPending ? "Making the report…" : "Trip account report (PDF)"}
             </button>
           )}
-        </CardBody>
-      </Card>
+        </div>}>
+        <Row label="Package" value={rupees(a.package_total)} />
+        {Number(a.addons_total) > 0 && <Row label="Extras and extra distance" value={rupees(a.addons_total)}
+          hint={a.extra_km ? `${a.extra_km.toLocaleString("en-IN")} km over the ${Number(a.allowance_km ?? 0).toLocaleString("en-IN")} km included` : undefined} />}
+        <Row label="Total" value={rupees(a.total_revenue)} />
+        <Row label="Paid" value={rupees(a.paid)} />
+        <Row label="Balance" value={rupees(a.outstanding)} strong={Number(a.outstanding) > 0} />
+        {a.deposit && <Row label="Deposit" value={rupees(a.deposit.amount)} hint={a.deposit.status === "held" ? "Held, refund within 48 h of return" : a.deposit.status} />}
+        {Object.entries(a.expenses_by_category).map(([k, v]) => <Row key={k} label={`Expense: ${EXPENSE_LABELS[k] ?? k}`} value={rupees(v)} />)}
+        <Row label="Net after expenses" value={rupees(a.net_cash)} />
+      </FileMoneyCard>
 
       {!beforeRoad && f.state !== "cancelled" && <TripGps fileId={f.id} live={f.state === "on_trip"} />}
 

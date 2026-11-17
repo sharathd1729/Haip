@@ -53,6 +53,7 @@ class AskIn(_Strict):
 
 class AskHaipIn(_Strict):
     question: str = Field(min_length=3, max_length=500)
+    session_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")   # continue this chat; none = a new one
 
 
 class AssignRecIn(_Strict):

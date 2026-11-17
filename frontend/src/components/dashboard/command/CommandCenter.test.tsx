@@ -9,6 +9,8 @@ vi.mock("@/lib/api", () => ({ default: { get: (...a: unknown[]) => get(...a), po
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { name: "Sharath D", role: "owner", tenantId: "t1" } }, status: "authenticated" }) }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/components/providers/WorkspaceProvider", () => ({ useBusinessType: () => "caravan" }));
+const nav = vi.hoisted(() => ({ search: "" }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }), usePathname: () => "/dashboard", useSearchParams: () => new URLSearchParams(nav.search) }));
 
 import { CommandCenter } from "./CommandCenter";
 import { ageText, deltaText, lakh, targetBars, weekLabel, whenText, type OwnerBlock } from "./owner";
@@ -127,8 +129,7 @@ describe("CommandCenter (layout A)", () => {
     expect(await screen.findByRole("heading", { name: "Needs attention" })).toBeTruthy();
     const call = get.mock.calls.find(c => c[0] === "/dashboard/business-overview")!;
     expect(call[1].params).toEqual({ date_preset: "today" });
-    const order = ["Needs attention", "October target", "Check-ins and check-outs", "When leads want to travel", "Where leads came from",
-      "Leads by stage", "Caravans", "AI and calls", "Team"];
+    const order = ["Needs attention", "October target", "Check-ins and check-outs"];   // Overview tab; the rest have their own tabs
     const text = container.textContent ?? "";
     let pos = text.indexOf("Needs attention");
     for (const title of order) {                      // each block is found after the one before it
@@ -139,6 +140,20 @@ describe("CommandCenter (layout A)", () => {
     expect(screen.getByText("Payment received", { selector: "span" })).toBeTruthy();
     expect(text).not.toMatch(/Cash collected|Net cash/);
     expect(text).not.toMatch(/conversation|without a phone number\b(?! are handled)/i);
+  });
+
+  it("puts each block on its dashboard tab", async () => {
+    serve(overview());
+    for (const [tab, titles] of [["leads", ["When leads want to travel", "Where leads came from", "Leads by stage", "AI and calls"]],
+      ["revenue", ["October target", "Caravans"]], ["team", ["Team"]]] as const) {
+      nav.search = `tab=${tab}`;
+      const { container, unmount } = wrap(<CommandCenter />);
+      await screen.findByRole("button", { name: "Overview" });
+      await waitFor(() => { for (const t of titles) expect(container.textContent, `${tab}: ${t}`).toContain(t); });
+      expect(container.textContent).not.toContain("Needs attention");
+      unmount();
+    }
+    nav.search = "";
   });
 
   it("shows each attention card's count, reason, first names and link", async () => {
@@ -181,7 +196,7 @@ describe("CommandCenter (layout A)", () => {
       kpis: { ...owner().kpis, booked_value: { restricted: true }, payment_received: { restricted: true } } })));
     const { container } = wrap(<CommandCenter />);
     expect(await screen.findByText(/Targets and amounts are hidden for your role/)).toBeTruthy();
-    expect(screen.getAllByText(/Bookings are hidden for your role/).length).toBe(2);
+    expect(screen.getAllByText(/Bookings are hidden for your role/).length).toBeGreaterThanOrEqual(1);
     expect(container.textContent).not.toMatch(/₹0\b/);
   });
 

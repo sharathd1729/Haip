@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNotificationsStore } from "@/store/useNotificationsStore";
 import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
-import { Bell, Search, User, Settings, CreditCard, HelpCircle, LogOut, ChevronDown, X, Sun, Moon, Monitor } from "@/lib/icons";
+import { Bell, Search, User, HelpCircle, LogOut, ChevronDown, X, Sun, Moon, Monitor } from "@/lib/icons";
 import { UserAvatar } from "@/components/crm/UserAvatar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -322,8 +322,6 @@ export function UserMenu({ user, onDark = false }: { user?: TopBarProps["user"];
             <div className="p-1.5">
               {[
                 { icon: <User size={13} />,       label: "Profile",        href: "/dashboard/profile" },
-                { icon: <Settings size={13} />,   label: "Settings",       href: "/dashboard/settings" },
-                { icon: <CreditCard size={13} />, label: "Billing",        href: "/dashboard/billing" },
                 { icon: <HelpCircle size={13} />, label: "Help & support", href: "/dashboard/help" },
               ].map(item => (
                 <Link

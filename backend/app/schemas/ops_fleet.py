@@ -149,6 +149,16 @@ class GuestFormIn(_Strict):
     signed_name: str = Field(default="", max_length=200)
     agreed: bool = False
     consent_version: str = Field(default="", max_length=40)
+    # Answers to the workspace's own questions (brand_config.guest_form), keyed by question id; checked in
+    # guest_form_config.answers against the questions asked
+    answers: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("answers")
+    @classmethod
+    def _answers(cls, v: dict[str, str]) -> dict[str, str]:
+        if len(v) > 12 or any(len(k) > 12 or len(x) > 500 for k, x in v.items()):
+            raise ValueError("Too many or too long answers")
+        return v
 
     @field_validator("consent_version")
     @classmethod

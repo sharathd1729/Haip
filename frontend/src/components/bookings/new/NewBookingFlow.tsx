@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { ArrowLeft } from "@/lib/icons";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +32,7 @@ const errDetail = (e: unknown) => (e as { response?: { status?: number; data?: {
 export function NewBookingFlow({ params }: { params: FlowParams }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const seg = useSegment();
   const setupQ = useQuery<ComposeSetup>({ queryKey: ["new-booking-setup"], queryFn: () => api.get("/bookings/compose/setup").then(r => r.data) });
   const [form, setForm] = useState<BookingForm | null>(null);
   const [ctx, setCtx] = useState<ComposeContext | undefined>();
@@ -52,7 +54,7 @@ export function NewBookingFlow({ params }: { params: FlowParams }) {
   useEffect(() => {
     if (!setup || started.current) return;
     started.current = true;
-    let f = defaultForm(setup);
+    let f = defaultForm(setup, `Custom ${seg.booking.one}`);
     if (params.property && setup.vehicles.some(v => v.id === params.property)) f.vehicle = params.property;
     if (params.from && params.from >= setup.today) f = { ...f, checkIn: params.from, checkOut: params.to && params.to >= params.from ? params.to : params.from };
     setForm(f);
@@ -135,7 +137,7 @@ export function NewBookingFlow({ params }: { params: FlowParams }) {
   const onCreate = () => {
     if (!form || !payload) return;
     if (!preview && !serverProblems) {
-      toast({ variant: "info", title: "Still checking the price and caravans. Try again in a moment." });
+      toast({ variant: "info", title: `Still checking the price and ${seg.unit.many}. Try again in a moment.` });
       return;
     }
     if (problems.length) {
@@ -192,12 +194,12 @@ export function NewBookingFlow({ params }: { params: FlowParams }) {
             <GuestSection form={form} set={set} setup={setup} ctx={ctx} onPick={onPick} onAddNew={onAddNew} onUseQuote={onUseQuote} onScratch={onScratch} showErr={showErr} />
             <Messages tone="bad" items={errs("guest")} />
           </SectionCard>
-          <SectionCard id="sec-trip" n={2} title="Trip" mark={mark("trip")} summary={form.checkIn && form.checkOut ? span(form.checkIn, form.checkOut) : undefined}>
+          <SectionCard id="sec-trip" n={2} title={seg.booking.One} mark={mark("trip")} summary={form.checkIn && form.checkOut ? span(form.checkIn, form.checkOut) : undefined}>
             <TripSection form={form} set={set} setup={setup} />
             <Messages tone="bad" items={errs("trip")} />
             <Messages tone="warn" items={warns("trip")} />
           </SectionCard>
-          <SectionCard id="sec-veh" n={3} title="Caravan and interior" mark={mark("veh")} summary={preview?.vehicle?.name}>
+          <SectionCard id="sec-veh" n={3} title={seg.ops.fleet ? `${seg.unit.One} and interior` : seg.unit.One} mark={mark("veh")} summary={preview?.vehicle?.name}>
             <VehicleSection form={form} set={set} setup={setup} preview={preview} />
             <Messages tone="bad" items={errs("veh").filter(p => !p.live)} />
           </SectionCard>

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useCallback, useRef } from "react";
+import { AutomationsNav } from "@/components/automations/AutomationsNav";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Play, Pause, Trash2, X, CheckCircle2, AlertCircle, Loader2, MessageSquare, Zap, ArrowRight, ChevronRight, Settings, Move, Clock, Users, Send, Hash, History } from "@/lib/icons";
 import { GitBranch, ToggleLeft } from "lucide-react";
@@ -664,6 +665,7 @@ export default function FlowsPage() {
   return (
     <div className="h-full flex flex-col">
       <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
+        <AutomationsNav className="mb-4" />
         <div className="flex items-center justify-between">
           <div>
             <h1 className="haip-page-title">Flow Builder</h1>

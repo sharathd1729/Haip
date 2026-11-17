@@ -312,7 +312,7 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
           </Section>
 
           <Section title="Details">
-            <input className={field} value={name} maxLength={120} onChange={e => setName(e.target.value)} placeholder="Name, e.g. PRICE reel – Goa trip" aria-label="Automation name" />
+            <input className={field} value={name} maxLength={120} onChange={e => setName(e.target.value)} placeholder="Name, e.g. PRICE reel – monsoon offer" aria-label="Automation name" />
             <Toggle checked={once} onChange={setOnce} label="Only once per person" hint="Someone who comments twice gets one DM." />
           </Section>
         </div>

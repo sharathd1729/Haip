@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Loader2, RefreshCw, Send } from "@/lib/icons";
@@ -18,6 +19,7 @@ import { Recommendations } from "@/components/analyst/Recommendations";
 import { ChangesBoard } from "@/components/analyst/ChangesBoard";
 import { ExecutiveToday } from "@/components/analyst/ExecutiveToday";
 import { AskHaip } from "@/components/analyst/AskHaip";
+import { Duties } from "@/components/analyst/Duties";
 import { KIND_LABEL, STATUS_TONE, periodText, FOLLOWUP_FAILURE, type Kind, type Report, type ReportSummary } from "@/components/analyst/types";
 
 const KINDS: Kind[] = ["daily_pulse", "weekly_brief", "monthly_review"];
@@ -95,7 +97,9 @@ export default function AnalystPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [kind, setKind] = useState<Kind>("weekly_brief");
-  const [tab, setTab] = useState("today");
+  const params = useSearchParams();
+  const askFromBar = params?.get("q") ?? undefined;
+  const [tab, setTab] = useState(params?.get("tab") ?? "today");
   const [picked, setPicked] = useState<string | null>(null);
   const list = useQuery<ReportSummary[]>({ queryKey: ["analyst-reports", kind], queryFn: () => api.get("/analyst/reports", { params: { kind } }).then(r => r.data), enabled: canView });
   const run = useMutation({
@@ -113,7 +117,7 @@ export default function AnalystPage() {
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="mx-auto max-w-5xl space-y-4 px-4 py-6 sm:px-6">
-        <PageHeader title="AI Executive" subtitle="What needs you, what changed, and what to do next. Numbers and findings come from HAIP's rules; the AI only explains them."
+        <PageHeader title="HAIP Executive" subtitle="What needs you, what changed, and what to do next. Numbers and findings come from HAIP's rules; the AI only explains them."
           actions={tab !== "today" && tab !== "ask" &&
             <button type="button" onClick={() => run.mutate()} disabled={run.isPending}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">
@@ -122,6 +126,7 @@ export default function AnalystPage() {
           } />
         <Tabs label="Analyst sections" value={tab} onChange={setTab}
           items={[{ value: "today", label: "Today" }, ...(role === "owner" ? [{ value: "ask", label: "Ask HAIP" }] : []), { value: "brief", label: "Brief" }, { value: "changes", label: "Changes & tests" }, { value: "history", label: "History" }]} />
+        {tab === "today" && <Duties />}
         {tab === "today" && <ExecutiveToday isOwner={role === "owner"} onOpenBrief={() => { setKind("daily_pulse"); setTab("brief"); }} />}
         {(tab === "brief" || tab === "history") && <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Report">
           {KINDS.map(k => (
@@ -136,7 +141,7 @@ export default function AnalystPage() {
           : list.isError ? <p className="p-6 text-sm text-[var(--haip-fg-muted)]">Couldn&apos;t load reports. Refresh to try again.</p>
           : current ? <ReportView id={current} canDecide={canView} />
           : <EmptyState title={`No ${KIND_LABEL[kind].toLowerCase()} yet`} hint="Tap Run now, or switch the analyst on in its settings." />)}
-        {tab === "ask" && role === "owner" && <AskHaip />}
+        {tab === "ask" && role === "owner" && <AskHaip initialQuestion={askFromBar} />}
         {tab === "changes" && <ChangesBoard canDecide={canView} />}
         {tab === "history" && (
           <Card>

@@ -8,7 +8,8 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, Drawer, EmptyState, StatusPill, Tabs } from "@/components/ui/kit";
 import { FieldEditor, type EditorContext } from "./FieldEditor";
-import { KIND_SPECS, SPEC_BY_KIND, blankFor, fromPayload, toPayload, type Json } from "./businessDataSpecs";
+import { blankFor, fromPayload, specsFor, toPayload, type Json } from "./businessDataSpecs";
+import { useSegment } from "@/lib/segments";
 
 interface BRecord {
   id: string; kind: string; key: string; version: number; status: string; data: Json;
@@ -34,6 +35,7 @@ const show = (v: unknown) => (v == null || v === "" ? "—" : typeof v === "obje
 export function StructuredDataTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { kinds: KIND_SPECS, byKind: SPEC_BY_KIND } = specsFor(useSegment().sections.bookingDetail.route);
   const [kind, setKind] = useState(KIND_SPECS[0].kind);
   const [editing, setEditing] = useState<null | { kind: string; key: string; isNew: boolean; recordId?: string; value: Json; note: string; effective: string }>(null);
   const [review, setReview] = useState<null | { check: Check; changes: Change[] }>(null);

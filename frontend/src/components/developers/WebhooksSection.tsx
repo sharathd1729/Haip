@@ -194,7 +194,7 @@ export function WebhooksSection({ isOwner }: { isOwner: boolean }) {
                 <input className={cn(field, "mt-1")} placeholder="https://ops.example.com/haip-webhook" value={url} onChange={e => setUrl(e.target.value)} />
               </label>
               <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)]">Note (optional)
-                <input className={cn(field, "mt-1")} placeholder="e.g. Ratha operations platform" value={description} onChange={e => setDescription(e.target.value)} maxLength={200} />
+                <input className={cn(field, "mt-1")} placeholder="e.g. Our operations platform" value={description} onChange={e => setDescription(e.target.value)} maxLength={200} />
               </label>
               <fieldset className="space-y-2">
                 <legend className="text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">Send me</legend>

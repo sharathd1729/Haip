@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { useToast } from "@/components/ui/toast";
 import { Card, StatusPill } from "@/components/ui/kit";
 import { STUDIO, btn, btnPrimary, inputCls, studioError, when } from "./types";
@@ -15,6 +16,7 @@ interface ImageJob { id: string; prompt: string; model: string; shape: string; s
 const SHAPE_LABEL: Record<string, string> = { portrait: "Feed 4:5", square: "Square", story: "Story 9:16", landscape: "Landscape" };
 
 export function AiImagesPanel() {
+  const unit = useSegment().unit.one;
   const { data: session } = useSession();
   const isOwner = session?.user?.role === "owner";
   const qc = useQueryClient();
@@ -81,7 +83,7 @@ export function AiImagesPanel() {
         <>
           <form className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={e => { e.preventDefault(); if (prompt.trim().length >= 3) create.mutate(); }}>
             <label className="space-y-1 sm:col-span-3"><span className="text-[13px] font-semibold">Describe the image</span>
-              <input className={inputCls} maxLength={600} placeholder="e.g. misty ghat road at sunrise, caravan in the distance" value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
+              <input className={inputCls} maxLength={600} placeholder={`e.g. misty hills at sunrise, our ${unit} in the distance`} value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
             <label className="space-y-1"><span className="text-[13px] font-semibold">Model</span>
               <select className={inputCls} value={model} onChange={e => setModel(e.target.value)}>
                 {(models.data ?? []).map(m => <option key={m.key} value={m.key} disabled={!m.enabled}>{m.label}{m.enabled ? "" : " (unavailable)"}</option>)}

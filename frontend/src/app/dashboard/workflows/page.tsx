@@ -5,6 +5,7 @@
 //   Report     leads received in a period: funnel + one row per agent (components/workflows/ReportTab.tsx)
 // Owner and manager only. A bare "#activity" / "#report" in the link opens that tab.
 import { useEffect, useState } from "react";
+import { AutomationsNav } from "@/components/automations/AutomationsNav";
 import { useSession } from "next-auth/react";
 import { PageHeader, Tabs } from "@/components/ui/kit";
 import { ActivityTab } from "@/components/workflows/ActivityTab";
@@ -32,6 +33,7 @@ export default function WorkflowsPage() {
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className={`mx-auto space-y-5 px-4 py-6 sm:px-6 ${tab === "report" ? "max-w-5xl" : "max-w-3xl"}`}>
+        <AutomationsNav />
         <PageHeader title="Lead workflows"
           subtitle="Automatic steps so no lead goes unnoticed. Each one is off until you switch it on." />
         <Tabs items={TABS} value={tab} onChange={pick} label="Lead workflows" />

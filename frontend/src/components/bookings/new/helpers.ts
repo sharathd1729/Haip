@@ -71,11 +71,11 @@ export const firstName = (name: string | null | undefined) => (name || "").trim(
 export const termsAdvance = (setup: ComposeSetup) =>
   setup.settings.advance_percent != null ? String(Number(setup.settings.advance_percent)) : "50";
 
-export function defaultForm(setup: ComposeSetup): BookingForm {
+export function defaultForm(setup: ComposeSetup, customTitle = "Custom trip"): BookingForm {
   const gst = String(Number(setup.settings.gst_percent));
   return {
     guest: null, newGuest: null, adding: false, ng: { phone: "", name: "", source: "" }, guestQ: "", inquiryId: null, fromLead: false,
-    start: null, mode: setup.packages.length ? "fixed" : "custom", packageKey: "", customTitle: "Custom trip",
+    start: null, mode: setup.packages.length ? "fixed" : "custom", packageKey: "", customTitle,
     ratePerDay: setup.custom.rate_per_day ? String(Number(setup.custom.rate_per_day)) : "",
     checkIn: "", checkInTime: setup.stay_times?.check_in ?? "12:00", checkOut: "", checkOutTime: setup.stay_times?.check_out ?? "12:00", guests: 2, pickup: "",
     vehicle: "auto", interior: "", notes: "",

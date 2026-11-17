@@ -3,6 +3,7 @@ import { getSession, signOut } from "next-auth/react";
 import { queryClient, QUERY_PERSIST_STORAGE_KEY, CACHE_OWNER_KEY } from "@/lib/queryClient";
 import { useConnectionStatusStore } from "@/store/connectionStatus";
 import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
+import { workspaceSlugOf } from "@/lib/workspacePath";
 
 // Ensure base URL always ends with /api/v1 regardless of how NEXT_PUBLIC_API_URL is set.
 // e.g. "https://72.61.228.243" → "https://72.61.228.243/api/v1"
@@ -128,6 +129,10 @@ api.interceptors.request.use(async (config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Workspace redesign Phase 0: a page at /w/<slug>/... tells the API which workspace it shows; the API refuses (409
+  // wrong_workspace) when that is not the signed-in one, and the response handler below sends the tab to its own address.
+  const slug = typeof window !== "undefined" ? workspaceSlugOf(window.location.pathname) : null;
+  if (slug) config.headers["X-HAIP-Workspace"] = slug;
   // A file upload must not go out as JSON. With this instance's JSON default, axios serialises a FormData body to JSON,
   // so the file never reaches the API and FastAPI answers "Field required" (the invoice logo, Marketing Studio media and
   // website images all hit this). Dropping the JSON type lets the browser send multipart/form-data with its boundary.
@@ -152,6 +157,12 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+
+    // This tab shows another workspace's address than the one signed in (see the request interceptor): go to our own.
+    if (error.response?.status === 409 && error.response?.data?.detail?.error === "wrong_workspace" && typeof window !== "undefined") {
+      window.location.assign("/dashboard");
+      return Promise.reject(error);
+    }
 
     // No `error.response` means the request never got a reply at all --
     // network error, DNS failure, or (most relevant here) our own 20s

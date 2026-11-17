@@ -12,7 +12,7 @@ export type CardField = "dates" | "nights" | "guests" | "unit" | "route" | "km" 
 export interface Segment {
   key: SegmentKey;
   unit: { one: string; many: string; One: string; Many: string };
-  booking: { one: string; many: string };            // trip | stay
+  booking: { one: string; many: string; One: string; Many: string };   // trip | stay
   start: string; end: string;                         // pickup → drop | check-in → check-out
   timing: string;                                     // the strip's and calendar's one-line rule
   allUnits: string;                                   // picker option that shows every unit
@@ -38,7 +38,7 @@ export interface Segment {
 const words = (one: string, many: string) => ({ one, many, One: one[0].toUpperCase() + one.slice(1), Many: many[0].toUpperCase() + many.slice(1) });
 
 const STAY_BASE = {
-  booking: { one: "stay", many: "stays" }, start: "check-in", end: "check-out", timing: "check-in afternoon → check-out morning",
+  booking: words("stay", "stays"), start: "check-in", end: "check-out", timing: "check-in afternoon → check-out morning",
   nobodyIn: "Nobody is staying right now",
   startLabel: "Check-in", endLabel: "Check-out", dayUse: "day use",
   staying: { heading: "Staying now", count: (n: number) => `${n} staying` },
@@ -61,7 +61,7 @@ const stay = (key: SegmentKey, one: string, many: string, example: string, flow:
 
 export const SEGMENTS: Record<SegmentKey, Segment> = {
   caravan: {
-    key: "caravan", unit: words("vehicle", "vehicles"), booking: { one: "trip", many: "trips" }, start: "pickup", end: "drop",
+    key: "caravan", unit: words("vehicle", "vehicles"), booking: words("trip", "trips"), start: "pickup", end: "drop",
     timing: "noon to noon", allUnits: "All vehicles", whichUnit: "Which vehicle?", notChosen: "Unassigned (vehicle not chosen yet)",
     nobodyIn: "Nobody is on a trip right now", syncExample: "white, white ratha",
     startLabel: "Pickup (check-in)", endLabel: "Drop (check-out)", dayUse: "day trip",

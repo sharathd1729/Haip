@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { ChevronRight } from "@/lib/icons";
 import { cn, formatINR } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -75,6 +76,7 @@ function TripRow({ r }: { r: AgendaRow }) {
 export function PhoneHome() {
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
+  const b = useSegment().booking;   // trips | stays
   const [period, setPeriod] = useDashboardPeriod();
   const overview = useBusinessOverview({ preset: period, customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" });
   const data = overview.data;
@@ -130,22 +132,22 @@ export function PhoneHome() {
         )}
 
         {canBookings && (
-          <RowSection title="Trips next 7 days" count={trips.data ? tripRows.length : undefined}
+          <RowSection title={`${b.Many} next 7 days`} count={trips.data ? tripRows.length : undefined}
             action={<Link href="/dashboard/portfolio/calendar" className="inline-flex min-h-11 items-center text-[13px] font-bold text-primary">Calendar</Link>}>
             {trips.isPending ? (
               <div className="grid gap-1.5" aria-busy="true">{[0, 1, 2].map(i => <Skeleton key={i} className="h-[60px] rounded-xl" />)}</div>
             ) : trips.isError ? (
               <div role="alert" className="haip-card px-4 py-4 text-[13px] text-[var(--haip-fg-2)]">
-                Couldn&apos;t load the trips. <button type="button" onClick={() => trips.refetch()} className="min-h-11 font-semibold text-primary underline">Try again</button>
+                Couldn&apos;t load the {b.many}. <button type="button" onClick={() => trips.refetch()} className="min-h-11 font-semibold text-primary underline">Try again</button>
               </div>
             ) : tripRows.length === 0 ? (
-              <p className="haip-card px-4 py-5 text-center text-[13px] text-[var(--haip-fg-subtle)]">No trips start in the next 7 days.</p>
+              <p className="haip-card px-4 py-5 text-center text-[13px] text-[var(--haip-fg-subtle)]">No {b.many} start in the next 7 days.</p>
             ) : (
               <>
-                <RowList label="Trips next 7 days">{tripRows.slice(0, TRIPS_SHOWN).map(r => <TripRow key={r.id} r={r} />)}</RowList>
+                <RowList label={`${b.Many} next 7 days`}>{tripRows.slice(0, TRIPS_SHOWN).map(r => <TripRow key={r.id} r={r} />)}</RowList>
                 {tripRows.length > TRIPS_SHOWN && (
                   <Link href="/dashboard/bookings" className="inline-flex min-h-11 items-center gap-1 justify-self-start text-[13px] font-bold text-primary">
-                    All {tripRows.length} trips <ChevronRight size={14} />
+                    All {tripRows.length} {b.many} <ChevronRight size={14} />
                   </Link>
                 )}
               </>

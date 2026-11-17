@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useHydrated } from "@/lib/bookingAgenda";
+import { useSegment } from "@/lib/segments";
 import { canManageOps, showUnitCards, type OpsToday } from "@/lib/ops";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,7 @@ export default function OpsTodayPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: session } = useSession();
+  const files = useSegment().booking.Many;   // Trips | Stays
   const { data, isPending, isError, refetch } = useQuery<OpsToday>({
     queryKey: ["ops-today"],
     queryFn: () => api.get("/ops/files/today").then(r => r.data),
@@ -39,7 +41,7 @@ export default function OpsTodayPage() {
   });
 
   const red = data?.needs.filter(n => n.level === "red").length ?? 0;
-  const subtitle = !data ? "Trips, checks and problems" :
+  const subtitle = !data ? `${files}, checks and problems` :
     data.needs.length === 0 ? "Nothing needs you right now" :
     `${data.needs.length} thing${data.needs.length === 1 ? "" : "s"} need${data.needs.length === 1 ? "s" : ""} you${red ? `, ${red} now` : ""}`;
 

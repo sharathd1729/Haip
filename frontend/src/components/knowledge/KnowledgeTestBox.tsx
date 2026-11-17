@@ -71,7 +71,7 @@ export function KnowledgeTestBox({ properties }: { properties: { id: string; nam
           </select>
         )}
         <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Enter") go(); }}
-          placeholder="e.g. What does the Coorg trip cost for 2 nights?" aria-label="Guest question" className={`${INPUT} flex-1`} />
+          placeholder="e.g. What does it cost for 2 nights in Coorg?" aria-label="Guest question" className={`${INPUT} flex-1`} />
         <button onClick={go} disabled={run.isPending || !query.trim()}
           className="flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50 sm:min-h-9">
           {run.isPending ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />} Test

@@ -9,6 +9,7 @@ import { useDebounced } from "@/components/quotes/calc/useDebounced";
 import { BTN, BTN_PRIMARY, Field, INPUT } from "@/components/quotes/ui";
 import { StatusPill } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { day, digits, firstName, masked, money, span } from "./helpers";
 import type { BookingForm, ComposeContext, ComposeSetup, GuestCard, QuoteCard, SourceKey } from "./types";
 import { HINT, Note, Opt } from "./ui";
@@ -26,6 +27,7 @@ interface Props {
 }
 
 function Picked({ form, set, ctx, setup }: Pick<Props, "form" | "set" | "ctx" | "setup">) {
+  const booking = useSegment().booking.one;
   const g = form.guest;
   const ng = form.newGuest;
   const name = g?.name || ng?.name || "New guest";
@@ -45,7 +47,7 @@ function Picked({ form, set, ctx, setup }: Pick<Props, "form" | "set" | "ctx" | 
       </div>
       {g && lead?.booking ? (
         <Note tone="info">
-          <span data-testid="new-trip-note">{firstName(name)}&apos;s lead already has booking {lead.booking.ref} ({lead.booking.span}). This booking starts a new lead for the new trip.</span>
+          <span data-testid="new-trip-note">{firstName(name)}&apos;s lead already has booking {lead.booking.ref} ({lead.booking.span}). This booking starts a new lead for the new {booking}.</span>
         </Note>
       ) : (
         <p className={HINT}>
@@ -150,10 +152,11 @@ function SearchBox({ form, set, onPick }: Props) {
 }
 
 function Quotes({ form, ctx, onUseQuote, onScratch }: Props) {
+  const booking = useSegment().booking.one;
   const name = form.guest?.name || form.newGuest?.name || "This guest";
   const qs = ctx?.quotes ?? [];
   if (!form.guest) return null;
-  if (!qs.length) return <p className={HINT}>{name} has no saved quotes, so fill the trip below.</p>;
+  if (!qs.length) return <p className={HINT}>{name} has no saved quotes, so fill the {booking} below.</p>;
   return (
     <div className="grid gap-1.5" role="radiogroup" aria-label="Start from">
       <span className="text-xs font-semibold text-[var(--haip-fg-2)]">Start from</span>
@@ -175,7 +178,7 @@ function Quotes({ form, ctx, onUseQuote, onScratch }: Props) {
             {q.addons_count ? ` · ${q.addons_count} add-on${q.addons_count > 1 ? "s" : ""}` : ""}<br />{q.sent}</>} />
       ))}
       <Opt on={form.start === "scratch"} onClick={onScratch} title="Start from scratch"
-        sub={ctx?.trip?.check_in ? "Dates and guests come from the lead; you pick the package and price." : "Fill the trip and price yourself."} />
+        sub={ctx?.trip?.check_in ? "Dates and guests come from the lead; you pick the package and price." : `Fill the ${booking} and price yourself.`} />
     </div>
   );
 }

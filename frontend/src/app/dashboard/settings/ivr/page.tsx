@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { Phone, Loader2, CheckCircle2, AlertCircle, RefreshCw, Upload, Shuffle, ListOrdered, Users, Sparkles, Play } from "@/lib/icons";
 import { GitBranch, Hourglass, UserCheck } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
@@ -106,6 +107,7 @@ export default function IVRPage() {
 function CallRoutingSection() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const booking = useSegment().booking.one;   // the default greetings name no business: each workspace records its own
 
   const { data, isLoading } = useQuery<IVRRoutingSettings>({
     queryKey: ["ivr-routing"],
@@ -217,9 +219,9 @@ function CallRoutingSection() {
         placeholder="What the caller hears before the agent's phone rings…"
         hasAudio={!!data?.has_greeting_audio}
         defaultText={
-          "Welcome to Ratha, our Retreat on the move — caravan rentals in Bangalore. " +
+          "Welcome, and thank you for calling. " +
           "Please leave your name and number and we shall connect to you suitably to " +
-          "curate your itinerary. Thank you for calling Ratha Retreats. Namaskara."
+          `plan your ${booking}. Thank you for calling. Namaskara.`
         }
       />
 
@@ -232,10 +234,10 @@ function CallRoutingSection() {
         placeholder="What the caller hears when nobody's available to answer…"
         hasAudio={!!data?.has_voicemail_audio}
         defaultText={
-          "Namaskara, and thank you for calling Ratha Retreats. We're sorry we couldn't take your " +
+          "Namaskara, and thank you for calling. We're sorry we couldn't take your " +
           "call at the moment. Please leave your name, phone number, and a brief message after the " +
-          "tone. Our team will get back to you as soon as possible to help curate your perfect " +
-          "caravan retreat. Thank you, and have a wonderful day."
+          "tone. Our team will get back to you as soon as possible to help plan your perfect " +
+          `${booking}. Thank you, and have a wonderful day.`
         }
       />
     </Section>

@@ -5,14 +5,16 @@ import { useEffect, useRef, useState } from "react";
 import { Drawer } from "@/components/ui/kit";
 import { btn, btnPrimary } from "@/components/marketing/studio/types";
 import { webError } from "@/lib/website";
+import { useSegment } from "@/lib/segments";
 import { builderApi, type ChangeArtifact, type Job } from "@/lib/websiteBuilder";
 
-const IDEAS = ["Use a night photo at the top", "Change my WhatsApp number to …", "Add our guest reviews", "Make the colours calmer",
-  "Show the caravans first", "Remove the questions section", "Add an Our story page: …"];
+const ideas = (units: string) => ["Use a night photo at the top", "Change my WhatsApp number to …", "Add our guest reviews", "Make the colours calmer",
+  `Show the ${units} first`, "Remove the questions section", "Add an Our story page: …"];
 
 interface Done { id: string; text: string; reply: string; canUndo: boolean; failed?: boolean }
 
 export function ChangeSheet({ open, onClose, onChanged }: { open: boolean; onClose: () => void; onChanged: () => void }) {
+  const unit = useSegment().unit;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<Done[]>([]);
@@ -61,13 +63,13 @@ export function ChangeSheet({ open, onClose, onChanged }: { open: boolean; onClo
         <label className="grid gap-2">
           <span className="sr-only">What would you like to change?</span>
           <textarea className="min-h-[110px] w-full rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] p-3 text-base"
-            placeholder="e.g. Put the caravan night photo at the top" value={text} maxLength={500} disabled={busy}
+            placeholder={`e.g. Put the ${unit.one} night photo at the top`} value={text} maxLength={500} disabled={busy}
             onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
         </label>
         <button className={btnPrimary} disabled={busy || text.trim().length < 3} onClick={send}>{busy ? "Changing your website…" : "Change it"}</button>
         {!history.length && (
           <div className="flex flex-wrap gap-2">
-            {IDEAS.map(i => <button key={i} type="button" className="min-h-11 rounded-full border border-dashed border-[var(--haip-border)] px-3 text-sm text-[var(--haip-fg-muted)]"
+            {ideas(unit.many).map(i => <button key={i} type="button" className="min-h-11 rounded-full border border-dashed border-[var(--haip-border)] px-3 text-sm text-[var(--haip-fg-muted)]"
               onClick={() => setText(i.replace(" …", " "))}>{i}</button>)}
           </div>
         )}

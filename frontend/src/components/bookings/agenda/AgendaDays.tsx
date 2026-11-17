@@ -3,6 +3,7 @@
 // the trip, the one money fact that matters (collect / return the deposit / overdue), and Call / WhatsApp.
 import { MessageCircle, Phone } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { StatusPill } from "@/components/ui/kit";
 import { clock, dayLabel, groupByDay, guestName, moneyChip, type AgendaEvent, type AgendaRow } from "@/lib/bookingAgenda";
 
@@ -19,7 +20,8 @@ const SLOT_TAG: Record<number, string> = {
 const iconBtn = "flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-40";
 
 export function VehicleTag({ name, slot }: { name: string | null | undefined; slot: number }) {
-  return <span className={cn("inline-flex items-center rounded-lg px-2 py-px text-[12.5px] font-bold", SLOT_TAG[slot] ?? SLOT_TAG[1])}>{name ?? "No vehicle"}</span>;
+  const unit = useSegment().unit.one;
+  return <span className={cn("inline-flex items-center rounded-lg px-2 py-px text-[12.5px] font-bold", SLOT_TAG[slot] ?? SLOT_TAG[1])}>{name ?? `No ${unit}`}</span>;
 }
 
 function EventRow({ e, today, selected, slot, onOpen, onCall, onWhatsApp }: {

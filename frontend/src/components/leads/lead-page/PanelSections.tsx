@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { Check, Eye, FileText, Instagram, Link2, Loader2, MessageSquare, Phone, Plus, Truck } from "@/lib/icons";
 import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
@@ -68,6 +69,7 @@ const LINK: Record<string, string> = { created: "Payment link sent", paid: "Paid
 export function DealsCard({ lead, feed, canQuote, canBook, canOpenBookings, run }: {
   lead: LeadDetail; feed?: LeadFeed; canQuote: boolean; canBook: boolean; canOpenBookings: boolean; run: RunAction;
 }) {
+  const unit = useSegment().unit.One;
   const quotes = (lead.quote_history ?? []).filter(q => (q.option_rank ?? 1) === 1);
   const bookings = feed?.bookings ?? [];
   const hasLive = bookings.some(b => b.status !== "cancelled" && b.inquiry_id === lead.inquiry_id);
@@ -104,7 +106,7 @@ export function DealsCard({ lead, feed, canQuote, canBook, canOpenBookings, run 
                 <>
                   <span className={cn(dot, "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)]")}><Truck size={14} aria-hidden /></span>
                   <span className="grid min-w-0 flex-1 gap-0.5">
-                    <span className="break-words text-[14px] font-semibold text-[var(--haip-fg)]">{b.property_name || "Vehicle not chosen"} · {istDate(b.check_in)} → {istDate(b.check_out)}</span>
+                    <span className="break-words text-[14px] font-semibold text-[var(--haip-fg)]">{b.property_name || `${unit} not chosen`} · {istDate(b.check_in)} → {istDate(b.check_out)}</span>
                     <span className="text-[12.5px] text-[var(--haip-fg-subtle)]">
                       {b.status.replace(/_/g, " ")} · {b.guests} guests{b.inquiry_id && b.inquiry_id !== lead.inquiry_id ? " · from an earlier lead" : ""}
                       {!b.amount_restricted && (b.outstanding ?? 0) > 0 ? ` · ${inr(b.outstanding)} due` : ""}

@@ -73,6 +73,8 @@ class Plan:
     calc: Optional[rc.Calc] = None
     calc_in: Optional[CalcIn] = None
     vehicles: Optional[dict] = None
+    word: str = "trip"                              # the workspace's word for a booking: trip (caravan pack) | stay
+    unit: str = "caravan"                           # and for what is booked: caravan | villa | ...
     prop: Optional[Property] = None
     prop_state: Optional[str] = None
     total: Decimal = ZERO
@@ -213,8 +215,9 @@ def _guest(db: Session, tid: str, body: ComposeIn, p: Plan, stages: dict) -> Non
 
 
 def _trip(body: ComposeIn, p: Plan) -> None:
+    trip = p.word == "trip"  # pickup point, day trip and the package wording are caravan things; stays use their own words
     if (body.mode == "fixed" and not body.package_key) or (body.mode == "custom" and body.custom is None):
-        p.need("trip", _NO_PACKAGE)
+        p.need("trip", _NO_PACKAGE if trip else f"Pick a package, or Custom {p.word}.")
     ci, co = body.check_in, body.check_out
     if ci is None:
         p.need("trip", "Pick a check-in date.")
@@ -225,10 +228,11 @@ def _trip(body: ComposeIn, p: Plan) -> None:
     elif ci is not None and co is not None and co < ci:
         p.need("trip", "Check-out is before check-in. Pick a later check-out date.", True)
     elif ci is not None and co == ci and body.check_out_time <= body.check_in_time:
-        p.need("trip", "On a day trip the return time must be after the pickup time.", True)
+        p.need("trip", "On a day trip the return time must be after the pickup time." if trip
+               else "On a day-use booking the check-out time must be after the check-in time.", True)
     if body.guests < 1:
         p.need("trip", "Enter how many guests are coming.", True)
-    if not (body.pickup or "").strip():
+    if trip and not (body.pickup or "").strip():
         p.warn("trip", "No pickup point yet. You can add it later on the booking page.")
 
 
@@ -239,7 +243,7 @@ def _vehicle(db: Session, tid: str, body: ComposeIn, p: Plan) -> None:
     if body.property_id:
         row = next((r for r in p.vehicles["vehicles"] if r["property_id"] == body.property_id), None)
         if row is None:
-            p.need("veh", "That caravan was not found. Pick First free caravan.", True)
+            p.need("veh", f"That {p.unit} was not found. Pick First free {p.unit}.", True)
             return
         p.prop = db.query(Property).filter_by(id=body.property_id, tenant_id=tid).first()
         p.prop_state = row["state"]
@@ -255,7 +259,7 @@ def _vehicle(db: Session, tid: str, body: ComposeIn, p: Plan) -> None:
         p.prop_state = auto["state"]
         if auto["state"] == "tight":
             p.warn("veh", next(r["message"] for r in p.vehicles["vehicles"] if r["property_id"] == auto["property_id"]))
-    if not body.interior:
+    if p.word == "trip" and not body.interior:  # Black / White interior: caravans only
         p.warn("veh", "Interior not picked yet. Ops need Black or White before pickup.")
 
 
@@ -375,6 +379,12 @@ def _confirmation(db: Session, tenant: Tenant, body: ComposeIn, p: Plan) -> None
 def evaluate(db: Session, user: User, body: ComposeIn) -> Plan:
     tenant = _tenant(db, user.tenant_id)
     p = Plan(today=bds.tenant_today(db, tenant.id))
+    from app.services import ops_pack_catalog as packs
+
+    pack = packs.pack_for_business_type(tenant.business_type)
+    spec = packs.get(pack) if pack else {}
+    p.word = spec.get("file_word") or ("trip" if tenant.business_type == "caravan" else "stay")
+    p.unit = "caravan" if p.word == "trip" else (spec.get("unit_word") or "property")
     stages = qcl._stages(db, tenant.id)
     _guest(db, tenant.id, body, p, stages)
     _trip(body, p)

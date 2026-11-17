@@ -6,6 +6,7 @@
 // own payloads (GET /leads/{id}, /feed).
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { ChevronDown } from "@/lib/icons";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { RowTag } from "@/components/ui/kit";
@@ -44,6 +45,7 @@ export function LeadHero({ lead, feed, stageLabel, canEdit, onStage, onOwner }: 
 }) {
   const raw = feed?.contact.first_touch_channel && feed.contact.first_touch_channel !== "other" ? feed.contact.first_touch_channel : feed?.channels[0]?.channel;
   const channel = channelName(raw);
+  const booking = useSegment().booking.One;
   return (
     <div className="grid gap-2">
       <div className="flex min-w-0 items-center gap-3">
@@ -62,7 +64,7 @@ export function LeadHero({ lead, feed, stageLabel, canEdit, onStage, onOwner }: 
           </p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5" aria-label="Trip">
+      <div className="flex flex-wrap gap-1.5" aria-label={booking}>
         {tripChips(lead, feed).map(c => <RowTag key={c.text} tone={c.missing ? "warning" : "neutral"}>{c.text}</RowTag>)}
       </div>
     </div>

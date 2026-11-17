@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "@/lib/icons";
 import api from "@/lib/api";
 import { formatINR } from "@/lib/utils";
+import { useSegment } from "@/lib/segments";
 import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { BTN, BTN_PRIMARY } from "@/components/quotes/ui";
@@ -33,11 +34,12 @@ function errorText(e: unknown): string {
 }
 
 function Option({ title, o }: { title: string; o: QuoteOption }) {
+  const booking = useSegment().booking.One;
   return (
     <div className="min-w-0 rounded-lg border border-[var(--haip-border)] p-3">
       <p className="text-[12px] font-semibold text-[var(--haip-fg-subtle)]">{title}</p>
       <p className="mt-0.5 break-words text-[14px] font-semibold text-[var(--haip-fg)]">
-        {o.destination ? `${o.destination} · ` : ""}{o.package_name ?? "Trip"}
+        {o.destination ? `${o.destination} · ` : ""}{o.package_name ?? booking}
       </p>
       <p className="text-[13px] text-[var(--haip-fg-2)]">{day(o.check_in)} → {day(o.check_out)} · {o.guests ?? "?"} guests</p>
       <p className="mt-1 text-[13px] text-[var(--haip-fg)]">

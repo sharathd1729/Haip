@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertCircle, Users } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 
 export interface LeadFilter {
   heat?: string[]; stage_ids?: string[]; sources?: string[]; assigned_to?: string[];
@@ -64,6 +65,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
   filter: LeadFilter; onChange: (f: LeadFilter) => void;
   consent: boolean; onConsent: (v: boolean) => void; onPreview?: (p: Preview | undefined) => void;
 }) {
+  const booking = useSegment().booking;
   const set = (patch: Partial<LeadFilter>) => onChange({ ...filter, ...patch });
 
   const { data: opts } = useQuery<Options>({
@@ -122,7 +124,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
                 <Chip key={h} on={!!filter.heat?.includes(h)} onClick={() => set({ heat: toggle(filter.heat, h) })}><span className="capitalize">{h}</span></Chip>
               ))}
             </div>
-            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">From mood, urgency, trip dates, group size, quote and how much they've chatted.</p>
+            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">From mood, urgency, {booking.one} dates, group size, quote and how much they've chatted.</p>
           </div>
 
           {opts && opts.stages.length > 0 && (
@@ -165,7 +167,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
           )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Pick label="Trip in the next" value={filter.trip_within_days} onChange={v => set({ trip_within_days: v })} options={[14, 30, 45, 60, 90, 180]} />
+            <Pick label={`${booking.One} in the next`} value={filter.trip_within_days} onChange={v => set({ trip_within_days: v })} options={[14, 30, 45, 60, 90, 180]} />
             <Pick label="Enquired in the last" value={filter.created_within_days} onChange={v => set({ created_within_days: v })} options={[7, 14, 30, 90, 180]} />
             <Pick label="Quiet for at least" value={filter.quiet_days_min} onChange={v => set({ quiet_days_min: v })} options={[7, 14, 30, 60, 90]} />
             <Pick label="Skip if messaged in the last" value={filter.not_messaged_days} onChange={v => set({ not_messaged_days: v })} options={[7, 14, 30, 60]} />

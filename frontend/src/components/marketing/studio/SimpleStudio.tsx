@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useSegment } from "@/lib/segments";
 import { Card, CardBody, Drawer } from "@/components/ui/kit";
 import { ContentDrawer } from "./ContentDrawer";
 import { STUDIO, btn, btnPrimary, studioError, type ContentItem } from "./types";
@@ -72,11 +73,12 @@ export function SimpleStudio({ go, onMore }: { go: (leaf: string) => void; onMor
   );
 }
 
-const IDEAS = ["A weekend trip for couples", "Monsoon offer", "What guests loved last month", "Our caravan at night"];
+const ideas = (unit: string) => ["A weekend getaway for couples", "Monsoon offer", "What guests loved last month", `Our ${unit} at night`];
 
 /** "Make a post": what it's about → HAIP creates the post, writes it and picks photos → the usual review panel opens. */
 function MakePost({ open, onClose, onReady }: { open: boolean; onClose: () => void; onReady: (id: string) => void }) {
   const qc = useQueryClient();
+  const unit = useSegment().unit.one;
   const [about, setAbout] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -112,7 +114,7 @@ function MakePost({ open, onClose, onReady }: { open: boolean; onClose: () => vo
         <textarea className="min-h-[100px] w-full rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] p-3 text-base"
           aria-label="What's the post about?" placeholder="e.g. A quiet weekend in Coorg for couples" value={about} maxLength={160}
           disabled={busy} onChange={e => setAbout(e.target.value)} />
-        <div className="flex flex-wrap gap-2">{IDEAS.map(i => <button key={i} type="button" disabled={busy} onClick={() => setAbout(i)}
+        <div className="flex flex-wrap gap-2">{ideas(unit).map(i => <button key={i} type="button" disabled={busy} onClick={() => setAbout(i)}
           className="min-h-11 rounded-full border border-dashed border-[var(--haip-border)] px-3 text-sm text-[var(--haip-fg-muted)]">{i}</button>)}</div>
         {busy && <p className="text-sm text-[var(--haip-fg-muted)]" role="status">Writing your post and choosing photos. About a minute.</p>}
         {err && <p className="text-sm font-semibold text-[var(--haip-status-danger-fg)]" role="alert">{err}</p>}

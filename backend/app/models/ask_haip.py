@@ -26,3 +26,5 @@ class AskHaipFreeformQuery(Base, TimestampMixin, TenantMixin):
     row_count     = Column(Integer, nullable=True)
     duration_ms   = Column(Integer, nullable=True)
     chart_spec    = Column(JSON, nullable=True)
+    session_id    = Column(String(40), nullable=True)   # the Ask HAIP chat this question belongs to (migration 215)
+    narrative     = Column(Text, nullable=True)         # the answer as shown, for the chat history (ok answers only)

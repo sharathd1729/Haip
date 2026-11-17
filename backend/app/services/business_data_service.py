@@ -193,7 +193,7 @@ def validate_record(db: Session, tenant_id: str, rec: BusinessRecord, at: Option
         else:
             warnings.append("no discount policy is published: reseller discounts cannot be checked against a limit")
     if rec.kind in REQUIRES_CONFIRMATION and not getattr(model, "confirmed_by_ratha", False):
-        errors.append("this policy has not been confirmed by Ratha (set confirmed_by_ratha only when Ratha has confirmed the terms)")
+        errors.append("this policy has not been confirmed by the owner (set confirmed_by_ratha only when the owner has confirmed the terms)")
     return {"errors": errors, "warnings": warnings}
 
 

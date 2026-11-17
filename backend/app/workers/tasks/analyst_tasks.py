@@ -78,11 +78,12 @@ def ask_haip(tenant_id: str, job_id: str, user_id: str) -> dict:
     try:
         set_tenant_context(db, tenant_id)
         try:
-            out = asyncio.run(answer_freeform_question(db=db, tenant_id=tenant_id, user_id=user_id, question=job["question"]))
+            out = asyncio.run(answer_freeform_question(db=db, tenant_id=tenant_id, user_id=user_id, question=job["question"],
+                                                       session_id=job.get("session_id")))
         except Exception as exc:  # noqa: BLE001 -- the owner sees a plain failure and can ask again
             log.error("ask_haip_job_failed", tenant_id=tenant_id, error=str(exc)[:300])
             out = {}
-        result = jobs.result_of(job["question"], out)
+        result = {**jobs.result_of(job["question"], out), "session_id": job.get("session_id")}
         jobs.finish(tenant_id, job_id, result)
         return {"status": result["status"]}
     finally:
