@@ -10,7 +10,7 @@ import { Drawer } from "@/components/ui/kit";
 import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
 import { errorProblems, webApi, webError } from "@/lib/website";
-import { CATALOGUE, type SectionType, type SectionV2, type SpecV2 } from "@/site-blocks/v2/types";
+import { CATALOGUE, templateOf, type SectionType, type SectionV2, type SpecV2 } from "@/site-blocks/v2/types";
 import { PhotoPicker } from "./PhotoPicker";
 import type { Draft } from "./useDraft";
 
@@ -30,10 +30,16 @@ export const SECTION_NAMES: Record<SectionType, [string, string]> = {
   "booking-cta": ["Message us banner", "A band asking guests to message you."],
   text: ["Your own text", "Anything you want to say: your story, house rules, directions."],
   offer: ["Seasonal offer", "A band for an offer, with its promo code."],
+  "stay-gallery": ["Stay photos", "This stay's photos, with View all photos."],
+  "stay-details": ["About the stay", "Name, rooms, guests, description and amenities."],
+  "stay-rules": ["House rules", "Check-in and check-out times and your house rules."],
+  "stay-map": ["Where it is", "The area, with a Get directions button."],
+  "stay-booking": ["Price and dates", "Pick dates, a coupon, then book or ask on WhatsApp."],
+  "package-details": ["About the trip", "Length, what's included, day by day and the price."],
 };
 
 // The text each section type lets you write (backend app/schemas/site_spec.py SLOTS; change both together).
-const FIELDS: Record<SectionType, string[]> = {
+export const FIELDS: Record<SectionType, string[]> = {
   hero: ["eyebrow", "headline", "subhead", "cta_label"],
   stays: ["eyebrow", "heading", "intro"],
   booking: ["eyebrow", "heading", "intro", "cta_label"],
@@ -46,8 +52,10 @@ const FIELDS: Record<SectionType, string[]> = {
   "booking-cta": ["heading", "text", "cta_label"],
   text: ["eyebrow", "heading", "body"],
   offer: ["eyebrow", "heading", "text", "cta_label"],
+  "stay-gallery": ["eyebrow", "heading"], "stay-details": ["eyebrow", "heading"], "stay-rules": ["eyebrow", "heading"],
+  "stay-map": ["eyebrow", "heading"], "stay-booking": ["eyebrow", "heading"], "package-details": ["eyebrow", "heading"],
 };
-const FIELD: Record<string, [string, number, string?]> = {
+export const FIELD: Record<string, [string, number, string?]> = {
   eyebrow: ["Small line above the heading", 60],
   heading: ["Heading", 90],
   headline: ["Big headline", 90, "Put *stars* around a word to show it in your highlight colour."],
@@ -61,7 +69,7 @@ const FIELD: Record<string, [string, number, string?]> = {
 const home = (d: unknown) => (d as SpecV2).pages[0];
 
 /** Saves the draft now; on a refusal shows why (in plain words) and puts the draft back. True when saved. */
-async function saveOrExplain(draft: Draft, toast: ReturnType<typeof useToast>["toast"], words = plainProblems) {
+export async function saveOrExplain(draft: Draft, toast: ReturnType<typeof useToast>["toast"], words = plainProblems) {
   const err = await draft.flush();
   if (!err) return true;
   toast({ variant: "error", title: "Not saved", description: words(err) });
@@ -191,7 +199,7 @@ function Swatches({ p }: { p: Omit<Palette, "name"> }) {
 
 // ─── Sections: order, remove, add ─────────────────────────────────────────────────────────────────────────
 
-function newId(doc: SpecV2, type: SectionType): string {
+export function newId(doc: SpecV2, type: SectionType): string {
   const ids = new Set(doc.pages.flatMap(p => p.sections.map(s => s.id)));
   const base = type === "booking-cta" ? "cta" : type;
   let id = base, n = 2;
@@ -223,7 +231,7 @@ export function SectionsSheet({ open, onClose, draft, onWrite }: { open: boolean
       footer={adding ? <button className={btn} onClick={() => setAdding(false)}>Back</button>
         : <button className={btnPrimary} onClick={() => setAdding(true)}><Plus size={16} aria-hidden="true" />Add a section</button>}>
       {!page ? null : adding ? (
-        <ul className="grid gap-2">{(Object.keys(SECTION_NAMES) as SectionType[]).map(t => (
+        <ul className="grid gap-2">{(Object.keys(SECTION_NAMES) as SectionType[]).filter(t => !templateOf(t)).map(t => (
           <li key={t}><button type="button" onClick={() => add(t)} className="grid min-h-11 w-full rounded-xl border border-[var(--haip-border)] p-3 text-left">
             <b className="font-semibold">{SECTION_NAMES[t][0]}</b><span className="text-sm text-[var(--haip-fg-muted)]">{SECTION_NAMES[t][1]}</span></button></li>))}
         </ul>
@@ -243,7 +251,7 @@ export function SectionsSheet({ open, onClose, draft, onWrite }: { open: boolean
   );
 }
 
-const headingOf = (s: SectionV2) => String(s.slots.headline || s.slots.heading || s.slots.eyebrow || "").replace(/\*/g, "");   // *word* = emphasis on the site
+export const headingOf = (s: SectionV2) => String(s.slots.headline || s.slots.heading || s.slots.eyebrow || "").replace(/\*/g, "");   // *word* = emphasis on the site
 
 function IconBtn({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
   return <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick}

@@ -8,8 +8,10 @@ import { Card, EmptyState } from "@/components/ui/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { btn } from "@/components/marketing/studio/types";
 import { Editor } from "@/components/website/Editor";
+import { CanvasEditorV2 } from "@/components/website/v2/CanvasEditor";
 import { webApi, webError } from "@/lib/website";
 import "@/site-blocks/site.css";
+import "@/site-blocks/v2/site-v2.css";
 import { FONTS_HREF } from "@/site-blocks/packs";
 
 export default function WebsiteEditPage() {
@@ -19,18 +21,22 @@ export default function WebsiteEditPage() {
   const [initialPage, setInitialPage] = useState<string | null>(null);
   useEffect(() => { setMounted(true); setInitialPage(new URLSearchParams(window.location.search).get("page")); }, []);
   const site = useQuery({ queryKey: ["web-site"], queryFn: webApi.site, retry: false });
+  // A v2 (SiteSpec) draft opens the on-page editor (website W2); a v1 block draft keeps the classic editor.
+  const kind = useQuery({ queryKey: ["web-draft-kind"], queryFn: async () => ((await webApi.draft()).doc as unknown as { spec_version?: number }).spec_version === 2 ? "v2" : "v1",
+    enabled: !!site.data, staleTime: 60 * 1000 });
   useEffect(() => {
     if (document.querySelector(`link[href="${FONTS_HREF}"]`)) return;
     const l = document.createElement("link");
     l.rel = "stylesheet"; l.href = FONTS_HREF;
     document.head.appendChild(l);
   }, []);
-  if (!mounted || site.isLoading) return <div className="p-6"><Skeleton className="h-[60vh] w-full" /></div>;
+  if (!mounted || site.isLoading || (site.data && kind.isLoading)) return <div className="p-6"><Skeleton className="h-[60vh] w-full" /></div>;
   if (site.isError || !site.data) {
     return (
       <div className="mx-auto max-w-[720px] p-6"><Card><EmptyState title="The editor can't open" hint={webError(site.error, "Create the website first.")}
         action={<Link className={btn} href="/dashboard/marketing/website">Back to Website</Link>} /></Card></div>
     );
   }
+  if (kind.data === "v2") return <CanvasEditorV2 site={site.data} />;
   return <Editor site={site.data} role={role} initialPage={initialPage} />;
 }

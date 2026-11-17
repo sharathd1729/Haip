@@ -1,6 +1,6 @@
 // Website builder API (backend/app/api/v1/endpoints/website.py). Shapes are hand-written next to their use.
 import api from "@/lib/api";
-import type { LiveData, SiteDoc } from "@/site-blocks/types";
+import type { LiveData, SiteDoc, Stay } from "@/site-blocks/types";
 
 export const WEB = "/websites";
 
@@ -47,6 +47,8 @@ export const webApi = {
   draft: () => api.get<DraftOut>(`${WEB}/draft`).then(r => r.data),
   save: (doc: SiteDoc, base: string) => api.put<DraftOut>(`${WEB}/draft`, { doc, base_sha256: base }).then(r => r.data),
   live: () => api.get<LiveData>(`${WEB}/live-data`).then(r => r.data),
+  /** One stay as its page shows it (website W4: the stay page design preview). */
+  stayPreview: (slug: string) => api.get<Stay>(`${WEB}/stays/${encodeURIComponent(slug)}`).then(r => r.data),
   versions: () => api.get<VersionRow[]>(`${WEB}/versions`).then(r => r.data),
   submit: (id: string, note?: string) => api.post<SiteOut>(`${WEB}/versions/${id}/submit`, { version_id: id, note }).then(r => r.data),
   publish: (id: string) => api.post<SiteOut>(`${WEB}/versions/${id}/publish`, { version_id: id }).then(r => r.data),

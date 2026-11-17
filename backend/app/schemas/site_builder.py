@@ -135,6 +135,7 @@ class CopyOut(_Strict):
 
 class ChangeIn(_Strict):
     text: str = Field(min_length=3, max_length=500)
+    section_id: Optional[str] = Field(None, pattern=r"^[a-z][a-z0-9-]{1,39}$")   # on-page editor: the part the owner selected
 
 
 class ChangeOp(_Strict):

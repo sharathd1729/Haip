@@ -55,6 +55,7 @@ export interface SiteEnv {
   apiBase: string | null;             // guest API base ("/_haip/api"); null in the editor and previews: nothing is sent
   assets: Record<string, { src: string; alt: string }>;
   stay?: Stay | null;                 // the stay a StayDetail page is about
+  packageKey?: string | null;         // the package a v2 /packages/<key> page is about (website W4)
   query?: Record<string, string>;
 }
 

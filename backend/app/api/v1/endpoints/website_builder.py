@@ -117,7 +117,7 @@ def change_something(body: ChangeIn, user: User = Depends(get_current_user), db:
     from app.services import website_change
     site = _site(db, user)
     try:
-        job = website_change.request(db, site, user, body.text)
+        job = website_change.request(db, site, user, body.text, body.section_id)
     except svc.WebsiteError as exc:
         _fail(exc)
     db.commit()

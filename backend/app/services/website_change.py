@@ -19,7 +19,7 @@ from app.core.audit import append_audit
 from app.models.user import User
 from app.models.website import Site, SiteAiJob
 from app.schemas.site_builder import ChangeOp, ChangeOut
-from app.schemas.site_spec import SLOTS, catalogue
+from app.schemas.site_spec import SLOTS, catalogue, template_of
 from app.services import website_spec_service as wspec
 from app.services.website_service import WebsiteError
 
@@ -61,20 +61,44 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def request(db: Session, site: Site, actor: User, text: str) -> SiteAiJob:
+def request(db: Session, site: Site, actor: User, text: str, section_id: Optional[str] = None) -> SiteAiJob:
+    """`section_id` = the part the owner selected in the on-page editor (website W3): the edits must stay on it."""
     from app.services import website_builder_service as wbs
     from app.services import website_version_service as vs
     head = vs.head(db, site)
     if not wspec.is_v2(head.doc):
         raise WebsiteError(409, "not_v2", "Tap \"Make my website\" first; then you can change anything in your own words.")
+    if section_id and not any(s["id"] == section_id for p in head.doc["pages"] for s in p["sections"]):
+        raise WebsiteError(404, "no_section", "That part isn't on your website any more. Pick it again.")
     wbs._guard_rate(db, site)
     job = SiteAiJob(created_at=_now(), tenant_id=site.tenant_id, site_id=site.id, kind="change", status="pending", request=text,
-                    result={"based_on": head.id}, base_version_id=head.id, created_by=actor.id)
+                    result={"based_on": head.id, **({"section": section_id} if section_id else {})}, base_version_id=head.id,
+                    created_by=actor.id)
     db.add(job)
     db.flush()
     append_audit(db, tenant_id=site.tenant_id, actor_user_id=actor.id, action="website.change_requested", target_type="site_ai_job",
-                 target_id=job.id, payload={"chars": len(text)})
+                 target_id=job.id, payload={"chars": len(text), **({"section": section_id} if section_id else {})})
     return job
+
+
+# Ops that name the section they change; with a focus they must name the focused one. add_section may add next to it.
+_SECTION_OPS = ("set_text", "remove_section", "move_section", "set_layout", "set_photo")
+
+
+def scope_problems(ops: list[ChangeOp], doc: dict, focus: Optional[str]) -> list[str]:
+    """With a focused section: anything that touches another section, the contact details, the look or the pages."""
+    if not focus:
+        return []
+    page = next((p["slug"] for p in doc["pages"] if any(s["id"] == focus for s in p["sections"])), "/")
+    out = []
+    for op in ops:
+        if op.op in _SECTION_OPS and op.section_id != focus:
+            out.append(f"the owner selected section '{focus}': {op.op} on '{op.section_id}' is not allowed")
+        elif op.op == "add_section" and (op.page or "/") != page:
+            out.append(f"add_section must stay on the page of section '{focus}' ({page})")
+        elif op.op not in _SECTION_OPS and op.op != "add_section":
+            out.append(f"the owner selected one section: {op.op} is not allowed now")
+    return out
 
 
 MAX_PAGES = 12   # SiteSpec allows 12 pages
@@ -206,7 +230,7 @@ def apply_ops(doc: dict, ops: list[ChangeOp], photo_ids: set[str]) -> dict:
     return wspec.validate(out)
 
 
-def _user(doc: dict, photos: list, text: str) -> str:
+def _user(doc: dict, photos: list, text: str, focus: Optional[str] = None) -> str:
     cat = catalogue()
     pages = [{"page": p["slug"], "title": p.get("title"),
               "sections": [{"id": s["id"], "type": s["type"], "layout": s["variant"],
@@ -214,11 +238,15 @@ def _user(doc: dict, photos: list, text: str) -> str:
              for p in doc["pages"]]
     lines = [
         f"OWNER'S REQUEST: {text}",
+        *([f"SELECTED SECTION: {focus}. The owner clicked this section and asked about it: change only this section (or add a "
+           "section right after it on the same page). Never touch other sections, the contact details, the look or the pages; "
+           "if the request needs that, make no edits and say they can ask from \"Change something\" instead."] if focus else []),
         f"PAGES (each with its sections, top to bottom): {json.dumps(pages, ensure_ascii=False)}",
         f"CONTACT: {json.dumps(doc['site']['contact'], ensure_ascii=False)}",
         f"LOOK: palette {doc['tokens']['palette'].get('name') if isinstance(doc['tokens']['palette'], dict) else doc['tokens']['palette']}, "
         f"heading font {doc['tokens']['display']}, corners {doc['tokens']['radius']}",
-        "CATALOGUE (section type: layouts): " + "; ".join(f"{k}: {', '.join(v['variants'])}" for k, v in cat["sections"].items()),
+        "CATALOGUE (section type: layouts): " + "; ".join(f"{k}: {', '.join(v['variants'])}" for k, v in cat["sections"].items()
+                                                           if not template_of(k)),
         "PALETTES: " + ", ".join(f"{k} ({v['label']})" for k, v in cat["palettes"].items()),
         "HEADING FONTS: " + ", ".join(cat["fonts"]["display"]),
         "PHOTOS (id: description): " + ("; ".join(f"{a.id}: {(getattr(a, 'alt_text', None) or 'no description')[:80]}" for a in photos[:40]) or "none"),
@@ -237,7 +265,8 @@ def run(db: Session, tenant_id: str, job: SiteAiJob, site: Site) -> SiteAiJob:
         return job
     photos = library(db, tenant_id)
     ids = {a.id for a in photos}
-    user = _user(head.doc, photos, job.request or "")
+    focus = (job.result or {}).get("section")
+    user = _user(head.doc, photos, job.request or "", focus)
     errors: list[str] = []
     for attempt, task in ((1, TASK), (2, RETRY_TASK)):
         msg = user if not errors else (user + "\n\nYOUR LAST ANSWER FAILED HAIP'S CHECKS:\n- " + "\n- ".join(errors)
@@ -247,6 +276,9 @@ def run(db: Session, tenant_id: str, job: SiteAiJob, site: Site) -> SiteAiJob:
         job.model = raw.get("model") or job.model
         try:
             out = ChangeOut.model_validate(data)
+            scope = scope_problems(out.ops, head.doc, focus)
+            if scope:
+                raise ValueError("; ".join(scope))
             new_doc = apply_ops(head.doc, out.ops, ids) if out.ops else None
             break
         except Exception as exc:  # noqa: BLE001 -- validation problems go back to the model once

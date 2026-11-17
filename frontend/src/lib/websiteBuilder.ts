@@ -46,7 +46,7 @@ export const builderApi = {
   pick: (job_id: string, index: number) =>
     api.post<BuilderState & { version: { id: string; number: number } }>(`${B}/style/pick`, { job_id, index }).then(r => r.data),
   /** "Change something": queue a plain-words change; poll job() until ready or failed. */
-  change: (text: string) => api.post<Job>(`${B}/change`, { text }).then(r => r.data),
+  change: (text: string, sectionId?: string) => api.post<Job>(`${B}/change`, { text, ...(sectionId ? { section_id: sectionId } : {}) }).then(r => r.data),
   job: (id: string) => api.get<Job>(`${B}/jobs/${id}`).then(r => r.data),
   undo: (id: string) => api.post<{ ok: boolean }>(`${B}/change/${id}/undo`, {}).then(r => r.data),
 };

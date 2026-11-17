@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   if (isV2(live)) {
     const stays = live.stays_index || [];
     const base = [...live.doc.pages.map(p => p.slug), ...(stays.length > 1 ? ["/compare"] : []),
-      ...stays.filter(s => s.slug).map(s => `/stays/${s.slug}`)];
+      ...(stays.length ? ["/stays"] : []), ...stays.filter(s => s.slug).map(s => `/stays/${s.slug}`), ...(live.packages_index || []).map(p => `/packages/${p.key}`)];
     paths.push(...base);
     for (const l of languagesOf(live)) paths.push(...base.map(p => `/${l}${p === "/" ? "" : p}`));   // website phase 6
     const blog = (await getBlog(host).catch(() => null)) as { items?: { slug: string }[] } | null;
