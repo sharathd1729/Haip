@@ -13,7 +13,8 @@ const ideas = (units: string) => ["Use a night photo at the top", "Change my Wha
 
 interface Done { id: string; text: string; reply: string; canUndo: boolean; failed?: boolean }
 
-export function ChangeSheet({ open, onClose, onChanged }: { open: boolean; onClose: () => void; onChanged: () => void }) {
+/** `section` = website W3: asked from the on-page editor about one selected part; the AI may change only that part. */
+export function ChangeSheet({ open, onClose, onChanged, section }: { open: boolean; onClose: () => void; onChanged: () => void; section?: { id: string; name: string } }) {
   const unit = useSegment().unit;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,7 +36,7 @@ export function ChangeSheet({ open, onClose, onChanged }: { open: boolean; onClo
     if (ask.length < 3 || busy) return;
     setBusy(true);
     try {
-      const job = await waitFor((await builderApi.change(ask)).id);
+      const job = await waitFor((await builderApi.change(ask, section?.id)).id);
       const art = (job.artifact || {}) as Partial<ChangeArtifact>;
       setHistory(h => [{ id: job.id, text: ask, reply: job.status === "failed" ? (job.error || "That didn't work. Try saying it another way.") : art.reply || "Done.",
         canUndo: !!art.can_undo, failed: job.status === "failed" }, ...h]);
@@ -57,7 +58,8 @@ export function ChangeSheet({ open, onClose, onChanged }: { open: boolean; onClo
   }
 
   return (
-    <Drawer open={open} onOpenChange={o => !o && onClose()} title="Change something" description="Say what you want, the way you'd tell a friend."
+    <Drawer open={open} onOpenChange={o => !o && onClose()} title={section ? `Ask AI: ${section.name}` : "Change something"}
+      description={section ? "Say what to change in this part. The AI changes only this part, and you can undo it." : "Say what you want, the way you'd tell a friend."}
       footer={<button className={btn} onClick={onClose}>Done</button>}>
       <div className="grid gap-4">
         <label className="grid gap-2">
@@ -67,7 +69,7 @@ export function ChangeSheet({ open, onClose, onChanged }: { open: boolean; onClo
             onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
         </label>
         <button className={btnPrimary} disabled={busy || text.trim().length < 3} onClick={send}>{busy ? "Changing your website…" : "Change it"}</button>
-        {!history.length && (
+        {!history.length && !section && (
           <div className="flex flex-wrap gap-2">
             {ideas(unit.many).map(i => <button key={i} type="button" className="min-h-11 rounded-full border border-dashed border-[var(--haip-border)] px-3 text-sm text-[var(--haip-fg-muted)]"
               onClick={() => setText(i.replace(" …", " "))}>{i}</button>)}

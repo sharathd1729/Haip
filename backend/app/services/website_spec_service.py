@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import append_audit
 from app.models.tenant import Tenant
 from app.models.website import Site, SiteVersion
-from app.schemas.site_spec import SiteSpec, _lum, catalogue, derived
+from app.schemas.site_spec import SiteSpec, _lum, catalogue, derived, menu_problems
 from app.services import website_bindings, website_blog, website_tracking
 from app.services.website_service import WebsiteError, site_settings
 
@@ -91,10 +91,11 @@ def starter(tenant: Tenant, site_block: Optional[dict] = None) -> dict:
         {"id": "questions", "type": "faq", "variant": "two-column", "slots": {"heading": "Before you book"}},
         {"id": "enquire", "type": "booking-cta", "variant": "inline-form", "slots": {"heading": "Ask for your dates"}},
     ]
-    return {
+    spec = {
         "spec_version": 2,
         "site": {"name": name, "tagline": (sb.get("tagline") or prof.get("tagline") or "")[:120], "contact": contact,
-                 "social": {k: v for k, v in (sb.get("social") or {}).items() if k in ("instagram", "facebook", "youtube")}},
+                 "social": {k: v for k, v in (sb.get("social") or {}).items() if k in ("instagram", "facebook", "youtube")},
+                 **site_extras(tenant, sb)},
         "tokens": {"palette": "forest-amber", "display": "fraunces", "body": "figtree", "radius": "soft", "motion": "calm"},
         "pages": [
             {"slug": "/", "title": "Home", "nav": False, "seo": {"title": name[:70], "description": (prof.get("description") or "")[:170]},
@@ -102,6 +103,31 @@ def starter(tenant: Tenant, site_block: Optional[dict] = None) -> dict:
             {"slug": "/journeys", "title": "Journeys", "nav": True, "seo": {"title": f"Journeys · {name}"[:70]}, "sections": journeys},
         ],
     }
+    return prune_menus(spec)
+
+
+def site_extras(tenant: Tenant, sb: dict) -> dict:
+    """Logo, WhatsApp button and menus survive a rebuilt plan (starter, "Make it again"). A new site starts with the
+    Marketing brand-kit logo and the WhatsApp button on."""
+    from app.services.marketing_brand_kit import logo_id
+    out = {k: sb[k] for k in ("brand", "whatsapp_button", "menus") if sb.get(k)}
+    if "brand" not in out and logo_id(tenant):
+        out["brand"] = {"logo": f"asset:{logo_id(tenant)}", "show_name": True}
+    if not sb:
+        out.setdefault("whatsapp_button", {"on": True, "text": ""})
+    return out
+
+
+def prune_menus(spec: dict) -> dict:
+    """Drop menu links whose page or section is gone, so a rebuilt plan keeps the owner's menu where it still fits."""
+    menus = spec["site"].get("menus")
+    if not menus:
+        return spec
+    pages = {p["slug"]: {s.get("id") for s in p["sections"]} for p in spec["pages"]}
+    ok = lambda it: not menu_problems([it], pages)   # noqa: E731
+    main = [{**m, "children": [c for c in m.get("children") or [] if ok(c)]} for m in menus.get("main") or [] if ok(m)]
+    spec["site"]["menus"] = {"main": main, "footer": [f for f in menus.get("footer") or [] if ok(f)]}
+    return spec
 
 
 def create_draft(db: Session, site: Site, spec: dict, *, actor_id: Optional[str], origin: str = "human",
@@ -196,11 +222,13 @@ def bootstrap(db: Session, tenant: Tenant, site: Site, version: SiteVersion, *, 
         "price_mode": data["price_mode"],
         "bound": data["bound"],
         "page_wa": data["page_wa"],
+        "float_wa": data["float_wa"],                                 # the floating WhatsApp button, per page (W1)
         "assets": assets,
         "jsonld": website_seo.jsonld(tenant, doc, data["bound"], assets, host=host, grounded=shown) if host and not preview else {},
         "business_kind": website_seo.business_kind(tenant.business_type),
         "blog_count": len(website_blog.listing(db, tenant.id)),     # the footer links /blog only when there is a guide
         "stays_index": stays,                                         # /stays/<slug> pages + /compare (phase 6)
+        "packages_index": data["packages_index"],                     # /packages/<key> pages (W4)
         "policies": pub._policies(db, tenant),        # the built-in /policies page (sites app), same as v1
         "legal": pub._legal(tenant),
         "tracking": {} if preview else website_tracking.public(site),   # pixels never load in a draft preview

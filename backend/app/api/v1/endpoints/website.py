@@ -186,6 +186,17 @@ def live_data(user: User = Depends(get_current_user), db: Session = Depends(get_
     return data
 
 
+@router.get("/stays/{slug}")
+def stay_preview(slug: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    """One stay as its page shows it (prices by the draft's rules), for the stay page design preview in the editor (W4)."""
+    site = _site(db, user)
+    tenant = db.get(Tenant, user.tenant_id)
+    try:
+        return pub.stay_detail(db, tenant, site, slug, doc=vs.head(db, site).doc)
+    except svc.WebsiteError as exc:
+        _fail(exc)
+
+
 @router.get("/versions")
 def versions(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
     return vs.history(db, _site(db, user))

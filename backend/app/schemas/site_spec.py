@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 CATALOGUE_PATH = Path(__file__).resolve().parents[1] / "services" / "website_spec_v2.json"
 HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -148,12 +148,65 @@ class Contact(_Strict):
     address: str = Field("", max_length=300)
 
 
+class Brand(_Strict):
+    """The logo in the header and the browser tab (website W1). `logo` is an approved library photo."""
+    logo: Optional[str] = None
+    show_name: bool = True                                   # False = the logo already spells the name
+
+    @field_validator("logo", mode="before")
+    @classmethod
+    def _logo(cls, v):
+        return _asset(v)
+
+
+class WhatsAppButton(_Strict):
+    """The round WhatsApp button floating on every page; the number is site.contact.whatsapp (else phone)."""
+    on: bool = True
+    text: str = Field("", max_length=120)                    # the guest's first message; blank = the usual "Hi! I'd like to know more."
+
+
+MENU_TO_RE = re.compile(r"^/[a-z0-9\-/]*(?:#[a-z][a-z0-9-]{1,39})?$")
+SYSTEM_PATHS = ("/policies", "/compare", "/blog", "/my-booking", "/stays")   # pages every v2 site answers without a spec page
+
+
+class MenuItem(_Strict):
+    label: str = Field(min_length=1, max_length=40)
+    to: str = Field(min_length=1, max_length=300)            # "/page", "/page#section-id", "/stays/<slug>", "/policies" or "https://…"
+
+    @field_validator("to")
+    @classmethod
+    def _to(cls, v: str) -> str:
+        if v.startswith("https://") and " " not in v:
+            return v
+        if not MENU_TO_RE.match(v):
+            raise ValueError(f"'{v}' is not a page on this site or an https:// link")
+        return v
+
+
+class MenuLink(MenuItem):
+    children: list[MenuItem] = Field(default_factory=list, max_length=8)    # one level of drop-down
+
+
+class Menus(_Strict):
+    """Header and footer links (website W1). Without `menus` the site lists the pages marked nav, as before."""
+    main: list[MenuLink] = Field(default_factory=list, max_length=8)
+    footer: list[MenuItem] = Field(default_factory=list, max_length=12)
+
+
+# Added after drafts were already stored: left out of the stored spec while unset, so normalise(old draft) == old draft
+# and the publish integrity check (website_version_service.publish) still passes for every draft saved before W1.
+_OPTIONAL_SITE_KEYS = ("brand", "whatsapp_button", "menus")
+
+
 class SiteInfo(_Strict):
     name: str = Field(min_length=1, max_length=80)
     tagline: str = Field("", max_length=120)
     ref_prefix: Optional[str] = Field(None, pattern=r"^[A-Z]{2,4}$")   # WhatsApp reference codes: "RT" -> RT-HOME-HERO
     contact: Contact = Contact()
     social: dict[Literal["instagram", "facebook", "youtube"], str] = Field(default_factory=dict)
+    brand: Optional[Brand] = None
+    whatsapp_button: Optional[WhatsAppButton] = None
+    menus: Optional[Menus] = None
 
     @field_validator("social")
     @classmethod
@@ -162,6 +215,14 @@ class SiteInfo(_Strict):
             if not str(url).startswith("https://") or len(url) > 300:
                 raise ValueError(f"{k} must be an https:// link")
         return v
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler):
+        out = handler(self)
+        for k in _OPTIONAL_SITE_KEYS:
+            if out.get(k) is None:
+                out.pop(k, None)
+        return out
 
 
 class Seo(_Strict):
@@ -283,13 +344,29 @@ class OfferSlots(_Strict):
     cta_label: str = Field("Check dates", min_length=1, max_length=40)
 
 
+class TemplatePartSlots(_Strict):
+    """A part of a stay / package page template (website W4): everything shown comes from that stay or package."""
+    eyebrow: Short = ""
+    heading: str = Field("", max_length=90)
+
+
 SLOTS: dict[str, type[_Strict]] = {
     "hero": HeroSlots, "stays": StaysSlots, "booking": BookingSlots, "packages": PackagesSlots, "itinerary": ItinerarySlots, "gallery": GallerySlots,
     "reviews": ReviewsSlots, "faq": FaqSlots, "contact": ContactSlots, "booking-cta": BookingCtaSlots, "text": TextSlots,
     "offer": OfferSlots,
+    "stay-gallery": TemplatePartSlots, "stay-details": TemplatePartSlots, "stay-rules": TemplatePartSlots, "stay-map": TemplatePartSlots,
+    "stay-booking": TemplatePartSlots, "package-details": TemplatePartSlots,
 }
 SectionType = Literal["hero", "stays", "booking", "packages", "itinerary", "gallery", "reviews", "faq", "contact", "booking-cta", "text",
-                      "offer"]
+                      "offer", "stay-gallery", "stay-details", "stay-rules", "stay-map", "stay-booking", "package-details"]
+TEMPLATE_KEYS = ("stay", "package")
+# Site sections a template may also use (they show site-wide data); the template's own parts start with "<key>-".
+TEMPLATE_SHARED = ("text", "reviews", "faq", "gallery", "booking-cta", "contact", "offer")
+
+
+def template_of(section_type: str) -> Optional[str]:
+    """'stay' for stay-* parts, 'package' for package-* parts, None for a normal page section."""
+    return next((k for k in TEMPLATE_KEYS if section_type.startswith(f"{k}-")), None)
 
 
 def _typed_price(obj) -> Optional[str]:
@@ -359,12 +436,38 @@ class LocaleText(_Strict):
     sections: dict[str, dict[str, str]] = Field(default_factory=dict)     # section id -> {text slot: words}
 
 
+class TemplateSpec(_Strict):
+    sections: list[Section] = Field(min_length=1, max_length=20)
+
+
+class Templates(_Strict):
+    """Website W4: one design that makes a page per stay (/stays/<slug>) and per package (/packages/<key>)."""
+    stay: Optional[TemplateSpec] = None
+    package: Optional[TemplateSpec] = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler):
+        return {k: v for k, v in handler(self).items() if v is not None}
+
+
 class SiteSpec(_Strict):
     spec_version: Literal[2]
     site: SiteInfo
     tokens: Tokens
     pages: list[PageSpec] = Field(min_length=1, max_length=12)
     i18n: dict[Literal["hi"], LocaleText] = Field(default_factory=dict)
+    templates: Optional[Templates] = None          # left out when unset (pre-W4 drafts keep passing the integrity check)
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler):
+        out = handler(self)
+        if out.get("templates") is None:
+            out.pop("templates", None)
+        return out
+
+    def _template_sections(self) -> list[tuple[str, Section]]:
+        t = self.templates
+        return [(k, s) for k in TEMPLATE_KEYS if t and getattr(t, k) for s in getattr(t, k).sections]
 
     def _check_i18n(self) -> None:
         by_id = {s.id: s for p in self.pages for s in p.sections}
@@ -398,20 +501,54 @@ class SiteSpec(_Strict):
         found = _typed_price(self.site.model_dump())
         if found:
             raise ValueError(f"a price was typed into the site details ('{found}')")
-        seen: set[str] = set()
-        for page in self.pages:                         # section ids are unique across the site: they name the WhatsApp code
-            for s in page.sections:
-                if s.id and s.id in seen:
-                    raise ValueError(f"two sections use the id '{s.id}'")
-                if s.id:
-                    seen.add(s.id)
         for page in self.pages:
             for s in page.sections:
-                if not s.id:
-                    n, sid = 2, s.type
-                    while sid in seen:
-                        sid, n = f"{s.type}-{n}", n + 1
-                    s.id = sid
-                    seen.add(sid)
+                if template_of(s.type):
+                    raise ValueError(f"'{s.type}' belongs on the {template_of(s.type)} page design, not on {page.slug}")
+        for key, s in self._template_sections():
+            if template_of(s.type) not in (key, None) or (template_of(s.type) is None and s.type not in TEMPLATE_SHARED):
+                raise ValueError(f"the {key} page design can't use a '{s.type}' section")
+        every = [s for p in self.pages for s in p.sections] + [s for _, s in self._template_sections()]
+        seen: set[str] = set()
+        for s in every:                                 # section ids are unique across the site: they name the WhatsApp code
+            if s.id and s.id in seen:
+                raise ValueError(f"two sections use the id '{s.id}'")
+            if s.id:
+                seen.add(s.id)
+        for s in every:
+            if not s.id:
+                n, sid = 2, s.type
+                while sid in seen:
+                    sid, n = f"{s.type}-{n}", n + 1
+                s.id = sid
+                seen.add(sid)
+        self._check_menus()
         self._check_i18n()
         return self
+
+    def _check_menus(self) -> None:
+        menus = self.site.menus
+        if not menus:
+            return
+        problems = menu_problems([*menus.main, *(c for m in menus.main for c in m.children), *menus.footer],
+                                 {p.slug: {s.id for s in p.sections} for p in self.pages})
+        if problems:
+            raise ValueError("; ".join(problems))
+
+
+def menu_problems(items, pages: dict[str, set]) -> list[str]:
+    """Menu links that go nowhere: a page this site doesn't have, or a section that isn't on that page."""
+    out: list[str] = []
+    for it in items:
+        to = it.to if hasattr(it, "to") else it["to"]
+        label = it.label if hasattr(it, "label") else it["label"]
+        if to.startswith("https://"):
+            continue
+        path, _, anchor = to.partition("#")
+        path = path.rstrip("/") or "/"
+        if path in pages:
+            if anchor and anchor not in pages[path]:
+                out.append(f"menu link '{label}' goes to a part of {path} that isn't there")
+        elif not (path in SYSTEM_PATHS or re.fullmatch(r"/(?:stays|packages)/[a-z0-9]+(?:-[a-z0-9]+)*", path)):
+            out.append(f"menu link '{label}' goes to {path}, which isn't a page on this site")
+    return out

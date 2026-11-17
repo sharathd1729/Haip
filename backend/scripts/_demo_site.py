@@ -81,6 +81,23 @@ WANDERWHEEL_SPEC = {
               "slots": {"heading": "Travelling as a big group?", "text": "Ask us about two caravans side by side."}},
          ]},
     ],
+    # website W4: one design for every caravan page and every trip page (each part shows that caravan's / trip's own data)
+    "templates": {
+        "stay": {"sections": [
+            {"id": "stay-photos", "type": "stay-gallery", "variant": "mosaic"},
+            {"id": "stay-about", "type": "stay-details", "variant": "two-column", "slots": {"heading": "On board"}},
+            {"id": "stay-rules", "type": "stay-rules", "variant": "chips"},
+            {"id": "stay-where", "type": "stay-map", "variant": "card", "slots": {"heading": "Where it's parked"}},
+            {"id": "stay-book", "type": "stay-booking", "variant": "card"},
+            {"id": "stay-more-photos", "type": "stay-gallery", "variant": "strip", "slots": {"heading": "More of the van"}},
+            {"id": "stay-short", "type": "stay-details", "variant": "stacked"},
+            {"id": "stay-rule-list", "type": "stay-rules", "variant": "list"},
+        ]},
+        "package": {"sections": [
+            {"id": "trip-about", "type": "package-details", "variant": "two-column"},
+            {"id": "trip-short", "type": "package-details", "variant": "stacked"},
+        ]},
+    },
 }
 
 ITINERARIES = [

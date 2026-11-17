@@ -74,7 +74,7 @@ def spec_for(db: Session, tenant: Tenant, site_block: Optional[dict] = None) -> 
             "pages": [{"slug": "/", "title": "Home", "nav": False,
                        "seo": {"title": name[:70], "description": _seo_description(name, prof)},
                        "sections": [hero, *optional, *tail]}]}
-    bound = website_bindings.resolve(db, tenant, wspec.validate(spec))["bound"]
+    bound = website_bindings.resolve(db, tenant, wspec.validate(wspec.prune_menus(spec)))["bound"]
     keep = []
     for s in spec["pages"][0]["sections"]:
         data = bound.get(s["id"]) or {}
@@ -84,7 +84,7 @@ def spec_for(db: Session, tenant: Tenant, site_block: Optional[dict] = None) -> 
             continue
         keep.append(s)
     spec["pages"][0]["sections"] = keep
-    return wspec.validate(spec)
+    return wspec.validate(wspec.prune_menus(spec))
 
 
 # What to add in HAIP so a section can appear, in plain words, with where to do it (a dashboard path).

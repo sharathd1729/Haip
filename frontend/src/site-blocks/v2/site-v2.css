@@ -81,6 +81,30 @@
   box-shadow: 0 18px 40px -24px rgb(0 0 0 / .35); }
 .sv .sv-menu nav a { display: flex; align-items: center; min-height: 48px; padding: 0 12px; text-decoration: none; border-radius: 8px; }
 @container sv (min-width: 860px) { .sv .sv-nav { display: flex; } .sv .sv-menu { display: none; } }
+/* logo + menus (website W1) */
+.sv .sv-brand { display: inline-flex; align-items: center; gap: 10px; }
+.sv .sv-brand__logo { height: 40px; width: auto; max-width: 160px; object-fit: contain; }
+@container sv (max-width: 479px) { .sv .sv-brand__logo { height: 32px; max-width: 112px; } }
+.sv .sv-drop { position: relative; }
+.sv .sv-drop summary { list-style: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; color: var(--v-muted); }
+.sv .sv-drop summary::-webkit-details-marker { display: none; }
+.sv .sv-drop summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg); transition: transform 200ms var(--sv-ease); }
+.sv .sv-drop[open] summary::after { transform: translateY(1px) rotate(-135deg); }
+.sv .sv-drop__panel { position: absolute; left: -12px; top: calc(100% + 6px); display: grid; min-width: 220px; padding: 8px;
+  background: var(--v-surface); border: 1px solid var(--v-line); border-radius: var(--v-r-card); box-shadow: 0 18px 40px -24px rgb(0 0 0 / .35); }
+.sv .sv-nav .sv-drop__panel a { padding: 0 12px; border-radius: 8px; color: var(--v-ink); }
+.sv--over-hero .sv-top .sv-drop summary { color: rgb(255 255 255 / .85); }
+.sv--over-hero .sv-top .sv-nav .sv-drop__panel a { color: var(--v-ink); }
+.sv .sv-menu nav a.sv-menu__sub { padding-left: 28px; color: var(--v-muted); }
+/* floating WhatsApp button: WhatsApp green, white icon 3.5:1 (a graphic needs 3:1); above the sticky bar when there is one */
+.sv .sv-fab { position: fixed; z-index: 45; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 999px; background: #1F9D55; color: #fff;
+  box-shadow: 0 14px 30px -12px rgb(0 0 0 / .45); transition: transform 160ms var(--sv-ease); }
+.sv .sv-fab:active { transform: scale(.96); }
+.sv .sv-fab:focus-visible { outline: 3px solid var(--v-ink); outline-offset: 3px; }
+.sv--has-bar .sv-fab { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+@container sv (min-width: 860px) { .sv--has-bar .sv-fab { right: 24px; bottom: 100px; } }
 
 /* hero */
 .sv .sv-hero__text { display: grid; gap: clamp(18px, 2.4cqi, 28px); align-content: end; }
@@ -386,3 +410,65 @@
 /* Language switch (website phase 6) */
 .sv .sv-langbar { display: flex; justify-content: flex-end; gap: 1rem; margin: 0 auto; padding-top: .4rem; padding-bottom: .4rem; font-size: .9rem; }
 .sv .sv-langbar a { min-height: 44px; display: inline-flex; align-items: center; color: inherit; }
+
+/* stay / package page designs (website W4) */
+.sv .sv-tgal { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.sv .sv-tgal img, .sv .sv-tgal__grid img { width: 100%; height: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--v-r-media); }
+.sv .sv-tgal--mosaic img:first-child { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+@container sv (min-width: 760px) {
+  .sv .sv-tgal--mosaic { grid-template-columns: 2fr 1fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  .sv .sv-tgal--mosaic img:first-child { grid-column: auto; grid-row: span 2; aspect-ratio: auto; }
+}
+.sv .sv-tgal--strip { grid-auto-flow: column; grid-auto-columns: min(78%, 420px); grid-template-columns: none; overflow-x: auto; scroll-snap-type: x mandatory; }
+.sv .sv-tgal--strip img { scroll-snap-align: start; }
+.sv .sv-tgal__all { margin-top: 16px; }
+.sv .sv-tgal__all summary { list-style: none; cursor: pointer; }
+.sv .sv-tgal__all summary::-webkit-details-marker { display: none; }
+.sv .sv-tgal__grid { display: grid; gap: 8px; margin-top: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+.sv .sv-tdetails { display: grid; gap: clamp(24px, 4cqi, 56px); }
+.sv .sv-tdetails__main, .sv .sv-tdetails__side { display: grid; gap: 14px; align-content: start; }
+@container sv (min-width: 860px) { .sv .sv-tdetails--two-column { grid-template-columns: 1.5fr 1fr; } }
+.sv .sv-tdetails details summary { cursor: pointer; }
+.sv .sv-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv .sv-chips li { padding: 8px 14px; border: 1px solid var(--v-line); border-radius: 999px; font-size: .95rem; }
+.sv .sv-tdays { display: grid; gap: 8px; }
+.sv .sv-tdays b { color: var(--v-primary); margin-right: 6px; }
+.sv .sv-tbook__ask { margin-top: 16px; }
+
+
+/* Find your stay (website W5) */
+.sv .sv-search__bar { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; padding: 12px; margin-bottom: 16px; background: var(--v-surface);
+  border: 1px solid var(--v-line); border-radius: var(--v-r-card); }
+.sv .sv-search__bar label { display: grid; gap: 4px; font-size: .8125rem; color: var(--v-muted); }
+.sv .sv-search__bar input, .sv .sv-search__bar select, .sv .sv-search__sort select { min-height: 44px; font-size: 16px; padding: 0 10px; color: var(--v-ink);
+  background: var(--v-surface); border: 1px solid var(--v-line); border-radius: 10px; }
+.sv .sv-search__bar .sv-btn { grid-column: 1 / -1; justify-content: center; }
+@container sv (min-width: 860px) { .sv .sv-search__bar { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); align-items: end; }
+  .sv .sv-search__bar .sv-btn { grid-column: auto; } }
+.sv .sv-search__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.sv .sv-search__tools .sv-chips button { min-height: 40px; padding: 0 14px; border: 1px solid var(--v-line); border-radius: 999px; background: transparent; color: var(--v-ink); font: inherit; font-size: .95rem; cursor: pointer; }
+.sv .sv-search__tools .sv-chips button[aria-pressed="true"] { background: var(--v-primary); color: var(--v-on-primary); border-color: var(--v-primary); }
+.sv .sv-search__sort { display: flex; align-items: center; gap: 8px; font-size: .875rem; color: var(--v-muted); }
+.sv .sv-search__list { display: grid; gap: 14px; }
+.sv .sv-search__row { display: grid; gap: 14px; padding: 12px; border: 1px solid var(--v-line); border-radius: var(--v-r-card); background: var(--v-surface); }
+.sv .sv-search__row img, .sv .sv-search__noimg { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: var(--v-r-media); background: var(--v-surface-alt); }
+.sv .sv-search__row--taken { opacity: .78; }
+.sv .sv-search__body, .sv .sv-search__side { display: grid; gap: 6px; align-content: start; }
+.sv .sv-search__name { font: var(--v-display-weight) 1.35rem/1.15 var(--v-display); color: var(--v-ink); text-decoration: none; }
+.sv .sv-search__sum { color: var(--v-muted); }
+.sv .sv-search__free { color: var(--v-primary); font-weight: 600; }
+.sv .sv-search__taken { color: var(--v-accent); font-weight: 600; }
+@container sv (min-width: 760px) { .sv .sv-search__row { grid-template-columns: 240px 1fr 200px; align-items: center; } }
+
+/* phones: price + Check dates pinned on a stay page; the header menu opens full height (W5) */
+.sv .sv-staybar { position: fixed; z-index: 40; inset-inline: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--v-surface) 94%, transparent);
+  backdrop-filter: blur(12px); border-top: 1px solid var(--v-line); }
+.sv .sv-staybar--off { display: none; }
+@container sv (min-width: 860px) { .sv .sv-staybar { display: none; } }
+@container sv (max-width: 859px) {
+  .sv .sv-menu nav { position: fixed; inset: 68px 0 0 0; min-width: 0; padding: 12px 20px calc(24px + env(safe-area-inset-bottom, 0px)); border-radius: 0;
+    border-width: 1px 0 0; box-shadow: none; overflow-y: auto; align-content: start; }
+  .sv .sv-menu nav a { min-height: 56px; font: var(--v-display-weight) 1.4rem/1.2 var(--v-display); border-radius: 0; border-bottom: 1px solid var(--v-line); }
+  .sv .sv-menu nav a.sv-menu__sub { font: 400 1.1rem/1.2 var(--v-body); }
+}

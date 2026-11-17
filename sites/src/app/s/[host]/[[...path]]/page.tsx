@@ -9,10 +9,11 @@ import { V1Fonts } from "@/components/V1Fonts";
 import { type AnyLive, envFor, getBlog, getLive, getStay, queryOf } from "@/lib/haip";
 import { type Article, ArticleView, type BlogItem, BlogList } from "@/site-blocks/v2/blog";
 import { ComparePage, StayPage } from "@/site-blocks/v2/stay";
+import { StaySearch } from "@/site-blocks/v2/search";
 import { LANGS, languagesOf, localise } from "@/site-blocks/v2/i18n";
 import { findPage, SiteRenderer } from "@/site-blocks/SiteRenderer";
 import type { LiveData, Page, Stay } from "@/site-blocks/types";
-import { SiteRendererV2, systemPage } from "@/site-blocks/v2/SiteRendererV2";
+import { SiteRendererV2, systemPage, templatePageV2 } from "@/site-blocks/v2/SiteRendererV2";
 import { findPageV2, isV2, SYSTEM_PAGES, type LiveDataV2, type PageV2 } from "@/site-blocks/v2/types";
 
 type Params = { host: string; path?: string[] };
@@ -20,7 +21,9 @@ type Search = Record<string, string | string[] | undefined>;
 type Found =
   | { v2: false; live: LiveData; page: Page; slug?: string; stay: Stay | null }
   | { v2: true; live: LiveDataV2; page: PageV2; stay: null; system?: boolean; blog?: { items?: BlogItem[]; article?: Article };
-      stayPage?: Stay; compare?: boolean; lang?: string; path?: string };
+      stayPage?: Stay; compare?: boolean; lang?: string; path?: string;
+      /** website W4: drawn from a stay / package page design (page.sections), not a fixed system page */
+      designed?: boolean; packageKey?: string; search?: boolean };
 
 async function resolve(host: string, path: string[] | undefined): Promise<Found | null> {
   const found = await resolveIn(host, path);
@@ -52,10 +55,22 @@ async function resolveV2(host: string, live: LiveDataV2, p: string): Promise<Fou
     return { v2: true, live, stay: null, system: true, compare: true,
       page: sys("Compare stays", `Every stay at ${live.doc.site.name} side by side: guests, bedrooms and what's included.`) };
   }
+  if (low === "/stays" && (live.stays_index || []).length > 0) {           // Find your stay (website W5)
+    return { v2: true, live, stay: null, system: true, search: true,
+      page: sys("Find your stay", `Every stay at ${live.doc.site.name}: pick your dates and guests to see what's free.`) };
+  }
   if (low.startsWith("/stays/") && low.split("/").length === 3) {
     const st = await getStay(host, low.slice(7));
     if (!st) return null;
+    const seo = sys(st.name, st.summary || live.doc.site.tagline || st.name).seo;
+    if (live.doc.templates?.stay) return { v2: true, live, stay: null, system: true, designed: true, stayPage: st, page: { ...templatePageV2(live, "stay", st.name), seo } };
     return { v2: true, live, stay: null, system: true, stayPage: st, page: sys(st.name, st.summary || live.doc.site.tagline || st.name) };
+  }
+  if (low.startsWith("/packages/") && low.split("/").length === 3) {     // a page per published package (website W4)
+    const pk = (live.packages_index || []).find(x => x.key === low.slice(10));
+    if (!pk) return null;
+    const seo = sys(pk.name, pk.summary || `${pk.name}${pk.length ? `, ${pk.length}` : ""}. Ask ${live.doc.site.name} on WhatsApp.`).seo;
+    return { v2: true, live, stay: null, system: true, designed: true, packageKey: pk.key, page: { ...templatePageV2(live, "package", pk.name), seo } };
   }
   if (low === "/blog" || low.startsWith("/blog/")) {                 // guides (website phase 5)
     const slug = low.slice(6);
@@ -101,7 +116,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { host, path } = await params;
   const r = await resolve(host, path);
   if (!r) return { title: "Not found" };
-  const firstAsset = Object.keys(r.live.assets)[0];
+  const logo = isV2(r.live) ? (r.live.doc.site.brand?.logo || "").slice(6) : "";   // "asset:<id>"; never the share photo
+  const firstAsset = Object.keys(r.live.assets).find(id => id !== logo);
   const image = r.stay?.photos[0] ? [r.stay.photos[0]] : firstAsset ? [`https://${host}/_haip/media/${firstAsset}`] : [];
   const siteName = r.live.doc.site.name;
   if (r.v2) {
@@ -112,8 +128,9 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     const languages = langs.length ? Object.fromEntries([["en-IN", `https://${host}${bare}`], ["x-default", `https://${host}${bare}`],
       ...langs.map(l => [LANGS[l].hreflang, `https://${host}/${l}${bare === "/" ? "" : bare}`])]) : undefined;
     return { title, description, alternates: { canonical: `https://${host}${r.path || r.page.slug}`, languages },
-      ...(r.system && r.page.slug !== "/policies" && !r.blog && !r.stayPage && !r.compare ? { robots: { index: false } } : {}),
-      openGraph: { title, description, siteName, type: "website", locale: "en_IN", images: image } };
+      ...(r.system && r.page.slug !== "/policies" && !r.blog && !r.stayPage && !r.compare && !r.packageKey && !r.search ? { robots: { index: false } } : {}),
+      openGraph: { title, description, siteName, type: "website", locale: "en_IN", images: image },
+      ...(logo && r.live.assets[logo] ? { icons: { icon: `/_haip/media/${logo}?w=480`, apple: `/_haip/media/${logo}?w=480` } } : {}) };
   }
   const { page } = r;
   const title = (page.seo.title || page.title).replace(/\{stay\}/gi, r.stay?.name || "");
@@ -130,18 +147,20 @@ export default async function SitePage({ params, searchParams }: { params: Promi
   if (!r) notFound();
   const p = "/" + (path || []).join("/");
   const lang = r.v2 ? r.lang : undefined;
-  const env = envFor(r.live, { mode: "live", base: lang ? `/${lang}` : "", query: queryOf(await searchParams), stay: r.stay, mediaBase: "/_haip/media" });
+  const env = { ...envFor(r.live, { mode: "live", base: lang ? `/${lang}` : "", query: queryOf(await searchParams), stay: r.v2 && r.designed ? r.stayPage || null : r.stay, mediaBase: "/_haip/media" }),
+    packageKey: r.v2 ? r.packageKey || null : null };
   // a language switch at the top of a translated site (website phase 6)
   const other = r.v2 ? languagesOf(r.live) : [];
   const bare = lang ? p.replace(new RegExp(`^/${lang}(?=/|$)`), "") || "/" : p;
   const switcher = other.length ? <p className="sv-wrap sv-langbar">{lang
     ? <a href={bare} hrefLang="en-IN" lang="en">English</a>
     : other.map(l => <a key={l} href={`/${l}${bare === "/" ? "" : bare}`} hrefLang={LANGS[l].hreflang} lang={l}>{LANGS[l].switchTo}</a>)}</p> : null;
-  const sys = r.v2 && r.stayPage ? { main: <StayPage stay={r.stayPage} item={(r.live.stays_index || []).find(i => i.id === r.stayPage!.id)} live={r.live} env={env} /> }
+  const sys = r.v2 && r.designed ? null : r.v2 && r.stayPage ? { main: <StayPage stay={r.stayPage} item={(r.live.stays_index || []).find(i => i.id === r.stayPage!.id)} live={r.live} env={env} /> }
     : r.v2 && r.compare ? { main: <ComparePage live={r.live} env={env} /> }
+    : r.v2 && r.search ? { main: <StaySearch live={r.live} env={env} /> }
     : r.v2 && r.blog ? { main: r.blog.article ? <ArticleView a={r.blog.article} env={env} /> : <BlogList items={r.blog.items || []} env={env} /> }
     : r.v2 && r.system ? systemPage(r.live, r.page.slug, env) : null;
-  if (r.v2 && r.system && !sys) notFound();
+  if (r.v2 && r.system && !sys && !r.designed) notFound();
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(r, host)).replace(/</g, "\u003c") }} />

@@ -12,7 +12,13 @@
     "contact": {"label": "Contact and map", "variants": ["split", "card", "minimal"], "source": "site:contact"},
     "booking-cta": {"label": "Booking call to action", "variants": ["sticky-bar", "banner", "inline-form"], "source": "site:contact"},
     "text": {"label": "Your own text", "variants": ["plain", "with-photo"], "source": "site:text"},
-    "offer": {"label": "Seasonal offer", "variants": ["banner", "card"], "source": "site:promo"}
+    "offer": {"label": "Seasonal offer", "variants": ["banner", "card"], "source": "site:promo"},
+    "stay-gallery": {"label": "Stay photos", "variants": ["mosaic", "strip"], "source": "stay:photos"},
+    "stay-details": {"label": "About the stay", "variants": ["two-column", "stacked"], "source": "stay:details"},
+    "stay-rules": {"label": "House rules", "variants": ["chips", "list"], "source": "stay:rules"},
+    "stay-map": {"label": "Where it is", "variants": ["card"], "source": "stay:location"},
+    "stay-booking": {"label": "Price and dates", "variants": ["card"], "source": "stay:booking"},
+    "package-details": {"label": "About the trip", "variants": ["two-column", "stacked"], "source": "package:details"}
   },
   "palettes": {
     "forest-amber": {"label": "Forest and amber", "ink": "#1B2420", "surface": "#F5F1E8", "primary": "#2F5D46", "accent": "#A8641C"},

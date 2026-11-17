@@ -13,7 +13,7 @@ from app.models.knowledge import KnowledgeEntry
 from app.models.marketing import MarketingGuestReview
 from app.models.media_asset import MediaAsset
 from app.models.website import Site, SiteVersion
-from app.schemas.site_spec import catalogue, contrast_problems
+from app.schemas.site_spec import catalogue, contrast_problems, template_of
 from app.services import business_data_service as bds
 from app.services import website_bindings as binds
 from app.services import website_spec_service as wspec
@@ -41,11 +41,13 @@ def spec(**over) -> dict:
 
 def every_variant_spec() -> dict:
     need = {"hero": {"headline": "Hello"}, "offer": {"heading": "Hello"}}       # slots with a required field
-    sections = [{"id": f"{t}-{v}", "type": t, "variant": v, "slots": dict(need.get(t, {}))}
-                for t, sec in catalogue()["sections"].items() for v in sec["variants"]]
+    every = [{"id": f"{t}-{v}", "type": t, "variant": v, "slots": dict(need.get(t, {}))}
+             for t, sec in catalogue()["sections"].items() for v in sec["variants"]]
+    sections = [s for s in every if not template_of(s["type"])]                 # stay-/package- parts live in the designs (W4)
     return spec(pages=[{"slug": "/", "title": "Home", "sections": sections[:12]},
                        {"slug": "/more", "title": "More", "sections": sections[12:24]},
-                       {"slug": "/extra", "title": "Extra", "sections": sections[24:]}])
+                       {"slug": "/extra", "title": "Extra", "sections": sections[24:]}],
+                templates={k: {"sections": [s for s in every if template_of(s["type"]) == k]} for k in ("stay", "package")})
 
 
 # ─── schema ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -324,7 +326,7 @@ def _demo_module():
 
 def test_demo_spec_uses_every_section_variant():
     out = wspec.validate(_demo_module().WANDERWHEEL_SPEC)
-    used = {(s["type"], s["variant"]) for p in out["pages"] for s in p["sections"]}
+    used = {(s["type"], s["variant"]) for p in [*out["pages"], *out.get("templates", {}).values()] for s in p["sections"]}
     assert used == {(t, v) for t, sec in catalogue()["sections"].items() for v in sec["variants"]}
 
 

@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
 import type { SiteEnv } from "../types";
 import { SiteRendererV2, systemPage } from "./SiteRendererV2";
-import { CATALOGUE, findPageV2, isV2, type Bound, type LiveDataV2, type SectionType, type SectionV2 } from "./types";
+import { SiteRendererV2 as Render, templatePageV2 } from "./SiteRendererV2";
+import { CATALOGUE, findPageV2, isV2, templateOf, type Bound, type LiveDataV2, type SectionType, type SectionV2 } from "./types";
 
 const PHOTO = "asset:11111111-1111-1111-1111-111111111111";
 const wa = (code: string) => ({ code, href: `https://wa.me/919845000000?text=Hi%20(Ref%20${code})` });
-const TYPES = Object.keys(CATALOGUE.sections) as SectionType[];
+const TYPES = (Object.keys(CATALOGUE.sections) as SectionType[]).filter(t => !templateOf(t));   // design parts: own test below
 
 function boundFor(t: SectionType, id: string, grounded: boolean): Bound {
   const base = { wa: wa(`WW-HOME-${id.replace(/[^a-z0-9]/gi, "").toUpperCase()}`) };
@@ -159,5 +160,52 @@ describe("v2 site renderer", () => {
     expect(out).toContain('data-motion="calm"');
     expect(out).toContain("--v-primary:#2F5D46");
     expect(out).toContain('aria-current="page"');
+  });
+
+  it("website W1: logo, own menus with a drop-down, and the floating WhatsApp button", () => {
+    const l = live(false);
+    l.doc.site.brand = { logo: PHOTO, show_name: false };
+    l.doc.site.menus = { main: [{ label: "Trips", to: "/journeys", children: [{ label: "Questions", to: "/#faq-accordion" }] },
+      { label: "Instagram", to: "https://instagram.com/x", children: [] }], footer: [{ label: "Policies", to: "/policies" }] };
+    l.float_wa = { "/": wa("WW-HOME-FLOAT") };
+    const out = html(l);
+    expect(out).toContain('class="sv-brand__logo"');
+    expect(out).toContain('aria-label="Wanderwheel Caravans"');          // logo only: the name is still read out
+    expect(out).toMatch(/<details class="sv-drop"><summary>Trips<\/summary>/);
+    expect(out).toContain('href="/#faq-accordion"');
+    expect(out).toMatch(/href="https:\/\/instagram.com\/x" target="_blank" rel="noopener noreferrer"/);
+    expect(out).toContain('class="sv-fab"');
+    expect(out).toContain('data-wa-ref="WW-HOME-FLOAT"');
+    expect(out).not.toContain(">Journeys</a>");                            // own menus replace the page list
+  });
+
+  it("without own menus the pages marked nav are listed and there is no floating button", () => {
+    const out = html(live(false));
+    expect(out).toContain(">Journeys</a>");
+    expect(out).not.toContain('class="sv-fab"');
+    expect(out).not.toContain('class="sv-brand__logo"');
+  });
+
+  it("website W4: a stay page design draws that stay; a package page draws that package", () => {
+    const l = live(true);
+    l.policies = { ...l.policies, stay_rules: { check_in_time: "1 pm", check_out_time: "11 am", house_rules: ["No pets"], min_age: 18 } };
+    const stay = { id: "p1", slug: "ratha-1", name: "Ratha 1", type: "caravan", sleeps: 4, max_adults: 4, bedrooms: 1, bathrooms: 1, city: "Coorg",
+      photos: ["https://cdn.example.com/a.jpg", "https://cdn.example.com/b.jpg"], amenities: ["Ensuite", "Kitchenette"], summary: "Sleeps four.",
+      description: "A small home on wheels.\n\nWith a view.", lat: 12.42, lng: 75.73 };
+    const stayHtml = renderToString(<Render live={l} page={templatePageV2(l, "stay", "Ratha 1")} env={{ ...env(l), stay }} />);
+    expect(stayHtml).toContain('<h1 class="sv-h2">Ratha 1</h1>');
+    expect(stayHtml).toContain("https://cdn.example.com/b.jpg");
+    expect(stayHtml).toContain("Check-in from 1 pm");
+    expect(stayHtml).toContain("No pets");
+    expect(stayHtml).toContain("query=12.42%2C75.73");
+    expect(stayHtml).toContain("With a view.");
+    l.packages_index = [{ key: "weekend", name: "Weekend Escape", summary: "Two nights.", length: "2 nights / 3 days", inclusions: ["Breakfast"],
+      days: ["Into the hills", "Home"], destinations: ["Misty Hills"], max_guests: 4, price: null, price_label: "Get the price on WhatsApp",
+      wa: wa("WW-PACKAGES-DETAILS") }];
+    const pk = renderToString(<Render live={l} page={templatePageV2(l, "package", "Weekend Escape")} env={{ ...env(l), packageKey: "weekend" }} />);
+    expect(pk).toContain('<h1 class="sv-h2">Weekend Escape</h1>');
+    expect(pk).toMatch(/Day (<!-- -->)?1/);
+    expect(pk).toContain('data-wa-ref="WW-PACKAGES-DETAILS"');
+    expect(pk).not.toMatch(PRICE);
   });
 });

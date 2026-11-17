@@ -62,10 +62,11 @@ def ref_code(prefix: str, slug: str, section_id: str) -> str:
     return f"{prefix}-{page}-{_token(section_id, 'SECTION')}"
 
 
-def wa_link(number: Optional[str], code: str, about: Optional[str] = None) -> Optional[dict]:
+def wa_link(number: Optional[str], code: str, about: Optional[str] = None, text: Optional[str] = None) -> Optional[dict]:
     if not number:
         return None
-    text = f"Hi! I'd like to know more about {about}. (Ref {code})" if about else f"Hi! I'd like to know more. (Ref {code})"
+    text = (f"{text.strip()} (Ref {code})" if text and text.strip()
+            else f"Hi! I'd like to know more about {about}. (Ref {code})" if about else f"Hi! I'd like to know more. (Ref {code})")
     return {"code": code, "href": f"https://wa.me/{number}?text={quote(text)}"}
 
 
@@ -91,6 +92,7 @@ class _Ctx:
         cfg = site_settings(site) if site is not None else None
         self.property_ids = (cfg.property_ids or None) if cfg else None
         self.inclusive = bool(cfg and cfg.prices_include_gst)
+        self.logo: Optional[str] = None          # the site's own logo (site.brand.logo) is never a hero or gallery photo
         self._cache: dict = {}
 
     def properties(self) -> list:
@@ -126,7 +128,7 @@ class _Ctx:
         return self.once("library", lambda: library(self.db, self.tenant.id))
 
     def photos(self) -> list[str]:
-        return [a.id for a in self.library()]
+        return [a.id for a in self.library() if a.id != self.logo]
 
 
 def _price(ctx: _Ctx, key: str, pkg) -> Optional[dict]:
@@ -158,7 +160,7 @@ def _hero(ctx: _Ctx, s: dict) -> dict:
     return {"media": media}
 
 
-def _packages(ctx: _Ctx, s: dict, number: Optional[str], code: str) -> dict:
+def _packages(ctx: _Ctx, s: dict, number: Optional[str], code: str, cap: int = 6) -> dict:
     pkgs = ctx.packages()
     keys = s["slots"].get("keys") or []
     if keys:
@@ -167,7 +169,7 @@ def _packages(ctx: _Ctx, s: dict, number: Optional[str], code: str) -> dict:
     its = ctx.itineraries()
     dests = ctx.destinations()
     items = []
-    for key, pkg in pkgs[:6]:
+    for key, pkg in pkgs[:cap]:
         it = next((i for _, i in its if key in (i.package_keys or [])), None)
         price = _price(ctx, key, pkg)
         items.append({
@@ -215,7 +217,7 @@ def _stays(ctx: _Ctx, s: dict) -> dict:
     items = []
     for p in ctx.properties()[: s["slots"].get("limit") or 6]:
         own = _photos(p)
-        items.append({"id": p.id, "slug": stay_slug(p), "name": (p.name or "")[:80], "bathrooms": p.bathrooms,
+        items.append({"id": p.id, "slug": stay_slug(p), "name": (p.name or "")[:80], "bathrooms": p.bathrooms, "city": (p.city or "")[:100],
                       "summary": _clean((p.description or "").strip()[:280]),
                       "sleeps": int(p.max_adults or 0) + int(p.max_children or 0), "bedrooms": p.bedrooms,
                       "amenities": [str(a)[:40] for a in (p.amenities or []) if isinstance(a, str)][:6],
@@ -276,13 +278,21 @@ def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] =
     `types` limits which sections are resolved (the photo route only needs hero and gallery). `site` = the site's chosen
     properties and GST setting (without it: every bookable property)."""
     ctx = _Ctx(db, tenant, site)
+    ctx.logo = ((spec["site"].get("brand") or {}).get("logo") or "").partition(":")[2] or None
     number = bio_packages.whatsapp_number(spec, tenant)
     prefix = ref_prefix(spec)
     bound: dict = {}
     page_wa: dict = {}
-    for page in spec["pages"]:
+    float_wa: dict = {}
+    button = spec["site"].get("whatsapp_button") or {}
+    # Website W4: a stay / package page design binds like a page at /stays or /packages (codes PREFIX-STAYS-<SECTION>).
+    designs = [{"slug": "/stays" if k == "stay" else "/packages", "sections": t["sections"]}
+               for k, t in (spec.get("templates") or {}).items() if t]
+    for page in [*spec["pages"], *designs]:
         slug = page["slug"]
         page_wa[slug] = wa_link(number, ref_code(prefix, slug, "nav"))
+        if button.get("on"):
+            float_wa[slug] = wa_link(number, ref_code(prefix, slug, "float"), text=button.get("text"))
         for s in page["sections"]:
             if types is not None and s["type"] not in types:
                 continue
@@ -301,4 +311,7 @@ def resolve(db: Session, tenant: Tenant, spec: dict, types: Optional[set[str]] =
         for ref in refs + ([data.get("media")] if isinstance(data.get("media"), str) else data.get("media") or []):
             if isinstance(ref, str) and ref.startswith("asset:"):
                 ids.add(ref.split(":", 1)[1])
-    return {"bound": bound, "page_wa": page_wa, "price_mode": "grounded" if ctx.grounded else "handoff", "asset_ids": ids}
+    # Package pages (/packages/<key>, W4): every published retail package, each with its own WhatsApp ask.
+    packages_index = [] if types is not None else _packages(ctx, {"slots": {}}, number, ref_code(prefix, "/packages", "details"), cap=12)["items"]
+    return {"bound": bound, "page_wa": page_wa, "float_wa": float_wa, "price_mode": "grounded" if ctx.grounded else "handoff",
+            "asset_ids": ids, "packages_index": packages_index}

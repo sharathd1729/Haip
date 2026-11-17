@@ -4,7 +4,8 @@
 // classic editor) lives behind "More options".
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheck, ExternalLink, Image as ImageIcon, LayoutList, MessageSquareText, Monitor, Palette, Phone, Rocket, Smartphone, Sparkles, Type } from "lucide-react";
+import Link from "next/link";
+import { BadgeCheck, MousePointerClick, CalendarCheck, ExternalLink, Image as ImageIcon, LayoutList, Menu, MessageSquareText, Monitor, Palette, Phone, Rocket, Smartphone, Sparkles, Type } from "lucide-react";
 import { Card, CardBody, Drawer, StatusPill } from "@/components/ui/kit";
 import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
@@ -13,21 +14,27 @@ import { ChangeSheet } from "./ChangeSheet";
 import { ContentPanel } from "./ContentPanel";
 import { GrowthPanel } from "./GrowthPanel";
 import { LaunchPanel } from "./LaunchPanel";
-import { LookSheet, PhotosSheet, SectionsSheet, WordsSheet } from "./DirectEditors";
+import { LookSheet, PhotosSheet, SectionsSheet, WordsSheet, saveOrExplain } from "./DirectEditors";
+import { LogoSheet, MenuSheet } from "./SiteChrome";
+import { SetupChecklist } from "./SetupChecklist";
+import { useRouter } from "next/navigation";
+import type { SpecV2 } from "@/site-blocks/v2/types";
 import { useDraft } from "./useDraft";
 
 type Contact = { phone: string; whatsapp: string; email: string; address: string };
-type Sheet = null | "change" | "contact" | "booking" | "publish" | "photos" | "look" | "sections" | "words";
+type WaFloat = { on: boolean; text: string };
+type Sheet = null | "change" | "contact" | "booking" | "publish" | "photos" | "look" | "sections" | "words" | "logo" | "menu";
 
 export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: string; onMore: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const draft = useDraft();
+  const router = useRouter();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [phone, setPhone] = useState(true);
   const [wordsFor, setWordsFor] = useState<string | null>(null);
   const canApprove = role === "owner" || role === "manager";
-  const doc = draft.doc as unknown as { spec_version?: number; site: { contact: Contact } } | null;
+  const doc = draft.doc as unknown as { spec_version?: number; site: { contact: Contact; whatsapp_button?: WaFloat } } | null;
   const isNew = doc?.spec_version === 2;
   const v = draft.version;
   const preview = useQuery({ queryKey: ["web-preview", v?.sha256], queryFn: webApi.preview, enabled: !!v, staleTime: 60 * 60 * 1000 });
@@ -66,6 +73,12 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
         </CardBody>
       </Card>
 
+      {isNew && doc && missing.data && (
+        <SetupChecklist doc={doc as unknown as SpecV2} site={site} canEdit={canApprove}
+          hasStays={!missing.data.items.some(m => m.section === "stays")}
+          onAction={a => (a === "design" ? router.push("/dashboard/marketing/website/edit") : a === "domain" ? onMore() : setSheet(a))} />
+      )}
+
       {!isNew && draft.doc && (
         <Card><CardBody className="grid gap-3 sm:flex sm:items-center sm:justify-between">
           <div><p className="font-semibold">Let HAIP make your website</p>
@@ -95,6 +108,13 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
         </Card>
 
         <div className="grid content-start gap-3">
+          {isNew && canApprove && (
+            <Link href="/dashboard/marketing/website/edit"
+              className="grid min-h-[76px] grid-cols-[auto_1fr] items-center gap-3 rounded-2xl border border-[var(--haip-border)] bg-[var(--haip-card)] p-4 transition-transform active:scale-[0.98]">
+              <MousePointerClick size={22} aria-hidden="true" />
+              <span><b className="block text-base font-semibold">Edit on the page</b><span className="block text-sm text-[var(--haip-fg-muted)]">Click any part of your website to change it. Best on a computer.</span></span>
+            </Link>
+          )}
           <BigButton icon={<MessageSquareText size={22} />} title="Change something" text="Tell HAIP in your own words." onClick={() => setSheet("change")}
             disabled={!canApprove || !isNew} />
           <div className="grid grid-cols-2 gap-3">
@@ -102,6 +122,8 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
             <Tile icon={<Palette size={20} />} title="Colours & font" onClick={() => setSheet("look")} disabled={own} />
             <Tile icon={<LayoutList size={20} />} title="Sections" onClick={() => setSheet("sections")} disabled={own} />
             <Tile icon={<Type size={20} />} title="Words" onClick={() => { setWordsFor(null); setSheet("words"); }} disabled={own} />
+            <Tile icon={<BadgeCheck size={20} />} title="Logo" onClick={() => setSheet("logo")} disabled={own} />
+            <Tile icon={<Menu size={20} />} title="Menu & footer" onClick={() => setSheet("menu")} disabled={own} />
           </div>
           <BigButton icon={<Phone size={22} />} title="My phone & WhatsApp" text="The numbers guests use to reach you." onClick={() => setSheet("contact")} disabled={!canApprove || !draft.doc} />
           <BigButton icon={<CalendarCheck size={22} />} title="Bookings" text={MODE_TEXT[site.settings.booking_mode] || ""} onClick={() => setSheet("booking")} disabled={!canApprove} />
@@ -136,7 +158,12 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
       {site.live && <GrowthPanel canApprove={canApprove} />}
 
       {doc && <ContactSheet open={sheet === "contact"} onClose={() => setSheet(null)} contact={doc.site.contact}
-        onSave={async c => { draft.update(d => { (d as unknown as { site: { contact: Contact } }).site.contact = c; }); await draft.flush(); setSheet(null); toast({ variant: "success", title: "Saved. Publish to show it to guests." }); }} />}
+        button={isNew ? doc.site.whatsapp_button || { on: false, text: "" } : null}
+        onSave={async (c, b) => {
+          draft.update(d => { const st = (d as unknown as { site: { contact: Contact; whatsapp_button?: WaFloat } }).site; st.contact = c; if (b) st.whatsapp_button = b; });
+          if (await saveOrExplain(draft, toast)) { setSheet(null); toast({ variant: "success", title: "Saved. Publish to show it to guests." }); } }} />}
+      <LogoSheet open={sheet === "logo"} onClose={() => setSheet(null)} draft={draft} />
+      <MenuSheet open={sheet === "menu"} onClose={() => setSheet(null)} draft={draft} />
       <PhotosSheet open={sheet === "photos"} onClose={() => setSheet(null)} draft={draft} />
       <LookSheet open={sheet === "look"} onClose={() => setSheet(null)} draft={draft} />
       <SectionsSheet open={sheet === "sections"} onClose={() => setSheet(null)} draft={draft} onWrite={id => { setWordsFor(id); setSheet("words"); }} />
@@ -185,8 +212,11 @@ function Tile({ icon, title, onClick, disabled }: { icon: ReactNode; title: stri
   );
 }
 
-function ContactSheet({ open, onClose, contact, onSave }: { open: boolean; onClose: () => void; contact: Contact; onSave: (c: Contact) => Promise<void> }) {
+function ContactSheet({ open, onClose, contact, button, onSave }: {
+  open: boolean; onClose: () => void; contact: Contact; button: WaFloat | null; onSave: (c: Contact, b: WaFloat | null) => Promise<void>;
+}) {
   const [c, setC] = useState<Contact>(contact);
+  const [b, setB] = useState<WaFloat | null>(button);
   const [busy, setBusy] = useState(false);
   const field = (k: keyof Contact, label: string, type = "text", hint?: string) => (
     <label className="grid gap-1"><span className="text-sm font-semibold">{label}</span>
@@ -194,14 +224,26 @@ function ContactSheet({ open, onClose, contact, onSave }: { open: boolean; onClo
       {hint && <span className="text-xs text-[var(--haip-fg-muted)]">{hint}</span>}</label>
   );
   return (
-    <Drawer open={open} onOpenChange={o => { if (o) setC(contact); else onClose(); }} title="My phone & WhatsApp"
+    <Drawer open={open} onOpenChange={o => { if (o) { setC(contact); setB(button); } else onClose(); }} title="My phone & WhatsApp"
       footer={<div className="flex gap-2"><button className={btn} onClick={onClose}>Cancel</button>
-        <button className={btnPrimary} disabled={busy} onClick={async () => { setBusy(true); try { await onSave(c); } finally { setBusy(false); } }}>{busy ? "Saving…" : "Save"}</button></div>}>
+        <button className={btnPrimary} disabled={busy} onClick={async () => { setBusy(true); try { await onSave(c, b); } finally { setBusy(false); } }}>{busy ? "Saving…" : "Save"}</button></div>}>
       <div className="grid gap-4">
         {field("whatsapp", "WhatsApp number", "tel", "Every WhatsApp button on your website opens a chat with this number.")}
         {field("phone", "Phone number", "tel", "For the Call us button.")}
         {field("email", "Email", "email")}
         {field("address", "Address", "text", "Shown with a Get directions link.")}
+        {b && (
+          <div className="grid gap-3 rounded-2xl border border-[var(--haip-border)] p-4">
+            <label className="flex min-h-11 items-center gap-3">
+              <input type="checkbox" className="h-5 w-5 accent-[var(--primary)]" checked={b.on} onChange={e => setB({ ...b, on: e.target.checked })} />
+              <span><b className="block text-sm font-semibold">Round WhatsApp button on every page</b>
+                <span className="text-xs text-[var(--haip-fg-muted)]">Floats at the bottom right. Chats land in your Inbox.</span></span>
+            </label>
+            {b.on && <label className="grid gap-1"><span className="text-sm font-semibold">First message the guest sends</span>
+              <input className={inputCls} maxLength={120} placeholder="Hi! I'd like to know more." value={b.text} onChange={e => setB({ ...b, text: e.target.value })} />
+              <span className="text-xs text-[var(--haip-fg-muted)]">HAIP adds a short reference code so you can see which page they came from.</span></label>}
+          </div>
+        )}
       </div>
     </Drawer>
   );
