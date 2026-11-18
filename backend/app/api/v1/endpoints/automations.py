@@ -11,7 +11,7 @@ GET    /automations/runs/{run_id} single run detail
 """
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -198,7 +198,8 @@ def _validate_ig_copy(trigger: str, cfg: dict) -> None:
         raise HTTPException(status_code=422, detail="Keep the follow-up under 500 characters.")
 
 
-def _ig_configs(trigger: str, action: str, trigger_config: dict, action_config: dict) -> tuple[dict, dict]:
+def _ig_configs(trigger: str, action: str, trigger_config: dict, action_config: dict,
+                tenant_id: str | None = None) -> tuple[dict, dict]:
     """Instagram automation rules and WhatsApp keyword replies: validated + normalised configs; others pass through."""
     if action == "send_whatsapp_reply" or trigger == "wa_message_received":
         if action != "send_whatsapp_reply" or trigger != "wa_message_received":
@@ -207,7 +208,7 @@ def _ig_configs(trigger: str, action: str, trigger_config: dict, action_config: 
         from pydantic import ValidationError
         from app.services.wa_keyword_replies import validate_rule
         try:
-            return validate_rule(trigger_config, action_config)
+            return validate_rule(trigger_config, action_config, tenant_id)
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc.errors()[0].get("msg", "Invalid reply")).removeprefix("Value error, "))
         except ValueError as exc:
@@ -248,7 +249,8 @@ def create_rule(
     db: Session = Depends(get_db),
 ):
     _validate(body.trigger, body.action, body.action_config)
-    trigger_config, action_config = _ig_configs(body.trigger, body.action, body.trigger_config or {}, body.action_config or {})
+    trigger_config, action_config = _ig_configs(body.trigger, body.action, body.trigger_config or {}, body.action_config or {},
+                                                current_user.tenant_id)
     rule = AutomationRule(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
@@ -284,7 +286,7 @@ def update_rule(
     _validate(trigger, action, update_data.get("action_config", rule.action_config))
     if "trigger_config" in update_data or "action_config" in update_data or "trigger" in update_data:
         tc, ac = _ig_configs(trigger, action, update_data.get("trigger_config", rule.trigger_config or {}),
-                             update_data.get("action_config", rule.action_config or {}))
+                             update_data.get("action_config", rule.action_config or {}), current_user.tenant_id)
         if (action == "send_instagram_quick_reply" and trigger.startswith("ig_")) or action == "send_whatsapp_reply":
             update_data["trigger_config"], update_data["action_config"] = tc, ac
 
@@ -307,6 +309,54 @@ def delete_rule(
         raise HTTPException(status_code=404, detail="Rule not found")
     db.delete(rule)
     db.commit()
+
+
+# ─── WhatsApp keyword replies: file + stats ───────────────────────────────────
+
+_REPLY_FILE_TYPES = {  # magic bytes -> (kind, content type, extension, size cap); WhatsApp: photos <= 5 MB
+    b"%PDF-": ("document", "application/pdf", "pdf", 16 * 1024 * 1024),
+    b"\xff\xd8\xff": ("image", "image/jpeg", "jpg", 5 * 1024 * 1024),
+    b"\x89PNG\r\n\x1a\n": ("image", "image/png", "png", 5 * 1024 * 1024),
+}
+
+
+@router.post("/wa-reply-file")
+def upload_wa_reply_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+):
+    """The PDF or photo a WhatsApp keyword reply sends. Returns the ``file`` object to put in the rule's
+    action_config (its key is checked to be this workspace's when the rule is saved)."""
+    import os
+    import re as _re
+
+    content = file.file.read(16 * 1024 * 1024 + 1)
+    found = next((v for magic, v in _REPLY_FILE_TYPES.items() if content.startswith(magic)), None)
+    if not found:
+        raise HTTPException(status_code=400, detail="Use a PDF, or a JPEG or PNG photo.")
+    kind, content_type, ext, cap = found
+    if len(content) > cap:
+        raise HTTPException(status_code=400, detail=f"Keep the file under {cap // (1024 * 1024)} MB.")
+    from app.services.media_storage import get_presigned_media_url, upload_wa_reply_file as store
+
+    key = store(current_user.tenant_id, content, content_type, ext)
+    name = _re.sub(r"[\x00-\x1f/\\]", "", os.path.basename(file.filename or "")).strip()[:120] or f"file.{ext}"
+    log.info("wa_reply_file_uploaded", tenant_id=current_user.tenant_id, kind=kind, bytes=len(content))
+    return {"key": key, "kind": kind, "filename": name, "preview_url": get_presigned_media_url(key, expires_in=3600)}
+
+
+@router.get("/wa-reply-stats")
+def wa_reply_stats(
+    days: int = Query(default=30, ge=1, le=365),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Per WhatsApp keyword reply over the last ``days``: sent, delivered, read, failed, people."""
+    from datetime import timedelta
+    from app.services import wa_keyword_replies
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    return {"days": days, "rules": wa_keyword_replies.stats(db, current_user.tenant_id, since)}
 
 
 # ─── Runs endpoints ───────────────────────────────────────────────────────────

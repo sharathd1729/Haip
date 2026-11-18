@@ -89,11 +89,27 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
         body_text  = message.body or ""
         meta = message.channel_metadata if isinstance(message.channel_metadata, dict) else {}
         interactive = meta.get("interactive") if isinstance(meta.get("interactive"), dict) else None
+        filename = str(meta.get("filename") or "")
+
+        if media_url and not media_url.startswith(("http://", "https://")):
+            # A file in our storage (a keyword reply's PDF/photo): Meta fetches it from a link signed now. Only this
+            # workspace's own files, whoever wrote the row.
+            if not media_url.startswith(f"{tenant_id}/"):
+                _mark_failed(db, message, "The attached file belongs to another workspace")
+                return
+            from app.services.media_storage import get_presigned_media_url
+            media_url = get_presigned_media_url(media_url, expires_in=6 * 3600)
+            if not media_url:
+                raise RuntimeError("Could not sign a link to the attached file")   # retryable: storage blip
 
         if interactive:
-            # Reply buttons / link button / list / location request (services/wa_interactive.py).
+            # Reply buttons / link button / list / location request (services/wa_interactive.py), with the attached
+            # PDF or photo as its header.
             from app.services import wa_interactive
-            result = _run_async(adapter.send_interactive(to=guest.phone, interactive=wa_interactive.payload(interactive, body_text)))
+            header = None
+            if media_url and media_type in ("image", "document"):
+                header = {"type": media_type, media_type: {"link": media_url, **({"filename": filename} if filename and media_type == "document" else {})}}
+            result = _run_async(adapter.send_interactive(to=guest.phone, interactive=wa_interactive.payload(interactive, body_text, header=header)))
         elif media_type and media_url:
             if media_type == "image":
                 result = _run_async(adapter.send_image(to=guest.phone, url=media_url, caption=body_text))
@@ -102,7 +118,7 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             elif media_type == "audio":
                 result = _run_async(adapter.send_audio(to=guest.phone, url=media_url))
             elif media_type == "document":
-                result = _run_async(adapter.send_document(to=guest.phone, url=media_url, caption=body_text))
+                result = _run_async(adapter.send_document(to=guest.phone, url=media_url, filename=filename, caption=body_text))
             else:
                 # Unknown media type — fall back to text
                 result = _run_async(adapter.send_text(to=guest.phone, body=body_text))

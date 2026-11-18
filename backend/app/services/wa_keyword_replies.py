@@ -1,7 +1,18 @@
 """WhatsApp keyword auto-replies: an automation_rules row with trigger ``wa_message_received`` and action
-``send_whatsapp_reply`` answers a guest's message that contains one of its keywords (whole words, any case), before
-the AI concierge. The reply is text, up to 3 reply buttons or a link button (services/wa_interactive.py). The guest
-just wrote, so WhatsApp's 24-hour window is open.
+``send_whatsapp_reply`` answers a guest's message before the AI concierge. The guest just wrote, so WhatsApp's 24-hour
+window is open.
+
+Trigger (``WaReplyTrigger``): keywords matched as whole words (``match="word"``, any case) or as the whole message
+(``match="exact"``: "Hi!" matches "hi", "hi, rates?" does not); exclude words; ``reply_all``; ``hours`` = any | open |
+closed against the team hours in Settings (agent_consult_settings). A rule whose keyword matched wins over a reply-all
+rule, then the oldest rule first.
+
+Reply (``WaReplyAction``): text, up to 3 reply buttons or a link button (services/wa_interactive.py), and optionally one
+file (PDF or JPEG/PNG photo uploaded via ``POST /automations/wa-reply-file``): sent as one message, the file with the
+text as its caption, or as the header of the buttons / link message. ``once_per_person`` or ``repeat_after_hours``.
+
+A reply that only fires when closed is an away message: it is sent with sender_kind ``automation_away``, which never
+counts as an answer (the guest stays on Needs reply / My day for the team) or as a person's contact.
 
 Keyword matching is shared with Instagram (ig_keyword_match). Opt-out words are handled earlier in the inbound task,
 so a STOP never reaches here.
@@ -9,8 +20,10 @@ so a STOP never reaches here.
 
 from __future__ import annotations
 
+import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 import structlog
 from pydantic import BaseModel, Field, model_validator
@@ -22,12 +35,17 @@ log = structlog.get_logger()
 
 TRIGGER = "wa_message_received"
 ACTION = "send_whatsapp_reply"
+KIND = "automation"
+AWAY_KIND = "automation_away"  # also listed in inbox_service, work_queue_signals and ai_draft_expiry
+FILE_FOLDER = "wa_replies"
 
 
 class WaReplyTrigger(BaseModel):
     keywords: list[str] = Field(default_factory=list, max_length=50)
     exclude_keywords: list[str] = Field(default_factory=list, max_length=50)
     reply_all: bool = False
+    match: Literal["word", "exact"] = "word"
+    hours: Literal["any", "open", "closed"] = "any"
 
     @model_validator(mode="after")
     def _something(self):
@@ -42,11 +60,19 @@ class WaLink(BaseModel):
     url: str = Field(min_length=9, max_length=2000)
 
 
+class WaFile(BaseModel):
+    key: str = Field(min_length=10, max_length=300)
+    kind: Literal["document", "image"]
+    filename: str = Field(default="", max_length=120)
+
+
 class WaReplyAction(BaseModel):
     message: str = Field(min_length=1, max_length=1024)
     buttons: list[str] = Field(default_factory=list, max_length=3)
     link: WaLink | None = None
+    file: WaFile | None = None
     once_per_person: bool = False
+    repeat_after_hours: int | None = Field(default=None, ge=1, le=168)
 
     @model_validator(mode="before")
     @classmethod
@@ -57,6 +83,8 @@ class WaReplyAction(BaseModel):
             link = data.get("link") or {}
             if not str(link.get("url") or "").strip() and not str(link.get("title") or "").strip():
                 data["link"] = None
+            if not (data.get("file") or {}).get("key"):
+                data["file"] = None
         return data
 
     @model_validator(mode="after")
@@ -78,9 +106,27 @@ class WaReplyAction(BaseModel):
         return None
 
 
-def validate_rule(trigger_config: dict, action_config: dict) -> tuple[dict, dict]:
-    """Validated copies of both configs. Raises pydantic.ValidationError / ValueError."""
-    return WaReplyTrigger(**(trigger_config or {})).model_dump(), WaReplyAction(**(action_config or {})).model_dump(exclude_none=True)
+def validate_rule(trigger_config: dict, action_config: dict, tenant_id: str | None = None) -> tuple[dict, dict]:
+    """Validated copies of both configs. Raises pydantic.ValidationError / ValueError. A file must be one this
+    workspace uploaded (its storage key starts with ``{tenant_id}/wa_replies/``)."""
+    action = WaReplyAction(**(action_config or {}))
+    if action.file and (not tenant_id or not action.file.key.startswith(f"{tenant_id}/{FILE_FOLDER}/")):
+        raise ValueError("Upload the file again: it does not belong to this workspace.")
+    return WaReplyTrigger(**(trigger_config or {})).model_dump(), action.model_dump(exclude_none=True)
+
+
+def _norm(text: str) -> str:
+    """Lower case, punctuation and emoji dropped, single spaces: "Hi!! 👋" -> "hi"."""
+    return " ".join(re.sub(r"[^\w\s]|_", " ", (text or "").lower()).split())
+
+
+def _matches(text: str, tc: dict) -> bool:
+    from app.services.ig_keyword_match import _contains_keyword, _keyword_list
+
+    words = _keyword_list(tc.get("keywords"))
+    if tc.get("match") == "exact":
+        return _norm(text) in {_norm(k) for k in words}
+    return _contains_keyword(text, words)
 
 
 def find_rule(db: Session, tenant_id: str, text: str) -> AutomationRule | None:
@@ -92,25 +138,39 @@ def find_rule(db: Session, tenant_id: str, text: str) -> AutomationRule | None:
         .order_by(AutomationRule.created_at)
         .all()
     )
+    open_now: bool | None = None
+    catch_all = None
     for rule in rules:
         tc = rule.trigger_config or {}
+        hours = tc.get("hours") or "any"
+        if hours != "any":
+            if open_now is None:
+                from app.models.tenant import Tenant
+                from app.services import agent_consult_settings
+
+                open_now = agent_consult_settings.in_business_hours(db.get(Tenant, tenant_id))
+            if open_now != (hours == "open"):
+                continue
         if _contains_keyword(text, _keyword_list(tc.get("exclude_keywords"))):
             continue
-        if tc.get("reply_all") or _contains_keyword(text, _keyword_list(tc.get("keywords"))):
+        if _matches(text, tc):
             return rule
-    return None
+        if tc.get("reply_all") and catch_all is None:
+            catch_all = rule
+    return catch_all
 
 
-def _already_replied(db: Session, tenant_id: str, conversation_id: str, rule_id: str) -> bool:
+def _last_reply_at(db: Session, tenant_id: str, conversation_id: str, rule_id: str) -> datetime | None:
     from app.models.conversation import Message, MessageDirection
 
     rows = (
-        db.query(Message.channel_metadata)
+        db.query(Message.channel_metadata, Message.created_at)
         .filter(Message.tenant_id == tenant_id, Message.conversation_id == conversation_id,
-                Message.direction == MessageDirection.OUTBOUND, Message.sender_kind == "automation")
+                Message.direction == MessageDirection.OUTBOUND, Message.sender_kind.in_((KIND, AWAY_KIND)))
         .all()
     )
-    return any(isinstance(m, dict) and m.get("automation_rule_id") == rule_id for (m,) in rows)
+    times = [at for m, at in rows if isinstance(m, dict) and m.get("automation_rule_id") == rule_id and at]
+    return max(times) if times else None
 
 
 def handle(db: Session, tenant_id: str, guest, conversation, text: str) -> bool:
@@ -119,22 +179,34 @@ def handle(db: Session, tenant_id: str, guest, conversation, text: str) -> bool:
     if rule is None:
         return False
     cfg = rule.action_config or {}
-    if cfg.get("once_per_person") and _already_replied(db, tenant_id, conversation.id, rule.id):
-        return False  # already answered this person once: let the AI or the team take it
+    if cfg.get("once_per_person") or cfg.get("repeat_after_hours"):
+        last = _last_reply_at(db, tenant_id, conversation.id, rule.id)
+        if last is not None:
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=UTC)
+            hours = cfg.get("repeat_after_hours")
+            if cfg.get("once_per_person") or not hours or datetime.now(UTC) - last < timedelta(hours=int(hours)):
+                return False  # already answered this person: let the AI or the team take it
     from app.models.conversation import Message, MessageDeliveryState
 
     try:
-        spec = WaReplyAction(**cfg).interactive()
+        action = WaReplyAction(**cfg)
+        spec, file = action.interactive(), action.file
     except Exception:  # noqa: BLE001 -- a rule saved before validation existed: send it as plain text
-        spec = None
+        spec, file = None, None
+    if file and not file.key.startswith(f"{tenant_id}/{FILE_FOLDER}/"):
+        file = None  # never send another workspace's file
     name = (getattr(guest, "name", "") or "").strip()
     first = name.split()[0] if name else "there"
-    meta = {"automation_rule_id": rule.id, **({"interactive": spec} if spec else {})}
+    meta = {"automation_rule_id": rule.id, **({"interactive": spec} if spec else {}),
+            **({"filename": file.filename} if file and file.filename else {})}
+    away = (rule.trigger_config or {}).get("hours") == "closed"
     msg = Message(
         id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conversation.id, direction="outbound",
         channel=conversation.channel, body=(cfg.get("message") or "").replace("{first_name}", first)[:1024],
-        sender_kind="automation", sender_name=rule.name[:100] if rule.name else "Automation",
+        sender_kind=AWAY_KIND if away else KIND, sender_name=rule.name[:100] if rule.name else "Automation",
         channel_metadata=meta, delivery_state=MessageDeliveryState.PENDING,
+        media_type=file.kind if file else None, media_url=file.key if file else None,
     )
     db.add(msg)
     rule.run_count = (rule.run_count or 0) + 1
@@ -149,3 +221,37 @@ def handle(db: Session, tenant_id: str, guest, conversation, text: str) -> bool:
     send_whatsapp.delay(message_id=msg.id, tenant_id=tenant_id)
     log.info("wa_keyword_reply_sent", tenant_id=tenant_id, rule_id=rule.id)
     return True
+
+
+def stats(db: Session, tenant_id: str, since: datetime) -> list[dict]:
+    """Per rule since ``since``: replies that left HAIP (sent), reached the phone (delivered), were read, failed, and
+    how many people got one. From the reply messages' own delivery state (Meta's status webhooks keep it current)."""
+    from app.models.conversation import ChannelType, Message, MessageDirection
+    from app.models.conversation import MessageDeliveryState as S
+
+    rows = (
+        db.query(Message.channel_metadata, Message.delivery_state, Message.conversation_id)
+        .filter(Message.tenant_id == tenant_id, Message.direction == MessageDirection.OUTBOUND,
+                Message.channel == ChannelType.WHATSAPP, Message.sender_kind.in_((KIND, AWAY_KIND)),
+                Message.created_at >= since)
+        .all()
+    )
+    out: dict[str, dict] = {}
+    people: dict[str, set] = {}
+    for meta, state, conv_id in rows:
+        rule_id = meta.get("automation_rule_id") if isinstance(meta, dict) else None
+        if not rule_id:
+            continue
+        s = out.setdefault(rule_id, {"rule_id": rule_id, "sent": 0, "delivered": 0, "read": 0, "failed": 0, "people": 0})
+        if state in (S.SENT, S.DELIVERED, S.READ):
+            s["sent"] += 1
+        if state in (S.DELIVERED, S.READ):
+            s["delivered"] += 1
+        if state == S.READ:
+            s["read"] += 1
+        if state in (S.FAILED, S.REJECTED):
+            s["failed"] += 1
+        people.setdefault(rule_id, set()).add(conv_id)
+    for rule_id, s in out.items():
+        s["people"] = len(people[rule_id])
+    return list(out.values())
