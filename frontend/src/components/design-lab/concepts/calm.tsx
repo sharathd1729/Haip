@@ -4,7 +4,7 @@
 import {
   ArrowLeft, ArrowUpRight, ArrowDownRight, CalendarDays, Camera, ChartColumn, ChevronLeft, ChevronRight, Command, Globe,
   House, Inbox, LayoutGrid, List, Megaphone, MessageCircle, MoreHorizontal, Paperclip, Phone, Plus, Search, Send, Settings,
-  SlidersHorizontal, Sparkles, SquareKanban, StickyNote,
+  SlidersHorizontal, Lightbulb, SquareKanban, StickyNote,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -265,7 +265,7 @@ function InboxScreen(props: ScreenProps) {
           <div className="border-t border-[var(--line)] bg-[var(--surface)] p-3">
             {ib.draft !== "sent" && (
               <div className="mb-2 rounded-md border border-[var(--line)] bg-[var(--bg)] p-2.5">
-                <p className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--accent)]"><Sparkles size={13} />Suggested reply · grounded in availability</p>
+                <p className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--accent)]"><Lightbulb size={13} />Suggested reply · grounded in availability</p>
                 <p className="mt-1 text-[13px] leading-relaxed">{AI_DRAFT}</p>
                 <div className="mt-2 flex gap-2"><Button variant="primary" onClick={() => ib.setDraft("sent")}>Send</Button><Button variant="secondary" onClick={() => ib.setDraft("edited")}>Edit</Button></div>
               </div>

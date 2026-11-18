@@ -3,7 +3,7 @@
 // the server validates and saves as the draft. Each answer is a change card with Undo (restores the document as it was
 // before the request) and the changed sections are marked on the page.
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Sparkles } from "lucide-react";
+import { Send } from "lucide-react";
 import { btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { webApi, webError, type AiJob } from "@/lib/website";
 import type { SiteDoc } from "@/site-blocks/types";
@@ -95,7 +95,7 @@ export function AiChat({ draft, onTouched }: { draft: Draft; onTouched: (ids: st
         <form className="flex gap-2" onSubmit={submit}>
           <textarea className={`${inputCls} min-h-11 resize-none`} rows={1} value={text} placeholder="Tell the AI what to change" aria-label="Message the AI developer"
             onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(text); } }} />
-          <button type="submit" className={btnPrimary} disabled={busy || !text.trim()}><Sparkles className="mr-1 h-4 w-4" aria-hidden="true" />Send</button>
+          <button type="submit" className={btnPrimary} disabled={busy || !text.trim()}><Send className="mr-1 h-4 w-4" aria-hidden="true" />Send</button>
         </form>
       </div>
     </div>

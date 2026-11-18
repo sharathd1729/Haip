@@ -5,7 +5,7 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { BadgeCheck, MousePointerClick, CalendarCheck, ExternalLink, Image as ImageIcon, LayoutList, Menu, MessageSquareText, Monitor, Palette, Phone, Rocket, Smartphone, Sparkles, Type } from "lucide-react";
+import { BadgeCheck, MousePointerClick, CalendarCheck, ExternalLink, Image as ImageIcon, LayoutList, Menu, MessageSquareText, Monitor, Palette, Phone, RefreshCw, Rocket, Smartphone, Type } from "lucide-react";
 import { Card, CardBody, Drawer, StatusPill } from "@/components/ui/kit";
 import { btn, btnPrimary, inputCls } from "@/components/marketing/studio/types";
 import { useToast } from "@/components/ui/toast";
@@ -131,7 +131,7 @@ export function SimpleWebsite({ site, role, onMore }: { site: SiteOut; role: str
             text={blocking.length ? `${blocking.length} thing${blocking.length > 1 ? "s" : ""} to fix first` : site.live && !unpublished ? "Guests see the latest version." : "Show it to guests."}
             onClick={() => setSheet("publish")} disabled={!canApprove || !unpublished} />
           <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 pt-1 text-sm">
-            {canApprove && isNew && <button className="flex min-h-11 items-center gap-1.5 underline underline-offset-4" disabled={make.isPending} onClick={() => make.mutate()}><Sparkles size={15} aria-hidden="true" />{make.isPending ? "Making…" : "Make it again from my HAIP data"}</button>}
+            {canApprove && isNew && <button className="flex min-h-11 items-center gap-1.5 underline underline-offset-4" disabled={make.isPending} onClick={() => make.mutate()}><RefreshCw size={15} aria-hidden="true" />{make.isPending ? "Making…" : "Make it again from my HAIP data"}</button>}
             <button className="min-h-11 text-[var(--haip-fg-muted)] underline underline-offset-4" onClick={onMore}>More options</button>
           </div>
           {trips.length > 0 && (

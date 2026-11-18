@@ -73,12 +73,14 @@ def _last_in_out_subquery(db: Session, tenant_id: str):
     """Per conversation: time of the latest inbound and latest outbound
     message. Internal notes and unsent AI drafts don't count as replies --
     only something the guest actually received does (same rule as
-    leads_service._batch_response_time)."""
+    leads_service._batch_response_time). An away message (wa_keyword_replies
+    AWAY_KIND) is not an answer either: the guest still waits for the team."""
     is_in = Message.direction == MessageDirection.INBOUND
     is_real_out = (
         (Message.direction == MessageDirection.OUTBOUND)
         & (Message.is_internal.isnot(True))
         & or_(Message.is_ai_generated.isnot(True), Message.was_approved.is_(True))
+        & or_(Message.sender_kind.is_(None), Message.sender_kind != "automation_away")
     )
     return (
         db.query(

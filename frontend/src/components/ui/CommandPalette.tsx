@@ -15,7 +15,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, MessageSquare, Users, FileText, ArrowRight, Clock, User, Sparkles } from "@/lib/icons";
+import { Search, MessageSquare, Users, FileText, ArrowRight, Clock, User, AskBubble } from "@/lib/icons";
 import { useNav } from "@/components/layout/nav";
 import { COMMAND_EVENT } from "@/components/shell/CommandBar";
 import { cn } from "@/lib/utils";
@@ -108,7 +108,7 @@ export function CommandPalette() {
   // Ask HAIP (owner, POST /analyst/ask-haip): any typed question can go straight to it.
   const askItem: ResultItem[] = role === "owner" && query.trim().length >= 3 ? [{
     id: "ask-haip", label: `Ask HAIP: ${query.trim()}`, subtitle: "Answers from your live leads, calls, bookings and revenue",
-    href: `/dashboard/analyst?tab=ask&q=${encodeURIComponent(query.trim())}`, icon: <Sparkles size={14} />, group: "Ask HAIP",
+    href: `/dashboard/analyst?tab=ask&q=${encodeURIComponent(query.trim())}`, icon: <AskBubble size={14} />, group: "Ask HAIP",
   }] : [];
   // Static filtered results
   const staticResults: ResultItem[] = query

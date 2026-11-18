@@ -4,7 +4,7 @@
 // on desktop, black bottom bar on phones. Signature: queue counts set as milestone stones with a yellow cap.
 import {
   ArrowDownRight, ArrowLeft, ArrowUpRight, Bell, CalendarDays, Camera, ChevronLeft, ChevronRight, CircleAlert, Clock, Globe,
-  House, Inbox, Info, LayoutGrid, List, MessageCircle, Paperclip, Phone, Plus, Search, Send, Sparkles, SquareKanban,
+  House, Inbox, Info, LayoutGrid, List, MessageCircle, Paperclip, Phone, Plus, Search, Send, Lightbulb, SquareKanban,
   TriangleAlert,
 } from "lucide-react";
 import { Fragment, type ComponentType } from "react";
@@ -233,7 +233,7 @@ function InboxScreen(props: ScreenProps) {
           <div className="border-t-2 border-[var(--ink)] bg-[var(--surface)] p-3">
             {ib.draft !== "sent" && (
               <div className="mb-2 rounded-md border-2 border-[var(--accent)] p-2.5">
-                <p className="flex items-center gap-1.5 text-[12.5px] font-extrabold uppercase tracking-[0.04em] text-[var(--accent)]"><Sparkles size={14} strokeWidth={SW} />AI reply ready</p>
+                <p className="flex items-center gap-1.5 text-[12.5px] font-extrabold uppercase tracking-[0.04em] text-[var(--accent)]"><Lightbulb size={14} strokeWidth={SW} />AI reply ready</p>
                 <p className="mt-1 text-[14px] font-medium">{AI_DRAFT}</p>
                 <div className="mt-2 flex gap-2"><B kind="blue" onClick={() => ib.setDraft("sent")}>Send</B><B kind="outline" onClick={() => ib.setDraft("edited")}>Edit</B></div>
               </div>

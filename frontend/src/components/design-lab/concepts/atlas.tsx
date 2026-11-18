@@ -4,7 +4,7 @@
 // and each guest's story are drawn as a route with stops; bookings are road segments with milestone dots.
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, Camera, ChartColumn, ChevronLeft, ChevronRight, Globe, House, Inbox, Megaphone, Menu,
-  MessageCircle, Paperclip, Phone, Plus, Search, Send, Settings, SlidersHorizontal, Sparkles, SquareKanban,
+  MessageCircle, Paperclip, Phone, Plus, Search, Send, Settings, SlidersHorizontal, Lightbulb, SquareKanban,
 } from "lucide-react";
 import { Fragment, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -279,7 +279,7 @@ function InboxScreen(props: ScreenProps) {
           <div className="border-t border-[var(--line)] px-3 py-3 md:px-6">
             {ib.draft !== "sent" && (
               <div className="mb-3 border-l-2 border-[var(--route)] bg-[var(--bg)] px-3 py-2.5">
-                <p className="flex items-center gap-1.5 font-[family-name:var(--font-label)] text-[13px] font-semibold uppercase tracking-[0.04em] text-[var(--accent)]"><Sparkles size={14} strokeWidth={SW} />Suggested reply</p>
+                <p className="flex items-center gap-1.5 font-[family-name:var(--font-label)] text-[13px] font-semibold uppercase tracking-[0.04em] text-[var(--accent)]"><Lightbulb size={14} strokeWidth={SW} />Suggested reply</p>
                 <p className="mt-1 text-[14px] leading-relaxed">{AI_DRAFT}</p>
                 <div className="mt-2 flex gap-2"><Btn kind="solid" onClick={() => ib.setDraft("sent")}>Send as is</Btn><Btn kind="line" onClick={() => ib.setDraft("edited")}>Edit first</Btn></div>
               </div>

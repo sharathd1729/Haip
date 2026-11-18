@@ -165,6 +165,14 @@ def upload_wa_template_media(tenant_id: str, content: bytes, content_type: str, 
     return s3_key
 
 
+def upload_wa_reply_file(tenant_id: str, content: bytes, content_type: str, extension: str) -> str:
+    """The PDF/photo a WhatsApp keyword reply sends (wa_keyword_replies.FILE_FOLDER); one key per upload."""
+    import uuid
+    s3_key = f"{tenant_id}/wa_replies/{uuid.uuid4().hex}.{extension}"
+    _put(s3_key, content, content_type)
+    return s3_key
+
+
 def _put(s3_key: str, content: bytes, content_type: str) -> None:
     put_kwargs = dict(Bucket=settings.S3_BUCKET_NAME, Key=s3_key, Body=content, ContentType=content_type)
     if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:

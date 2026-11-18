@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { VariableMapping, defaultMap, unmappedVariables, type VariableMap } from "@/components/messaging/VariableMapping";
 import type { Template } from "@/components/messaging/templateModel";
+import { AWAY_PRESET, WaReplyExtras, WaReplyStatsLine, WaTriggerExtras, type WaReplyStat } from "@/components/automations/WaReplyExtras";
 
 // Instagram glyph was removed from lucide v1+ -- same inline SVG pattern
 // already used in components/inbox/ChannelIcon.tsx.
@@ -72,7 +73,7 @@ const ACTIONS: { value: string; label: string; hint: string; configFields: strin
   { value: "move_to_followup",       label: "Move to follow-up",      hint: "Advances inquiry stage to Responding",       configFields: [] },
   { value: "tag_guest",              label: "Tag guest",               hint: "Adds tags to the subscriber record",         configFields: ["tags"] },
   { value: "send_instagram_quick_reply", label: "Send Instagram quick reply", hint: "Sends a canned DM reply — instant, no AI involved", configFields: ["message", "public_ack_pool"] },
-  { value: "send_whatsapp_reply", label: "Reply on WhatsApp", hint: "Text, up to 3 reply buttons, or a link button. Instant, no AI.", configFields: ["message"] },
+  { value: "send_whatsapp_reply", label: "Reply on WhatsApp", hint: "Text with reply buttons or a link button, and a PDF or photo if you like. Instant, no AI.", configFields: ["message"] },
 ];
 
 function triggerInfo(val: string) {
@@ -205,9 +206,10 @@ function RuleModal({ initial, onClose, onSaved }: {
     if (!form.trigger) { setError("Select a trigger"); return; }
     if (!form.action) { setError("Select an action"); return; }
     const isIgTrigger = form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received" || form.trigger === "wa_message_received";
-    const hasReplyAll = form.trigger === "ig_comment_received" && !!form.trigger_config.media_id && !!form.trigger_config.reply_all;
+    const hasReplyAll = (form.trigger === "ig_comment_received" && !!form.trigger_config.media_id && !!form.trigger_config.reply_all)
+      || (form.trigger === "wa_message_received" && !!form.trigger_config.reply_all);
     if (isIgTrigger && !hasReplyAll && (form.trigger_config.keywords ?? []).length === 0) {
-      setError("Add at least one keyword (or enable reply-all on a scoped post)"); return;
+      setError(form.trigger === "wa_message_received" ? "Add at least one keyword, or reply to every message" : "Add at least one keyword (or enable reply-all on a scoped post)"); return;
     }
     if (form.action === "send_whatsapp_template") {
       const tmpl = approvedTemplates.find((t: any) => t.id === form.action_config.template_id) as Template | undefined;
@@ -271,6 +273,13 @@ function RuleModal({ initial, onClose, onSaved }: {
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
+          {!isEdit && !form.trigger && (
+            <button type="button" onClick={() => setForm({ ...AWAY_PRESET, trigger_config: { ...AWAY_PRESET.trigger_config }, action_config: { ...AWAY_PRESET.action_config } })}
+              className="w-full min-h-11 rounded-xl border border-dashed border-[var(--haip-border-strong)] px-3 py-2 text-left text-sm text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)]">
+              <b className="font-semibold">Start from an away message</b>
+              <span className="block text-[11.5px] text-[var(--haip-fg-subtle)]">A WhatsApp reply outside your team hours, once every 12 hours per guest.</span>
+            </button>
+          )}
           {/* Name */}
           <div>
             <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Rule name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
@@ -317,7 +326,7 @@ function RuleModal({ initial, onClose, onSaved }: {
                   onChange={vals => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, keywords: vals } }))}
                   placeholder="price, rate, availability — press Enter to add"
                 />
-                <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Matches whole words, case-insensitive. Unlimited keywords.</p>
+                {form.trigger !== "wa_message_received" && <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Matches whole words, case-insensitive. Unlimited keywords.</p>}
               </div>
 
               <div>
@@ -330,6 +339,10 @@ function RuleModal({ initial, onClose, onSaved }: {
                 />
                 <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">If any of these appear, the rule never fires — even if a keyword above also matched.</p>
               </div>
+
+              {form.trigger === "wa_message_received" && (
+                <WaTriggerExtras config={form.trigger_config} onChange={c => setForm(f => ({ ...f, trigger_config: c }))} />
+              )}
 
               {form.trigger === "ig_comment_received" && (
                 <>
@@ -464,11 +477,7 @@ function RuleModal({ initial, onClose, onSaved }: {
                     className="w-full min-h-11 px-3 border border-[var(--haip-border)] rounded-xl text-[16px] sm:text-sm bg-[var(--haip-card)]" />
                 </div>
               </div>
-              <label className="flex min-h-11 items-center gap-2 text-sm">
-                <input type="checkbox" checked={!!form.action_config.once_per_person}
-                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, once_per_person: e.target.checked } }))} />
-                Only once per person (after that the AI or your team answers)
-              </label>
+              <WaReplyExtras config={form.action_config} onChange={c => setForm(f => ({ ...f, action_config: c }))} />
             </div>
           )}
 
@@ -633,6 +642,15 @@ export default function AutomationsPage() {
     staleTime: 30_000,
   });
 
+  const hasWaReplies = rules.some(r => r.action === "send_whatsapp_reply");
+  const { data: waStats } = useQuery<Record<string, WaReplyStat>>({
+    queryKey: ["wa-reply-stats"],
+    queryFn: () => api.get("/automations/wa-reply-stats?days=30")
+      .then(r => Object.fromEntries((r.data.rules as WaReplyStat[]).map(s => [s.rule_id, s]))).catch(() => ({})),
+    enabled: hasWaReplies,
+    staleTime: 60_000,
+  });
+
   const toggleMutation = useMutation({
     mutationFn: (rule: AutomationRule) =>
       api.patch(`/automations/${rule.id}`, { is_active: !rule.is_active }),
@@ -759,6 +777,7 @@ export default function AutomationsPage() {
                             <span className="text-[11px] text-[var(--haip-fg-subtle)]">{rule.run_count} runs</span>
                             {rule.last_run_at && <span className="text-[11px] text-[var(--haip-fg-subtle)]">Last: {timeAgo(rule.last_run_at)}</span>}
                           </div>
+                          {rule.action === "send_whatsapp_reply" && waStats && <div className="mt-1"><WaReplyStatsLine stat={waStats[rule.id]} /></div>}
                         </div>
                       </div>
 

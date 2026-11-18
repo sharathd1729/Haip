@@ -3,7 +3,7 @@
 // page's own settings when nothing is selected. Every change goes straight into the draft (useDraft autosaves it); the
 // server refuses typed prices and unreadable values and the reason shows in the editor's save bar.
 import { useState, type ReactNode } from "react";
-import { Sparkles, Trash2 } from "lucide-react";
+import { MessageSquareText, Trash2 } from "lucide-react";
 import { inputCls, btn } from "@/components/marketing/studio/types";
 import type { MediaItem } from "@/lib/website";
 import { CATALOGUE, type PageV2, type SectionV2 } from "@/site-blocks/v2/types";
@@ -61,7 +61,7 @@ export function SectionInspector({ s, media, mediaLoading, onSlots, onVariant, o
       {extra}
       {onAskAi && (
         <button type="button" onClick={onAskAi} className="flex min-h-11 items-center gap-2 border-t border-[var(--haip-border)] pt-3 text-left text-sm font-semibold text-[var(--primary)]">
-          <Sparkles size={16} aria-hidden="true" />Ask AI to change this part <span className="font-normal text-[var(--haip-fg-muted)]">(optional)</span></button>
+          <MessageSquareText size={16} aria-hidden="true" />Ask AI to change this part <span className="font-normal text-[var(--haip-fg-muted)]">(optional)</span></button>
       )}
       <p className="text-xs text-[var(--haip-fg-muted)]">Prices can&apos;t be typed: HAIP shows your live prices by itself.</p>
       {photoKey && <PhotoPicker open={picking} onClose={() => setPicking(false)} media={media} loading={mediaLoading}

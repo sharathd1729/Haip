@@ -3,8 +3,8 @@
 // actions, violet ONLY for AI (so a person always knows what the machine suggested). Icon rail + live status strip +
 // an insight rail on wide screens; on phones the insights open as a bottom sheet. Onest for UI, JetBrains Mono for data.
 import {
-  Activity, ArrowDownRight, ArrowLeft, ArrowUpRight, Bot, CalendarDays, Camera, ChartColumn, ChevronLeft, ChevronRight,
-  Globe, House, Inbox, Megaphone, MessageCircle, Paperclip, Phone, Plus, Search, Send, Settings, Sparkles, SquareKanban, X,
+  Activity, ArrowDownRight, ArrowLeft, ArrowUpRight, Zap, CalendarDays, Camera, ChartColumn, ChevronLeft, ChevronRight,
+  Globe, House, Inbox, Megaphone, MessageCircle, Paperclip, Phone, Plus, Search, Send, Settings, Lightbulb, SquareKanban, X,
 } from "lucide-react";
 import { useState, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,7 @@ function InsightList({ compact }: { compact?: boolean }) {
     <ul className="divide-y divide-[var(--line)]">
       {INSIGHTS.map(i => (
         <li key={i.title} className={cn(compact ? "p-3" : "p-3.5")}>
-          <p className="flex items-center gap-1.5 text-[13.5px] font-semibold"><Sparkles size={13} strokeWidth={SW} className="shrink-0 text-[var(--ai)]" />{i.title}</p>
+          <p className="flex items-center gap-1.5 text-[13.5px] font-semibold"><Lightbulb size={13} strokeWidth={SW} className="shrink-0 text-[var(--ai)]" />{i.title}</p>
           <p className="mt-1 text-[12.5px] leading-snug text-[var(--muted)]"><span className="text-[var(--ai)]">Why: </span>{i.why}</p>
           <div className="mt-2 flex items-center justify-between"><Confidence value={i.conf} /><Btn kind="ai">{i.action}</Btn></div>
         </li>
@@ -117,19 +117,19 @@ function Shell({ screen, go, children, actions, rail = true, fab = rail }: Scree
           <main className="min-w-0 flex-1 pb-24 md:pb-6">{children}</main>
           {rail && (
             <aside aria-label="AI insights" className="sticky top-[81px] hidden h-[calc(100dvh-81px)] w-[300px] shrink-0 overflow-y-auto border-l border-[var(--line)] bg-[var(--chrome)] 2xl:block">
-              <div className="flex h-10 items-center gap-2 border-b border-[var(--line)] px-3.5 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-[var(--ai)]"><Bot size={15} strokeWidth={SW} />Copilot</div>
+              <div className="flex h-10 items-center gap-2 border-b border-[var(--line)] px-3.5 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-[var(--ai)]"><Zap size={15} strokeWidth={SW} />Copilot</div>
               <InsightList />
             </aside>
           )}
         </div>
       </div>
 
-      {fab && <button type="button" onClick={() => setSheet(true)} aria-label="Open AI insights" className="press fixed bottom-20 right-4 z-30 flex h-12 items-center gap-2 rounded-full border border-[var(--ai)]/50 bg-[var(--ai-bg)] px-4 text-[13.5px] font-semibold text-[var(--ai)] shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] md:bottom-6 2xl:hidden"><Sparkles size={16} strokeWidth={SW} />3 insights</button>}
+      {fab && <button type="button" onClick={() => setSheet(true)} aria-label="Open AI insights" className="press fixed bottom-20 right-4 z-30 flex h-12 items-center gap-2 rounded-full border border-[var(--ai)]/50 bg-[var(--ai-bg)] px-4 text-[13.5px] font-semibold text-[var(--ai)] shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] md:bottom-6 2xl:hidden"><Lightbulb size={16} strokeWidth={SW} />3 insights</button>}
       {sheet && (
         <div className="fixed inset-0 z-50 2xl:hidden" role="dialog" aria-modal="true" aria-label="AI insights">
           <button type="button" aria-label="Close" onClick={() => setSheet(false)} className="absolute inset-0 bg-[var(--bg)]/70" />
           <div className="absolute inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-[var(--line-strong)] bg-[var(--surface)] pb-[env(safe-area-inset-bottom)] md:inset-x-auto md:right-6 md:bottom-6 md:w-[380px] md:rounded-2xl md:border">
-            <div className="flex h-12 items-center gap-2 border-b border-[var(--line)] px-4 text-[13px] font-semibold uppercase tracking-[0.06em] text-[var(--ai)]"><Bot size={16} strokeWidth={SW} />Copilot<button type="button" aria-label="Close" onClick={() => setSheet(false)} className="ml-auto flex size-10 items-center justify-center text-[var(--muted)]"><X size={18} /></button></div>
+            <div className="flex h-12 items-center gap-2 border-b border-[var(--line)] px-4 text-[13px] font-semibold uppercase tracking-[0.06em] text-[var(--ai)]"><Zap size={16} strokeWidth={SW} />Copilot<button type="button" aria-label="Close" onClick={() => setSheet(false)} className="ml-auto flex size-10 items-center justify-center text-[var(--muted)]"><X size={18} /></button></div>
             <InsightList compact />
           </div>
         </div>
@@ -235,7 +235,7 @@ function InboxScreen(props: ScreenProps) {
                   {conv.id === ib.selected && <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-[var(--accent)]" />}
                   <span className="flex items-center gap-2"><span className={cn("truncate text-[13.5px]", conv.unread ? "font-semibold" : "")}>{conv.name}</span><Ch channel={conv.channel} label={false} /><span className={cn(MONO, "ml-auto text-[11px] text-[var(--muted)]")}>{conv.time}</span></span>
                   <span className="mt-0.5 block truncate text-[12.5px] text-[var(--muted)]">{conv.preview}</span>
-                  <span className="mt-1.5 flex items-center gap-2">{conv.waiting && <span className={cn(MONO, "rounded px-1.5 text-[10.5px] leading-[18px]", conv.hot ? "bg-[var(--bad-bg)] text-[var(--bad)]" : "bg-[var(--warn-bg)] text-[var(--warn)]")}>WAIT {conv.waiting}</span>}{conv.aiDraft && <span className="inline-flex items-center gap-1 text-[11px] text-[var(--ai)]"><Sparkles size={11} />draft</span>}<span className="ml-auto text-[11.5px] text-[var(--muted)]">{conv.agent?.split(" ")[0] ?? "—"}</span></span>
+                  <span className="mt-1.5 flex items-center gap-2">{conv.waiting && <span className={cn(MONO, "rounded px-1.5 text-[10.5px] leading-[18px]", conv.hot ? "bg-[var(--bad-bg)] text-[var(--bad)]" : "bg-[var(--warn-bg)] text-[var(--warn)]")}>WAIT {conv.waiting}</span>}{conv.aiDraft && <span className="inline-flex items-center gap-1 text-[11px] text-[var(--ai)]"><Lightbulb size={11} />draft</span>}<span className="ml-auto text-[11.5px] text-[var(--muted)]">{conv.agent?.split(" ")[0] ?? "—"}</span></span>
                 </button>
               </li>
             ))}
@@ -255,7 +255,7 @@ function InboxScreen(props: ScreenProps) {
             ) : (
               <div key={m.id} className={cn("flex", m.from === "guest" ? "justify-start" : "justify-end")}>
                 <div className={cn("max-w-[78%] rounded-xl px-3 py-2 text-[13.5px] leading-relaxed", m.from === "guest" ? "bg-[var(--surface)]" : m.from === "ai" ? "border border-[var(--ai)]/40 bg-[var(--ai-bg)]" : "bg-[var(--accent)] text-[var(--on-accent)]")}>
-                  {m.text}<span className={cn(MONO, "mt-1 flex items-center gap-1 text-[10.5px]", m.from === "ai" ? "text-[var(--ai)]" : "text-[var(--muted)]")}>{m.from === "ai" && <Bot size={11} />}{m.time}{m.author ? ` · ${m.author}` : ""}</span>
+                  {m.text}<span className={cn(MONO, "mt-1 flex items-center gap-1 text-[10.5px]", m.from === "ai" ? "text-[var(--ai)]" : "text-[var(--muted)]")}>{m.from === "ai" && <Zap size={11} />}{m.time}{m.author ? ` · ${m.author}` : ""}</span>
                 </div>
               </div>
             ))}
@@ -263,7 +263,7 @@ function InboxScreen(props: ScreenProps) {
           <div className="border-t border-[var(--line)] p-3">
             {ib.draft !== "sent" && (
               <div className="mb-2 rounded-lg border border-[var(--ai)]/40 bg-[var(--ai-bg)] p-3">
-                <div className="flex items-center gap-2"><p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[var(--ai)]"><Sparkles size={13} />Draft · held for you</p><span className="ml-auto"><Confidence value={88} /></span></div>
+                <div className="flex items-center gap-2"><p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[var(--ai)]"><Lightbulb size={13} />Draft · held for you</p><span className="ml-auto"><Confidence value={88} /></span></div>
                 <p className="mt-1.5 text-[13.5px] leading-relaxed">{AI_DRAFT}</p>
                 <p className="mt-1.5 text-[11.5px] text-[var(--muted)]"><span className="text-[var(--ai)]">Why held:</span> mentions a total; your policy sends prices only from a person.</p>
                 <div className="mt-2 flex gap-2"><Btn kind="primary" onClick={() => ib.setDraft("sent")}>Approve &amp; send</Btn><Btn onClick={() => ib.setDraft("edited")}>Edit</Btn></div>
@@ -278,7 +278,7 @@ function InboxScreen(props: ScreenProps) {
         </section>
 
         <aside aria-label="AI brief" className="scroll hidden min-h-0 overflow-y-auto border-l border-[var(--line)] bg-[var(--chrome)] xl:block">
-          <div className="flex h-10 items-center gap-2 border-b border-[var(--line)] px-3.5 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-[var(--ai)]"><Bot size={15} />Brief</div>
+          <div className="flex h-10 items-center gap-2 border-b border-[var(--line)] px-3.5 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-[var(--ai)]"><Zap size={15} />Brief</div>
           <div className="space-y-4 p-3.5 text-[13px]">
             <p className="leading-relaxed">Family of 4 (kids 6 and 9) wants Ratha 1 on <span className="font-semibold">24–26 Oct</span> for Coorg. Asked for the total twice. Phone shared, one call so far.</p>
             <div className="grid grid-cols-2 gap-2">{[["Intent", "High"], ["Win chance", "86%"], ["Est. value", "₹45.5k"], ["Owner", "Asha"]].map(([k, v]) => <div key={k} className="rounded-md bg-[var(--surface)] p-2"><p className="text-[11px] text-[var(--muted)]">{k}</p><p className={cn(MONO, "text-[14px]")}>{v}</p></div>)}</div>
@@ -331,7 +331,7 @@ function LeadsScreen(props: ScreenProps) {
           <li key={l.id} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3">
             <div className="flex items-center gap-2"><p className="truncate text-[14px] font-semibold">{l.name}</p><Ch channel={l.channel} label={false} /><span className={cn(MONO, "ml-auto text-[13px]")}>{l.value ? inrShort(l.value) : ""}</span></div>
             <div className="mt-1.5 flex items-center justify-between"><span className="text-[12px] text-[var(--muted)]">{STAGES.find(s => s.key === l.stage)?.label} · {l.dates ?? "no dates"}</span><Confidence value={SCORE[l.id]} /></div>
-            <p className={cn("mt-1.5 flex items-center gap-1.5 text-[12.5px]", l.due === "now" ? "text-[var(--bad)]" : "text-[var(--ai)]")}><Sparkles size={12} />{l.next}</p>
+            <p className={cn("mt-1.5 flex items-center gap-1.5 text-[12.5px]", l.due === "now" ? "text-[var(--bad)]" : "text-[var(--ai)]")}><Lightbulb size={12} />{l.next}</p>
           </li>
         ))}</ul>
       </div>
@@ -357,7 +357,7 @@ function CalendarScreen(props: ScreenProps) {
   return (
     <Shell {...props} actions={<><Btn className="w-8 px-0 max-sm:w-10"><ChevronLeft size={15} /></Btn><span className={cn(MONO, "text-[12px] max-sm:hidden")}>12/10 – 01/11</span><Btn className="w-8 px-0 max-sm:w-10"><ChevronRight size={15} /></Btn></>}>
       <div className="space-y-3 p-3 md:p-5">
-        <p className="flex items-start gap-2 rounded-lg border border-[var(--ai)]/40 bg-[var(--ai-bg)] px-3 py-2 text-[13px]"><Sparkles size={14} className="mt-0.5 shrink-0 text-[var(--ai)]" /><span><span className="font-semibold">Ratha 2 is free 19–20 Oct.</span> <span className="text-[var(--muted)]">3 open leads asked for those dates.</span></span></p>
+        <p className="flex items-start gap-2 rounded-lg border border-[var(--ai)]/40 bg-[var(--ai-bg)] px-3 py-2 text-[13px]"><Lightbulb size={14} className="mt-0.5 shrink-0 text-[var(--ai)]" /><span><span className="font-semibold">Ratha 2 is free 19–20 Oct.</span> <span className="text-[var(--muted)]">3 open leads asked for those dates.</span></span></p>
         <div className="hidden overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--surface)] md:block">
           <div className="min-w-[880px]">
             <div className="grid grid-cols-[110px_1fr] border-b border-[var(--line)]">

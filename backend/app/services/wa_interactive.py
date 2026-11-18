@@ -78,8 +78,9 @@ def validate(spec: dict | None) -> dict | None:
     return InteractiveSpec(**spec).model_dump(exclude_none=True)
 
 
-def payload(spec: dict, body: str) -> dict:
-    """Meta's ``interactive`` object for a validated spec and the message text."""
+def payload(spec: dict, body: str, header: dict | None = None) -> dict:
+    """Meta's ``interactive`` object for a validated spec and the message text. ``header`` (Meta's header object, e.g.
+    a document or image link) goes on reply buttons and link buttons, the kinds that allow a media header."""
     s = InteractiveSpec(**spec)
     text = (body or "").strip()[:1024] or " "
     if s.kind == "buttons":
@@ -101,6 +102,8 @@ def payload(spec: dict, body: str) -> dict:
         ]}}
     else:
         out = {"type": "location_request_message", "body": {"text": text}, "action": {"name": "send_location"}}
+    if header and s.kind in ("buttons", "cta_url"):
+        out["header"] = header
     if s.footer and s.kind != "location_request":
         out["footer"] = {"text": s.footer}
     return out

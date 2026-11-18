@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { ArrowRight, History, Loader2, Plus, Sparkles } from "@/lib/icons";
+import { ArrowRight, AskBubble, History, Loader2, Plus } from "@/lib/icons";
 import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui/kit";
 
 interface Turn {
@@ -198,7 +198,7 @@ export function AskHaip({ initialQuestion, compact = false, prompts = ASK_PROMPT
                 {t.status === "failed" && <p className="text-[var(--haip-fg)]">{t.error}</p>}
                 {t.status === "done" && (
                   <>
-                    <p className="flex gap-2 leading-relaxed text-[var(--haip-fg)]"><Sparkles size={16} className="mt-0.5 shrink-0 text-primary" aria-hidden /><span>{t.narrative}</span></p>
+                    <p className="flex gap-2 leading-relaxed text-[var(--haip-fg)]"><AskBubble size={16} className="mt-0.5 shrink-0 text-primary" aria-hidden /><span>{t.narrative}</span></p>
                     <Rows rows={t.rows ?? []} total={t.row_count ?? 0} />
                     <p className="mt-2 text-xs text-[var(--haip-fg-subtle)]">
                       {t.source ? `From: ${t.source.label}${t.source.shared_metrics ? " (the dashboards' own definitions)" : ""} · ${t.source.row_count.toLocaleString("en-IN")} rows`

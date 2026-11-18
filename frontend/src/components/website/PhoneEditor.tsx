@@ -2,7 +2,7 @@
 // Phone quick edit: the page at phone width, quick chips for what owners change most, and a bottom sheet with the
 // tapped section's fields. Adding pages and deep layout changes are left to a laptop.
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { MessageSquareText } from "lucide-react";
 import { ActionSheet } from "@/components/bookings/ActionSheet";
 import type { MediaItem } from "@/lib/website";
 import type { LiveData, Page, SiteEnv } from "@/site-blocks/types";
@@ -32,7 +32,7 @@ export function PhoneEditor({ draft, page, live, env, media, pickPhoto, selected
   return (
     <div className="grid gap-0">
       <div className="flex gap-1.5 overflow-x-auto border-b border-[var(--haip-border)] bg-[var(--haip-card)] px-3 py-2">
-        <button type="button" className={`${chip} border-[var(--primary)] text-[var(--primary)]`} onClick={() => setSheet("ai")}><Sparkles className="mr-1 inline h-4 w-4" aria-hidden="true" />Ask AI</button>
+        <button type="button" className={`${chip} border-[var(--primary)] text-[var(--primary)]`} onClick={() => setSheet("ai")}><MessageSquareText className="mr-1 inline h-4 w-4" aria-hidden="true" />Ask AI</button>
         {QUICK.map(q => <button key={q.type} type="button" className={chip} onClick={() => quick(q.type)}>{q.label}</button>)}
         <button type="button" className={chip} onClick={() => setSheet("page")}>Search preview</button>
         <button type="button" className={chip} onClick={() => setSheet("site")}>Contact &amp; look</button>

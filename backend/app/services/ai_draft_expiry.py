@@ -27,7 +27,7 @@ EXPIRED = "expired"
 MAX_AGE = timedelta(hours=24)
 SWEEP_LIMIT = 500  # per tenant per run; the next run picks up the rest
 # The consult's "let me check" holding reply goes out right after the draft it holds: it must not expire that draft.
-_NOT_A_LATER_SEND = ("ai_holding",)
+_NOT_A_LATER_SEND = ("ai_holding", "automation_away")  # a holding line / away message does not answer the draft
 _SENT_STATES = (MessageDeliveryState.SENT, MessageDeliveryState.DELIVERED, MessageDeliveryState.READ)
 
 
