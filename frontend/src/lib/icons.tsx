@@ -14,7 +14,7 @@ import {
   CheckIcon, ChevronDownIcon as HeroChevronDownIcon, ChevronLeftIcon as HeroChevronLeftIcon, ChevronRightIcon as HeroChevronRightIcon,
   ChevronUpIcon as HeroChevronUpIcon, CircleStackIcon, ClipboardDocumentListIcon, ClockIcon,
   CloudArrowDownIcon, CodeBracketIcon, Cog6ToothIcon, Cog8ToothIcon,
-  CommandLineIcon, ComputerDesktopIcon, CpuChipIcon, CreditCardIcon,
+  CommandLineIcon, ComputerDesktopIcon, CreditCardIcon,
   CurrencyDollarIcon, CurrencyRupeeIcon, DocumentArrowDownIcon, DocumentChartBarIcon,
   DocumentCheckIcon, DocumentDuplicateIcon, DocumentMinusIcon, DocumentTextIcon,
   EllipsisHorizontalIcon, EnvelopeIcon, ExclamationCircleIcon, ExclamationTriangleIcon,
@@ -26,12 +26,12 @@ import {
   ListBulletIcon, LockClosedIcon, MagnifyingGlassIcon, MapIcon,
   MapPinIcon, MegaphoneIcon, MicrophoneIcon, MinusIcon,
   MoonIcon, NoSymbolIcon, NumberedListIcon, PaperAirplaneIcon,
-  PauseCircleIcon, PauseIcon, PencilIcon, PencilSquareIcon,
+  PauseCircleIcon, PauseIcon, PencilIcon, PencilSquareIcon, LightBulbIcon,
   PhoneArrowDownLeftIcon, PhoneArrowUpRightIcon, PhoneIcon, PhoneXMarkIcon,
   PhotoIcon, PlayCircleIcon, PlayIcon, PlusIcon,
   QrCodeIcon, QuestionMarkCircleIcon, QueueListIcon, RectangleGroupIcon,
   RocketLaunchIcon, ServerIcon, ShieldCheckIcon, ShieldExclamationIcon,
-  SignalSlashIcon, SparklesIcon, SpeakerWaveIcon, SpeakerXMarkIcon,
+  SignalSlashIcon, SpeakerWaveIcon, SpeakerXMarkIcon,
   Square3Stack3DIcon, Squares2X2Icon, StarIcon, StopIcon,
   SunIcon, SwatchIcon, TableCellsIcon, TagIcon,
   TrashIcon, TrophyIcon, TruckIcon, UserCircleIcon,
@@ -70,7 +70,10 @@ export const BellOff = withSize(BellSlashIcon);
 export const BellRing = withSize(BellAlertIcon);
 export const BookOpen = withSize(BookOpenIcon);
 export const BookmarkIcon = withSize(HeroBookmarkIcon);
-export const Bot = withSize(CpuChipIcon);
+// Owner rule (18 Nov 2026): no AI-looking icons in the workspace or on the website: no sparkles, stars-as-magic, wands,
+// robots, chips or brains. Bot, Sparkles and Wand2 are kept as NAMES only (many files import them) and draw neutral
+// glyphs: automatic = bolt, suggestion/insight = light bulb, rewrite = pencil. lib/noAiIcons.test.ts guards this.
+export const Bot = withSize(BoltIcon);
 export const Building = withSize(BuildingOfficeIcon);
 export const Building2 = withSize(BuildingOffice2Icon);
 export const Calculator = withSize(CalculatorIcon);
@@ -201,7 +204,7 @@ export const SkipBack = withSize(BackwardIcon);
 export const SkipForward = withSize(ForwardIcon);
 export const Sliders = withSize(AdjustmentsHorizontalIcon);
 export const SlidersHorizontal = withSize(AdjustmentsHorizontalIcon);
-export const Sparkles = withSize(SparklesIcon);
+export const Sparkles = withSize(LightBulbIcon);
 export const Square = withSize(StopIcon);
 export const Star = withSize(StarIcon);
 export const StickyNote = withSize(DocumentTextIcon);
@@ -227,7 +230,7 @@ export const UsersRound = withSize(UserGroupIcon);
 export const Volume2 = withSize(SpeakerWaveIcon);
 export const VolumeX = withSize(SpeakerXMarkIcon);
 export const Wallet = withSize(WalletIcon);
-export const Wand2 = withSize(SparklesIcon);
+export const Wand2 = withSize(PencilSquareIcon);
 export const Wifi = withSize(WifiIcon);
 export const WifiOff = withSize(SignalSlashIcon);
 export const Workflow = withSize(RectangleGroupIcon);

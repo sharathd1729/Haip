@@ -186,7 +186,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
         {(msg.sent_by_name || msg.sent_by_workflow?.name) && (
           <p className="text-[11.5px] font-medium px-1" style={{ color: "var(--haip-fg-subtle)" }}>
             {msg.sent_by_workflow?.name
-              ? `🤖 ${localStr(msg.sent_by_workflow.name)}`
+              ? `Automatic: ${localStr(msg.sent_by_workflow.name)}`
               : localStr(msg.sent_by_name)}
           </p>
         )}

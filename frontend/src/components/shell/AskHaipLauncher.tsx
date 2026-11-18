@@ -4,7 +4,7 @@
 // workspace whose plan includes Ask HAIP only, as Ask HAIP itself (the server refuses everyone else). Hidden on the Executive page, which has the full chat.
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Sparkles } from "@/lib/icons";
+import { AskBubble } from "@/lib/icons";
 import { Drawer } from "@/components/ui/kit";
 import { AskHaip, ASK_PROMPTS } from "@/components/analyst/AskHaip";
 import { useNav } from "@/components/layout/nav";
@@ -32,7 +32,7 @@ export function AskHaipLauncher({ user }: { user?: { role?: string } }) {
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label="Ask HAIP"
         className={`fixed right-4 z-40 flex h-14 items-center gap-2 rounded-full bg-primary pl-4 pr-5 text-[15px] font-semibold text-primary-foreground shadow-[0_8px_24px_color-mix(in_srgb,var(--primary)_35%,transparent)] transition-transform active:scale-[0.97] md:right-6 ${lift}`}>
-        <Sparkles size={20} aria-hidden />
+        <AskBubble size={20} aria-hidden />
         <span className="hidden sm:inline">Ask HAIP</span>
       </button>
       <Drawer open={open} onOpenChange={setOpen} title="Ask HAIP" wide

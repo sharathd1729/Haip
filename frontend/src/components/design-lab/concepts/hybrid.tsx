@@ -4,7 +4,7 @@
 // bar with a raised "Now" button that holds the queue. Signatures: the Today strip, stay cards, an Airbnb-grade calendar.
 import {
   ArrowLeft, ArrowUpRight, Bell, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, Globe, House, Inbox,
-  MessageCircle, Paperclip, Phone, Plus, Search, Send, Sparkles, SquareKanban, Zap,
+  MessageCircle, Paperclip, Phone, Plus, Search, Send, Lightbulb, SquareKanban, Zap,
 } from "lucide-react";
 import { useState, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -227,7 +227,7 @@ function InboxScreen(props: ScreenProps) {
             <div className="scroll mb-2 flex gap-2 overflow-x-auto">{["Share the Coorg itinerary", "Ask for travel dates", "Send payment link"].map(q => <button key={q} type="button" className="h-9 shrink-0 rounded-full border border-[var(--line-strong)] px-3 text-[13px] font-medium hover:border-[var(--accent)] hover:text-[var(--accent)]">{q}</button>)}</div>
             {ib.draft !== "sent" && (
               <div className="mb-2 rounded-2xl bg-[var(--plum-bg)] p-3">
-                <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--accent)]"><Sparkles size={14} />Suggested reply</p>
+                <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--accent)]"><Lightbulb size={14} />Suggested reply</p>
                 <p className="mt-1 text-[14px] leading-relaxed">{AI_DRAFT}</p>
                 <div className="mt-2 flex gap-2"><Btn kind="plum" onClick={() => ib.setDraft("sent")}>Send</Btn><Btn kind="soft" className="bg-[var(--surface)]" onClick={() => ib.setDraft("edited")}>Edit</Btn></div>
               </div>

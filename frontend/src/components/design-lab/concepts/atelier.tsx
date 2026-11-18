@@ -4,7 +4,7 @@
 // read and operate. Fine ruled lists instead of boxes. Phone: top bar + drawer. Signature: a booking register with serif dates.
 import {
   ArrowLeft, CalendarDays, Camera, ChartColumn, ChevronLeft, ChevronRight, Globe, House, Inbox, Megaphone, Menu,
-  MessageCircle, Paperclip, Phone, Plus, Search, Send, Settings, Sparkles, SquareKanban, X,
+  MessageCircle, Paperclip, Phone, Plus, Search, Send, Settings, Lightbulb, SquareKanban, X,
 } from "lucide-react";
 import { Fragment, useState, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -228,7 +228,7 @@ function InboxScreen(props: ScreenProps) {
           <div className="border-t border-[var(--line)] px-3 py-4 md:px-8">
             {ib.draft !== "sent" && (
               <div className="mb-3 rounded-xl border border-[var(--brass)]/50 bg-[var(--surface)] p-3.5">
-                <p className={cn(SERIF, "flex items-center gap-1.5 text-[14px] italic text-[var(--brass)]")}><Sparkles size={14} strokeWidth={1.5} />A suggested reply</p>
+                <p className={cn(SERIF, "flex items-center gap-1.5 text-[14px] italic text-[var(--brass)]")}><Lightbulb size={14} strokeWidth={1.5} />A suggested reply</p>
                 <p className="mt-1 text-[14px] leading-relaxed">{AI_DRAFT}</p>
                 <div className="mt-2.5 flex gap-2"><Btn kind="solid" onClick={() => ib.setDraft("sent")}>Send</Btn><Btn kind="line" onClick={() => ib.setDraft("edited")}>Refine</Btn></div>
               </div>

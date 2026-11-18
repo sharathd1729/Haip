@@ -87,7 +87,7 @@ const addonTotal = (a: AddOn, nights: number, guests: number) => {
 };
 
 const categoryEmoji: Record<string, string> = {
-  meal: "🍽️", transfer: "🚗", experience: "✨", stay: "🛏️", other: "📦",
+  meal: "🍽️", transfer: "🚗", experience: "🎟️", stay: "🛏️", other: "📦",
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
