@@ -16,6 +16,7 @@ import structlog
 from celery import shared_task
 from sqlalchemy import Column, String, JSON, Integer, Text
 
+from app.adapters.meta_http import safe_error
 from app.core.database import SessionLocal, Base
 from app.core.encryption import decrypt_credentials
 from app.models.base import TimestampMixin, gen_uuid
@@ -99,7 +100,8 @@ def poll_all_tenants():
             try:
                 _poll_tenant(db, integ)
             except Exception as exc:
-                log.error("instagram_insights_poll_failed", tenant_id=integ.tenant_id, error=str(exc))
+                # Never str(exc): an httpx error message carries the request URL.
+                log.error("instagram_insights_poll_failed", tenant_id=integ.tenant_id, error=safe_error(exc))
         db.commit()
         log.info("instagram_insights_polled", tenants=len(integrations))
         return {"tenants_polled": len(integrations)}

@@ -391,6 +391,7 @@ wholesale by migration `049` — do not write new code against it.
 - Per-tenant webhook secrets (not global shared secret)
 - SSRF protection on all external URL fetches
 - PII never logged in plaintext — hash phone numbers in logs (`_phone_token()`)
+- Meta Graph tokens go in the `Authorization` header, never `?access_token=` (httpx error messages carry the full URL; one leaked into `automation_runs.detail`). Strip Meta's `paging.next` URLs with `adapters/meta_http.strip_token` before following them; log `meta_http.safe_error(exc)`, never `str(exc)`. debug_token keeps `input_token` in the query by Meta's design: never log that URL. Test: `tests/test_meta_token_not_in_urls.py`. Still on `?access_token=`: `endpoints/integrations.py`, `endpoints/marketing_research.py`, `workers/tasks/check_meta_credentials.py`, `refresh_instagram_token.py` (Instagram's refresh endpoint needs it), and `InstagramGraphAdapter` until `fix/ig-private-reply` merges.
 - WhatsApp verify token uses `secrets.compare_digest` not `==`
 - **Agent-added phone/email signals**: auto-write `Consent` row with `consent_source="agent_manual"`, `collected_by=user_id`, `collected_at=now`, `signal_type=type` (handled in `identity_service.add_signal()`)
 

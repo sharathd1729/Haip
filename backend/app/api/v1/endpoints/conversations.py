@@ -113,7 +113,7 @@ def list_conversations(
         q = q.filter(or_(Conversation.source.is_(None), Conversation.source != "personal_bridge"))
     if is_open is not None:
         q = q.filter_by(is_open=is_open)
-    if label:
+    if isinstance(label, str) and label:   # MCP calls this function directly, where the default is a Query() object
         clean = _clean_label(label)
         if not clean:
             raise HTTPException(status_code=422, detail="Invalid label")

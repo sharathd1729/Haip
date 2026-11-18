@@ -56,7 +56,7 @@ def _meta(phone=None, subscribed=None, boom=None):
     phone = phone if phone is not None else {"display_phone_number": "+91 98456 63366", "verified_name": "Ratha by Jade"}
     subscribed = subscribed if subscribed is not None else {"data": [{"whatsapp_business_api_data": {"id": "app1"}}]}
 
-    def get(url, params=None, timeout=None):
+    def get(url, params=None, headers=None, timeout=None):
         if boom:
             raise boom
         return _Resp(subscribed if url.endswith("/subscribed_apps") else phone)

@@ -31,7 +31,7 @@ URL = "/api/v1/meta-business/instagram"
 
 
 def fake_graph(permissions=PERMS, instagram=True):
-    def _get(url, params=None):
+    def _get(url, params=None, token=None):
         if url.endswith("/me"):
             return {"id": "1", "name": "lead crm"}
         if url.endswith("/me/permissions"):

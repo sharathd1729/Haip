@@ -33,15 +33,15 @@ def _soft(call, default):
 
 def list_pages(token: str) -> list[dict]:
     """Facebook pages the token manages: [{id, name, instagram_id, instagram_username}]."""
-    params = {"access_token": token, "limit": 100}
+    params = {"limit": 100}
     try:
         body = meta_ads._get(
-            f"{GRAPH}/me/accounts", {**params, "fields": "id,name,instagram_business_account{id,username}"}
+            f"{GRAPH}/me/accounts", {**params, "fields": "id,name,instagram_business_account{id,username}"}, token=token
         )
     except MetaAdsError as exc:
         if exc.rate_limited or exc.code == 190:
             raise
-        body = meta_ads._get(f"{GRAPH}/me/accounts", {**params, "fields": "id,name"})
+        body = meta_ads._get(f"{GRAPH}/me/accounts", {**params, "fields": "id,name"}, token=token)
     out = []
     for p in body.get("data", []):
         ig = p.get("instagram_business_account") or {}
@@ -74,8 +74,8 @@ def capabilities(permissions: list[str], ad_accounts: list[dict], pages: list[di
 
 def inspect_token(token: str) -> dict:
     """Raises MetaAdsError when Meta rejects the token."""
-    me = meta_ads._get(f"{GRAPH}/me", {"access_token": token, "fields": "id,name"})
-    granted = meta_ads._get(f"{GRAPH}/me/permissions", {"access_token": token, "limit": 200}).get("data", [])
+    me = meta_ads._get(f"{GRAPH}/me", {"fields": "id,name"}, token=token)
+    granted = meta_ads._get(f"{GRAPH}/me/permissions", {"limit": 200}, token=token).get("data", [])
     permissions = sorted(p.get("permission") for p in granted if p.get("status") == "granted" and p.get("permission"))
     ad_accounts = _soft(lambda: meta_ads.list_ad_accounts(token), [])
     pages = _soft(lambda: list_pages(token), [])
@@ -92,15 +92,15 @@ def inspect_token(token: str) -> dict:
 
 
 def page_token(token: str, page_id: str) -> str | None:
-    body = meta_ads._get(f"{GRAPH}/me/accounts", {"access_token": token, "fields": "id,access_token", "limit": 100})
+    body = meta_ads._get(f"{GRAPH}/me/accounts", {"fields": "id,access_token", "limit": 100}, token=token)
     for p in body.get("data", []):
         if str(p.get("id")) == str(page_id):
             return p.get("access_token")
     return None
 
 
-def _paged(url: str, params: dict, max_pages: int) -> Iterator[dict]:
-    body = meta_ads._get(url, params)
+def _paged(url: str, params: dict, max_pages: int, *, token: str) -> Iterator[dict]:
+    body = meta_ads._get(url, params, token=token)
     pages = 0
     while True:
         yield from body.get("data", [])
@@ -108,14 +108,15 @@ def _paged(url: str, params: dict, max_pages: int) -> Iterator[dict]:
         pages += 1
         if not nxt or pages >= max_pages:
             break
-        body = meta_ads._get(nxt)
+        body = meta_ads._get(nxt, token=token)
 
 
 def list_lead_forms(page_access_token: str, page_id: str) -> list[dict]:
     rows = _paged(
         f"{GRAPH}/{page_id}/leadgen_forms",
-        {"access_token": page_access_token, "fields": "id,name,status,leads_count", "limit": 100},
+        {"fields": "id,name,status,leads_count", "limit": 100},
         5,
+        token=page_access_token,
     )
     return [
         {
@@ -133,6 +134,7 @@ def fetch_leads(page_access_token: str, form_id: str, since_unix: int, *, max_pa
     flt = json.dumps([{"field": "time_created", "operator": "GREATER_THAN", "value": int(since_unix)}])
     yield from _paged(
         f"{GRAPH}/{form_id}/leads",
-        {"access_token": page_access_token, "fields": LEAD_FIELDS, "filtering": flt, "limit": 100},
+        {"fields": LEAD_FIELDS, "filtering": flt, "limit": 100},
         max_pages,
+        token=page_access_token,
     )

@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 import httpx
 import structlog
 
+from app.adapters.meta_http import bearer, strip_token
+
 log = structlog.get_logger()
 
 GRAPH_HOST = "graph.facebook.com"
@@ -69,12 +71,15 @@ def _check_host(url: str) -> None:
         raise MetaAdsError(f"Refusing to follow a non-Graph URL: {parsed.hostname}")
 
 
-def _get(url: str, params: Optional[dict] = None) -> dict:
+def _get(url: str, params: Optional[dict] = None, *, token: str) -> dict:
+    """The token goes in the Authorization header, never the URL (httpx error messages carry the URL). Meta's
+    `paging.next` URLs embed the token, so it is stripped from the URL first."""
+    url = strip_token(url)
     _check_host(url)
     try:
-        resp = httpx.get(url, params=params, timeout=30)
+        resp = httpx.get(url, params=params, headers=bearer(token), timeout=30)
     except httpx.HTTPError as exc:
-        raise MetaAdsError(f"Could not reach Meta: {exc}") from exc
+        raise MetaAdsError(f"Could not reach Meta ({type(exc).__name__})") from None
     try:
         body = resp.json()
     except ValueError:
@@ -90,8 +95,8 @@ def list_ad_accounts(token: str) -> list[dict]:
     """Ad accounts this token can read: [{id: "act_123", name, currency, status}]."""
     out: list[dict] = []
     body = _get(f"{GRAPH}/me/adaccounts", {
-        "access_token": token, "fields": "account_id,name,currency,account_status", "limit": 50,
-    })
+        "fields": "account_id,name,currency,account_status", "limit": 50,
+    }, token=token)
     for a in body.get("data", []):
         out.append({"id": a.get("id") or f"act_{a.get('account_id')}", "name": a.get("name") or "", "currency": a.get("currency") or "INR",
                     "status": a.get("account_status")})
@@ -156,9 +161,9 @@ def fetch_insights(token: str, ad_account_id: str, since: date, until: date, *, 
     """Daily ad-level insights for [since, until], following Meta's pagination."""
     acct = ad_account_id if ad_account_id.startswith("act_") else f"act_{ad_account_id}"
     body = _get(f"{GRAPH}/{acct}/insights", {
-        "access_token": token, "level": "ad", "time_increment": 1, "fields": INSIGHT_FIELDS, "limit": 500,
+        "level": "ad", "time_increment": 1, "fields": INSIGHT_FIELDS, "limit": 500,
         "time_range": f'{{"since":"{since.isoformat()}","until":"{until.isoformat()}"}}',
-    })
+    }, token=token)
     pages = 0
     while True:
         for raw in body.get("data", []):
@@ -169,7 +174,7 @@ def fetch_insights(token: str, ad_account_id: str, since: date, until: date, *, 
         pages += 1
         if not nxt or pages >= max_pages:
             break
-        body = _get(nxt)
+        body = _get(nxt, token=token)
 
 
 # ── details: campaigns, ad sets, ads ──────────────────────────────────────────
@@ -223,8 +228,8 @@ def fetch_entities(token: str, ad_account_id: str, *, max_pages: int = 30) -> It
     acct = ad_account_id if ad_account_id.startswith("act_") else f"act_{ad_account_id}"
     for level in ("campaign", "adset", "ad"):
         body = _get(f"{GRAPH}/{acct}/{ENTITY_EDGE[level]}", {
-            "access_token": token, "fields": ENTITY_FIELDS[level], "limit": 200,
-        })
+            "fields": ENTITY_FIELDS[level], "limit": 200,
+        }, token=token)
         pages = 0
         while True:
             for raw in body.get("data", []):
@@ -235,7 +240,7 @@ def fetch_entities(token: str, ad_account_id: str, *, max_pages: int = 30) -> It
             pages += 1
             if not nxt or pages >= max_pages:
                 break
-            body = _get(nxt)
+            body = _get(nxt, token=token)
 
 
 def summarize_targeting(t: Optional[dict]) -> Optional[dict]:

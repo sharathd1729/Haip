@@ -76,7 +76,8 @@ def _check(key: str, status: str, title: str, detail: str, fix: Optional[str] = 
 def _meta_get(path: str, token: str, params: Optional[dict] = None) -> tuple[Optional[dict], Optional[str]]:
     """(json, error message). Never raises: a health check must not crash on a network blip."""
     try:
-        resp = httpx.get(f"{_GRAPH}/{path}", params={"access_token": token, **(params or {})}, timeout=8)
+        # Token in the header, never the URL: httpx error messages carry the URL.
+        resp = httpx.get(f"{_GRAPH}/{path}", params=params or {}, headers={"Authorization": f"Bearer {token}"}, timeout=8)
         data = resp.json()
     except Exception as exc:  # noqa: BLE001
         return None, f"Couldn't reach Meta ({type(exc).__name__})."

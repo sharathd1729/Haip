@@ -29,8 +29,10 @@ RESEARCH_SCOPES = ("instagram_basic", "instagram_manage_insights", "pages_show_l
 PAGE_SCOPES = ("pages_show_list", "pages_manage_posts", "pages_read_engagement")
 
 
-def _get(http: httpx.Client, path: str, params: dict) -> tuple[int, dict]:
-    r = http.get(FB_GRAPH + path, params=params)
+def _get(http: httpx.Client, path: str, params: dict, token: str) -> tuple[int, dict]:
+    # The token goes in the header, never the URL (httpx errors carry the URL); debug_token's input_token stays a
+    # query param by Meta's design, so nothing here logs or raises with the URL or the exception text.
+    r = http.get(FB_GRAPH + path, params=params, headers={"Authorization": f"Bearer {token}"})
     try:
         body = r.json()
     except ValueError:
@@ -55,15 +57,15 @@ def connect(db: Session, tenant_id: str, token: str, actor_id: str, *, http: Opt
         raise MarketingError(422, "not_a_token", "That does not look like a Meta System User token (it starts with EAA).")
     c = http or httpx.Client(timeout=20, follow_redirects=False)
     try:
-        code, dbg = _get(c, "debug_token", {"input_token": token, "access_token": token})
+        code, dbg = _get(c, "debug_token", {"input_token": token}, token)
         info = dbg.get("data") or {}
         if code != 200 or not info.get("is_valid"):
             raise MarketingError(422, "token_rejected", "Meta did not accept this token. Generate a new one and paste it again.")
         scopes = set(info.get("scopes") or [])
-        code, pages_body = _get(c, "me/accounts", {"fields": "id,name,access_token,instagram_business_account{id,username}",
-                                                   "access_token": token})
+        code, pages_body = _get(c, "me/accounts", {"fields": "id,name,access_token,instagram_business_account{id,username}"},
+                                token)
     except httpx.HTTPError:
-        raise MarketingError(502, "meta_unreachable", "Could not reach Meta. Try again in a minute.")
+        raise MarketingError(502, "meta_unreachable", "Could not reach Meta. Try again in a minute.") from None
     finally:
         if http is None:
             c.close()
