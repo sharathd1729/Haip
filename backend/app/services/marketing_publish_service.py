@@ -112,10 +112,28 @@ def suggest_time(db: Session, tenant: Tenant, day: Optional[date] = None) -> dat
     return when if when > now else now + timedelta(minutes=10)
 
 
-def schedule_all(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id: str) -> list[MarketingPublishAttempt]:
+REPEAT_MIN_DAYS, REPEAT_MAX_DAYS, REPEAT_MAX_TIMES = 14, 90, 6
+
+
+def check_repeat(every_days: Optional[int], times: Optional[int]) -> tuple[Optional[int], Optional[int]]:
+    """Both or neither: every 14-90 days, 1-6 more times."""
+    if not every_days and not times:
+        return None, None
+    if not every_days or not times:
+        raise MarketingError(422, "bad_repeat", "Say how often and how many more times.")
+    if not REPEAT_MIN_DAYS <= every_days <= REPEAT_MAX_DAYS:
+        raise MarketingError(422, "bad_repeat", f"Repeat every {REPEAT_MIN_DAYS} to {REPEAT_MAX_DAYS} days.")
+    if not 1 <= times <= REPEAT_MAX_TIMES:
+        raise MarketingError(422, "bad_repeat", f"Repeat 1 to {REPEAT_MAX_TIMES} more times.")
+    return every_days, times
+
+
+def schedule_all(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id: str, *,
+                 repeat_every_days: Optional[int] = None, repeat_times: Optional[int] = None) -> list[MarketingPublishAttempt]:
     """Schedule the approved version on every channel the item targets (marketing_channels.targets_of). All or none:
     if any channel has a blocking problem, nothing is scheduled and every problem is listed with its channel."""
     from app.services import marketing_channels as channels
+    repeat_every_days, repeat_times = check_repeat(repeat_every_days, repeat_times)
     item = content_svc.get_item(db, tenant.id, item_id)
     if item.kind == "article":
         raise MarketingError(422, "website_only", "Guides appear on your website once approved; they aren't posted to social.")
@@ -126,11 +144,13 @@ def schedule_all(db: Session, tenant: Tenant, item_id: str, when: datetime, acto
                for p in preflight(db, tenant.id, item, payload, c, check_connection=True)[0]]
         if bad:
             raise MarketingError(422, "not_publishable", "This can't be posted yet.", sorted(set(bad)))
-    return [schedule(db, tenant, item.id, when, actor_id, channel=c, _checked=True) for c in targets]
+    return [schedule(db, tenant, item.id, when, actor_id, channel=c, _checked=True,
+                     repeat_every_days=repeat_every_days, repeat_times=repeat_times) for c in targets]
 
 
 def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id: str, *, channel: str = "instagram",
-             _checked: bool = False) -> MarketingPublishAttempt:
+             _checked: bool = False, repeat_every_days: Optional[int] = None,
+             repeat_times: Optional[int] = None) -> MarketingPublishAttempt:
     from app.services import marketing_channels as channels
     if agency.level(tenant, "publish") == "off":
         raise MarketingError(409, "publishing_off", "Publishing is switched off for this workspace.")
@@ -149,8 +169,10 @@ def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id
     now = datetime.now(timezone.utc)
     if when < now - timedelta(minutes=1) or when > now + timedelta(days=MAX_AHEAD_DAYS):
         raise MarketingError(422, "bad_time", f"Pick a time from now up to {MAX_AHEAD_DAYS} days ahead.")
+    repeat_every_days, repeat_times = check_repeat(repeat_every_days, repeat_times)
     attempt = (db.query(MarketingPublishAttempt)
-               .filter_by(tenant_id=tenant.id, content_id=item.id, version_id=item.approved_version_id, channel=channel).first())
+               .filter_by(tenant_id=tenant.id, content_id=item.id, version_id=item.approved_version_id, channel=channel,
+                          run=0).first())
     if attempt is not None and attempt.status in ("published", "publishing"):
         raise MarketingError(409, "already_published", "This version is already posted or being posted there.")
     if attempt is None:
@@ -159,12 +181,35 @@ def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id
                                           channel=channel)
         db.add(attempt)
     attempt.status, attempt.scheduled_for, attempt.error, attempt.tries = "scheduled", when, None, 0
+    attempt.repeat_every_days, attempt.repeat_left = repeat_every_days, repeat_times
     item.status = "scheduled"
     db.flush()
     append_audit(db, tenant_id=tenant.id, action="marketing.content.scheduled", actor_user_id=actor_id,
                  target_type="marketing_content", target_id=item.id,
-                 payload={"version_id": attempt.version_id, "scheduled_for": when.isoformat(), "channel": channel})
+                 payload={"version_id": attempt.version_id, "scheduled_for": when.isoformat(), "channel": channel,
+                          **({"repeat_every_days": repeat_every_days, "repeat_times": repeat_times} if repeat_times else {})})
     return attempt
+
+
+def _queue_repeat(db: Session, attempt: MarketingPublishAttempt) -> Optional[MarketingPublishAttempt]:
+    """After a run posts: the next run of the same approved version on the same channel, N days after this run's
+    slot (same time of day). Publishing re-checks the approval and the kill switch, and an edit or Unschedule cancels
+    it like any scheduled post."""
+    if not attempt.repeat_left or not attempt.repeat_every_days:
+        return None
+    base = attempt.scheduled_for if attempt.scheduled_for.tzinfo else attempt.scheduled_for.replace(tzinfo=timezone.utc)
+    nxt = MarketingPublishAttempt(tenant_id=attempt.tenant_id, content_id=attempt.content_id, version_id=attempt.version_id,
+                                  sha256=attempt.sha256, channel=attempt.channel, run=(attempt.run or 0) + 1,
+                                  scheduled_for=base + timedelta(days=attempt.repeat_every_days), status="scheduled",
+                                  scheduled_by=attempt.scheduled_by, repeat_every_days=attempt.repeat_every_days,
+                                  repeat_left=attempt.repeat_left - 1)
+    db.add(nxt)
+    db.flush()
+    append_audit(db, tenant_id=attempt.tenant_id, action="marketing.content.repeat_scheduled", actor_user_id="agency",
+                 target_type="marketing_content", target_id=attempt.content_id,
+                 payload={"version_id": attempt.version_id, "channel": attempt.channel, "run": nxt.run,
+                          "scheduled_for": nxt.scheduled_for.isoformat(), "repeats_left": nxt.repeat_left})
+    return nxt
 
 
 def _settle(db: Session, item: MarketingContent, version_id: str) -> None:
@@ -187,7 +232,8 @@ def unschedule(db: Session, tenant_id: str, item_id: str, actor_id: str) -> None
          .update({"status": "cancelled"}, synchronize_session=False))
     if n == 0:
         raise MarketingError(409, "not_scheduled", "Nothing is scheduled for this content.")
-    item.status = "approved"
+    db.flush()
+    _settle(db, item, item.approved_version_id)   # "published" when an earlier run already posted (repeats stopped)
     append_audit(db, tenant_id=tenant_id, action="marketing.content.unscheduled", actor_user_id=actor_id,
                  target_type="marketing_content", target_id=item.id, payload={})
 
@@ -270,6 +316,22 @@ def _reel_extras(db: Session, tenant: Tenant, payload: dict) -> dict:
         if research.ready(db, tenant, "audio"):
             out["audio_id"] = payload["audio_id"]
     return out
+
+
+def _with_collaborators(collab: list[str], notes: list, make: Callable[[dict], str]) -> str:
+    """Create a container with the approved collaborators. If Instagram refuses the tag (private account, invites off,
+    wrong name), create it once more without them and say so: dropping a tag stays inside what was approved, and a
+    failed scheduled post would be worse."""
+    from app.adapters.instagram.publishing import PublishError
+    if not collab:
+        return make({})                  # no keyword at all: publishers without collaborator support keep working
+    try:
+        return make({"collaborators": collab})
+    except PublishError as exc:
+        if exc.transient:
+            raise
+        notes.append("Posted without " + ", ".join(f"@{c}" for c in collab) + f": Instagram refused the tag ({exc})")
+        return make({})
 
 
 def _publisher_for(db: Session, tenant_id: str):
@@ -366,21 +428,25 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
             return fail("Instagram's 24-hour posting limit is used up.", True)
         containers = list(attempt.container_ids or [])
         published = list(attempt.media_ids or [])
+        collab = list(payload.get("collaborators") or []) if item.kind != "story" else []
         if item.kind == "carousel":
             if not containers:
                 kids = [pub.image_container(url_for(a), carousel_item=True) for a in images]
                 for k in kids:
                     pub.wait_ready(k)
-                containers = [pub.carousel_container(kids, _caption(payload))]
+                containers = [_with_collaborators(collab, notes, lambda c: pub.carousel_container(
+                    kids, _caption(payload), **c))]
         elif item.kind == "story":
             if not containers:
                 containers = [pub.image_container(url_for(a), story=True) for a in images]
         elif item.kind == "reel":
             if not containers:
-                containers = [pub.reel_container(url_for(images[0]), caption=_caption(payload),
-                                                 cover_url=url_for(images[1]), **_reel_extras(db, tenant, payload))]
+                containers = [_with_collaborators(collab, notes, lambda c: pub.reel_container(
+                    url_for(images[0]), caption=_caption(payload), cover_url=url_for(images[1]), **c,
+                    **_reel_extras(db, tenant, payload)))]
         elif not containers:
-            containers = [pub.image_container(url_for(images[0]), caption=_caption(payload))]
+            containers = [_with_collaborators(collab, notes, lambda c: pub.image_container(
+                url_for(images[0]), caption=_caption(payload), **c))]
         attempt.container_ids = containers
         db.commit()                                   # saved before publishing: a retry reuses these containers
         for cid in containers[len(published):]:
@@ -405,6 +471,7 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
         pub.close()
     attempt.status, attempt.published_at, attempt.error = "published", datetime.now(timezone.utc), ("; ".join(notes) or None)
     db.flush()
+    _queue_repeat(db, attempt)
     _settle(db, item, attempt.version_id)
     from app.services import usage_service
     usage_service.record(db, tenant.id, module="marketing_studio", kind="publish", units=len(published),
@@ -457,6 +524,7 @@ def _publish_other(db: Session, tenant: Tenant, item: MarketingContent, attempt:
         return fail(str(exc), exc.transient)
     attempt.status, attempt.published_at, attempt.error = "published", datetime.now(timezone.utc), ("; ".join(notes) or None)
     db.flush()
+    _queue_repeat(db, attempt)
     _settle(db, item, attempt.version_id)
     usage_service.record(db, tenant.id, module="marketing_studio", kind="publish", units=1, provider=attempt.channel,
                          ref_type="marketing_content", ref_id=item.id)

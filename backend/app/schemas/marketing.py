@@ -21,6 +21,10 @@ HASHTAGS_MAX = 30
 _HASHTAG = re.compile(r"^#?[\wऀ-ॿ]{1,100}$")
 
 
+COLLABORATORS_MAX = 3
+COLLAB_RE = re.compile(r"^[a-z0-9._]{1,30}$")
+
+
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -154,11 +158,30 @@ class _Captioned(_Strict):
     hashtags: list[str] = Field(default_factory=list)
     # Posted as the first comment (e.g. a question that invites replies); where the hashtags go is the publisher's choice.
     first_comment: Optional[str] = Field(default=None, max_length=CAPTION_MAX)
+    # Instagram collaborators (up to 3 usernames): each gets an invite and, once accepted, the post shows on both
+    # profiles. Set by people only, never by the AI (marketing_ai_service drops it). Instagram only.
+    collaborators: list[str] = Field(default_factory=list)
 
     @field_validator("hashtags")
     @classmethod
     def _tags(cls, v):
         return _clean_hashtags(v)
+
+    @field_validator("collaborators")
+    @classmethod
+    def _collaborators(cls, v):
+        out: list[str] = []
+        for raw in v:
+            name = str(raw).strip().lstrip("@").lower()
+            if not name:
+                continue
+            if not COLLAB_RE.match(name):
+                raise ValueError(f"@{name} is not an Instagram username")
+            if name not in out:
+                out.append(name)
+        if len(out) > COLLABORATORS_MAX:
+            raise ValueError(f"at most {COLLABORATORS_MAX} collaborators")
+        return out
 
     @model_validator(mode="after")
     def _limits(self):
@@ -323,7 +346,7 @@ def strings_of(payload: dict) -> list[str]:
         elif isinstance(v, dict):
             for k, x in v.items():
                 if k not in ("asset_id", "kind", "date", "valid_until", "framework", "style", "colour", "accent", "font",
-                             "logo_asset_id", "logo_position"):
+                             "logo_asset_id", "logo_position", "collaborators"):
                     walk(x)
         elif isinstance(v, list):
             for x in v:

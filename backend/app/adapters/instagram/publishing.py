@@ -66,7 +66,7 @@ class Publisher:
         return None if total is None or used is None else max(int(total) - int(used), 0)
 
     def image_container(self, image_url: str, *, caption: Optional[str] = None, carousel_item: bool = False,
-                        story: bool = False) -> str:
+                        story: bool = False, collaborators: Optional[list[str]] = None) -> str:
         params = {"image_url": image_url}
         if carousel_item:
             params["is_carousel_item"] = "true"
@@ -74,10 +74,12 @@ class Publisher:
             params["media_type"] = "STORIES"
         if caption and not carousel_item and not story:
             params["caption"] = caption
+        if collaborators and not carousel_item and not story:   # Meta: not on stories or carousel children
+            params["collaborators"] = json.dumps(collaborators)
         return self._req("POST", f"{self.ig}/media", **params)["id"]
 
     def reel_container(self, video_url: str, *, caption: str, cover_url: Optional[str] = None, trial: bool = False,
-                       audio_id: Optional[str] = None) -> str:
+                       audio_id: Optional[str] = None, collaborators: Optional[list[str]] = None) -> str:
         """A REELS container (agency M3): Instagram fetches the MP4 itself and takes minutes to process it, so
         wait_ready may raise a transient error; the caller keeps the container id and retries.
         trial (studio plan phase 4): a trial Reel, shown to non-followers first and shared to followers only if it
@@ -91,10 +93,14 @@ class Publisher:
             params.pop("share_to_feed")
         if audio_id:
             params["audio_configuration"] = json.dumps({"audio_id": audio_id})
+        if collaborators:
+            params["collaborators"] = json.dumps(collaborators)
         return self._req("POST", f"{self.ig}/media", **params)["id"]
 
-    def carousel_container(self, children: list[str], caption: str) -> str:
-        return self._req("POST", f"{self.ig}/media", media_type="CAROUSEL", children=",".join(children), caption=caption)["id"]
+    def carousel_container(self, children: list[str], caption: str, collaborators: Optional[list[str]] = None) -> str:
+        extra = {"collaborators": json.dumps(collaborators)} if collaborators else {}
+        return self._req("POST", f"{self.ig}/media", media_type="CAROUSEL", children=",".join(children), caption=caption,
+                         **extra)["id"]
 
     def container_status(self, container_id: str) -> str:
         return self._req("GET", container_id, fields="status_code").get("status_code", "")
