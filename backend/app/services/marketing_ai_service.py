@@ -417,6 +417,7 @@ def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[st
             data, raw, provider = _call("marketing_content", tenant_id, system, user, tool)   # never lose the draft
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_content", ref_id=item.id)
         data.pop("kind", None)
+        data.pop("collaborators", None)                  # only a person names collaborators (no invented accounts)
         hooks = [str(h).strip()[:160] for h in (data.pop("hook_options", None) or []) if str(h).strip()][:2]
         if isinstance(data.get("design"), dict):
             for key in ("colour", "accent", "font", "logo_asset_id", "logo_position"):

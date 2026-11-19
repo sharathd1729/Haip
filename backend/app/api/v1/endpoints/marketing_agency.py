@@ -136,6 +136,8 @@ def reject(kind: str, item_id: str, body: Review = Review(), user: User = Depend
 
 class ScheduleIn(BaseModel):
     scheduled_for: Optional[datetime] = None        # omitted = the suggested time
+    repeat_every_days: Optional[int] = None         # post again every N days (14-90) ...
+    repeat_times: Optional[int] = None              # ... this many more times (1-6)
 
 
 def _attempts(db: Session, tenant_id: str, item_id: str) -> list[dict]:
@@ -143,7 +145,8 @@ def _attempts(db: Session, tenant_id: str, item_id: str) -> list[dict]:
     rows = (db.query(MarketingPublishAttempt).filter_by(tenant_id=tenant_id, content_id=item_id)
             .order_by(MarketingPublishAttempt.created_at.desc()).all())
     return [{"id": a.id, "version_id": a.version_id, "status": a.status, "scheduled_for": a.scheduled_for, "tries": a.tries,
-             "permalink": a.permalink, "error": a.error, "published_at": a.published_at, "channel": a.channel} for a in rows]
+             "permalink": a.permalink, "error": a.error, "published_at": a.published_at, "channel": a.channel,
+             "run": a.run or 0, "repeat_every_days": a.repeat_every_days, "repeat_left": a.repeat_left} for a in rows]
 
 
 @router.get("/content/{item_id}/publishing")
@@ -167,6 +170,9 @@ def publishing(item_id: str, user: User = Depends(get_current_user), db: Session
                 problems += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in p_]
                 notes += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in n_]
                 previews[c] = channels.preview(item.kind, payload, ai.get_profile(tenant), c)
+            if "instagram" in publish_to and payload.get("collaborators"):
+                notes.append("Collaborators on Instagram: " + ", ".join(f"@{x}" for x in payload["collaborators"])
+                             + ". Each gets an invite and must accept it; if Instagram refuses a tag, the post goes out without it.")
         except svc.MarketingError as exc:
             problems = [exc.message]
     return {"status": item.status, "publish_level": agency.level(tenant, "publish"), "problems": sorted(set(problems)),
@@ -181,7 +187,8 @@ def schedule(item_id: str, body: ScheduleIn = ScheduleIn(), user: User = Depends
     from app.services import marketing_publish_service as pub
     tenant = _tenant(db, user)
     try:
-        attempts = pub.schedule_all(db, tenant, item_id, body.scheduled_for or pub.suggest_time(db, tenant), user.id)
+        attempts = pub.schedule_all(db, tenant, item_id, body.scheduled_for or pub.suggest_time(db, tenant), user.id,
+                                    repeat_every_days=body.repeat_every_days, repeat_times=body.repeat_times)
     except svc.MarketingError as exc:
         raise _err(exc)
     db.commit()

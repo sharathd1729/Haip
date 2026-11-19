@@ -250,9 +250,10 @@ class MarketingResearchBrief(Base, TimestampMixin):
 
 
 class MarketingPublishAttempt(Base, TimestampMixin):
-    """Schedule + publish record for one approved version (agency phase C). Unique per (content, version), so a
-    retried or re-delivered job can never post the same version twice; the provider container/media ids are stored
-    as soon as they exist so a retry can tell whether Instagram already published."""
+    """Schedule + publish record for one approved version (agency phase C). Unique per (content, version, channel,
+    run), so a retried or re-delivered job can never post the same version twice; the provider container/media ids are
+    stored as soon as they exist so a retry can tell whether Instagram already published. Repeat posts (migration 216):
+    run 0 is the first post, each repeat is the next run of the same approved version."""
     __tablename__ = "marketing_publish_attempts"
 
     id = Column(String, primary_key=True, default=gen_uuid)
@@ -270,8 +271,11 @@ class MarketingPublishAttempt(Base, TimestampMixin):
     tries = Column(Integer, nullable=False, default=0)
     scheduled_by = Column(String, nullable=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
+    run = Column(Integer, nullable=False, default=0, server_default="0")   # 0 = first post, 1.. = repeats
+    repeat_every_days = Column(Integer, nullable=True)
+    repeat_left = Column(Integer, nullable=True)                           # repeats still to come after this run
 
-    __table_args__ = (UniqueConstraint("content_id", "version_id", "channel", name="uq_marketing_publish_attempts_channel"),
+    __table_args__ = (UniqueConstraint("content_id", "version_id", "channel", "run", name="uq_marketing_publish_attempts_run"),
                       Index("ix_marketing_publish_attempts_due", "status", "scheduled_for"))
 
 

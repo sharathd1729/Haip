@@ -41,6 +41,7 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
   const str = (k: string) => (typeof value[k] === "string" ? (value[k] as string) : "");
   // Raw text kept locally so a trailing space survives typing; the parent remounts this form per version (key).
   const [tags, setTags] = useState(Array.isArray(value.hashtags) ? (value.hashtags as string[]).join(" ") : "");
+  const [collabs, setCollabs] = useState(Array.isArray(value.collaborators) ? (value.collaborators as string[]).map(c => "@" + c).join(" ") : "");
   const listKey = kind === "carousel" ? "slides" : kind === "story" ? "frames" : kind === "reel" ? "clips" : null;
   const list = listKey ? rows(value[listKey]) : [];
   const setRow = (i: number, k: keyof Row, v: unknown) => {
@@ -157,6 +158,11 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
           </Field>
           <Field label="First comment (optional)" hint="Posted under the post, e.g. a question that invites replies.">
             <textarea className={inputCls} rows={2} maxLength={2200} value={str("first_comment")} onChange={e => set("first_comment", e.target.value || undefined)} />
+          </Field>
+          <Field label="Collaborators (optional, Instagram only)"
+            hint="Up to 3 Instagram usernames, separated by spaces. Each gets an invite; once they accept, the post shows on both profiles.">
+            <input className={inputCls} value={collabs} placeholder="@partneraccount" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+              onChange={e => { setCollabs(e.target.value); set("collaborators", e.target.value.split(/[\s,]+/).map(c => c.replace(/^@/, "")).filter(Boolean)); }} />
           </Field>
           <Field label="Hashtags" hint="Separate with spaces. Up to 30.">
             <input className={inputCls} value={tags}

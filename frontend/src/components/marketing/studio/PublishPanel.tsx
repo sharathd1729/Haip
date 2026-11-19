@@ -10,7 +10,8 @@ import { StatusPill, type Tone } from "@/components/ui/kit";
 import { STUDIO, btn, btnPrimary, inputCls, studioError, when } from "./types";
 
 type Channel = "instagram" | "facebook" | "google";
-interface Attempt { id: string; status: string; scheduled_for: string; tries: number; permalink: string | null; error: string | null; published_at: string | null; channel?: Channel }
+interface Attempt { id: string; status: string; scheduled_for: string; tries: number; permalink: string | null; error: string | null; published_at: string | null; channel?: Channel;
+  run?: number; repeat_every_days?: number | null; repeat_left?: number | null }
 interface Info {
   status: string; publish_level: string; problems: string[]; notes: string[]; suggested_time: string; attempts: Attempt[];
   targets?: Channel[]; available_channels?: Channel[];
@@ -20,6 +21,15 @@ interface Channels { facebook: { connected: boolean; page_name: string | null };
 
 const TONE: Record<string, Tone> = { scheduled: "info", publishing: "info", published: "success", failed: "danger", cancelled: "neutral" };
 export const CHANNEL_LABEL: Record<Channel, string> = { instagram: "Instagram", facebook: "Facebook Page", google: "Google Business" };
+
+export const REPEAT_EVERY = [{ days: 14, label: "Every 2 weeks" }, { days: 28, label: "Every 4 weeks" }, { days: 56, label: "Every 8 weeks" }];
+
+/** "Repeat 1 · 2 more after this" for a scheduled repeat, "" for a one-off post. */
+export function repeatLine(a: Pick<Attempt, "run" | "repeat_left" | "repeat_every_days">): string {
+  if (!a.repeat_every_days) return "";
+  const more = a.repeat_left ?? 0;
+  return `${a.run ? `repeat ${a.run}` : "first post"} · ${more ? `${more} more, every ${Math.round(a.repeat_every_days / 7)} weeks` : "last one"}`;
+}
 
 function toLocalInput(iso: string): string {
   const d = new Date(iso);
@@ -31,6 +41,8 @@ export function PublishPanel({ itemId, canSchedule }: { itemId: string; canSched
   const qc = useQueryClient();
   const { toast } = useToast();
   const [at, setAt] = useState<string | null>(null);
+  const [every, setEvery] = useState(0);          // 0 = post once
+  const [times, setTimes] = useState(3);
   const q = useQuery<Info>({
     queryKey: ["studio-publishing", itemId], queryFn: () => api.get(`${STUDIO}/content/${itemId}/publishing`).then(r => r.data),
     refetchInterval: d => (d.state.data?.attempts?.some(a => a.status === "publishing") ? 5000 : false),
@@ -38,7 +50,10 @@ export function PublishPanel({ itemId, canSchedule }: { itemId: string; canSched
   const ch = useQuery<Channels>({ queryKey: ["studio-channels"], queryFn: () => api.get(`${STUDIO}/channels`).then(r => r.data), staleTime: 60_000 });
   const done = () => { qc.invalidateQueries({ queryKey: ["studio-publishing", itemId] }); qc.invalidateQueries({ queryKey: ["studio-item", itemId] }); qc.invalidateQueries({ queryKey: ["studio-content"] }); };
   const schedule = useMutation({
-    mutationFn: () => api.post(`${STUDIO}/content/${itemId}/schedule`, at ? { scheduled_for: new Date(`${at}:00+05:30`).toISOString() } : {}),
+    mutationFn: () => api.post(`${STUDIO}/content/${itemId}/schedule`, {
+      ...(at ? { scheduled_for: new Date(`${at}:00+05:30`).toISOString() } : {}),
+      ...(every ? { repeat_every_days: every, repeat_times: times } : {}),
+    }),
     onSuccess: r => { toast({ variant: "success", title: "Scheduled", description: `It will be posted to ${(r.data.channels as Channel[] ?? ["instagram"]).map(c => CHANNEL_LABEL[c]).join(", ")} at that time.` }); done(); },
     onError: e => toast({ variant: "error", title: "Not scheduled", description: studioError(e, "Try again.") }),
   });
@@ -51,6 +66,10 @@ export function PublishPanel({ itemId, canSchedule }: { itemId: string; canSched
   if (!d) return null;
   const chosen = d.targets ?? ["instagram"];
   const connected = (c: Channel) => c === "instagram" || (c === "facebook" ? ch.data?.facebook.connected : ch.data?.google.connected);
+  const postedPer = (d.attempts ?? []).reduce<Partial<Record<Channel, number>>>((acc, a) => {
+    if (a.status === "published") acc[a.channel ?? "instagram"] = (acc[a.channel ?? "instagram"] ?? 0) + 1;
+    return acc;
+  }, {});
   const latestPer = (d.attempts ?? []).reduce<Partial<Record<Channel, Attempt>>>((acc, a) => {
     const c = a.channel ?? "instagram";
     if (!acc[c]) acc[c] = a;                                  // attempts come newest first
@@ -87,7 +106,8 @@ export function PublishPanel({ itemId, canSchedule }: { itemId: string; canSched
           <span className="font-semibold">{CHANNEL_LABEL[c as Channel]}</span>
           <StatusPill tone={TONE[a.status] ?? "neutral"}>{a.status}</StatusPill>
           {a.status === "published" ? <>posted {when(a.published_at)} {a.permalink && <a className="text-primary underline" href={a.permalink} target="_blank" rel="noopener noreferrer">open</a>}</>
-            : a.status === "scheduled" ? <>for {when(a.scheduled_for)}{a.tries ? ` · retry ${a.tries}` : ""}</> : null}
+            : a.status === "scheduled" ? <>for {when(a.scheduled_for)}{a.tries ? ` · retry ${a.tries}` : ""}{repeatLine(a) ? ` · ${repeatLine(a)}` : ""}</> : null}
+          {(postedPer[c as Channel] ?? 0) > 1 && <span className="text-xs text-[var(--haip-fg-subtle)]">posted {postedPer[c as Channel]} times</span>}
           {a.error && <span className="block w-full text-xs text-[var(--haip-status-danger-fg)]">{a.error}</span>}
         </p>
       ))}
@@ -97,12 +117,28 @@ export function PublishPanel({ itemId, canSchedule }: { itemId: string; canSched
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <label className="space-y-1"><span className="text-xs font-semibold">When (IST)</span>
             <input type="datetime-local" className={inputCls} value={at ?? toLocalInput(d.suggested_time)} onChange={e => setAt(e.target.value)} /></label>
+          <label className="space-y-1"><span className="text-xs font-semibold">Post again</span>
+            <select className={inputCls} value={every} onChange={e => setEvery(Number(e.target.value))}>
+              <option value={0}>No, just once</option>
+              {REPEAT_EVERY.map(r => <option key={r.days} value={r.days}>{r.label}</option>)}
+            </select></label>
+          {every > 0 && (
+            <label className="space-y-1"><span className="text-xs font-semibold">More times</span>
+              <select className={inputCls} value={times} onChange={e => setTimes(Number(e.target.value))}>
+                {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+              </select></label>
+          )}
           <button type="button" className={btnPrimary} disabled={schedule.isPending} onClick={() => schedule.mutate()}>Schedule</button>
           <span className="text-xs text-[var(--haip-fg-subtle)]">Suggested from when your posts reach the most people.</span>
         </div>
       )}
+      {d.status === "approved" && canSchedule && !d.problems.length && every > 0 && (
+        <p className="text-xs text-[var(--haip-fg-subtle)]">The same approved post goes out again at the same time of day. Instagram may show a repeat to fewer
+          people, so 4 weeks or more apart works best. Editing the post or cancelling the schedule stops the repeats.</p>
+      )}
       {d.status === "approved" && !canSchedule && <p className="text-xs text-[var(--haip-fg-subtle)]">An owner or manager schedules approved posts.</p>}
-      {d.status === "scheduled" && canSchedule && <button type="button" className={btn} disabled={cancel.isPending} onClick={() => cancel.mutate()}>Cancel schedule</button>}
+      {d.status === "scheduled" && canSchedule && <button type="button" className={btn} disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+        {(d.attempts ?? []).some(a => a.status === "scheduled" && (a.run || a.repeat_left)) ? "Cancel schedule and repeats" : "Cancel schedule"}</button>}
       {d.publish_level === "autopilot" && <p className="text-xs text-[var(--haip-fg-subtle)]">Publisher is on autopilot: approved posts are scheduled automatically.</p>}
     </section>
   );
