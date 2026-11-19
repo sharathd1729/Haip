@@ -19,7 +19,11 @@ interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
 }
 
-const SHORT: Record<string, string> = { "/dashboard": "Home", "/dashboard/portfolio/calendar": "Calendar", "/dashboard/me/ask": "Ask" };
+// Tab names on the bar (Home, Inbox, Now, Leads, Calendar); the menu's page names ("All conversations", "Pipeline") are too long.
+const SHORT: Record<string, string> = {
+  "/dashboard": "Home", "/dashboard/inbox": "Inbox", "/dashboard/leads": "Leads", "/dashboard/portfolio/calendar": "Calendar",
+  "/dashboard/me/ask": "Ask",
+};
 const NOW_FALLBACK = "/dashboard/my-day";
 
 export function MobileNav({ user }: MobileNavProps) {
