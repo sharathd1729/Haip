@@ -166,6 +166,10 @@ func newSessionManager(ctx context.Context, dsn string, logger waLog.Logger, pro
 // connections made after it's set.
 func (m *sessionManager) newClient(deviceStore *store.Device) *whatsmeow.Client {
 	client := whatsmeow.NewClient(deviceStore, m.waLog)
+	// A paired device whose first Connect fails on a network error (the proxy phone is rebooting or off Wi-Fi) keeps
+	// retrying in the background instead of staying offline until the bridge is restarted. whatsmeow's own
+	// auto-reconnect only covers drops after a successful connect. Not for a fresh pairing: its QR flow must see the error.
+	client.InitialAutoReconnect = deviceStore.ID != nil
 	if m.proxyURL != "" {
 		if err := client.SetProxyAddress(m.proxyURL); err != nil {
 			fmt.Printf("failed to set proxy address: %v\n", err)

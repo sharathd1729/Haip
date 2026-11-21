@@ -188,6 +188,25 @@ services:
       retries: 3
       start_period: 10s
 
+  # Home-internet exit for the personal WhatsApp bridge. An always-on Android phone on the office Wi-Fi runs the
+  # Tailscale app as an exit node; this container joins the same tailnet (userspace networking, nothing changes on the
+  # host) and serves SOCKS5 on :1055, which leaves through that phone. Use it with
+  # WHATSAPP_PROXY_URL=socks5://tailscale-egress:1055. TS_AUTHKEY is only needed for the first login (state is kept in
+  # the volume); TS_EXIT_NODE is the phone's 100.x Tailscale IP. Compose network only, never published.
+  tailscale-egress:
+    image: tailscale/tailscale:v1.104.7
+    container_name: haip_tailscale_egress
+    hostname: haip-bridge-egress
+    restart: unless-stopped
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+      - TS_SOCKS5_SERVER=:1055
+      - TS_EXTRA_ARGS=--exit-node=${TS_EXIT_NODE:-}
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+
   redis:
     image: redis:7-alpine
     container_name: haip_redis
@@ -252,3 +271,4 @@ services:
 volumes:
   uploads:
   redis_data:
+  tailscale_state:

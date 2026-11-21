@@ -174,7 +174,7 @@ git checkout <commit-from-step-1>
 3. Create `/opt/haip/backend/.env` and `/opt/haip/frontend/.env.local` (never commit either). The frontend file must
    exist even if empty, or the stack will not start.
 4. Put the compose-level values (`NEXT_PUBLIC_API_URL`, `NEXTAUTH_URL`, `BACKEND_URL`, `HAIP_API_URL`,
-   `SITES_REVALIDATE_SECRET`, `WHATSAPP_BRIDGE_DB_DSN`, `WHATSAPP_PROXY_URL`, `FLOWER_USER`, `FLOWER_PASSWORD`) in
+   `SITES_REVALIDATE_SECRET`, `WHATSAPP_BRIDGE_DB_DSN`, `WHATSAPP_PROXY_URL`, `TS_AUTHKEY`, `TS_EXIT_NODE`, `FLOWER_USER`, `FLOWER_PASSWORD`) in
    `/opt/haip/.env`, which Compose reads automatically. Change the Flower password from its default.
 5. nginx on the host: `genhaip.com` → `127.0.0.1:3000` with TLS; client sites → `127.0.0.1:3020`
    (`docs/website-builder/DEPLOY.md`).
@@ -292,5 +292,5 @@ see the update the next time the app opens.
 | A new feature's background job never runs | The worker or beat was not rebuilt; rebuild all five backend services and check `inspect registered` |
 | Guests get no AI drafts, approved replies stay queued | `haip_worker_replies` is not running (`docker ps`); it is the only consumer of the `replies` queue |
 | Worker / beat / frontend show no health status | Expected: their health checks are disabled |
-| WhatsApp bridge "Couldn't link device" or keeps logging out | `docker logs haip_whatsapp_bridge`; it needs `WHATSAPP_PROXY_URL` (a residential SOCKS proxy) |
+| WhatsApp bridge "Couldn't link device" or keeps logging out | `docker logs haip_whatsapp_bridge`; it needs `WHATSAPP_PROXY_URL` (`socks5://tailscale-egress:1055`, exiting through the office phone). Check the exit IP: `docker run --rm --network container:haip_tailscale_egress curlimages/curl:8.10.1 -s --socks5-hostname 127.0.0.1:1055 https://ipinfo.io/json` must show the office ISP, not Hostinger; if not, the phone or its Tailscale app is off |
 | Stack does not come back after a reboot | `systemctl enable docker` |
