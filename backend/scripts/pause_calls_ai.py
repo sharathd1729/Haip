@@ -17,7 +17,7 @@ import app.models  # noqa: E402,F401  (registers every table)
 from app.core.audit import append_audit  # noqa: E402
 from app.core.database import SessionLocal, set_tenant_context  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
-from app.services.calls_ai_pause import KEY  # noqa: E402
+from app.services.calls_ai_pause import is_paused  # noqa: E402
 
 
 def main() -> int:
@@ -34,8 +34,7 @@ def main() -> int:
             print(f"No workspace with slug {args.tenant_slug!r}.")
             return 1
         set_tenant_context(db, tenant.id)
-        config = dict(tenant.brand_config or {})
-        before = bool(config.get(KEY))
+        before = is_paused(db, tenant.id)
         after = not args.resume
         print(f"{tenant.name} ({tenant.slug}): call AI {'paused' if before else 'running'} -> {'paused' if after else 'running'}")
         if before == after:
@@ -44,11 +43,8 @@ def main() -> int:
         if not args.apply:
             print("Dry run. Add --apply to write it.")
             return 0
-        if after:
-            config[KEY] = True
-        else:
-            config.pop(KEY, None)
-        tenant.brand_config = config
+        # Settings > AI switches (services/ai_features.py): transcription and analysis together, as before.
+        tenant.ai_features = {**(tenant.ai_features or {}), "call_transcription": not after, "call_analysis": not after}
         append_audit(db=db, tenant_id=tenant.id, actor_user_id="system", action="calls_ai.paused" if after else "calls_ai.resumed",
                      target_type="tenant", target_id=tenant.id, payload={"paused": after})
         db.commit()

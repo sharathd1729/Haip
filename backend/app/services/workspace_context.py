@@ -30,7 +30,8 @@ MODULE_FLAG_MAP: dict[str, list[str]] = {
     "channel_manager":["channel_manager_enabled", "revenue_reporting_enabled"],
     "analytics":      ["analytics_enabled", "ai_analytics_enabled", "anomaly_detection_enabled"],
     "ask_haip":       ["ask_haip_enabled"],
-    "ai_concierge":   ["ai_concierge_enabled", "ai_drafts_enabled"],
+    # Its flags (ai_concierge_enabled / ai_drafts_enabled) were never read; AI replies follow the reply modes (Settings > AI).
+    "ai_concierge":   [],
     "campaigns":      ["campaign_builder_enabled"],
     "flow_builder":   ["flow_builder_enabled"],
     # AI Insights feed reactivated (2026-08-15) as its own switch, decoupled

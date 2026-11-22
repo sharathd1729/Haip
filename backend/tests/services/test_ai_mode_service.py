@@ -62,8 +62,10 @@ def test_per_conversation_off_wins_over_tenant():
     assert ams.resolve_mode(_T(wa="autonomous"), _C(ai_mode="off")) == "off"
 
 
-def test_unknown_channel_never_defaults_to_autonomous():
-    assert ams.resolve_mode(_T(wa="autonomous"), _C(channel="webchat")) == "shadow"
+def test_a_channel_haip_cannot_send_on_gets_no_ai_reply():
+    """Webchat / email / Facebook have no sender: no draft, no automatic reply (AI_SWITCHES_SPEC, read-only sources)."""
+    assert ams.resolve_mode(_T(wa="autonomous"), _C(channel="webchat")) == "off"
+    assert ams.resolve_mode(_T(wa="autonomous"), _C(channel="facebook")) == "off"
 
 
 def test_invalid_mode_falls_back_to_shadow():

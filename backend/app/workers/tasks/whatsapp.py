@@ -704,7 +704,9 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     # Only trigger for text/interactive messages (not raw media without caption)
     # Phase 2.5 agent-accountability instrumentation (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): a message that
     # reaches here matched no keyword reply -- outcome is AI-drafted vs no response, same vocabulary as the IG side.
-    if body and body.strip() and msg_type not in _NO_AI_TYPES:
+    # Queued even when the WhatsApp mode is off: concierge_draft then makes no model call but refreshes the lead summary.
+    from app.services.ai_mode_service import can_send
+    if body and body.strip() and msg_type not in _NO_AI_TYPES and can_send(conversation, message):
         try:
             from app.workers.tasks.concierge_draft import concierge_draft
             from app.services.concierge_service import mark_pending_draft, DEBOUNCE_SECONDS

@@ -123,7 +123,9 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
 
         # Chain: one AI read of the call (best-effort; call_recovery picks up a dispatch that never ran)
         try:
-            analyze_call.delay(call_id=call_id, tenant_id=tenant_id)
+            from app.services import ai_features
+            if ai_features.enabled(db, tenant_id, "call_analysis"):   # Settings > AI: transcribed, but not analysed while off
+                analyze_call.delay(call_id=call_id, tenant_id=tenant_id)
         except Exception as chain_exc:
             log.warning("transcribe_chain_analysis_skipped", call_id=call_id, error=str(chain_exc))
 

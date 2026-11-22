@@ -79,6 +79,10 @@ class Tenant(Base, TimestampMixin):
     # threshold to WhatsApp drafts.
     wa_ai_mode_default = Column(String(20), nullable=False, server_default="shadow")
     wa_ai_confidence_threshold = Column(Float, nullable=False, server_default="0.78")
+    # Instagram COMMENTS get their own reply mode (migration 217, default off: keyword automations answer comments);
+    # Instagram DMs keep ig_ai_mode_default. Every other AI switch: ai_features (services/ai_features.py).
+    ig_comment_ai_mode_default = Column(String(20), nullable=False, server_default="off")
+    ai_features = Column(JSON, nullable=True)
 
     # Emergency stop (migration 080). When true the AI stops sending to
     # guests on every channel immediately, regardless of the mode settings

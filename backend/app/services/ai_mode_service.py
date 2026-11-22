@@ -64,27 +64,47 @@ def _channel_key(channel) -> Optional[str]:
     return _CHANNEL_PREFIX.get(str(raw).lower())
 
 
-def resolve_mode(tenant, conversation) -> str:
-    """Effective mode for this conversation's next AI reply."""
-    # Emergency stop wins over everything. Downgrades to shadow rather than
-    # off deliberately: the owner pulling this wants the AI to stop talking
-    # to guests, not to lose the drafting assist their agents are using.
-    if tenant is not None and getattr(tenant, "ai_kill_switch", False):
-        return "shadow"
+# Sources HAIP only READS (owner, 22 Nov 2026): the personal WhatsApp bridge, Meta lead forms, imported chat exports.
+READ_ONLY_SOURCES = frozenset({"personal_bridge", "lead_form", "chat_export"})
 
+
+def _source_of(message) -> Optional[str]:
+    meta = getattr(message, "channel_metadata", None)
+    return meta.get("source") if isinstance(meta, dict) else None
+
+
+def can_send(conversation, message=None) -> bool:
+    """True when HAIP can reply on this thread: a WhatsApp Business API or Instagram API conversation that is not a
+    read-only source, and (when given) a guest message that did not come from one. The one check every place an AI
+    reply (draft or automatic) can start goes through, directly or via resolve_mode."""
+    if conversation is None or _channel_key(getattr(conversation, "channel", None)) is None:
+        return False
+    if (getattr(conversation, "source", None) or "") in READ_ONLY_SOURCES:
+        return False
+    return _source_of(message) not in READ_ONLY_SOURCES
+
+
+def resolve_mode(tenant, conversation, message=None) -> str:
+    """Effective mode for this conversation's next AI reply. `message` is the guest message being answered (optional):
+    a read-only one gives "off", and an Instagram COMMENT follows ig_comment_ai_mode_default instead of the DM mode."""
+    if not can_send(conversation, message):
+        return "off"
     if conversation is not None and (conversation.ai_mode or "").lower() == "off":
         return "off"
 
     prefix = _channel_key(getattr(conversation, "channel", None))
-    if prefix is None or tenant is None:
-        # Unknown channel (webchat, email) has no tenant policy column; fall
-        # back to whatever the conversation carries, then to shadow. Never
-        # default an unknown channel to autonomous.
+    if tenant is None:
         mode = (getattr(conversation, "ai_mode", None) or DEFAULT_MODE).lower()
         return mode if mode in VALID_MODES else DEFAULT_MODE
 
-    mode = (getattr(tenant, f"{prefix}_ai_mode_default", None) or DEFAULT_MODE).lower()
-    return mode if mode in VALID_MODES else DEFAULT_MODE
+    column = "ig_comment_ai_mode_default" if prefix == "ig" and _source_of(message) == "comment" else f"{prefix}_ai_mode_default"
+    mode = (getattr(tenant, column, None) or DEFAULT_MODE).lower()
+    mode = mode if mode in VALID_MODES else DEFAULT_MODE
+    # Emergency stop: the AI stops talking to guests (autonomous -> shadow) but agents keep the drafting assist. It never
+    # turns drafting ON where the workspace set a mode to off.
+    if mode == "autonomous" and getattr(tenant, "ai_kill_switch", False):
+        return "shadow"
+    return mode
 
 
 def resolve_threshold(tenant, conversation, fallback: float = DEFAULT_THRESHOLD) -> float:
@@ -101,8 +121,8 @@ def resolve_threshold(tenant, conversation, fallback: float = DEFAULT_THRESHOLD)
     return float(val) if val is not None else fallback
 
 
-def resolve(tenant, conversation) -> Tuple[str, float]:
-    return resolve_mode(tenant, conversation), resolve_threshold(tenant, conversation)
+def resolve(tenant, conversation, message=None) -> Tuple[str, float]:
+    return resolve_mode(tenant, conversation, message), resolve_threshold(tenant, conversation)
 
 
 def clear_derived_modes(db, tenant_id: str, *, apply: bool) -> dict:

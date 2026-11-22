@@ -323,6 +323,13 @@ def _action_create_draft(db, cfg: dict, context: dict, tenant_id: str) -> str:
     if not latest_msg:
         return "skipped — no inbound message in conversation"
 
+    # A read-only thread (personal WhatsApp, lead form) or a reply mode set to off: no draft, so no job either.
+    from app.models.tenant import Tenant
+    from app.services import ai_mode_service
+    conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
+    if ai_mode_service.resolve_mode(db.query(Tenant).filter_by(id=tenant_id).first(), conv, latest_msg) == "off":
+        return "skipped — AI replies are off or HAIP can't reply on this thread"
+
     from app.workers.tasks.concierge_draft import concierge_draft
     concierge_draft.apply_async(kwargs={
         "message_id": latest_msg.id,
