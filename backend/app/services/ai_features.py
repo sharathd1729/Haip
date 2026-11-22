@@ -72,6 +72,7 @@ TASK_FEATURE: dict[str, str] = {
     "call_scoring": "call_analysis",
     "deep_reason": "call_analysis",
     "personal_call": "call_analysis",
+    "call_transcription": "call_transcription",  # speech-to-text rows (kind transcription_call), not an LLM route
     "lead_summary": "lead_summaries",
     "lead_stage_classify": "lead_autopilot",
     "outcome_reason": "lead_autopilot",
@@ -217,7 +218,6 @@ REPLY_THRESHOLDS = {
 }
 # Switches whose cost cannot be shown on their own row.
 NO_OWN_COST = {
-    "call_transcription": "not_metered",  # speech-to-text writes no usage_events row
     "personal_whatsapp_summaries": "in_lead_summaries",  # the same lead_summary task
 }
 
@@ -260,7 +260,9 @@ def usage_by_feature(db, tenant_id: str, days: int = VIEW_DAYS, now=None) -> dic
     out: dict = defaultdict(_bucket)
     reply_calls: dict[str, list[dict]] = defaultdict(list)
     for meta, ref_type, ref_id in db.query(UsageEvent.meta, UsageEvent.ref_type, UsageEvent.ref_id).filter(
-        UsageEvent.tenant_id == tenant_id, UsageEvent.kind.in_(KINDS), UsageEvent.created_at >= since
+        UsageEvent.tenant_id == tenant_id,
+        UsageEvent.kind.in_((*KINDS, "transcription_call")),
+        UsageEvent.created_at >= since,
     ):
         meta = meta or {}
         feature = feature_for(str(meta.get("task") or ""))
