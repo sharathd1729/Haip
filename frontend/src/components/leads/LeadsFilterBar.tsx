@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Filter, X } from "@/lib/icons";
+import { Calendar, X } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { MobileFilterSheet, MobileFilterTrigger } from "@/components/ui/MobileFilterSheet";
@@ -264,13 +264,20 @@ export function FilterControls({
   );
 }
 
+/** Number of filters in use, for a "Filters (2)" trigger outside this bar. */
+export function activeFilterCount(filters: LeadsFilters): number {
+  return Object.values(filters).filter(Boolean).length;
+}
+
+/** `desktopOpen`: the page owns the desktop "Filters" trigger (it sits in the stage row), so on desktop this bar only shows
+ *  its controls while open and takes no row of its own otherwise. Phones keep their own trigger and bottom sheet. */
 export function LeadsFilterBar({
-  filters, onChange,
+  filters, onChange, desktopOpen,
 }: {
   filters: LeadsFilters;
   onChange: (f: LeadsFilters) => void;
+  desktopOpen: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data: users = [] } = useQuery<{ id: string; name: string }[]>({
@@ -287,7 +294,7 @@ export function LeadsFilterBar({
     staleTime: 5 * 60_000,
   });
 
-  const activeCount = Object.values(filters).filter(Boolean).length;
+  const activeCount = activeFilterCount(filters);
 
   function set(patch: Partial<LeadsFilters>) {
     onChange({ ...filters, ...patch });
@@ -299,20 +306,12 @@ export function LeadsFilterBar({
 
   return (
     <>
-      {/* Desktop: inline expand/collapse, unchanged behavior */}
-      <div className="hidden md:flex items-center gap-2 px-4 py-2 flex-wrap" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-        <button
-          onClick={() => setExpanded(v => !v)}
-          className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border flex-shrink-0"
-          style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
-        >
-          <Filter size={11} />
-          Filters{activeCount > 0 ? ` (${activeCount})` : ""}
-        </button>
-        {expanded && (
+      {/* Desktop: the controls, only while the page's Filters trigger has them open */}
+      {desktopOpen && (
+        <div className="hidden md:flex items-center gap-2 px-4 py-2 flex-wrap" style={{ borderBottom: "1px solid var(--haip-border)" }}>
           <FilterControls filters={filters} set={set} clearAll={clearAll} activeCount={activeCount} users={users} properties={properties} layout="row" />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Mobile: compact trigger, controls live in a bottom sheet instead of
           wrapping across several lines inline. */}
