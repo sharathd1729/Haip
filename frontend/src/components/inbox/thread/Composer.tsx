@@ -24,7 +24,7 @@ export function Composer({
   replyText, setReplyText, isEmpty, emptyPulse, isComposerRewriting, showComposerTonePicker, setShowComposerTonePicker,
   showComposerLangPicker, setShowComposerLangPicker, composerRewrite, showSavedReplies, setShowSavedReplies,
   savedReplyQuery, detail, textareaRef, mentionQuery, mentionMatches, insertMention, onlineUsers, showSchedule,
-  setShowSchedule, handleTextChange, handleKeyDown, handleSend, sendMutation,
+  setShowSchedule, handleTextChange, handleKeyDown, handleSend, sendMutation, notesOnly = false,
 }: {
   isVoiceOnly: boolean; windowBlocked: boolean; isInternalNote: boolean; exitInternalNote: () => void;
   replyToMsg: Message | null; setReplyToMsg: (m: Message | null) => void;
@@ -45,6 +45,8 @@ export function Composer({
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   handleSend: (overrideScheduled?: string | null) => void;
   sendMutation: Mut;
+  /** Read-only thread: only internal notes, no way back to a guest reply. */
+  notesOnly?: boolean;
 }) {
   return (
             <div
@@ -61,9 +63,11 @@ export function Composer({
                 <div className="flex items-center gap-2 mb-2 px-1">
                   <StickyNote size={12} style={{ color: "var(--haip-amber)" }} />
                   <span className="text-xs font-semibold" style={{ color: "var(--haip-amber)" }}>Internal note — not sent to guest</span>
-                  <button onClick={exitInternalNote} className="ml-auto transition-colors" style={{ color: "var(--haip-fg-subtle)" }}>
-                    <X size={12} />
-                  </button>
+                  {!notesOnly && (
+                    <button onClick={exitInternalNote} className="ml-auto transition-colors" style={{ color: "var(--haip-fg-subtle)" }}>
+                      <X size={12} />
+                    </button>
+                  )}
                 </div>
               )}
               {/* W5: reply-to preview */}

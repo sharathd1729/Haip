@@ -39,3 +39,12 @@ describe("Inbox header when the guest asked for a person", () => {
     expect(screen.getByText("AI paused")).toBeTruthy();
   });
 });
+
+describe("Inbox header on a read-only thread", () => {
+  it("shows no AI switch where HAIP can't reply (personal WhatsApp, lead form)", () => {
+    const toggle = { mutate: vi.fn(), isPending: false } as unknown as Mut;
+    renderHeader({ ...base, source: "personal_bridge", can_send: false, ai_enabled: true }, toggle);
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByText("AI on")).toBeNull();
+  });
+});

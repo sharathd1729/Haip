@@ -69,6 +69,7 @@ const ROUTE_LABELS: Record<string, string> = {
   invoices:     "Invoice details",
   ivr:          "Call routing",
   knowledge:    "AI knowledge base",
+  ai:           "AI switches",
   "lead-assignment": "Lead assignment",
   "lead-autopilot": "Lead autopilot",
   "lead-rules":   "Lead rules",

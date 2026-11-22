@@ -316,6 +316,7 @@ def list_conversations(
     for c in conversations:
         out = ConversationOut.model_validate(c)
         out.ai_mode = ai_mode_service.resolve_mode(tenant_row, c)
+        out.can_send = ai_mode_service.can_send(c)
         out.guest_name = c.guest.name if c.guest else None
         out.last_message = preview_by_conv.get(c.id)
         out.last_inbound_at = _parse_dt(last_inbound_by_conv.get(c.id))
@@ -1121,7 +1122,7 @@ def get_conversation_detail(
         if phone_decline_task_row else None
     )
 
-    from app.services import ai_handoff, inbox_service
+    from app.services import ai_handoff, ai_mode_service, inbox_service
     guest_channels = inbox_service.guest_channels(db, current_user.tenant_id, [conv.guest_id]).get(conv.guest_id, [])
 
     return {
@@ -1144,6 +1145,8 @@ def get_conversation_detail(
         "guest_channels": guest_channels,
         "ai_enabled": (conv.ai_mode or "").lower() != "off",
         "ai_off_reason": ai_handoff.off_reason(db, current_user.tenant_id, conv),
+        # False = read-only thread: the Inbox shows "Read only: HAIP can't reply here" and no draft box (can_send).
+        "can_send": ai_mode_service.can_send(conv),
         "assigned_to": conv.assigned_to,
     }
 

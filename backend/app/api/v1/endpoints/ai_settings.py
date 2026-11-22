@@ -40,7 +40,7 @@ def update_ai_settings(
     db: Session = Depends(get_db),
 ) -> dict:
     tenant = _tenant(db, current_user)
-    changes = ai_features.apply(db, tenant, current_user.id, body.features, body.reply_modes)
+    changes = ai_features.apply(db, tenant, current_user.id, body.features, body.reply_modes, body.thresholds)
     db.commit()
     if changes:
         ai_features.forget(tenant.id)

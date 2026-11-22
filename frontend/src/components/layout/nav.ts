@@ -142,6 +142,7 @@ export const NAV_SECTIONS: NavSection[] = [
   ] },
   { key: "ai", title: "AI", icon: Sparkles, links: [
     { label: "HAIP Executive", href: "/dashboard/analyst", icon: Target, resource: "analytics", onlyRoles: MANAGERS },
+    { label: "AI switches and costs", href: "/dashboard/settings/ai", icon: Settings, resource: "settings", onlyRoles: MANAGERS },
     { label: "AI Concierge and sales agent", href: "/dashboard/settings?tab=ai", icon: Bot, resource: "settings" },
     { label: "Knowledge and business data", href: "/dashboard/settings/knowledge", icon: BookOpen, resource: "settings" },
     { label: "AI learning", href: "/dashboard/settings/learning", icon: FlaskConical, resource: "settings", onlyRoles: MANAGERS },

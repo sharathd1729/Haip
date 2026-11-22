@@ -202,11 +202,19 @@ def test_cost_per_provider():
 
 
 def test_no_tenant_logs_one_line_and_writes_nothing(captured, monkeypatch):
+    # (Live, the Settings > AI gate blocks such a call before it reaches the meter; this file stubs the gate.)
     lines = []
     monkeypatch.setattr(metered.log, "info", lambda event, **kw: lines.append((event, kw)))
-    asyncio.run(MeteredAdapter(_Fake(result=_gemini_result()), "assessment_narrative").complete("s", "u"))
+    asyncio.run(MeteredAdapter(_Fake(result=_gemini_result()), "call_analysis").complete("s", "u"))
     assert captured == [] and len(lines) == 1 and lines[0][0] == "llm_call"
-    assert lines[0][1]["meta"]["task"] == "assessment_narrative" and "tenant_id" not in lines[0][1]
+    assert lines[0][1]["meta"]["task"] == "call_analysis" and "tenant_id" not in lines[0][1]
+
+
+def test_a_platform_task_without_a_tenant_is_written_to_the_internal_workspace(captured):
+    # assessment_narrative (HAIP's own prospects, no workspace): visible cost under "haip-internal" / haip_internal.
+    asyncio.run(MeteredAdapter(_Fake(result=_gemini_result()), "assessment_narrative").complete("s", "u"))
+    assert len(captured) == 1
+    assert captured[0]["tenant_id"] == "haip-internal" and captured[0]["module"] == "haip_internal"
 
 
 def test_tenant_from_get_llm_without_a_scope_writes_at_once(captured):

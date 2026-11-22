@@ -226,7 +226,7 @@ function KillSwitchCard() {
       api.post("/tenants/me/ai-kill-switch", { enabled }).then(r => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-safety"] });
-      queryClient.invalidateQueries({ queryKey: ["ai-mode"] });
+      queryClient.invalidateQueries({ queryKey: ["settings-ai"] });
     },
   });
 
@@ -427,62 +427,21 @@ function RateLimitCard({ safety }: { safety?: AISafety }) {
 }
 
 /* ── AI Concierge ──────────────────────────────────────────────────────────── */
-interface AIModeSettings {
-  wa_ai_mode_default: string;
-  wa_ai_confidence_threshold: number;
-  ig_ai_mode_default: string;
-  ig_ai_confidence_threshold: number;
-}
-
 function AISettings() {
-  const queryClient = useQueryClient();
-  // This form used to be a mock: state initialised from a hardcoded
-  // useState("shadow") and Save only set a local flag, so switching to
-  // Autonomous appeared to work and silently reverted on remount. It now
-  // loads from and writes to /tenants/me/ai-mode.
-  const [waModeForm, setWaModeForm] = useState({ mode: "shadow", confidence: "0.78" });
-  const [igModeForm, setIgModeForm] = useState({ mode: "shadow", confidence: "0.78" });
-  const [savedWA, setSavedWA] = useState(false);
-  const [savedIG, setSavedIG] = useState(false);
-  const [loadedOnce, setLoadedOnce] = useState(false);
-
-  const { data: aiMode, isLoading: aiModeLoading, isError: aiModeError } = useQuery<AIModeSettings>({
-    queryKey: ["ai-mode"],
-    queryFn: () => api.get("/tenants/me/ai-mode").then(r => r.data),
-    retry: 1,
-  });
-
-  // Seed the forms once from the server, then let the user edit freely
-  // without a refetch stomping their in-progress selection.
-  useEffect(() => {
-    if (aiMode && !loadedOnce) {
-      setWaModeForm({
-        mode: aiMode.wa_ai_mode_default ?? "shadow",
-        confidence: String(aiMode.wa_ai_confidence_threshold ?? 0.78),
-      });
-      setIgModeForm({
-        mode: aiMode.ig_ai_mode_default ?? "shadow",
-        confidence: String(aiMode.ig_ai_confidence_threshold ?? 0.78),
-      });
-      setLoadedOnce(true);
-    }
-  }, [aiMode, loadedOnce]);
-
-  const saveMode = useMutation({
-    mutationFn: (payload: Partial<AIModeSettings>) =>
-      api.patch("/tenants/me/ai-mode", payload).then(r => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ai-mode"] }),
-  });
-
-  const MODE_OPTIONS = [
-    { id: "off",        label: "Off",         desc: "No AI — agents handle all replies manually" },
-    { id: "shadow",     label: "Shadow mode", desc: "AI drafts replies; human reviews and approves before sending" },
-    { id: "autonomous", label: "Autonomous",  desc: "AI sends automatically when confidence ≥ threshold" },
-  ];
-
   return (
     <div className="space-y-6">
-      <SectionHeader title="AI Concierge" sub="Control automation behaviour per channel" />
+      <SectionHeader title="AI Concierge" sub="Safety, scorecard, sales agent and policies" />
+
+      {/* Reply modes live in ONE place now: Settings > AI (PATCH /settings/ai, audited). */}
+      <Card title="Reply modes moved to Settings › AI">
+        <p className="text-sm text-[var(--haip-fg-muted)]">
+          WhatsApp and Instagram reply modes (Off, Draft for staff, Reply automatically), their confidence, and every other AI
+          switch with its 30-day cost are on one screen.
+        </p>
+        <a href="/dashboard/settings/ai" className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-primary underline">
+          Open Settings › AI
+        </a>
+      </Card>
 
       <KillSwitchCard />
 
@@ -495,117 +454,6 @@ function AISettings() {
       <div id="agent-policy" className="scroll-mt-4"><AgentPolicyCard /></div>
 
       <SalesPlaybookCard />
-
-      {/* WhatsApp */}
-      <div id="whatsapp-ai-mode" className="scroll-mt-4" />
-      <Card title="WhatsApp — AI mode">
-        <div className="space-y-2 mb-4">
-          {MODE_OPTIONS.map(m => (
-            <label key={m.id} className={cn(
-              "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors",
-              waModeForm.mode === m.id ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
-            )}>
-              <input type="radio" name="wa_mode" value={m.id} checked={waModeForm.mode === m.id} onChange={() => setWaModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-primary" />
-              <div>
-                <div className="text-sm font-semibold text-[var(--haip-fg)]">{m.label}</div>
-                <div className="text-xs text-[var(--haip-fg-subtle)]">{m.desc}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-        {waModeForm.mode === "autonomous" && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Confidence threshold</label>
-            <input
-              type="number" min="0.5" max="1" step="0.01"
-              value={waModeForm.confidence}
-              onChange={e => setWaModeForm(f => ({...f, confidence: e.target.value}))}
-              className="w-32 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Recommended: 0.78. Replies below this score go to shadow mode for review.</p>
-          </div>
-        )}
-        <p className="text-xs text-[var(--haip-fg-subtle)] mb-4">Recommended: start with Shadow for 30 days, then switch to Autonomous.</p>
-        {aiModeError && (
-          <p className="text-xs text-[var(--haip-status-danger-fg)] mb-2">Couldn&apos;t load current settings — saving may overwrite them.</p>
-        )}
-        <SaveButton
-          saved={savedWA}
-          loading={saveMode.isPending || aiModeLoading}
-          onClick={() => {
-            saveMode.mutate(
-              {
-                wa_ai_mode_default: waModeForm.mode,
-                wa_ai_confidence_threshold: Number(waModeForm.confidence) || 0.78,
-              },
-              {
-                onSuccess: () => {
-                  setSavedWA(true);
-                  setTimeout(() => setSavedWA(false), 2500);
-                },
-              },
-            );
-          }}
-        />
-      </Card>
-
-      {/* Instagram */}
-      <Card title="Instagram DMs — AI mode">
-        <div className="space-y-2 mb-4">
-          {MODE_OPTIONS.map(m => (
-            <label key={m.id} className={cn(
-              "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors",
-              igModeForm.mode === m.id ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
-            )}>
-              <input type="radio" name="ig_mode" value={m.id} checked={igModeForm.mode === m.id} onChange={() => setIgModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-primary" />
-              <div>
-                <div className="text-sm font-semibold text-[var(--haip-fg)]">{m.label}</div>
-                <div className="text-xs text-[var(--haip-fg-subtle)]">{m.desc}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-        {igModeForm.mode === "autonomous" && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Confidence threshold</label>
-            <input
-              type="number" min="0.5" max="1" step="0.01"
-              value={igModeForm.confidence}
-              onChange={e => setIgModeForm(f => ({...f, confidence: e.target.value}))}
-              className="w-32 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-        )}
-        <SaveButton
-          saved={savedIG}
-          loading={saveMode.isPending || aiModeLoading}
-          onClick={() => {
-            saveMode.mutate(
-              {
-                ig_ai_mode_default: igModeForm.mode,
-                ig_ai_confidence_threshold: Number(igModeForm.confidence) || 0.78,
-              },
-              {
-                onSuccess: () => {
-                  setSavedIG(true);
-                  setTimeout(() => setSavedIG(false), 2500);
-                },
-              },
-            );
-          }}
-        />
-      </Card>
-
-      {/* Knowledge base note */}
-      <div className="bg-[var(--haip-status-info-bg)] border border-[var(--haip-status-info-border)] rounded-xl p-4 text-xs text-[var(--haip-status-info-fg)]">
-        <p className="font-semibold mb-1">Before switching to Autonomous</p>
-        <ul className="space-y-0.5 list-disc list-inside text-[var(--haip-status-info-fg)]">
-          <li>Add your FAQs, amenities, add-ons and policies to the knowledge base — the AI can only answer from what it knows</li>
-          <li>Use &ldquo;Test what the AI knows&rdquo; on your most common guest questions and confirm each returns the right answer</li>
-          <li>Run Shadow mode long enough to see the drafts it produces for real guests</li>
-        </ul>
-        <a href="/dashboard/settings/knowledge" className="mt-2 inline-block font-medium hover:underline">Manage knowledge base →</a>
-      </div>
     </div>
   );
 }

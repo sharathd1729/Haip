@@ -102,7 +102,7 @@ function InboxPageInner() {
   const [showSavedReplies, setShowSavedReplies] = useState(false);
   const [savedReplyQuery, setSavedReplyQuery] = useState("");
   // W24: internal note mode
-  const [isInternalNote, setIsInternalNote] = useState(false);
+  const [internalNoteOn, setIsInternalNote] = useState(false);
   // W5: reply-to
   const [replyToMsg, setReplyToMsg] = useState<Message | null>(null);
   // W14: snooze picker
@@ -383,6 +383,10 @@ function InboxPageInner() {
   // bridge (whatsmeow) has no such window and doesn't send through HAIP at
   // all yet (Phase 1 read-only), so showing a countdown here is meaningless.
   const isOfficialWhatsApp = isWhatsApp && detail?.source !== "personal_bridge";
+  // Read-only thread (personal WhatsApp mirror, Meta lead form, a channel with no sender): HAIP can't reply there, so the
+  // composer only takes internal notes and no draft box shows (backend: ai_mode_service.can_send).
+  const readOnly = detail?.can_send === false;
+  const isInternalNote = internalNoteOn || readOnly;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const windowSecsLeft = isWhatsApp ? getWindowSecondsLeft(detail?.last_inbound_at) : Infinity;
   const windowOpen = windowSecsLeft > 0 || !isWhatsApp;
@@ -760,19 +764,29 @@ function InboxPageInner() {
               handleFailureAction={handleFailureAction}
               setEditingDraftId={setEditingDraftId} setEditText={setEditText} setReplyToMsg={setReplyToMsg}
               textareaRef={textareaRef} rewriteDraft={rewriteDraft} rewritingMessageId={rewritingMessageId}
-              aiTyping={aiTyping} bottomRef={bottomRef} canSend={canSend}
+              aiTyping={aiTyping} bottomRef={bottomRef} canSend={canSend && !readOnly}
             />
 
-            <DraftEditor
-              editingDraftId={editingDraftId} editText={editText} setEditText={setEditText}
-              setEditingDraftId={setEditingDraftId} activeConversationId={activeConversationId}
-            />
+            {!readOnly && (
+              <DraftEditor
+                editingDraftId={editingDraftId} editText={editText} setEditText={setEditText}
+                setEditingDraftId={setEditingDraftId} activeConversationId={activeConversationId}
+              />
+            )}
 
-            <ComposerNotices
-              isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked}
-              setShowTemplatePicker={setShowTemplatePicker} setIsInternalNote={setIsInternalNote}
-              channel={detail?.channel} onStartWhatsApp={canStartWa ? openStartWa : undefined}
-            />
+            {!readOnly && (
+              <ComposerNotices
+                isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked}
+                setShowTemplatePicker={setShowTemplatePicker} setIsInternalNote={setIsInternalNote}
+                channel={detail?.channel} onStartWhatsApp={canStartWa ? openStartWa : undefined}
+              />
+            )}
+            {readOnly && (
+              <div role="note" className="border-t border-[var(--haip-border)] bg-[var(--haip-surface)] px-4 py-3 text-sm text-[var(--haip-fg-2)]">
+                <span className="font-semibold text-[var(--haip-fg)]">Read only: HAIP can&apos;t reply here.</span>{" "}
+                {readOnlyReason(detail?.source)}
+              </div>
+            )}
             {activeConversationId && detail && canSend && (
               <LabelEditor key={activeConversationId} conversationId={activeConversationId} labels={(detail as { labels?: string[] | null }).labels ?? []} />
             )}
@@ -802,6 +816,7 @@ function InboxPageInner() {
               mentionMatches={mentionMatches} insertMention={insertMention} onlineUsers={onlineUsers}
               showSchedule={showSchedule} setShowSchedule={setShowSchedule} handleTextChange={handleTextChange}
               handleKeyDown={handleKeyDown} handleSend={handleSend} sendMutation={sendMutation}
+              notesOnly={readOnly}
             />
             </>
             )}
@@ -845,6 +860,13 @@ function InboxPageInner() {
 // requires a Suspense boundary around any Client Component that calls it,
 // or a static production build fails with "Missing Suspense boundary with
 // useSearchParams".
+/** Why a thread is read-only, in words (Conversation.source; see ai_mode_service.READ_ONLY_SOURCES). */
+function readOnlyReason(source?: string | null): string {
+  if (source === "personal_bridge") return "This chat is on a staff member's personal WhatsApp; reply from that phone. Internal notes still work.";
+  if (source === "lead_form") return "This is a Meta lead form, not a chat; call or WhatsApp the guest instead.";
+  return "HAIP has no way to send on this channel.";
+}
+
 export default function InboxPage() {
   return (
     <Suspense fallback={<div className="h-full" style={{ background: "var(--haip-bg, transparent)" }} />}>

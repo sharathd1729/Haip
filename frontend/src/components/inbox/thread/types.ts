@@ -50,6 +50,8 @@ export interface ConversationDetail {
   // AI switch, and the owner.
   guest_channels?: GuestChannel[];
   ai_enabled?: boolean;
+  /** False on a read-only thread (personal WhatsApp mirror, Meta lead form): HAIP can't reply there (ai_mode_service.can_send). */
+  can_send?: boolean;
   // Set while the AI is off because the guest said STOP / asked for a person (backend ai_handoff.off_reason).
   ai_off_reason?: string | null;
   assigned_to?: string | null;

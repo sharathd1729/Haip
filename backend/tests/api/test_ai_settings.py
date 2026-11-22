@@ -188,3 +188,43 @@ def test_one_workspace_never_sees_or_changes_another(client, db):
     db.refresh(b)
     assert a.ai_features is None and b.ai_features == {"call_analysis": False}
     assert db.query(AuditEvent).filter_by(tenant_id=a.id, action="ai.feature_changed").count() == 0
+
+
+def test_thresholds_are_set_here_and_audited(client, db):
+    t = _tenant(db)
+    h = _headers(db, t.id)
+    res = client.patch(URL, json={"thresholds": {"whatsapp_replies": 0.85}}, headers=h)
+    assert res.status_code == 200, res.text
+    wa = _row(res.json()["reply_modes"], "whatsapp_replies")
+    assert wa["threshold"] == 0.85 and wa["threshold_editable"] is True
+    comments = _row(res.json()["reply_modes"], "instagram_comment_replies")
+    assert comments["threshold_editable"] is False  # comments use the Instagram DM value
+    db.refresh(t)
+    assert t.wa_ai_confidence_threshold == 0.85
+    audit = db.query(AuditEvent).filter_by(tenant_id=t.id, action="ai.feature_changed").one()
+    assert audit.payload["feature"] == "whatsapp_replies.threshold" and audit.payload["new"] == 0.85
+    for bad in ({"whatsapp_replies": 0.3}, {"whatsapp_replies": 1.2}, {"instagram_comment_replies": 0.8}):
+        assert client.patch(URL, json={"thresholds": bad}, headers=h).status_code == 422
+
+
+def test_unused_comment_drafts_are_counted_on_the_comment_row(client, db):
+    t = _tenant(db)
+    for answers in ("comment", "message", None):
+        meta = {"answers": answers} if answers else None
+        draft = _message(db, t.id, ChannelType.INSTAGRAM, meta, direction="outbound")
+        db.add(AIDraftOutcome(tenant_id=t.id, draft_message_id=draft.id, outcome="expired"))
+    db.commit()
+    rows = client.get(URL, headers=_headers(db, t.id)).json()["reply_modes"]
+    assert _row(rows, "instagram_comment_replies")["unused_drafts"] == 1
+    assert _row(rows, "instagram_dm_replies")["unused_drafts"] == 2  # older drafts without the field count as DMs
+
+
+def test_the_old_ai_mode_write_path_is_gone(client, db):
+    t = _tenant(db)
+    res = client.patch(
+        "/api/v1/tenants/me/ai-mode", json={"wa_ai_mode_default": "autonomous"}, headers=_headers(db, t.id)
+    )
+    assert res.status_code == 410
+    assert res.json()["detail"]["location"] == "/api/v1/settings/ai"
+    db.refresh(t)
+    assert t.wa_ai_mode_default == "shadow"

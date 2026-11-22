@@ -169,52 +169,15 @@ def get_ai_mode(
     )
 
 
-@router.patch("/tenants/me/ai-mode", response_model=AIModeSettings)
-def update_ai_mode(
-    body: AIModeSettings,
-    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
-    db: Session = Depends(get_db),
-):
-    """Set the AI concierge mode per channel.
-
-    Takes effect on the next inbound message for every conversation on that
-    channel, not just new ones -- concierge_draft resolves the mode through
-    ai_mode_service at draft time.
-    """
-    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    import structlog
-    _log = structlog.get_logger()
-
-    changed = {}
-    for field in ("wa_ai_mode_default", "wa_ai_confidence_threshold",
-                  "ig_ai_mode_default", "ig_ai_confidence_threshold"):
-        val = getattr(body, field)
-        if val is not None and getattr(tenant, field) != val:
-            changed[field] = {"from": getattr(tenant, field), "to": val}
-            setattr(tenant, field, val)
-
-    db.commit()
-    db.refresh(tenant)
-
-    if changed:
-        from app.services import ai_features
-        ai_features.forget(tenant.id)   # the Settings > AI gate caches the reply modes for a minute
-        # Turning autonomy on means unreviewed messages start reaching real
-        # guests -- that transition needs to be attributable after the fact.
-        _log.info(
-            "ai_mode_changed",
-            tenant_id=tenant.id, actor_user_id=current_user.id, changes=changed,
-        )
-
-    return AIModeSettings(
-        wa_ai_mode_default=tenant.wa_ai_mode_default,
-        wa_ai_confidence_threshold=tenant.wa_ai_confidence_threshold,
-        ig_ai_mode_default=tenant.ig_ai_mode_default,
-        ig_ai_confidence_threshold=tenant.ig_ai_confidence_threshold,
-    )
+@router.patch("/tenants/me/ai-mode", status_code=410)
+def update_ai_mode_moved(current_user: User = Depends(get_current_user)):
+    """Gone (Settings > AI, docs/ai/AI_SWITCHES_SPEC.md step 3): reply modes and their confidence thresholds are changed in
+    ONE place, PATCH /api/v1/settings/ai (audited). Kept as a 410 so anything still calling it gets a clear answer."""
+    raise HTTPException(status_code=410, detail={
+        "code": "moved_to_settings_ai",
+        "message": "AI reply modes moved to Settings > AI. Use PATCH /api/v1/settings/ai.",
+        "location": "/api/v1/settings/ai",
+    })
 
 
 # ─── AI safety controls (kill switch + escalation keywords) ──────────────────
