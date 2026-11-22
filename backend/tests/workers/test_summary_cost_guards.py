@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
 
 from app.models.call import Call, CallDirection
 from app.models.conversation import Conversation, Message, MessageDirection
@@ -185,6 +186,28 @@ def test_call_analysis_triggers_the_summary_with_the_call_analysis_saved(db):
         "next_action": "Send the quote",
     }
     assert len(fx.autopilot) == 1
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"suggested_disposition": "no_answer", "summary": "Nobody picked up."},
+        {"suggested_disposition": "voicemail", "summary": "Left a voicemail."},
+        {"suggested_disposition": "hot", "summary": ""},
+    ],
+)
+def test_a_call_that_adds_nothing_does_not_refresh_the_lead_summary(db, overrides):
+    # AI_COST_SPEC fix #2: the summary reads the call's stored analysis, so a no-answer / voicemail call or one with no
+    # call summary would only pay for a read that cannot change it. Logged as summary_refresh_skipped.
+    from tests.workers import call_analysis_harness as h
+
+    tid, iid, _ = _setup(db)
+    inquiry = db.query(Inquiry).filter_by(id=iid).first()
+    call = h.call(db, tid, guest_id=inquiry.guest_id, inquiry_id=iid)
+    llm = h.ScriptedLLM(h.answer(**overrides))
+    with patch("app.services.leads_service.trigger_summary_refresh") as refresh:
+        h.run(db, tid, call.id, llm)
+    refresh.assert_not_called()
 
 
 def test_autopilot_fingerprint_changes_once_the_call_is_analysed(db):
