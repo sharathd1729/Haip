@@ -1,11 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { ValidityBadge } from "@/components/leads/ValidityBadge";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
+import { RefreshCw, Settings2, ChevronDown, Plus, Filter } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
 import { CAME_FROM_LABEL, LEAD_TYPE_LABEL, LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
@@ -14,7 +14,7 @@ import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn, formatINR } from "@/lib/utils";
 import { DataTable, PageHeader, StatusPill, Tabs, type Column } from "@/components/ui/kit";
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
-import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
+import { LeadsFilterBar, activeFilterCount, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { NeedsActionView } from "@/components/leads/NeedsActionView";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneLeads } from "@/components/leads/phone/PhoneLeads";
@@ -237,49 +237,6 @@ function MobileStageSection({
   );
 }
 
-// ─── Triage strip ─────────────────────────────────────────────────────────────
-
-function TriageStrip({
-  stages, counts, activeKey, onOpen, onBack,
-}: {
-  stages: PipelineStageRow[];
-  counts: Record<string, StageMetaEntry>;
-  activeKey: string;
-  onOpen: (key: string) => void;
-  onBack: () => void;
-}) {
-  const viewing = stages.find(st => st.key === activeKey);
-  return (
-    <div
-      className="flex flex-shrink-0 items-center gap-2 overflow-x-auto border-b border-[var(--haip-border)] px-4 py-2 haip-scrollbar-x sm:px-5"
-    >
-      <span className="flex-shrink-0 text-[13px] font-semibold text-[var(--haip-fg)]">Triage</span>
-      <span className="hidden flex-shrink-0 text-[13px] text-[var(--haip-fg-subtle)] sm:inline">
-        {viewing ? `Reviewing ${viewing.label}` : "Not on the board"}
-      </span>
-      {stages.map(st => {
-        const active = st.key === activeKey;
-        const n = counts[st.key]?.count;
-        return (
-          <button key={st.key} aria-pressed={active} onClick={() => onOpen(st.key)}
-            className={cn(PILL, "!min-h-8 !px-3 !text-[12.5px]", active ? PILL_ON : PILL_OFF)}>
-            <span className="size-2 rounded-full" style={{ background: st.color }} aria-hidden />
-            {st.label}{n != null && <span className="num font-medium opacity-80">{n.toLocaleString("en-IN")}</span>}
-          </button>
-        );
-      })}
-      {viewing && (
-        <button
-          onClick={onBack}
-          className="ml-auto min-h-8 flex-shrink-0 text-[13px] font-semibold text-primary"
-        >
-          ← Back to board
-        </button>
-      )}
-    </div>
-  );
-}
-
 // ─── Table layout ─────────────────────────────────────────────────────────────
 // Same per-stage queries as the board, shown as one table per stage. Rows open the lead.
 
@@ -406,6 +363,8 @@ function DesktopLeads() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [filters, setFilters] = useState<LeadsFilters>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterCount = activeFilterCount(filters);
   // A segment link (Leads > Segments) opens the list on one AI tag: /dashboard/leads?tag=anniversary
   useEffect(() => {
     const tag = new URLSearchParams(window.location.search).get("tag");
@@ -469,7 +428,7 @@ function DesktopLeads() {
           on mobile -- forced onto one row, the stage-pill scroller crowded
           the title with almost no breathing room at 375px. */}
       <div
-        className="flex-shrink-0 flex flex-col gap-1.5 sm:gap-2.5 sm:flex-row sm:items-center sm:justify-between px-3 py-2 sm:px-5 sm:py-3.5"
+        className="flex-shrink-0 flex flex-col gap-1.5 sm:gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 sm:px-5 sm:py-2.5"
         style={{
           background: "var(--haip-card)",
           borderBottom: "1px solid var(--haip-border)",
@@ -495,14 +454,23 @@ function DesktopLeads() {
               className={cn(PILL, stageFilter === ALL_STAGES_ID ? PILL_ON : PILL_OFF)}>
               All stages
             </button>
-            {pipelineStages.map(s => {
+            {/* Board stages, then the triage stages (not on the board) behind a label: one row instead of a second
+                "Triage" strip that repeated them. */}
+            {[...boardStages, ...triageStages].map((s, i) => {
               const active = stageFilter === s.key;
               const cnt = stageMeta[s.key]?.count;
               return (
-                <button key={s.key} aria-pressed={active} onClick={() => setStageFilter(s.key)} className={cn(PILL, active ? PILL_ON : PILL_OFF)}>
-                  <span className="size-2 rounded-full" style={{ background: s.color }} aria-hidden />
-                  {s.label}{cnt ? <span className="num font-medium opacity-80">{cnt}</span> : null}
-                </button>
+                <Fragment key={s.key}>
+                  {i === boardStages.length && (
+                    <span className="flex-shrink-0 pl-1 text-[12px] font-semibold text-[var(--haip-fg-subtle)]" title="Stages that are not on the board">
+                      Triage
+                    </span>
+                  )}
+                  <button aria-pressed={active} onClick={() => setStageFilter(s.key)} className={cn(PILL, active ? PILL_ON : PILL_OFF)}>
+                    <span className="size-2 rounded-full" style={{ background: s.color }} aria-hidden />
+                    {s.label}{cnt ? <span className="num font-medium opacity-80">{cnt.toLocaleString("en-IN")}</span> : null}
+                  </button>
+                </Fragment>
               );
             })}
           {/* Assign-to-me visibility fix: one-click "mine" toggle, same
@@ -518,6 +486,11 @@ function DesktopLeads() {
               Assigned to me
             </button>
           )}
+          <button aria-pressed={filtersOpen} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(v => !v)}
+            className={cn(PILL, "max-md:hidden", filtersOpen || filterCount ? PILL_ON : PILL_OFF)}>
+            <Filter size={15} />
+            Filters{filterCount ? ` (${filterCount})` : ""}
+          </button>
           </div>
 
           </>)}
@@ -559,17 +532,7 @@ function DesktopLeads() {
       )}
 
       {view === "pipeline" && (<>
-      <LeadsFilterBar filters={filters} onChange={setFilters} />
-
-      {triageStages.length > 0 && (
-        <TriageStrip
-          stages={triageStages}
-          counts={stageMeta}
-          activeKey={stageFilter}
-          onOpen={setStageFilter}
-          onBack={() => setStageFilter(ALL_STAGES_ID)}
-        />
-      )}
+      <LeadsFilterBar filters={filters} onChange={setFilters} desktopOpen={filtersOpen} />
 
       {/* ── Table layout ────────────────────────────────────────────────── */}
       {layout === "table" && (
