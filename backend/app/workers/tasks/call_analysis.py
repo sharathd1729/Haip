@@ -183,6 +183,15 @@ def _clear_unconfirmed_agent(call: Call, turns: list) -> None:
             call.agent_id = None
 
 
+def _summary_skip_reason(call: Call) -> str | None:
+    """Why this finished call should not refresh the lead summary, or None (refresh)."""
+    if call.ai_disposition in (CallDisposition.NO_ANSWER, CallDisposition.VOICEMAIL):
+        return "skipped_no_conversation"
+    if not (call.ai_summary or "").strip():
+        return "skipped_no_call_summary"
+    return None
+
+
 def after_analysis(db, tenant_id: str, call: Call, disposition: str) -> None:
     """The effects the old classify/wrap_up ran, once per finished analysis. Each is best-effort and logged."""
     call_id = call.id
@@ -217,8 +226,13 @@ def after_analysis(db, tenant_id: str, call: Call, disposition: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("call_analysis_autopilot_enqueue_failed", call_id=call_id, error=str(exc)[:200])
 
-    # Leads360: refresh the linked lead's AI summary (no debounce for calls).
-    if call.inquiry_id:
+    # Leads360: refresh the linked lead's AI summary (no debounce for calls). The summary reads the call's stored analysis
+    # (ai_summary + ai_next_action), never the transcript, so a call that adds nothing to it is not worth a paid read
+    # (AI_COST_SPEC fix #2): no answer, voicemail, or no call summary written.
+    skip = _summary_skip_reason(call)
+    if call.inquiry_id and skip:
+        log.info("summary_refresh_skipped", call_id=call_id, reason=skip)
+    elif call.inquiry_id:
         try:
             from app.services.leads_service import trigger_summary_refresh
 

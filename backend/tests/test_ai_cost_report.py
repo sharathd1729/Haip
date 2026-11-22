@@ -92,7 +92,7 @@ def test_the_report_counts_reads_per_call_short_calls_and_expired_drafts(db, mon
     db.commit()
 
     monkeypatch.setattr("app.core.database.SessionLocal", lambda: _ReadOnly(db))
-    monkeypatch.setattr(sys, "argv", ["ai_cost_report.py", "--days", "30", "--tenant", t.slug, "--usd-inr", "88"])
+    monkeypatch.setattr(sys, "argv", ["ai_cost_report.py", "--days", "30", "--tenant", t.slug, "--usd-inr", "88", "--top-calls", "1"])
     sys.path.insert(0, "scripts")
     import ai_cost_report
 
@@ -103,3 +103,5 @@ def test_the_report_counts_reads_per_call_short_calls_and_expired_drafts(db, mon
     assert "Under 30 s: 1 calls, reads $0.15" in out
     assert "expired     1 (100%)" in out
     assert "Retried calls' extra cost (upper bound): $0.05" in out
+    assert f"call {call.id}: 3 paid reads; inbound, 20 s" in out      # --top-calls: the read-by-read timeline
+    assert out.count("call_analysis  ok=True") == 1 and "attempts=2" in out

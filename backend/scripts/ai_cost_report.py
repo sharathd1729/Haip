@@ -73,6 +73,9 @@ def main() -> int:
     from app.services.llm_usage_report import DEFAULT_USD_INR
 
     ap.add_argument("--usd-inr", type=float, default=DEFAULT_USD_INR)
+    ap.add_argument(
+        "--top-calls", type=int, default=0, help="also print the read-by-read timeline of the N most-read calls"
+    )
     args = ap.parse_args()
 
     from sqlalchemy import text
@@ -107,6 +110,7 @@ def main() -> int:
         transcription = Counter()
         concierge_cost = 0.0
         concierge_drafts = 0
+        timelines = []  # (reads, slug, call_id, reads, summaries, call fields) for --top-calls
 
         for tid, slug in tenants:
             set_tenant_context(db, tid)  # every query below also filters by tenant: correct with or without RLS
@@ -157,7 +161,7 @@ def main() -> int:
                 per_tenant_cost[slug] += c
                 created = _aware(created)
                 if task in ("call_analysis", "deep_reason", "call_scoring") and ref_type == "call" and ref_id:
-                    by_call[ref_id].append((task, created, c))
+                    by_call[ref_id].append((task, created, c, meta))
                 elif task == "lead_summary" and ref_type == "inquiry" and ref_id:
                     summaries[ref_id].append((created, c))
                 elif task.startswith("concierge_"):
@@ -172,16 +176,33 @@ def main() -> int:
             calls, words = {}, {}
             for i in range(0, len(ids), 500):
                 chunk = ids[i : i + 500]
-                for cid, dur, iid, disp in db.query(
-                    Call.id, Call.duration_seconds, Call.inquiry_id, Call.ai_disposition
+                for cid, dur, iid, disp, st, att, tst, direction, made in db.query(
+                    Call.id,
+                    Call.duration_seconds,
+                    Call.inquiry_id,
+                    Call.ai_disposition,
+                    Call.ai_score_status,
+                    Call.ai_score_attempts,
+                    Call.transcription_status,
+                    Call.direction,
+                    Call.created_at,
                 ).filter(Call.tenant_id == tid, Call.id.in_(chunk)):
-                    calls[cid] = (dur, iid, getattr(disp, "value", disp))
+                    calls[cid] = (
+                        dur,
+                        iid,
+                        getattr(disp, "value", disp),
+                        st,
+                        att,
+                        tst,
+                        getattr(direction, "value", direction),
+                        made,
+                    )
                 for cid, raw in db.query(Transcript.call_id, Transcript.raw_text).filter(
                     Transcript.tenant_id == tid, Transcript.call_id.in_(chunk)
                 ):
                     words[cid] = len((raw or "").split())
             for cid, reads in by_call.items():
-                dur, iid, disp = calls.get(cid, (None, None, None))
+                dur, iid, disp, *state = calls.get(cid, (None,) * 8)
                 first = (
                     min(r[1] for r in reads if r[0] == "call_analysis")
                     if any(r[0] == "call_analysis" for r in reads)
@@ -198,6 +219,7 @@ def main() -> int:
                 call_reads.append(
                     (slug, cid, n_an, n_dr, len(summ), cost, dur, words.get(cid), disp, sum(s[1] for s in summ))
                 )
+                timelines.append((len(reads) + len(summ), slug, cid, reads, summ, (dur, disp, *state)))
                 read_cost = sum(r[2] for r in reads if r[0] in ("call_analysis", "deep_reason"))
                 for limit in (30, 60):
                     if dur is not None and dur < limit:
@@ -251,7 +273,26 @@ def main() -> int:
         concierge_cost,
         concierge_drafts,
     )
+    if args.top_calls:
+        _print_timelines(money, sorted(timelines, key=lambda t: -t[0])[: args.top_calls])
     return 0
+
+
+def _print_timelines(money, top) -> None:
+    """The most-read calls, read by read: why one call was paid for many times (no names, numbers or text)."""
+    print(f"\n== 9. The {len(top)} most-read calls, read by read")
+    for n, slug, cid, reads, summ, (dur, disp, status, attempts, tstatus, direction, made) in top:
+        print(
+            f"\n{slug} call {cid}: {n} paid reads; {direction}, {dur} s, created {made}, disposition {disp}, "
+            f"analysis status {status} after {attempts} starts, transcription {tstatus}"
+        )
+        events = [(r[1], r[0], r[2], r[3]) for r in reads] + [(s[0], "lead_summary", s[1], {}) for s in summ]
+        for at, task, cost, meta in sorted(events, key=lambda e: e[0]):
+            print(
+                f"  {at:%Y-%m-%d %H:%M:%S}  {task:14} ok={meta.get('ok', '-')!s:5} "
+                f"error={meta.get('error_class') or '-':22} attempts={meta.get('attempts') or 1} "
+                f"prompt={meta.get('prompt_version') or '-':22} {money(cost)}"
+            )
 
 
 def _print(
