@@ -209,6 +209,16 @@ def test_the_prospect_assessment_write_up_is_the_one_task_allowed_without_a_tena
     assert _call("assessment_narrative").calls == 1
 
 
+def test_a_platform_task_is_metered_to_the_internal_workspace(db, monkeypatch):
+    # No workspace exists for HAIP's own prospects, so the row goes to "haip-internal" (migration 218), module haip_internal.
+    written = []
+    monkeypatch.setattr("app.adapters.llm.metered.write_rows", lambda r: written.extend(r))
+    assert _call("assessment_narrative").calls == 1
+    assert len(written) == 1
+    assert written[0]["tenant_id"] == "haip-internal" and written[0]["module"] == "haip_internal"
+    assert written[0]["meta"]["task"] == "assessment_narrative"
+
+
 # ── 3. read-only sources never get an AI reply ───────────────────────────────────────────────────────────
 
 
@@ -255,6 +265,19 @@ def test_an_official_whatsapp_thread_still_gets_a_draft(db, rows):
     assert (
         _outbound(db, conv) == 1 and inner.calls >= 1 and _concierge_rows(rows)
     )  # the harness sees rows when there are any
+    draft = db.query(Message).filter_by(conversation_id=conv.id, direction="outbound").one()
+    assert draft.channel_metadata["answers"] == "message"
+
+
+def test_a_draft_records_that_it_answered_an_instagram_comment(db, rows):
+    # Settings > AI counts unused comment drafts on their own row from this (ai_features.unused_drafts).
+    t = _tenant(db, ig_ai_mode_default="shadow", ig_comment_ai_mode_default="shadow")
+    conv = _conv(db, t.id, channel=ChannelType.INSTAGRAM)
+    comment = _msg(db, t.id, conv, channel_metadata={"source": "comment"})
+    db.commit()
+    _run_concierge(db, t.id, conv, comment.id)
+    draft = db.query(Message).filter_by(conversation_id=conv.id, direction="outbound").one()
+    assert draft.channel_metadata["answers"] == "comment"
 
 
 def test_a_personal_whatsapp_thread_gets_no_draft_and_no_concierge_usage(db, rows):

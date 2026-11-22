@@ -979,6 +979,11 @@ def _sanitize_draft(draft: dict) -> tuple[dict, list[str]]:
     }, problems
 
 
+def _answers(trigger_msg) -> str:
+    meta = getattr(trigger_msg, "channel_metadata", None)
+    return "comment" if isinstance(meta, dict) and meta.get("source") == "comment" else "message"
+
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10, name="tasks.concierge_draft")
 @scoped_task("concierge", ref_type="message", ref_arg="message_id", prompt_key="concierge_reply")
 def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str, tone: str | None = None, force: bool = False):
@@ -1587,7 +1592,9 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             ai_needs_human_reason="; ".join(needs_human_reasons) if needs_human_reasons else None,
             # Which knowledge this reply had (status + entry ids): without it nobody could tell afterwards whether the bot
             # missed a passage, the search failed, or nothing matched (scripts/diagnose_bot_replies.py, the KB health card).
-            channel_metadata={"kb": kb_record(ctx)},
+            # "answers": what kind of guest message this replies to ("comment" | "message"), so Settings > AI splits Instagram
+            # comment drafts from DM drafts (ai_features.unused_drafts).
+            channel_metadata={"kb": kb_record(ctx), "answers": _answers(trigger_msg)},
         )
         db.add(draft_message)
         db.commit()

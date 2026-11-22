@@ -94,7 +94,12 @@ class MeteredAdapter(LLMAdapter):
 
 
 def route(row: dict) -> None:
-    """Into the current scope's rows (written when it exits), else written now, else (no tenant) one log line."""
+    """Into the current scope's rows (written when it exits), else written now, else (no tenant) one log line. A platform
+    task with no workspace (ai_features.PLATFORM_TASKS) is written to the internal workspace, module "haip_internal"."""
+    from app.services import ai_features
+
+    if not row["tenant_id"] and (row.get("meta") or {}).get("task") in ai_features.PLATFORM_TASKS:
+        row = {**row, "tenant_id": ai_features.INTERNAL_TENANT_ID, "module": ai_features.INTERNAL_MODULE}
     scope = current()
     if scope is not None and row["tenant_id"]:
         scope.rows.append(row)

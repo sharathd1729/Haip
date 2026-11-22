@@ -196,6 +196,8 @@ export function ThreadHeader({
           <StatusPill tone="warning">AI turned off: {detail.ai_off_reason}</StatusPill>
         )}
 
+        {/* A read-only thread never gets AI replies (can_send), so there is nothing to switch. */}
+        {detail.can_send !== false && (
         <button type="button" role="switch" aria-checked={aiOn} onClick={() => aiToggleMutation.mutate(!aiOn)} disabled={aiToggleMutation.isPending}
           title={aiOn ? "AI is replying to this guest. Click to pause." : "AI is paused for this guest. Click to resume."}
           className="ml-auto inline-flex min-h-7 items-center gap-2 rounded-lg px-1.5 text-xs font-semibold text-[var(--haip-fg-2)] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
@@ -204,6 +206,7 @@ export function ThreadHeader({
           </span>
           {aiOn ? "AI on" : detail.ai_off_reason ? "AI off" : "AI paused"}
         </button>
+        )}
       </div>
     </div>
   );

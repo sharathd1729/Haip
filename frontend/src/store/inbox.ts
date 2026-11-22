@@ -35,6 +35,7 @@ export interface ConversationSummary {
   waiting_since?: string | null;
   // False when an agent paused the AI for this conversation.
   ai_enabled?: boolean;
+  can_send?: boolean;
 }
 
 export type GuestChannel = "instagram" | "whatsapp" | "call" | "lead_form";

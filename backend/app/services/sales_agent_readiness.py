@@ -150,7 +150,7 @@ def checklist(db: Session, tenant) -> dict:
             wa_mode == "autonomous",
             "WhatsApp replies sent by the AI",
             f"Now: {wa_mode}. Autopilot sends a quote only when the reply itself was sent by the AI.",
-            "#whatsapp-ai-mode",
+            "/dashboard/settings/ai",
             "Set WhatsApp AI mode to Autonomous",
         ),
         _row(

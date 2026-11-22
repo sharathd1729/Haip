@@ -44,6 +44,9 @@ UNSWITCHED = frozenset({"ask_haip", "marketing", "website", "operations", "perso
 # Work HAIP does for itself, where no workspace exists: the property-assessment write-up for HAIP's own prospects
 # (PlatformLead). The only tasks allowed to run without a tenant; every other call without one is blocked.
 PLATFORM_TASKS = frozenset({"assessment_narrative"})
+# Their usage_events rows go to this internal workspace (migration 218), module INTERNAL_MODULE, so the cost is visible.
+INTERNAL_TENANT_ID = "haip-internal"
+INTERNAL_MODULE = "haip_internal"
 
 _MARKETING = (
     "marketing_audit",
@@ -195,3 +198,196 @@ def check_task(tenant_id: str | None, task: str) -> None:
     if not _from_settings(features, modes, feature):
         log.info("ai_feature_disabled", tenant_id=tenant_id, feature=feature, task=task)
         raise AIFeatureDisabled(feature, task)
+
+
+# ── Settings > AI view and changes (GET / PATCH /api/v1/settings/ai) ─────────────────────────────────────────────────
+
+VIEW_DAYS = 30
+MODES = ("off", "shadow", "autonomous")
+# Reply rows -> the tenant column that holds the mode (the one place each mode lives).
+REPLY_MODES = {
+    "whatsapp_replies": "wa_ai_mode_default",
+    "instagram_dm_replies": "ig_ai_mode_default",
+    "instagram_comment_replies": "ig_comment_ai_mode_default",
+}
+# Confidence floor for automatic replies (ai_mode_service.resolve_threshold): comments share the Instagram column.
+REPLY_THRESHOLDS = {
+    "whatsapp_replies": "wa_ai_confidence_threshold",
+    "instagram_dm_replies": "ig_ai_confidence_threshold",
+}
+# Switches whose cost cannot be shown on their own row.
+NO_OWN_COST = {
+    "call_transcription": "not_metered",  # speech-to-text writes no usage_events row
+    "personal_whatsapp_summaries": "in_lead_summaries",  # the same lead_summary task
+}
+
+
+def _bucket() -> dict:
+    return {"cost_usd": 0.0, "uses": 0, "cost_unknown_uses": 0}
+
+
+def _add(bucket: dict, meta: dict) -> None:
+    bucket["uses"] += 1
+    cost = meta.get("cost_usd")
+    if cost is None:
+        bucket["cost_unknown_uses"] += 1  # never estimated (llm_usage_report's rule)
+    else:
+        bucket["cost_usd"] += float(cost)
+
+
+def _reply_row(channel, meta) -> str:
+    raw = str(getattr(channel, "value", channel) or "").lower()
+    if raw == "whatsapp":
+        return "whatsapp_replies"
+    if raw == "instagram":
+        source = meta.get("source") if isinstance(meta, dict) else None
+        return "instagram_comment_replies" if source == "comment" else "instagram_dm_replies"
+    return "replies_other"
+
+
+def usage_by_feature(db, tenant_id: str, days: int = VIEW_DAYS, now=None) -> dict:
+    """{feature or reply row: {cost_usd, uses, cost_unknown_uses}} over the last `days` days from usage_events (the kinds
+    llm_usage_report counts). Reply calls are split by the channel of the guest message they answered (ref_type
+    "message"); one with no such message (the "write a draft" button, rewrites) goes to "replies_other"."""
+    from collections import defaultdict
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.conversation import Message
+    from app.models.usage_event import UsageEvent
+    from app.services.llm_usage_report import KINDS
+
+    since = (now or datetime.now(UTC)) - timedelta(days=days)
+    out: dict = defaultdict(_bucket)
+    reply_calls: dict[str, list[dict]] = defaultdict(list)
+    for meta, ref_type, ref_id in db.query(UsageEvent.meta, UsageEvent.ref_type, UsageEvent.ref_id).filter(
+        UsageEvent.tenant_id == tenant_id, UsageEvent.kind.in_(KINDS), UsageEvent.created_at >= since
+    ):
+        meta = meta or {}
+        feature = feature_for(str(meta.get("task") or ""))
+        if feature != REPLIES:
+            _add(out[feature], meta)
+        elif ref_type == "message" and ref_id:
+            reply_calls[ref_id].append(meta)
+        else:
+            _add(out["replies_other"], meta)
+    ids = list(reply_calls)
+    for i in range(0, len(ids), 500):  # SQLite caps bound parameters
+        for mid, channel, mmeta in db.query(Message.id, Message.channel, Message.channel_metadata).filter(
+            Message.tenant_id == tenant_id, Message.id.in_(ids[i : i + 500])
+        ):
+            for meta in reply_calls.pop(mid):
+                _add(out[_reply_row(channel, mmeta)], meta)
+    for metas in reply_calls.values():  # the message is gone or never existed (the button's fresh id)
+        for meta in metas:
+            _add(out["replies_other"], meta)
+    for b in out.values():
+        b["cost_usd"] = round(b["cost_usd"], 4)
+    return dict(out)
+
+
+def unused_drafts(db, tenant_id: str, days: int = VIEW_DAYS, now=None) -> dict:
+    """{reply row: drafts that expired with nobody acting on them} (ai_draft_outcomes, outcome "expired"). By the draft's
+    channel and what it answered: concierge drafts record channel_metadata["answers"] = "comment" | "message"; older drafts
+    without it count on the Instagram DM row."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.ai_draft_outcome import AIDraftOutcome
+    from app.models.conversation import Message
+
+    since = (now or datetime.now(UTC)) - timedelta(days=days)
+    rows = (
+        db.query(Message.channel, Message.channel_metadata)
+        .join(AIDraftOutcome, AIDraftOutcome.draft_message_id == Message.id)
+        .filter(
+            AIDraftOutcome.tenant_id == tenant_id,
+            AIDraftOutcome.outcome == "expired",
+            AIDraftOutcome.created_at >= since,
+        )
+    )
+    out: dict[str, int] = {}
+    for channel, meta in rows:
+        answered = "comment" if isinstance(meta, dict) and meta.get("answers") == "comment" else None
+        key = _reply_row(channel, {"source": answered})
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
+def view(db, tenant, now=None) -> dict:
+    """Everything Settings > AI shows: each switch, its value and its last-30-day cost and uses."""
+    usage = usage_by_feature(db, tenant.id, VIEW_DAYS, now)
+    unused = unused_drafts(db, tenant.id, VIEW_DAYS, now)
+    empty = _bucket()
+    features = []
+    for key, default in DEFAULTS.items():
+        row = {"key": key, "enabled": is_enabled(tenant, key), "default": default}
+        if key in NO_OWN_COST:
+            row.update(cost_usd=None, uses=None, cost_unknown_uses=None, cost_note=NO_OWN_COST[key])
+        else:
+            row.update(usage.get(key, empty))
+        features.append(row)
+    from app.services.llm_usage_report import DEFAULT_USD_INR
+
+    return {
+        "period_days": VIEW_DAYS,
+        "usd_inr": DEFAULT_USD_INR,  # providers bill in US$; the screen shows rupees at this rate
+        "reply_modes": [
+            {
+                "key": key,
+                "mode": (getattr(tenant, col, None) or "shadow").lower(),
+                "choices": list(MODES),
+                # automatic replies below this confidence are held as drafts; comments use the Instagram DM value
+                "threshold": float(
+                    getattr(tenant, REPLY_THRESHOLDS.get(key, "ig_ai_confidence_threshold"), None) or 0.78
+                ),
+                "threshold_editable": key in REPLY_THRESHOLDS,
+                **usage.get(key, empty),
+                "unused_drafts": unused.get(key, 0),
+            }
+            for key, col in REPLY_MODES.items()
+        ],
+        "replies_other": usage.get("replies_other", empty),
+        "features": features,
+        "module_switched": [{"key": key, **usage.get(key, empty)} for key in sorted(UNSWITCHED)],
+        "total_cost_usd": round(sum(b["cost_usd"] for b in usage.values()), 4),
+    }
+
+
+def apply(
+    db, tenant, actor_user_id: str, features: dict, reply_modes: dict, thresholds: dict | None = None
+) -> list[dict]:
+    """Change switches; one audit row (`ai.feature_changed`, old -> new) per real change. The caller commits and then calls
+    forget(tenant.id). Keys and values are validated by schemas/ai_settings.py."""
+    from app.core.audit import append_audit
+
+    changes: list[dict] = []
+    stored = dict(tenant.ai_features or {})
+    for key, value in features.items():
+        old = is_enabled(tenant, key)
+        if old != bool(value):
+            stored[key] = bool(value)
+            changes.append({"feature": key, "old": old, "new": bool(value)})
+    if stored != (tenant.ai_features or {}):
+        tenant.ai_features = stored  # a new dict, so the JSON column is seen as changed
+    for key, mode in reply_modes.items():
+        col = REPLY_MODES[key]
+        old = (getattr(tenant, col, None) or "shadow").lower()
+        if old != mode:
+            setattr(tenant, col, mode)
+            changes.append({"feature": key, "old": old, "new": mode})
+    for key, value in (thresholds or {}).items():
+        col = REPLY_THRESHOLDS[key]
+        old = getattr(tenant, col, None)
+        if old is None or abs(float(old) - float(value)) > 1e-9:
+            setattr(tenant, col, float(value))
+            changes.append({"feature": f"{key}.threshold", "old": old, "new": float(value)})
+    for change in changes:
+        append_audit(
+            db,
+            tenant_id=tenant.id,
+            action="ai.feature_changed",
+            actor_user_id=actor_user_id,
+            target_type="tenant",
+            target_id=tenant.id,
+            payload=change,
+        )
+    return changes

@@ -37,6 +37,8 @@ class ConversationOut(BaseModel):
     source: Optional[str] = None
     is_open: bool = True
     ai_mode: Optional[str] = None  # resolved mode (ai_mode_service), set by list_conversations
+    # False on a read-only thread (personal WhatsApp, Meta lead form, a channel with no sender): ai_mode_service.can_send.
+    can_send: bool = True
     last_message_at: Optional[datetime] = None
     last_inbound_at: Optional[datetime] = None  # D9: last inbound message timestamp (computed)
     snoozed_until: Optional[Union[datetime, str]] = None
