@@ -1027,7 +1027,15 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # path never did, so a tenant set to Off still accumulated drafts on
         # WhatsApp. Checking here covers both callers in one place.
         from app.services import ai_mode_service
-        if ai_mode_service.resolve_mode(tenant, conversation) == "off":
+        from app.models.conversation import MessageDirection
+        # The guest message being answered: the triggering one, else (the "write a draft" button sends a fresh id) the latest
+        # inbound. A read-only one (sent to the agent's personal phone, a lead form) gives "off"; a comment uses the
+        # comment mode (ai_mode_service.resolve_mode / can_send).
+        trigger_msg = (db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+                       or db.query(Message).filter(Message.conversation_id == conversation_id,
+                                                   Message.direction == MessageDirection.INBOUND)
+                       .order_by(Message.created_at.desc()).first())
+        if ai_mode_service.resolve_mode(tenant, conversation, trigger_msg) == "off":
             log.info(
                 "concierge_draft_skipped_mode_off",
                 conversation_id=conversation_id, tenant_id=tenant_id,
@@ -1454,7 +1462,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # tenant to Autonomous leaves every existing thread in shadow with no
         # visible reason. A per-conversation "off" still wins.
         from app.services import ai_mode_service
-        ai_mode, confidence_threshold = ai_mode_service.resolve(tenant, conversation)
+        ai_mode, confidence_threshold = ai_mode_service.resolve(tenant, conversation, trigger_msg)
         if confidence_threshold is None:
             confidence_threshold = CONFIDENCE_THRESHOLD
         should_auto_send = (ai_mode == "autonomous" and confidence >= confidence_threshold and not hard_block)

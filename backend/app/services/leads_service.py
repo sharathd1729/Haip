@@ -620,8 +620,12 @@ def trigger_summary_refresh(
     last summary, and for a non-lead without trip details (see
     generate_ai_summary). Returns True if a run was queued.
     """
+    from app.services import ai_features
     from app.workers.tasks.generate_ai_summary import generate_ai_summary
 
+    if not ai_features.enabled(db, tenant_id, "lead_summaries"):   # Settings > AI: no job at all while it is off
+        log.info("summary_refresh_skipped_feature_off", inquiry_id=inquiry_id, source=source)
+        return False
     if source == "message":
         debounce_key = cache_key("summary_debounce", tenant_id, iid=inquiry_id)
         if get_cached(debounce_key) is not None:

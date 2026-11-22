@@ -732,6 +732,16 @@ def request_ai_draft(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     _refuse_personal_bridge(conv)       # concierge_draft refuses it too; this answers the agent instead of a silent no-op
+    # Same check as every other place a draft can start (ai_mode_service.can_send): a lead-form thread, a channel HAIP has no
+    # sender for, or a guest whose latest message went to the agent's personal phone.
+    from app.services.ai_mode_service import can_send
+    latest_inbound = (db.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "inbound")
+                      .order_by(Message.created_at.desc()).first())
+    if not can_send(conv, latest_inbound):
+        raise HTTPException(status_code=409, detail={
+            "code": "read_only_thread",
+            "message": "HAIP can't reply on this thread (a lead form, or the guest's latest message went to a personal phone).",
+        })
 
     draft_id = str(uuid.uuid4())
     concierge_draft.delay(

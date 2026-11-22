@@ -13,6 +13,13 @@ from app.adapters.llm.metered import MeteredAdapter
 from app.adapters.llm.metered import write_rows as REAL_WRITE_ROWS  # conftest stubs it per test
 from app.adapters.llm.scope import llm_scope, scoped_task
 
+
+@pytest.fixture(autouse=True)
+def _no_ai_feature_gate(monkeypatch):
+    """These tests exercise routing / metering / provider shapes with no workspace; the Settings > AI gate (which blocks a
+    call without a tenant) is tested in tests/test_ai_features.py."""
+    monkeypatch.setattr("app.services.ai_features.check_task", lambda tenant_id, task: None)
+
 SECRET_PROMPT = "guest Priya +919800000000 wants Coorg"
 SECRET_REPLY = "Hi Priya, Coorg is lovely in May"
 

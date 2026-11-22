@@ -121,10 +121,13 @@ def _reply(cache_read=0):
 
 @pytest.fixture
 def claude_on():
+    # Provider-shape tests with no workspace: the Settings > AI gate (blocks a call without a tenant) is tested in
+    # tests/test_ai_features.py.
     with (
         patch("app.core.config.settings.LLM_FORCE_PROVIDER", "claude"),
         patch("app.core.config.settings.ANTHROPIC_API_KEY", "sk-ant-test-not-real"),
         patch("anthropic.AsyncAnthropic") as sdk,
+        patch("app.services.ai_features.check_task"),
     ):
         yield sdk
 
@@ -223,7 +226,7 @@ def test_workspace_praise_words_extend_the_list():
     assert is_throwaway_comment("mind blowing stuff here", "mind, blowing, stuff, here")
 
 
-def _comment(db, text):
+def _comment(db, text, comment_mode="shadow"):
     from app.workers.tasks import process_instagram_comment as mod
     from tests.workers.test_process_instagram_comment_username import (
         _make_ig_integration,
@@ -233,6 +236,7 @@ def _comment(db, text):
     )
 
     tenant = _make_tenant(db)
+    tenant.ig_comment_ai_mode_default = comment_mode   # comments have their own reply mode, default off (Settings > AI)
     _make_ig_integration(db, tenant.id)
     db.commit()
     with (
@@ -253,6 +257,14 @@ def test_an_emoji_comment_makes_no_model_call(db):
     queued.assert_not_called()
     llm.assert_not_called()
     assert msg.automation_outcome == "throwaway_comment"
+
+
+def test_a_comment_queues_nothing_while_comment_replies_are_off(db):
+    # AI_SWITCHES_SPEC "Done when": with Instagram comment replies off (the default), an unmatched comment makes no draft.
+    msg, mark, queued, llm = _comment(db, "how much for 2 nights?", comment_mode="off")
+    mark.assert_not_called()
+    queued.assert_not_called()
+    llm.assert_not_called()
 
 
 def test_a_question_comment_is_drafted_after_the_burst_debounce(db):

@@ -12,6 +12,13 @@ from app.adapters.llm.anthropic_claude import MODEL_HAIKU, MODEL_SONNET, ClaudeA
 from app.adapters.llm.fallback import FallbackAdapter
 
 
+@pytest.fixture(autouse=True)
+def _no_ai_feature_gate(monkeypatch):
+    """These tests exercise routing / metering / provider shapes with no workspace; the Settings > AI gate (which blocks a
+    call without a tenant) is tested in tests/test_ai_features.py."""
+    monkeypatch.setattr("app.services.ai_features.check_task", lambda tenant_id, task: None)
+
+
 @pytest.fixture
 def claude_on():
     with patch("app.core.config.settings.LLM_FORCE_PROVIDER", "claude"), \

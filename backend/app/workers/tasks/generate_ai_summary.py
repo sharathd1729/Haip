@@ -586,6 +586,10 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str, force: bool = Fal
         from app.models.conversation import Conversation
         from sqlalchemy import desc, or_
 
+        from app.services import ai_features
+        if not ai_features.enabled(db, tenant_id, "lead_summaries"):   # Settings > AI: covers every caller of this task
+            log.info("generate_ai_summary_skipped_feature_off", inquiry_id=inquiry_id, tenant_id=tenant_id)
+            return
         inquiry = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
         if not inquiry:
             log.warning("generate_ai_summary_inquiry_not_found", inquiry_id=inquiry_id)

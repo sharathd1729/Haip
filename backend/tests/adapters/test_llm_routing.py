@@ -15,6 +15,13 @@ import pytest
 from app.adapters.llm import get_llm, _TASK_ROUTES
 
 
+@pytest.fixture(autouse=True)
+def _no_ai_feature_gate(monkeypatch):
+    """These tests exercise routing / metering / provider shapes with no workspace; the Settings > AI gate (which blocks a
+    call without a tenant) is tested in tests/test_ai_features.py."""
+    monkeypatch.setattr("app.services.ai_features.check_task", lambda tenant_id, task: None)
+
+
 @pytest.mark.parametrize("task", list(_TASK_ROUTES.keys()))
 def test_get_llm_binds_the_routed_model_as_default(task):
     provider, expected_model = _TASK_ROUTES[task]

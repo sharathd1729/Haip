@@ -22,6 +22,7 @@ from app.core.cache import get_cached, set_cached
 from app.core.database import SessionLocal, set_tenant_context
 from app.models.conversation import ChannelType, Conversation, Message, MessageDirection
 from app.models.tenant import Tenant
+from app.services.ai_mode_service import READ_ONLY_SOURCES
 
 log = structlog.get_logger()
 
@@ -55,8 +56,8 @@ def missed_replies(db, tenant_id: str, now: datetime) -> list[tuple[str, str]]:
         if msg is None or not body or body.startswith("["):        # media-only / reactions / Instagram "[...]" placeholders: no text to answer
             continue
         meta = msg.channel_metadata
-        # written to the agent's personal phone (bridge mirror, or an uploaded chat export): not ours to answer
-        if isinstance(meta, dict) and meta.get("source") in ("personal_bridge", "chat_export"):
+        # written to the agent's personal phone (bridge mirror, an uploaded chat export) or a lead form: not ours to answer
+        if isinstance(meta, dict) and meta.get("source") in READ_ONLY_SOURCES:
             continue
         out.append((msg.id, conversation_id, at))
     out.sort(key=lambda r: r[2])
@@ -81,7 +82,8 @@ def recover_missed_replies(tenant_id: str) -> dict:
                 break
             conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
             if (conv is None or not conv.is_open or conv.is_sample or conv.channel not in _CHANNELS or conv.is_personal_bridge
-                    or ai_mode_service.resolve_mode(tenant, conv) == "off" or get_cached(_guard_key(message_id))):
+                    or ai_mode_service.resolve_mode(tenant, conv, db.query(Message).filter_by(id=message_id).first()) == "off"
+                    or get_cached(_guard_key(message_id))):
                 skipped += 1
                 continue
             set_cached(_guard_key(message_id), "1", ttl=ONCE_PER)

@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 import structlog
 
+from app.adapters.llm.scope import scoped_task
 from app.core import cache
 from app.core.config import settings
 from app.core.database import SessionLocal, set_tenant_context
@@ -48,6 +49,7 @@ def recipients(db, tenant_id: str) -> list[User]:
 
 
 @celery_app.task(name="personal.daily_digest", bind=True, max_retries=2)
+@scoped_task("personal", prompt_key="personal_digest")   # the model call is metered (and gated) against this workspace
 def daily_digest(self, tenant_id: str, day: str | None = None, to_email: str | None = None) -> dict:
     """Email one personal workspace its day. `to_email` sends one test copy there (not marked sent)."""
     from app.services.email_service import _send

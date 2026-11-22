@@ -426,7 +426,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
             )
             message.automation_outcome = "matched_auto_replied"
-        elif body and body.strip() and not body.startswith("[") and ai_mode_service.resolve_mode(integration.tenant, conversation) != "off":
+        elif body and body.strip() and not body.startswith("[") and ai_mode_service.resolve_mode(integration.tenant, conversation, message) != "off":
             message.automation_outcome = "no_match_ai_drafted"
             try:
                 from app.workers.tasks.concierge_draft import concierge_draft

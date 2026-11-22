@@ -14,7 +14,7 @@ from tests.workers import call_analysis_harness as h
 
 def _pause(db, tenant_id):
     t = db.get(Tenant, tenant_id)
-    t.brand_config = {**(t.brand_config or {}), calls_ai_pause.KEY: True}
+    t.ai_features = {**(t.ai_features or {}), "call_transcription": False, "call_analysis": False}   # Settings > AI
     db.commit()
 
 

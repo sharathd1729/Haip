@@ -246,7 +246,8 @@ def process_instagram_comment(self, payload: dict) -> dict:
                 recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
                 comment_id=comment_id, media_id=media_id,
             )
-        elif text and text.strip() and ai_mode_service.resolve_mode(integration.tenant, conversation) != "off":
+        # Comments have their own reply mode (ig_comment_ai_mode_default, default off): the message carries source="comment".
+        elif text and text.strip() and ai_mode_service.resolve_mode(integration.tenant, conversation, message) != "off":
             from app.services.ig_keyword_match import is_throwaway_comment
             if is_throwaway_comment(text, (integration.tenant.brand_config or {}).get("ig_comment_skip_words")):
                 # "nice 😍" / "@friend": nothing to answer, so no intent call and no draft. It stays in the Inbox.

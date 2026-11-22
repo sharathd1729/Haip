@@ -64,7 +64,11 @@ class MeteredAdapter(LLMAdapter):
 
     async def complete(self, *args, **kwargs) -> dict:
         from app.adapters.llm import batch
+        from app.services import ai_features
 
+        # Settings > AI: a feature the workspace switched off raises here, before any provider request or usage row.
+        scope = current()
+        ai_features.check_task((scope.tenant_id if scope else None) or self._tenant_id, self._task)   # same order as build_row
         served = batch.intercept(self._task, self._tenant_id, args, kwargs)   # Message Batches collect / replay
         if served is not None:
             return served

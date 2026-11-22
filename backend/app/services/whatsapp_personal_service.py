@@ -402,7 +402,9 @@ def ingest_chat_message(
         except Exception as exc:
             log.warning("wa_personal_lead_auto_create_failed", tenant_id=session.tenant_id, error=str(exc))
 
-    if live_guest_message and conversation.inquiry_id:
+    # A paid lead summary on every live personal-WhatsApp message: its own switch, default off (services/ai_features.py).
+    from app.services import ai_features
+    if live_guest_message and conversation.inquiry_id and ai_features.enabled(db, session.tenant_id, "personal_whatsapp_summaries"):
         try:
             trigger_summary_refresh(db, conversation.inquiry_id, session.tenant_id, source="message")
         except Exception as exc:
