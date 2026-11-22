@@ -41,6 +41,9 @@ REPLIES = "replies"  # governed by the three reply-mode columns, not by ai_featu
 # No switch of their own here: Ask HAIP, Marketing Studio and Website follow their MODULE switch (workspace_modules,
 # require_module), so a second on/off would be a second settings store; the rest is core plumbing.
 UNSWITCHED = frozenset({"ask_haip", "marketing", "website", "operations", "personal_assistant", "core"})
+# Work HAIP does for itself, where no workspace exists: the property-assessment write-up for HAIP's own prospects
+# (PlatformLead). The only tasks allowed to run without a tenant; every other call without one is blocked.
+PLATFORM_TASKS = frozenset({"assessment_narrative"})
 
 _MARKETING = (
     "marketing_audit",
@@ -174,9 +177,13 @@ def forget(tenant_id: str) -> None:
 
 def check_task(tenant_id: str | None, task: str) -> None:
     """The gate inside get_llm(): raises AIFeatureDisabled when `task`'s feature is off for this workspace. A call with no
-    tenant (no tenant_id argument and no llm_scope) cannot be checked and is allowed."""
+    tenant (no tenant_id argument and no llm_scope) cannot be checked or charged, so it is logged and BLOCKED, except the
+    PLATFORM_TASKS HAIP runs for itself."""
     if not tenant_id:
-        return
+        if task in PLATFORM_TASKS:
+            return
+        log.error("llm_call_without_tenant_blocked", task=task)
+        raise AIFeatureDisabled("no_tenant", task)
     feature = feature_for(task)
     if feature in UNSWITCHED:
         return

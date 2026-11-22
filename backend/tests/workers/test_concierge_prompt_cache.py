@@ -121,10 +121,13 @@ def _reply(cache_read=0):
 
 @pytest.fixture
 def claude_on():
+    # Provider-shape tests with no workspace: the Settings > AI gate (blocks a call without a tenant) is tested in
+    # tests/test_ai_features.py.
     with (
         patch("app.core.config.settings.LLM_FORCE_PROVIDER", "claude"),
         patch("app.core.config.settings.ANTHROPIC_API_KEY", "sk-ant-test-not-real"),
         patch("anthropic.AsyncAnthropic") as sdk,
+        patch("app.services.ai_features.check_task"),
     ):
         yield sdk
 

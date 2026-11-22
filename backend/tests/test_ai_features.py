@@ -194,8 +194,19 @@ def test_module_switched_features_are_never_blocked_here(db, rows):
         assert _call(task, t.id).calls == 1
 
 
-def test_a_call_without_any_tenant_is_allowed(db, rows):
-    assert _call("call_analysis").calls == 1
+@pytest.mark.parametrize("task", ["call_analysis", "quick_classify", "marketing_content", "concierge_draft"])
+def test_a_call_without_any_tenant_is_logged_and_blocked(db, rows, task):
+    # No tenant_id argument and no llm_scope: nothing to check or charge it against, so no provider call and no row.
+    inner = _Inner()
+    with patch("app.services.ai_features.log") as log, pytest.raises(AIFeatureDisabled):
+        asyncio.run(MeteredAdapter(inner, task, None).complete(system_prompt="s", user_message="u"))
+    assert inner.calls == 0 and rows == []
+    assert log.error.call_args.args[0] == "llm_call_without_tenant_blocked"
+
+
+def test_the_prospect_assessment_write_up_is_the_one_task_allowed_without_a_tenant(db, rows):
+    assert ai_features.PLATFORM_TASKS == {"assessment_narrative"}
+    assert _call("assessment_narrative").calls == 1
 
 
 # ── 3. read-only sources never get an AI reply ───────────────────────────────────────────────────────────

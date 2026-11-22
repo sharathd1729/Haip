@@ -147,9 +147,12 @@ def answer(db: Session, report: AnalystReport, fid: str) -> dict:
                                  status="error", generated_sql=None)
     try:
         facts = with_conversion(db, report)
+        from app.adapters.llm.scope import llm_scope
         for attempt in range(1, ATTEMPTS + 1):
             try:
-                text = _ask_once(facts, item["question"])
+                # The call carries its workspace even outside the Celery task's scope (the Settings > AI gate blocks one without).
+                with llm_scope(tenant_id=report.tenant_id, module="analyst"):
+                    text = _ask_once(facts, item["question"])
                 break
             except FollowupError as exc:
                 if exc.reason == "timeout" or attempt == ATTEMPTS:
