@@ -1,6 +1,7 @@
 """Lead autopilot endpoints: settings (owner only to change), Undo and Pin (leads.write, lead visibility), and what the
 lead page / Leads list show. Happy path + wrong role (403) + another tenant (404) for each."""
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -42,6 +43,10 @@ def world(db):
 
 class TestSettings:
     def test_owner_reads_and_changes_settings_audited(self, client, db, world):
+        # The fixture stamps the event at the fixed NOW (18 Oct 2026); "applied in the last 30 days" is counted by the real
+        # clock, so put it inside that window or the test fails from 18 Nov 2026 on.
+        world["ev"].created_at = datetime.now(timezone.utc) - timedelta(days=1)
+        db.commit()
         r = client.get("/api/v1/lead-autopilot/settings", headers=_h(world["owner"]))
         assert r.status_code == 200 and r.json()["mode"] == "autopilot" and r.json()["applied_30d"] == 1
         r = client.put("/api/v1/lead-autopilot/settings", json={"mode": "suggest", "ai_threshold": 0.9},
