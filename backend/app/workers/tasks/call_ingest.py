@@ -416,6 +416,34 @@ def fetch_and_store_recording(self, call_id: str, recording_url: str, tenant_id:
     _do_fetch_recording(self, call_id, recording_url, tenant_id, ivr_provider)
 
 
+_FETCH_STALL_MINUTES = 15  # a download takes seconds; a "fetching" row this quiet means its worker died
+
+
+def _claim_fetch(db: Session, call: Call) -> bool:
+    """Take the call's recording download in ONE guarded UPDATE: not while another copy is fetching (unless that copy has
+    been quiet past _FETCH_STALL_MINUTES) and not once a recording is stored. A failed fetch leaves a missing_retry_N
+    status before its retry, so retries still claim."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import or_
+
+    now = datetime.now(UTC)
+    claimed = (
+        db.query(Call)
+        .filter(
+            Call.id == call.id,
+            Call.tenant_id == call.tenant_id,
+            or_(Call.recording_status.is_(None), Call.recording_status != RecordingStatus.FETCHING,
+                Call.updated_at < now - timedelta(minutes=_FETCH_STALL_MINUTES)),
+            or_(Call.recording_s3_key.is_(None), Call.recording_status != RecordingStatus.AVAILABLE),
+        )
+        .update({Call.recording_status: RecordingStatus.FETCHING, Call.updated_at: now}, synchronize_session=False)
+    )
+    db.commit()
+    db.refresh(call)
+    return bool(claimed)
+
+
 def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: str, ivr_provider: str):
     """
     Download recording from IVR provider and store in S3 / R2.
@@ -435,9 +463,16 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         if not call:
             log.error("call_not_found_for_recording_fetch", call_id=call_id)
             return
-
+        # One download per call: several IVR webhooks for the same call each queued a fetch, and a copy that failed early
+        # retried an hour later and stored the recording again, which re-ran transcription and analysis (AI_COST_SPEC
+        # step 0 trace). A recording already stored, or one another copy is downloading right now, is left alone.
+        if call.recording_status == RecordingStatus.AVAILABLE and call.recording_s3_key:
+            log.info("recording_already_stored", call_id=call_id)
+            return
+        if not _claim_fetch(db, call):
+            log.info("recording_fetch_skipped_in_flight", call_id=call_id)
+            return
         call.recording_status = RecordingStatus.FETCHING
-        db.commit()
 
         adapter = get_ivr_adapter(ivr_provider)
         if ivr_provider == "vobiz":
@@ -518,7 +553,12 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
 
 def queue_transcription(db: Session, call: Call) -> None:
     """A recording was just stored on the call (IVR fetch, or a Calls-app upload): commit and start the same transcription
-    -> AI chain for both."""
+    -> AI chain for both. A transcription already queued, running or done is never reset: setting "queued" again on a
+    "done" call defeated transcribe's only guard and paid for the same transcription (and analysis) twice."""
+    if call.transcription_status in ("queued", "processing", "done"):
+        db.commit()  # keep the recording fields the caller just set
+        log.info("transcription_already_queued_or_done", call_id=call.id, status=call.transcription_status)
+        return
     if (call.duration_seconds or 0) < _MIN_DURATION_FOR_AI_SECONDS:
         # Too short to carry a real conversation -- typically a
         # misdial, voicemail beep, or an outbound leg that connected

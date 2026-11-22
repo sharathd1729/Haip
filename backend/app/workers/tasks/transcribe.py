@@ -32,6 +32,31 @@ import structlog
 log = structlog.get_logger()
 
 
+def _claim(db, call) -> bool:
+    """Take the call's transcription in ONE guarded UPDATE: not "done", and not "processing" unless that copy has been
+    quiet past call_recovery's PROCESSING_STALL (its worker died). Two copies queued seconds apart cannot both pay."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import and_, or_
+
+    from app.workers.tasks.call_recovery import PROCESSING_STALL
+
+    now = datetime.now(UTC)
+    claimed = (
+        db.query(Call)
+        .filter(
+            Call.id == call.id,
+            Call.tenant_id == call.tenant_id,
+            or_(Call.transcription_status.is_(None), Call.transcription_status.notin_(("done", "processing")),
+                and_(Call.transcription_status == "processing", Call.updated_at < now - PROCESSING_STALL)),
+        )
+        .update({Call.transcription_status: "processing", Call.updated_at: now}, synchronize_session=False)
+    )
+    db.commit()
+    db.refresh(call)
+    return bool(claimed)
+
+
 def _meter(call, tenant_id: str, result) -> None:
     """One usage_events row per transcribed call (kind transcription_call, task call_transcription), so Settings > AI shows
     the "Call transcription" cost. units = audio seconds the provider transcribed (end of the last speech turn, the same basis
@@ -75,8 +100,10 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
             log.info("transcribe_already_done", call_id=call_id)
             return
 
-        call.transcription_status = "processing"
-        db.commit()
+        if not _claim(db, call):
+            # Another copy is transcribing this call right now: one provider job per call.
+            log.info("transcribe_skipped_in_flight", call_id=call_id, status=call.transcription_status)
+            return
 
         # ── Fetch audio bytes ─────────────────────────────────────────────────
         key = call.recording_s3_key
