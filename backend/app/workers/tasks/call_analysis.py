@@ -45,6 +45,38 @@ def analyze_call(self, call_id: str, tenant_id: str):
         db.close()
 
 
+def _claim(db, call: Call) -> bool:
+    """Take this call for analysis in ONE guarded UPDATE: only if it is not "done" and not "processing" (a "processing"
+    call quiet for call_recovery's stall window counts as abandoned: its worker died). Concurrent copies of the task
+    (the same call queued by the transcription chain, the recovery sweep and the old task names, seconds apart) cannot
+    both win, so the model is paid once. A failed run sets "failed" before its retry, so retries still claim."""
+    from sqlalchemy import and_, func, or_
+
+    from app.workers.tasks.call_recovery import STALL_THRESHOLD_MINUTES
+
+    now = datetime.now(UTC)
+    claimed = (
+        db.query(Call)
+        .filter(
+            Call.id == call.id,
+            Call.tenant_id == call.tenant_id,
+            or_(
+                Call.ai_score_status.is_(None),
+                Call.ai_score_status.notin_(("done", "processing")),
+                and_(Call.ai_score_status == "processing",
+                     Call.updated_at < now - timedelta(minutes=STALL_THRESHOLD_MINUTES)),
+            ),
+        )
+        .update({Call.ai_score_status: "processing",
+                 Call.ai_score_attempts: func.coalesce(Call.ai_score_attempts, 0) + 1,
+                 Call.updated_at: now},
+                synchronize_session=False)
+    )
+    db.commit()
+    db.refresh(call)
+    return bool(claimed)
+
+
 def _analyse(task, db, call_id: str, tenant_id: str):
     """(call, disposition) once the read is stored; None when skipped or failed for good. Raises Retry to retry."""
     call = None
@@ -78,10 +110,12 @@ def _analyse(task, db, call_id: str, tenant_id: str):
             _remember(db, call, turns, tenant_id)
             return None
 
+        if not _claim(db, call):
+            # Already analysed, or another worker is analysing it right now: a second paid read of the same call
+            # (AI_COST_SPEC step 0 trace: one call read 19 times, all successful). Not an attempt.
+            log.info("call_analysis_skipped_duplicate", call_id=call_id, status=call.ai_score_status)
+            return None
         _clear_unconfirmed_agent(call, turns)
-        call.ai_score_status = "processing"
-        call.ai_score_attempts = (call.ai_score_attempts or 0) + 1
-        db.commit()
 
         from app.models.guest import Guest
         from app.services.qa_service import ensure_default_rubric
