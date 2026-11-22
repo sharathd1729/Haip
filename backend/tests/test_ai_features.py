@@ -23,6 +23,7 @@ from app.models.call import Call
 from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
 from app.models.tenant import Tenant
+from app.models.usage_event import UsageEvent
 from app.services import ai_features, ai_mode_service
 from app.services.ai_features import AIFeatureDisabled
 
@@ -510,3 +511,64 @@ def test_call_analysis_off_stores_the_call_but_never_asks_the_model(db):
     llm = h.ScriptedLLM(tool_use={})
     h.run(db, t.id, c.id, llm)
     assert llm.calls == [] and db.get(Call, c.id).ai_score_status != "done"
+
+
+# ── 5. transcription cost (AI_COST_SPEC step 0) ─────────────────────────────────────────────────────────
+
+
+def test_a_transcribed_call_writes_one_transcription_usage_row(db, monkeypatch, tmp_path):
+    from sqlalchemy.orm import Session as SASession
+
+    from app.adapters.transcription.base import TranscriptResult, TranscriptTurn
+    from app.workers.tasks import transcribe
+    from tests.test_calls_app_reliability import _stuck_call
+
+    t = _tenant(db)
+    call = _stuck_call(db, t.id)
+    audio = tmp_path / "call.mp3"
+    audio.write_bytes(b"ID3 not real audio")
+    call.recording_s3_key = str(audio)
+    db.commit()
+
+    class _Adapter:
+        async def transcribe(self, audio_bytes, language_hint="hi-IN", direction="inbound"):
+            turns = [
+                TranscriptTurn("agent", 0.0, 2.0, "Hello"),
+                TranscriptTurn("guest", 2.0, 95.4, "Is it free on Saturday?"),
+            ]
+            return TranscriptResult(
+                turns=turns, raw_text="Hello. Is it free?", language="en-IN", provider="sarvam", cost_usd=0.0019
+            )
+
+    written = []
+    monkeypatch.setattr(transcribe, "SessionLocal", lambda: SASession(bind=db.connection()))
+    monkeypatch.setattr(transcribe, "get_transcription_adapter", lambda *a, **k: _Adapter())
+    monkeypatch.setattr("app.workers.tasks.call_analysis.analyze_call.delay", lambda **k: None)
+    monkeypatch.setattr("app.adapters.llm.metered.write_rows", lambda r: written.extend(r))
+    transcribe.transcribe.run(call_id=call.id, tenant_id=t.id)
+
+    rows = [r for r in written if r["kind"] == "transcription_call"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["tenant_id"] == t.id and row["provider"] == "sarvam" and row["model"]
+    assert row["units"] == 95 and row["meta"]["audio_seconds"] == 95 and row["meta"]["call_duration_seconds"] == 90
+    assert row["meta"]["task"] == "call_transcription" and row["meta"]["cost_usd"] == 0.0019
+    assert row["ref_type"] == "call" and row["ref_id"] == call.id
+
+
+def test_settings_ai_counts_transcription_under_its_own_switch(db):
+    t = _tenant(db)
+    db.add(
+        UsageEvent(
+            tenant_id=t.id,
+            module="calls",
+            kind="transcription_call",
+            units=95,
+            meta={"task": "call_transcription", "cost_usd": 0.0019},
+        )
+    )
+    db.commit()
+    usage = ai_features.usage_by_feature(db, t.id)
+    assert usage["call_transcription"]["uses"] == 1 and usage["call_transcription"]["cost_usd"] == 0.0019
+    row = next(f for f in ai_features.view(db, t)["features"] if f["key"] == "call_transcription")
+    assert row["cost_usd"] == 0.0019 and "cost_note" not in row

@@ -32,6 +32,19 @@ import structlog
 log = structlog.get_logger()
 
 
+def _meter(call, tenant_id: str, result) -> None:
+    """One usage_events row per transcribed call (kind transcription_call, task call_transcription), so Settings > AI shows
+    the "Call transcription" cost. units = audio seconds the provider transcribed (end of the last speech turn, the same basis
+    as the adapter's cost_usd); the call's own length rides along in meta. Never raises (metered.record)."""
+    from app.adapters.llm.metered import record
+
+    audio_s = int(round(result.turns[-1].t1)) if result.turns else 0
+    model = (settings.SARVAM_STT_MODEL or "saaras:v3").strip() if result.provider == "sarvam" else None
+    record("transcription_call", task="call_transcription", provider=result.provider, model=model, units=audio_s,
+           cost_usd=result.cost_usd, tenant_id=tenant_id, module="calls", ref_type="call", ref_id=call.id,
+           audio_seconds=audio_s, call_duration_seconds=call.duration_seconds)
+
+
 @celery_app.task(
     bind=True, max_retries=5, default_retry_delay=30,
     # Throttle so bulk backfills don't slam Sarvam's rate limit -- confirmed
@@ -120,6 +133,7 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
         db.commit()
 
         log.info("transcribe_done", call_id=call_id, turns=len(turns_dicts), provider=result.provider)
+        _meter(call, tenant_id, result)
 
         # Chain: one AI read of the call (best-effort; call_recovery picks up a dispatch that never ran)
         try:

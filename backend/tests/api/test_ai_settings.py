@@ -108,7 +108,8 @@ def test_owner_sees_every_switch_with_its_30_day_cost_and_unused_drafts(client, 
     assert calls["enabled"] is True and calls["uses"] == 2 and calls["cost_usd"] == 0.15
     summaries = _row(body["features"], "lead_summaries")
     assert summaries["uses"] == 1 and summaries["cost_unknown_uses"] == 1 and summaries["cost_usd"] == 0
-    assert _row(body["features"], "call_transcription")["cost_note"] == "not_metered"
+    transcription = _row(body["features"], "call_transcription")
+    assert transcription["uses"] == 0 and "cost_note" not in transcription  # metered now (kind transcription_call)
     assert _row(body["features"], "personal_whatsapp_summaries")["enabled"] is False
     wa = _row(body["reply_modes"], "whatsapp_replies")
     assert wa["mode"] == "shadow" and wa["uses"] == 1 and wa["cost_usd"] == 0.03 and wa["unused_drafts"] == 1
