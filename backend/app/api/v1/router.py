@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
     whatsapp_personal,
     voice_settings,
+    ai_settings,
     mcp_tokens,
     capabilities,
     oauth_consent,
@@ -224,3 +225,4 @@ api_router.include_router(mcp_tokens.router)
 api_router.include_router(capabilities.router)
 api_router.include_router(oauth_consent.router)
 api_router.include_router(voice_settings.router)
+api_router.include_router(ai_settings.router)
