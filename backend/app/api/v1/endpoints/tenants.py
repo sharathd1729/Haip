@@ -200,6 +200,8 @@ def update_ai_mode(
     db.refresh(tenant)
 
     if changed:
+        from app.services import ai_features
+        ai_features.forget(tenant.id)   # the Settings > AI gate caches the reply modes for a minute
         # Turning autonomy on means unreviewed messages start reaching real
         # guests -- that transition needs to be attributable after the fact.
         _log.info(
