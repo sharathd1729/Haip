@@ -98,6 +98,7 @@ def test_dry_run_counts_and_deletes_nothing(db, world):
         "session_status": "logged_out",
         "messages": 3,
         "chats": 2,
+        "empty_chats": 0,
         "people_erased": 1,
         "people_kept_other_messages_only": 1,
         "people_kept_quoted": 0,
@@ -141,6 +142,24 @@ def test_someone_the_team_quoted_keeps_the_lead_and_quote_only_the_chats_go(db, 
     assert report["people_erased"] == 0 and report["applied"] is True
     assert db.get(Inquiry, inq_id) is not None and db.query(InquiryQuote).filter_by(inquiry_id=inq_id).count() == 1
     assert db.get(Conversation, c_only) is None  # the test number's chat with them is gone
+
+
+def test_empty_mirrored_chats_of_the_paired_agent_go_too(db, world):
+    # Production: the number backfill moved an imported chat's messages into the person's open chat and closed the
+    # emptied one; no message named the session, so the purge never saw it ("No messages yet" in the Inbox).
+    t = world["t"]
+    contact = _guest(db, t.id)
+    left = _conv(db, t.id, contact.id, "personal_bridge")
+    left.is_open, left.assigned_to = False, world["s"].user_id
+    others = _conv(db, t.id, _guest(db, t.id).id, "personal_bridge")  # an empty mirror not assigned to this agent stays
+    db.commit()
+    left_id, others_id, contact_id = left.id, others.id, contact.id
+    report = purge.run(db, t.slug, PHONE, apply=False)
+    assert report["empty_chats"] == 1 and report["chats"] == 3 and report["people_erased"] == 2
+    with patch("app.services.media_storage.delete_tenant_objects", return_value=1):
+        purge.run(db, t.slug, PHONE, apply=True)
+    assert db.get(Conversation, left_id) is None and db.get(Conversation, others_id) is not None
+    assert db.get(Guest, contact_id).name == "[Deleted]"
 
 
 def test_a_connected_number_is_refused(db, world):

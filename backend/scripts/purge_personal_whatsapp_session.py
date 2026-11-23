@@ -10,7 +10,9 @@ What goes (only rows this number's session wrote; its id is on every mirrored me
     chats, messages, auto-created leads, identities, consents, stored files; an anonymised tombstone row stays for the
     audit trail). Someone the team sent a quote keeps the lead and quote; only the chats go;
   * for everyone else: just this number's messages (and their photos / voice notes in storage), and a mirrored chat that
-    is left with no messages.
+    is left with no messages;
+  * mirrored chats that already had no messages (the number backfill moved them into the person's open chat), found by
+    the agent the number is paired to (empty_chats).
 Unpair the number first (the script refuses while it is connected, or new messages would keep arriving). Prints counts,
 never names, numbers or message text. One transaction; files are deleted only after it commits; audited
 (personal_whatsapp.session_purged).
@@ -26,7 +28,7 @@ sys.path.insert(0, os.getcwd())
 
 
 def run(db, tenant_slug: str, phone: str, apply: bool, allow_connected: bool = False) -> dict:
-    from sqlalchemy import String, cast
+    from sqlalchemy import String, cast, exists
 
     from app.core.audit import append_audit
     from app.core.database import set_tenant_context
@@ -72,6 +74,19 @@ def run(db, tenant_slug: str, phone: str, apply: bool, allow_connected: bool = F
         if conv_ids
         else []
     )
+    # Mirrored chats left with NO messages (backfill_personal_whatsapp_numbers moved theirs into the person's open chat and
+    # closed this one): no message names the session, so they are found by the paired agent the bridge assigned them to.
+    empty = (
+        db.query(Conversation)
+        .filter(
+            Conversation.tenant_id == tid,
+            Conversation.source == "personal_bridge",
+            Conversation.assigned_to == session.user_id,
+            ~exists().where(Message.conversation_id == Conversation.id),
+        )
+        .all()
+    )
+    convs += [c for c in empty if c.id not in conv_ids]
 
     def only_this_number(guest_id: str) -> bool:
         for c in db.query(Conversation).filter_by(tenant_id=tid, guest_id=guest_id):
@@ -99,6 +114,7 @@ def run(db, tenant_slug: str, phone: str, apply: bool, allow_connected: bool = F
         "session_status": status,
         "messages": len(msgs),
         "chats": len(convs),
+        "empty_chats": len(empty),
         "people_erased": len(erase),
         "people_kept_other_messages_only": len(keep - quoted),
         "people_kept_quoted": len(quoted),
