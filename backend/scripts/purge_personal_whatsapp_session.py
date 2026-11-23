@@ -6,8 +6,9 @@
 
 What goes (only rows this number's session wrote; its id is on every mirrored message, channel_metadata.session_id):
   * people who exist ONLY because of this number (every chat of theirs is a personal-WhatsApp mirror written by this
-    session; no calls, no bookings): erased with the DPDP erasure (dpdp_erasure_service.erase_guest: chats, messages,
-    auto-created leads, identities, consents, stored files; an anonymised tombstone row stays for the audit trail);
+    session; no calls, no bookings, no quote sent): erased with the DPDP erasure (dpdp_erasure_service.erase_guest:
+    chats, messages, auto-created leads, identities, consents, stored files; an anonymised tombstone row stays for the
+    audit trail). Someone the team sent a quote keeps the lead and quote; only the chats go;
   * for everyone else: just this number's messages (and their photos / voice notes in storage), and a mirrored chat that
     is left with no messages.
 Unpair the number first (the script refuses while it is connected, or new messages would keep arriving). Prints counts,
@@ -33,6 +34,8 @@ def run(db, tenant_slug: str, phone: str, apply: bool, allow_connected: bool = F
     from app.models.ai_draft_outcome import AIDraftOutcome
     from app.models.call import Call
     from app.models.conversation import Conversation, Message
+    from app.models.inquiry import Inquiry
+    from app.models.inquiry_360 import InquiryQuote
     from app.models.lead_attribution import LeadAttribution
     from app.models.property import Stay
     from app.models.task import Task
@@ -80,15 +83,25 @@ def run(db, tenant_slug: str, phone: str, apply: bool, allow_connected: bool = F
         has_stay = db.query(Stay.id).filter_by(tenant_id=tid, guest_id=guest_id).first() is not None
         return not (has_call or has_stay)
 
+    def was_quoted(guest_id: str) -> bool:  # the team sent this person a quote: real sales work, keep the lead
+        inq = db.query(Inquiry.id).filter_by(tenant_id=tid, guest_id=guest_id)
+        return (
+            db.query(InquiryQuote.id).filter(InquiryQuote.tenant_id == tid, InquiryQuote.inquiry_id.in_(inq)).first()
+            is not None
+        )
+
     guests = {c.guest_id for c in convs if c.guest_id}
-    erase = sorted(g for g in guests if only_this_number(g))
+    only = {g for g in guests if only_this_number(g)}
+    quoted = {g for g in only if was_quoted(g)}
+    erase = sorted(only - quoted)
     keep = guests - set(erase)
     report = {
         "session_status": status,
         "messages": len(msgs),
         "chats": len(convs),
         "people_erased": len(erase),
-        "people_kept_other_messages_only": len(keep),
+        "people_kept_other_messages_only": len(keep - quoted),
+        "people_kept_quoted": len(quoted),
         "files": sum(1 for m in msgs if m.media_url),
         "applied": False,
     }

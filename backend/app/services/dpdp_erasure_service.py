@@ -177,6 +177,9 @@ def _erase_one(db: Session, tenant_id: str, guest_id: str, counts: dict, files: 
     if inq_ids:
         quote_ids = [q for (q,) in db.query(InquiryQuote.id).filter(InquiryQuote.inquiry_id.in_(inq_ids)).all()]
         if quote_ids:
+            # A link made for a quote alone (no booking yet) has no other owner (ck_stay_payment_links_owner): it goes too.
+            delete(StayPaymentLink, StayPaymentLink.tenant_id == tenant_id, StayPaymentLink.inquiry_quote_id.in_(quote_ids),
+                   StayPaymentLink.stay_id.is_(None), name="stay_payment_links")
             db.query(StayPaymentLink).filter(StayPaymentLink.inquiry_quote_id.in_(quote_ids)).update(
                 {StayPaymentLink.inquiry_quote_id: None}, synchronize_session=False)
         delete(InquiryQuote, InquiryQuote.inquiry_id.in_(inq_ids), name="inquiry_quotes")

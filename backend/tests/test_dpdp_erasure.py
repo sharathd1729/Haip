@@ -122,6 +122,22 @@ def test_erase_removes_everything_about_the_person_and_their_merged_duplicate(db
     assert other.phone == "+919876599999"
 
 
+def test_erase_removes_a_payment_link_made_for_the_quote_alone(db, tenant_and_user):
+    # Production: the erase nulled the link's quote id, leaving a link with no booking and no quote, which
+    # ck_stay_payment_links_owner rejects, so the whole erase failed.
+    from app.models.stay_finance import StayPaymentLink
+
+    tid = _tid(tenant_and_user)
+    g, inq = _person(db, tid)
+    quote_id = db.query(InquiryQuote.id).filter_by(inquiry_id=inq.id).scalar()
+    db.add(StayPaymentLink(tenant_id=tid, inquiry_quote_id=quote_id, external_id="plink_1", short_url="https://rzp.io/x",
+                           amount=45000))
+    db.commit()
+    erasure.erase_guest(db, tid, g.id)
+    db.commit()
+    assert db.query(StayPaymentLink).filter_by(tenant_id=tid, external_id="plink_1").count() == 0
+
+
 def test_run_tenant_reports_until_applied_and_erases_only_due_requests(db, tenant_and_user):
     tid = _tid(tenant_and_user)
     due, _ = _person(db, tid)

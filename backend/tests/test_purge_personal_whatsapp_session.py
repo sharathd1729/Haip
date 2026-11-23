@@ -10,6 +10,7 @@ from app.models.audit_event import AuditEvent
 from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry
+from app.models.inquiry_360 import InquiryQuote
 from app.models.whatsapp_personal_session import WhatsAppPersonalSessionStatus
 from tests.services.test_whatsapp_personal_service import _make_agent, _make_session, _make_tenant
 
@@ -99,6 +100,7 @@ def test_dry_run_counts_and_deletes_nothing(db, world):
         "chats": 2,
         "people_erased": 1,
         "people_kept_other_messages_only": 1,
+        "people_kept_quoted": 0,
         "files": 1,
         "applied": False,
     }
@@ -124,6 +126,21 @@ def test_apply_erases_the_test_numbers_people_and_messages_only(db, world):
     assert db.get(Message, world["others"]) is not None
     assert f"{tid}/wa_personal/{world['s'].id}/m1.jpg" in files.call_args.args[1]
     assert db.query(AuditEvent).filter_by(tenant_id=tid, action="personal_whatsapp.session_purged").count() == 1
+
+
+def test_someone_the_team_quoted_keeps_the_lead_and_quote_only_the_chats_go(db, world):
+    # Production dry run: one "test-only" person had a quote with a live payment link from the day before.
+    t, only = world["t"], world["only"]
+    inq = db.query(Inquiry).filter_by(tenant_id=t.id, guest_id=only.id).one()
+    db.add(InquiryQuote(tenant_id=t.id, inquiry_id=inq.id, amount=45000))
+    db.commit()
+    inq_id, c_only = inq.id, world["c_only"].id
+    assert purge.run(db, t.slug, PHONE, apply=False)["people_kept_quoted"] == 1
+    with patch("app.services.media_storage.delete_tenant_objects", return_value=1):
+        report = purge.run(db, t.slug, PHONE, apply=True)
+    assert report["people_erased"] == 0 and report["applied"] is True
+    assert db.get(Inquiry, inq_id) is not None and db.query(InquiryQuote).filter_by(inquiry_id=inq_id).count() == 1
+    assert db.get(Conversation, c_only) is None  # the test number's chat with them is gone
 
 
 def test_a_connected_number_is_refused(db, world):
