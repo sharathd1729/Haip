@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from app.core.audit import append_audit
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
@@ -194,6 +195,15 @@ def update_inquiry(
         if k in updates:
             updates[k] = updates[k].strip() or None
             setattr(inq, k, updates.pop(k))
+    if "guest_name" in updates:
+        name = updates.pop("guest_name").strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="The guest's name cannot be empty")
+        if inq.guest is not None and inq.guest.name != name:
+            inq.guest.name = name
+            # Who renamed whom, without the names themselves (no personal data in the audit payload).
+            append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id, action="guest.renamed",
+                         target_type="guest", target_id=inq.guest_id, payload={"inquiry_id": inq.id})
     if "pickup" in updates:
         custom = dict(inq.custom_fields or {})
         pickup = updates.pop("pickup").strip()

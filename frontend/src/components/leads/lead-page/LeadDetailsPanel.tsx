@@ -15,6 +15,7 @@ import { WhereFromCard } from "./WhereFromCard";
 import { LeadReviewCard } from "./LeadReviewCard";
 import { EvidenceCard } from "./EvidenceCard";
 import { TripFields } from "./TripFields";
+import { EditableName } from "./EditableName";
 import { AiRepliesToggle, ContactCard, DealsCard, TasksCard, useReveal } from "./PanelSections";
 import { sourceName, istDate } from "./format";
 import type { LeadDetail, LeadFeed, PipelineStage, RunAction } from "./types";
@@ -99,7 +100,8 @@ export function LeadDetailsPanel({ lead, feed, stages, step, temp, perms, run, o
               {(lead.display_name || "?").charAt(0).toUpperCase()}
             </span>
             <div className="grid min-w-0 gap-1">
-              <h1 className="haip-page-title haip-page-title--keep break-words text-[24px] leading-tight">{lead.display_name}</h1>
+              <EditableName inquiryId={lead.inquiry_id} name={lead.display_name} canEdit={perms.canEdit}
+                className="haip-page-title haip-page-title--keep break-words text-[24px] leading-tight" />
               <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-[var(--haip-fg-subtle)]">
                 <span className="tabular-nums">{reveal.shown?.phone || c?.phone_masked || "No phone yet"}</span>
                 {perms.canReveal && c?.has_phone && !reveal.shown && (

@@ -100,6 +100,8 @@ class InquiryUpdateRequest(BaseModel):
     pickup: Optional[str] = Field(None, max_length=255)
     # Migration 171: the guest's starting city (lead_validity's location check). Empty string clears it.
     guest_location: Optional[str] = Field(None, max_length=100)
+    # The guest's name, edited on the lead page. It lives on the Guest, so every lead of theirs shows it. Never empty.
+    guest_name: Optional[str] = Field(None, max_length=120)
     # lead_outcome: why the lead was won / lost -- required when a person moves it to a closed-won / closed-lost stage.
     outcome_reason: Optional[str] = Field(None, max_length=30)
     outcome_reason_note: Optional[str] = Field(None, max_length=300)
