@@ -1,10 +1,15 @@
 "use client";
+import { useCallback, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useInboxStream, SSEPayload } from "@/hooks/useInboxStream";
 import { useCallsStore } from "@/store/calls";
 import { useInboxStore } from "@/store/inbox";
 import { useNotificationsStore } from "@/store/useNotificationsStore";
+
+/** A burst of incoming messages refreshes My day (GET /work-queue, a heavy read) once per window, not once per message,
+ *  per open tab. Actions the agent takes (Take it, AI check, consults) still refresh it at once. */
+export const QUEUE_REFRESH_MS = 10_000;
 
 /**
  * Invisible component that lives in the dashboard layout.
@@ -20,6 +25,15 @@ export function DashboardSSEBridge() {
   const setPhoneDeclineAlert = useInboxStore(s => s.setPhoneDeclineAlert);
   const upsertConversation = useInboxStore(s => s.upsertConversation);
   const addNotification = useNotificationsStore(s => s.addEvent);
+  const queueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshQueueSoon = useCallback(() => {
+    if (queueTimer.current) return;   // a refresh is already due; this message rides on it
+    queueTimer.current = setTimeout(() => {
+      queueTimer.current = null;
+      queryClient.invalidateQueries({ queryKey: ["work-queue"] });
+    }, QUEUE_REFRESH_MS);
+  }, [queryClient]);
+  useEffect(() => () => { if (queueTimer.current) clearTimeout(queueTimer.current); }, []);
 
   // The stream fetches a fresh access token itself on every (re)connect (useInboxStream).
   useInboxStream(status === "authenticated", (payload: SSEPayload) => {
@@ -103,8 +117,9 @@ export function DashboardSSEBridge() {
           // ("work-queue") only ever refreshed on its own 60s poll -- a new
           // unowned WhatsApp/Instagram lead could sit invisible there for
           // up to a minute. Query key is ["work-queue", qs] (my-day/page.tsx);
-          // no exact-key match needed, only the leading key.
-          queryClient.invalidateQueries({ queryKey: ["work-queue"] });
+          // no exact-key match needed, only the leading key. Throttled: every
+          // message used to rebuild the queue in every open tab (Nov 2026).
+          refreshQueueSoon();
         }
         break;
       }

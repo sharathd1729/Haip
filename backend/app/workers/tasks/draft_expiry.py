@@ -28,7 +28,7 @@ def expire_stale_all_tenants() -> dict:
     """Fan out to every active tenant, one transaction each (beat, every 30 minutes)."""
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
     finally:
         db.close()
     for tid in tenant_ids:

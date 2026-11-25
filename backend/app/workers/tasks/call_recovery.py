@@ -135,7 +135,7 @@ def recover_stalled_call_scoring_all_tenants():
     (celery_app.py's "call-scoring-recovery-30min")."""
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
     finally:
         db.close()
 

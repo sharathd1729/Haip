@@ -348,6 +348,18 @@ def is_legacy_campaign(sender_name: Optional[str], channel_metadata) -> bool:
     return author_of("outbound", sender_name=sender_name, channel_metadata=channel_metadata) == CAMPAIGN
 
 
+def call_rows(db: Session, tenant_id: str, guest_ids: list, since: datetime) -> list:
+    """These people's calls since ``since``, oldest first: only the columns the contact rule reads (call_status_service),
+    never the transcript or AI notes, so the sweeps that run every few minutes stay light."""
+    return (
+        db.query(Call.guest_id, Call.created_at, Call.direction, Call.duration_seconds, Call.human_disposition,
+                 Call.ivr_dial_status, Call.ai_disposition)
+        .filter(Call.tenant_id == tenant_id, Call.guest_id.in_(guest_ids), Call.created_at >= since)
+        .order_by(Call.created_at)
+        .all()
+    )
+
+
 def touch_rows(db: Session, tenant_id: str, since_by_guest: dict) -> list[tuple]:
     """Every contact and call attempt with these people since their own cut-off: [(guest_id, at, kind, channel)], kind
     "contact" | "attempt", channel whatsapp | instagram | personal_whatsapp | call | quote.
@@ -381,7 +393,7 @@ def touch_rows(db: Session, tenant_id: str, since_by_guest: dict) -> list[tuple]
         if after(guest_id, at) and not is_legacy_campaign(sender_name, meta):
             rows.append((guest_id, _aware_dt(at), "contact", _message_channel(channel, source)))
 
-    for call in db.query(Call).filter(Call.tenant_id == tenant_id, Call.guest_id.in_(ids), Call.created_at >= earliest):
+    for call in call_rows(db, tenant_id, ids, earliest):
         if not after(call.guest_id, call.created_at):
             continue
         if call.direction == CallDirection.OUTBOUND:

@@ -44,7 +44,7 @@ def sweep_all_tenants():
 
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
         db.commit()
         for tenant_id in tenant_ids:
             try:
