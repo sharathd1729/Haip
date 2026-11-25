@@ -25,6 +25,7 @@ export interface IgTriggerConfig {
   keywords?: string[];
   exclude_keywords?: string[];
   reply_all?: boolean;
+  mention_only?: boolean; // comments: only ones that tag someone (@name)
   scope?: "post" | "any" | "next_post";
   media_id?: string;
   media_thumb?: string;
@@ -89,11 +90,20 @@ export interface IgSuggestMore {
 
 export const DEFAULT_SUGGEST: IgSuggestMore = { enabled: false, source: "stays", prompt: "Want to see our other stays?", button_title: "More stays" };
 
+export interface IgAttachment { kind: "image" | "video"; key: string; filename?: string }
+export interface IgSharePost { enabled: boolean; media_id?: string | null; media_thumb?: string | null }
+
 export interface IgActionConfig {
   message: string;
+  send_dm?: boolean; // false = comments: public reply only
   button?: { title: string; url: string } | null;
   opener?: string;
   opener_button?: string;
+  opener_always?: boolean;
+  once_per_post?: boolean;
+  delay_seconds?: number;
+  attachment?: IgAttachment | null;
+  share_post?: IgSharePost;
   public_ack_pool?: string[];
   follow_gate?: { enabled: boolean; ask_text?: string; button_title?: string; max_asks?: number; send_anyway?: boolean };
   once_per_person?: boolean;

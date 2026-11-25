@@ -9,12 +9,15 @@ import { Drawer } from "@/components/ui/kit";
 import { MediaPicker } from "./MediaPicker";
 import { FormQuestions } from "./FormQuestions";
 import { SequenceSteps, sequenceTotal } from "./SequenceSteps";
+import { AttachmentField, DelayField, SharePostField } from "./AutomationExtras";
 import { TEMPLATES, type IgTemplate } from "./templates";
-import { DEFAULT_ACKS, DEFAULT_FORM, DEFAULT_SUGGEST, IG_ACTION, SEQUENCE_WINDOW_MINUTES, TRIGGERS, triggerMeta, type IgActionConfig, type IgForm, type IgRule, type IgSequenceStep, type IgSuggestMore, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
+import { DEFAULT_ACKS, DEFAULT_FORM, DEFAULT_SUGGEST, IG_ACTION, SEQUENCE_WINDOW_MINUTES, TRIGGERS, triggerMeta, type IgActionConfig, type IgAttachment, type IgForm, type IgRule, type IgSharePost, type IgSequenceStep, type IgSuggestMore, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
 
 const field = "min-h-11 w-full rounded-[12px] border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] sm:text-[14.5px] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:border-primary focus:outline-none";
 const area = cn(field, "min-h-[88px] py-2.5 leading-relaxed");
 const COMMENT_TRIGGERS: string[] = ["ig_comment_received", "ig_live_comment_received"];
+// "Public reply only" sends no DM, so the default replies must not say "check your DMs".
+const PUBLIC_ONLY_ACKS = ["Thank you!", "Thanks for the love!", "So glad you like it!"];
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -77,22 +80,27 @@ function Bubble({ who, children, button }: { who: "them" | "you"; children: Reac
 
 const sample = (t: string) => (t || "").replaceAll("{first_name}", "Asha");
 
-export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
+export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFrom }: {
   open: boolean; onOpenChange: (o: boolean) => void; initial?: IgRule | null;
+  /** A new automation that starts as a copy of this one (the Posts view's "Copy one…"), saved as its own rule. */
+  copyFrom?: IgRule | null;
   /** A new automation for this post (the dashboard's "Add" on a post with no automation). */
   preset?: { id: string; thumb?: string; caption?: string } | null;
 }) {
   const qc = useQueryClient();
+  const presetMedia = preset ? { media_id: preset.id, media_thumb: preset.thumb, media_caption: preset.caption } : {};
   const tc0: IgTriggerConfig = initial?.trigger_config
-    ?? { scope: "post", keywords: [], ...(preset ? { media_id: preset.id, media_thumb: preset.thumb, media_caption: preset.caption } : {}) };
-  const ac0: IgActionConfig = initial?.action_config ?? { message: "" };
-  const [name, setName] = useState(initial?.name ?? "");
-  const [trigger, setTrigger] = useState<IgTrigger>((initial?.trigger as IgTrigger) ?? "ig_comment_received");
+    ?? (copyFrom ? { ...copyFrom.trigger_config, media_bound_at: undefined, ...(preset ? { scope: "post" as const, ...presetMedia } : {}) }
+      : { scope: "post", keywords: [], ...presetMedia });
+  const ac0: IgActionConfig = initial?.action_config ?? copyFrom?.action_config ?? { message: "" };
+  const [name, setName] = useState(initial?.name ?? (copyFrom ? `${copyFrom.name} (copy)` : ""));
+  const [trigger, setTrigger] = useState<IgTrigger>(((initial ?? copyFrom)?.trigger as IgTrigger) ?? "ig_comment_received");
   const [scope, setScope] = useState<"post" | "any" | "next_post">(tc0.scope ?? (tc0.media_id ? "post" : "any"));
   const [media, setMedia] = useState({ id: tc0.media_id ?? "", thumb: tc0.media_thumb ?? "", caption: tc0.media_caption ?? "" });
   const [keywords, setKeywords] = useState<string[]>(tc0.keywords ?? []);
   const [excludes, setExcludes] = useState<string[]>(tc0.exclude_keywords ?? []);
   const [replyAll, setReplyAll] = useState(!!tc0.reply_all);
+  const [mention, setMention] = useState(!!tc0.mention_only);
   const [acks, setAcks] = useState<string[]>(ac0.public_ack_pool?.length ? ac0.public_ack_pool : DEFAULT_ACKS);
   const [message, setMessage] = useState(ac0.message ?? "");
   const [withButton, setWithButton] = useState(!!ac0.button?.url);
@@ -104,12 +112,22 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
   const [form, setForm] = useState<IgForm>(ac0.form?.questions?.length ? ac0.form : DEFAULT_FORM);
   const [sequence, setSequence] = useState<IgSequenceStep[]>(ac0.sequence ?? []);
   const [suggest, setSuggest] = useState<IgSuggestMore>({ ...DEFAULT_SUGGEST, ...(ac0.suggest_more ?? {}) });
+  const [sendDm, setSendDm] = useState(ac0.send_dm ?? true);
+  const [openerAlways, setOpenerAlways] = useState(!!ac0.opener_always);
+  const [oncePerPost, setOncePerPost] = useState(!!ac0.once_per_post);
+  const [delay, setDelay] = useState(ac0.delay_seconds ?? 0);
+  const [attachment, setAttachment] = useState<IgAttachment | null>(ac0.attachment ?? null);
+  const [sharePost, setSharePost] = useState<IgSharePost>(ac0.share_post ?? { enabled: false });
+  const [sendExisting, setSendExisting] = useState(false);
   const [error, setError] = useState("");
 
   const isComment = COMMENT_TRIGGERS.includes(trigger);
   const keywordOptional = trigger === "ig_story_mention_received" || trigger === "ig_ad_chat_started";
-  // Comments need a tap before Instagram allows more messages; an open chat (DM keyword, story reply, ad) starts the form at once.
-  const needsTap = gate.enabled || (form.enabled ? isComment : withButton);
+  const dm = !isComment || sendDm; // comments can be "public reply only"
+  // Comments need a tap before Instagram allows more messages (a photo, a shared post, a form); an open chat (DM keyword,
+  // story reply, ad) starts the form at once.
+  const needsTap = gate.enabled || openerAlways || (form.enabled ? isComment : withButton) || (isComment && (!!attachment || sharePost.enabled));
+  const matchMode = mention ? "mention" : replyAll ? "all" : "keywords";
 
   const applyTemplate = (t: IgTemplate) => {
     setTrigger(t.trigger); setName(t.name); setKeywords(t.keywords); setReplyAll(!!t.replyAll);
@@ -125,14 +143,16 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
   const save = useMutation({
     mutationFn: () => {
       const trigger_config: IgTriggerConfig = {
-        keywords, exclude_keywords: excludes, reply_all: keywordOptional ? true : replyAll,
+        keywords, exclude_keywords: excludes, reply_all: keywordOptional ? true : replyAll && !mention, mention_only: isComment && mention,
         scope: isComment && trigger === "ig_comment_received" ? scope : "any",
         ...(isComment && trigger === "ig_comment_received" && scope === "post" && media.id
           ? { media_id: media.id, media_thumb: media.thumb || undefined, media_caption: media.caption.slice(0, 300) || undefined } : {}),
         ...(scope === "next_post" && tc0.scope === "next_post" && tc0.media_id ? { media_id: tc0.media_id, media_bound_at: tc0.media_bound_at } : {}),
       };
       const action_config: IgActionConfig = {
-        message, button: withButton ? button : null, opener, opener_button: openerButton,
+        message, send_dm: dm, button: withButton ? button : null, opener, opener_button: openerButton, opener_always: openerAlways,
+        once_per_post: oncePerPost, delay_seconds: delay, attachment,
+        share_post: sharePost.enabled ? { enabled: true, media_id: sharePost.media_id || null, media_thumb: sharePost.media_thumb || null } : { enabled: false },
         public_ack_pool: isComment ? acks.filter(a => a.trim()) : [], follow_gate: gate, once_per_person: once,
         form: { enabled: form.enabled, questions: form.questions.map(q => ({ ...q, text: q.text.trim(), options: (q.options ?? []).filter(Boolean) })) },
         suggest_more: { ...suggest, prompt: suggest.prompt.trim() || DEFAULT_SUGGEST.prompt, button_title: suggest.button_title.trim() || DEFAULT_SUGGEST.button_title },
@@ -141,17 +161,25 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
       const body = { name: name.trim() || triggerMeta(trigger)?.short || "Instagram automation", trigger, action: IG_ACTION, trigger_config, action_config };
       return initial ? api.patch(`/automations/${initial.id}`, body) : api.post("/automations", { ...body, is_active: true });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["automations"] }); onOpenChange(false); },
+    onSuccess: async res => {
+      if (sendExisting && trigger === "ig_comment_received" && res?.data?.id) {
+        await api.post(`/instagram/automations/${res.data.id}/send-existing`).catch(() => undefined); // runs in the background
+      }
+      qc.invalidateQueries({ queryKey: ["automations"] });
+      onOpenChange(false);
+    },
     onError: (e: { response?: { data?: { detail?: string } } }) => setError(e?.response?.data?.detail || "Couldn't save. Check the fields and try again."),
   });
 
   const submit = () => {
     setError("");
-    if (!message.trim()) return setError("Write the message people get in their DMs.");
+    if (dm && !message.trim()) return setError("Write the message people get in their DMs.");
+    if (!dm && !acks.some(a => a.trim())) return setError("Add at least one public reply: with no DM it is the whole answer.");
+    if (dm && sharePost.enabled && sharePost.media_id === "") return setError("Pick the post to share.");
     if (isComment && trigger === "ig_comment_received" && scope === "post" && !media.id) return setError("Pick the post or reel.");
-    if (!keywordOptional && !replyAll && keywords.length === 0) return setError("Add a keyword, or turn on “Reply to every comment”.");
+    if (!keywordOptional && !replyAll && !mention && keywords.length === 0) return setError("Add a keyword, or turn on “Reply to every comment”.");
     if (withButton && !/^https:\/\/\S+$/.test(button.url.trim())) return setError("The button link must start with https://");
-    if (form.enabled && form.questions.filter(q => q.key === "phone").length !== 1) return setError("The questions must ask for the WhatsApp number once.");
+    if (dm && form.enabled && form.questions.filter(q => q.key === "phone").length > 1) return setError("Ask for the WhatsApp number only once.");
     if (form.enabled && form.questions.some(q => !q.text.trim())) return setError("Write the text for every question.");
     if (sequence.some(s => !s.text.trim())) return setError("Write the text for every follow-up, or remove the empty one.");
     if (sequence.some(s => s.button && !/^https:\/\/\S+$/.test(s.button.url.trim()))) return setError("Follow-up links must start with https://");
@@ -220,8 +248,18 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
 
           {!keywordOptional && (
             <Section title="Keywords" hint="Whole words, any capitalisation. PRICE matches “price?” and “Price pls”.">
-              <Toggle checked={replyAll} onChange={setReplyAll} label={isComment ? "Reply to every comment" : "Reply to every message"} hint="No keyword needed." />
-              {!replyAll && <Keywords value={keywords} onChange={setKeywords} placeholder="e.g. PRICE, BOOK, LINK" />}
+              {isComment ? (
+                <div className="flex flex-wrap gap-2">
+                  {([["keywords", "Keywords"], ["all", "Every comment"], ["mention", "Tags someone (@)"]] as const).map(([v, l]) => (
+                    <button key={v} type="button" aria-pressed={matchMode === v}
+                      onClick={() => { setReplyAll(v === "all"); setMention(v === "mention"); }}
+                      className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
+                        matchMode === v ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{l}</button>
+                  ))}
+                </div>
+              ) : <Toggle checked={replyAll} onChange={setReplyAll} label="Reply to every message" hint="No keyword needed." />}
+              {mention && <p className="text-[13px] text-[var(--haip-fg-subtle)]">Replies when a comment tags another account, e.g. “@meera look at this”. Good for “tag a friend” posts.</p>}
+              {!replyAll && !mention && <Keywords value={keywords} onChange={setKeywords} placeholder="e.g. PRICE, BOOK, LINK" />}
               <details className="text-[14px]">
                 <summary className="min-h-11 cursor-pointer py-2 font-medium text-[var(--haip-fg-muted)]">Skip messages containing…</summary>
                 <Keywords value={excludes} onChange={setExcludes} placeholder="e.g. scam, refund" />
@@ -231,6 +269,13 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
 
           {isComment && (
             <Section title="Public reply under the comment" hint="One is picked at random each time, so replies don't look copy-pasted.">
+              <Toggle checked={!sendDm} label="Public reply only, no DM" hint="HAIP answers under the comment and sends nothing in the DMs."
+                onChange={v => {
+                  setSendDm(!v);
+                  const same = (a: string[], b: string[]) => a.join("|") === b.join("|");
+                  if (v && same(acks, DEFAULT_ACKS)) setAcks(PUBLIC_ONLY_ACKS);
+                  if (!v && same(acks, PUBLIC_ONLY_ACKS)) setAcks(DEFAULT_ACKS);
+                }} />
               {acks.map((a, i) => (
                 <div key={i} className="flex gap-2">
                   <input className={field} value={a} maxLength={300} onChange={e => setAcks(acks.map((x, j) => (j === i ? e.target.value : x)))} />
@@ -243,6 +288,7 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
             </Section>
           )}
 
+          {dm && <>
           <Section title="Collect details in the DM" hint="HAIP asks a few short questions, one at a time. When the WhatsApp number arrives, the person becomes a lead.">
             <Toggle checked={form.enabled} onChange={v => setForm({ ...form, enabled: v })} label="Ask questions before the final message"
               hint="Typed answers work as well as the tap options. Asking for a person or saying stop ends it." />
@@ -259,9 +305,15 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
                 <input className={field} value={button.url} onChange={e => setButton({ ...button, url: e.target.value })} placeholder="https://…" inputMode="url" aria-label="Button link" />
               </div>
             )}
+            <AttachmentField value={attachment} onChange={setAttachment} />
+            <Toggle checked={sharePost.enabled} onChange={v => setSharePost(v ? { enabled: true, media_id: isComment ? null : "" } : { enabled: false })}
+              label="Share one of your posts" hint="Sent after the message. Instagram only shares your own posts and reels." />
+            {sharePost.enabled && <SharePostField value={sharePost} onChange={setSharePost} isComment={isComment} />}
+            <Toggle checked={openerAlways} onChange={setOpenerAlways} label="Start with an opening message"
+              hint="The first DM asks them to tap; the message above follows the tap." />
             {needsTap && (
               <div className="rounded-[12px] bg-[var(--haip-surface)] p-3">
-                <p className="text-[13px] text-[var(--haip-fg-muted)]">Instagram only allows a link after they reply, so the first DM asks them to tap:</p>
+                <p className="text-[13px] text-[var(--haip-fg-muted)]">{openerAlways ? "The opening message:" : "Instagram only allows a link, photo or post after they reply, so the first DM asks them to tap:"}</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px]">
                   <input className={field} value={opener} maxLength={640} onChange={e => setOpener(e.target.value)} aria-label="First message" />
                   <input className={field} value={openerButton} maxLength={20} onChange={e => setOpenerButton(e.target.value)} aria-label="Tap button text" />
@@ -311,9 +363,21 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
             )}
           </Section>
 
+          </>}
+
           <Section title="Details">
             <input className={field} value={name} maxLength={120} onChange={e => setName(e.target.value)} placeholder="Name, e.g. PRICE reel – monsoon offer" aria-label="Automation name" />
-            <Toggle checked={once} onChange={setOnce} label="Only once per person" hint="Someone who comments twice gets one DM." />
+            <Toggle checked={once} onChange={setOnce} label="Only once per person" hint="Someone who comments twice gets one reply." />
+            {once && isComment && scope !== "post" && (
+              <Toggle checked={oncePerPost} onChange={setOncePerPost} label="Once per post, not once overall" hint="The same person gets a reply again on a different post." />
+            )}
+            <label className="grid gap-1 text-[14px] font-medium">Reply time
+              <DelayField value={delay} onChange={setDelay} className={field} />
+            </label>
+            {trigger === "ig_comment_received" && (
+              <Toggle checked={sendExisting} onChange={setSendExisting} label="Also answer comments from the last 7 days"
+                hint="When you save, HAIP replies to matching comments the post already has. Instagram allows this for 7 days." />
+            )}
           </Section>
         </div>
 
@@ -323,12 +387,17 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset }: {
             {isComment && <Bubble who="them">{keywords[0] ? keywords[0].toUpperCase() : "Love this! 😍"}</Bubble>}
             {isComment && <p className="px-1 text-[12px] text-[var(--haip-fg-subtle)]">Your reply: “{acks.find(a => a.trim()) || DEFAULT_ACKS[0]}”</p>}
             {!isComment && <Bubble who="them">{trigger === "ig_story_mention_received" ? "Mentioned you in their story" : keywords[0] || "Hi!"}</Bubble>}
-            {needsTap && <Bubble who="you" button={openerButton}>{sample(opener)}</Bubble>}
-            {gate.enabled && <Bubble who="you" button={gate.button_title}>{sample(gate.ask_text)}</Bubble>}
-            {form.enabled && form.questions.slice(0, 3).map((q, i) => <Bubble key={i} who="you" button={q.options?.slice(0, 3).join(" · ") || undefined}>{q.text || "Question…"}</Bubble>)}
-            <Bubble who="you" button={withButton ? button.title : undefined}>{sample(message).replaceAll("{agent_name}", "Priya") || "Your message…"}</Bubble>
-            {suggest.enabled && <Bubble who="you" button={suggest.button_title}>{suggest.prompt}</Bubble>}
-            {sequence.map((s, i) => <Bubble key={`seq-${i}`} who="you" button={s.button?.title || undefined}>{sample(s.text) || "Follow-up…"}</Bubble>)}
+            {dm && needsTap && <Bubble who="you" button={openerButton}>{sample(opener)}</Bubble>}
+            {dm && <>
+              {gate.enabled && <Bubble who="you" button={gate.button_title}>{sample(gate.ask_text)}</Bubble>}
+              {form.enabled && form.questions.slice(0, 3).map((q, i) => <Bubble key={i} who="you" button={q.options?.slice(0, 3).join(" · ") || undefined}>{q.text || "Question…"}</Bubble>)}
+              <Bubble who="you" button={withButton ? button.title : undefined}>{sample(message).replaceAll("{agent_name}", "Priya") || "Your message…"}</Bubble>
+              {attachment && <Bubble who="you">{attachment.kind === "video" ? "Video" : "Photo"}{attachment.filename ? ` · ${attachment.filename}` : ""}</Bubble>}
+              {sharePost.enabled && <Bubble who="you">Shared post</Bubble>}
+              {suggest.enabled && <Bubble who="you" button={suggest.button_title}>{suggest.prompt}</Bubble>}
+              {sequence.map((s, i) => <Bubble key={`seq-${i}`} who="you" button={s.button?.title || undefined}>{sample(s.text) || "Follow-up…"}</Bubble>)}
+            </>}
+            {!dm && <p className="px-1 text-[12px] text-[var(--haip-fg-subtle)]">No DM is sent.</p>}
           </div>
         </aside>
       </div>

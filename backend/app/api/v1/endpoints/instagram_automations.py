@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -61,6 +61,38 @@ def list_media(
         for m in data.get("data", [])
     ]
     return {"items": items, "next": (paging.get("cursors") or {}).get("after") if paging.get("next") else None}
+
+
+# Asked in separate calls: Meta refuses a whole call when one metric does not apply to the media type (profile visits
+# and follows exist for feed posts, not reels), so one refused group never hides the others.
+_INSIGHT_GROUPS = (("reach", "total_interactions", "likes", "comments", "saved", "shares"), ("views",),
+                   ("profile_visits", "follows"))
+
+
+@router.get("/instagram/media/{media_id}/insights")
+def media_insights(
+    media_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """One post's Instagram insights, live (the Posts view's Insights). A metric Instagram does not give is null."""
+    from app.services.ig_automation import _adapter
+
+    if not media_id.isdigit() or len(media_id) > 40:  # goes into the Graph URL path
+        raise HTTPException(status_code=422, detail="Unknown post")
+    adapter = _adapter(db, current_user.tenant_id)
+    if adapter is None:
+        raise HTTPException(status_code=409, detail="Connect Instagram first (Settings → Integrations).")
+    got: dict = {}
+    for group in _INSIGHT_GROUPS:
+        try:
+            got.update(adapter.get_media_insights(media_id, list(group)))
+        except Exception:  # noqa: BLE001 -- not offered for this media type, or Instagram busy: shown as "—"
+            continue
+    names = {"views": "views", "reach": "reach", "interactions": "total_interactions", "likes": "likes",
+             "comments": "comments", "saves": "saved", "shares": "shares", "profile_visits": "profile_visits",
+             "follows": "follows"}
+    return {k: got.get(v) for k, v in names.items()}
 
 
 @router.get("/instagram/automations/stats")
@@ -209,6 +241,119 @@ def put_welcome(
         raise HTTPException(status_code=422, detail=msg) from None
     except ig_welcome.WelcomeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/instagram/automations/posts")
+def post_stats(
+    ids: str = Query(..., max_length=2000, description="Comma-separated Instagram media ids (the posts on screen)"),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Per post, all time: which automations answer it and what they did (the Posts view). people = distinct people
+    who triggered one there; sent = DMs; opened = people who opened one (Instagram "seen"); clicks = link clicks of the
+    automations made for that post alone (an "any post" automation's clicks cannot be split by post)."""
+    tid = current_user.tenant_id
+    media_ids = [m.strip() for m in ids.split(",") if m.strip()][:50]
+    rules = db.query(AutomationRule).filter(AutomationRule.tenant_id == tid, AutomationRule.trigger == "ig_comment_received",
+                                            AutomationRule.action == "send_instagram_quick_reply").all()
+    own = {m: [r.id for r in rules if (r.trigger_config or {}).get("media_id") == m] for m in media_ids}
+    any_post = [r.id for r in rules if r.is_active and not (r.trigger_config or {}).get("media_id")
+                and (r.trigger_config or {}).get("scope", "any") == "any" and not (r.trigger_config or {}).get("ad_id")]
+    out = {m: {"rules": own[m], "covered_by_any": bool(any_post), "people": 0, "sent": 0, "public_replies": 0,
+               "opened": 0, "clicks": 0} for m in media_ids}
+    if not media_ids:
+        return {"posts": out}
+    rows = (db.query(IgAutomationEvent.media_id, IgAutomationEvent.kind, func.count())
+            .filter(IgAutomationEvent.tenant_id == tid, IgAutomationEvent.media_id.in_(media_ids),
+                    IgAutomationEvent.kind.in_(("dm_sent", "public_reply")))
+            .group_by(IgAutomationEvent.media_id, IgAutomationEvent.kind).all())
+    for media_id, kind, n in rows:
+        out[media_id]["sent" if kind == "dm_sent" else "public_replies"] = n
+    who = (db.query(IgAutomationEvent.media_id, IgAutomationEvent.rule_id, IgAutomationEvent.guest_id)
+           .filter(IgAutomationEvent.tenant_id == tid, IgAutomationEvent.media_id.in_(media_ids),
+                   IgAutomationEvent.kind == "triggered", IgAutomationEvent.guest_id.isnot(None)).distinct().all())
+    by_pair: dict[tuple[str, str], set[str]] = {}
+    for media_id, rule_id, guest_id in who:
+        by_pair.setdefault((rule_id, guest_id), set()).add(media_id)
+        out[media_id]["people"] += 1  # distinct (rule, person) pairs per post
+    opened = (db.query(IgAutomationEvent.rule_id, IgAutomationEvent.guest_id)
+              .filter(IgAutomationEvent.tenant_id == tid, IgAutomationEvent.kind == "opened",
+                      IgAutomationEvent.rule_id.in_({r for r, _ in by_pair} or {""})).distinct().all())
+    for pair in opened:
+        for media_id in by_pair.get(tuple(pair), ()):
+            out[media_id]["opened"] += 1
+    rule_media = {rid: m for m, rids in own.items() for rid in rids}
+    if rule_media:
+        for rule_id, n in (db.query(IgAutomationEvent.rule_id, func.count())
+                           .filter(IgAutomationEvent.tenant_id == tid, IgAutomationEvent.kind == "clicked",
+                                   IgAutomationEvent.rule_id.in_(list(rule_media)))
+                           .group_by(IgAutomationEvent.rule_id).all()):
+            out[rule_media[rule_id]]["clicks"] += n
+    return {"posts": out}
+
+
+_IG_MEDIA_MB = {"image": 8, "video": 25}  # Instagram's limits for a DM attachment
+
+
+def _ig_media_kind(head: bytes) -> tuple[str, str, str] | None:
+    """(kind, content type, extension) from the file's first bytes: JPEG, PNG, or an MP4/MOV video."""
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image", "image/jpeg", "jpg"
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image", "image/png", "png"
+    if head[4:8] == b"ftyp":
+        return ("video", "video/quicktime", "mov") if head[8:10] == b"qt" else ("video", "video/mp4", "mp4")
+    return None
+
+
+@router.post("/instagram/automations/media")
+def upload_automation_media(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+):
+    """The photo or video an automation sends after its message. Returns the ``attachment`` object for action_config
+    (its key is checked to be this workspace's when the rule is saved)."""
+    import os
+    import re
+
+    from app.services.media_storage import get_presigned_media_url, upload_ig_automation_media
+
+    content = file.file.read(_IG_MEDIA_MB["video"] * 1024 * 1024 + 1)
+    found = _ig_media_kind(content[:16])
+    if not found:
+        raise HTTPException(status_code=400, detail="Use a JPEG or PNG photo, or an MP4 video.")
+    kind, content_type, ext = found
+    if len(content) > _IG_MEDIA_MB[kind] * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Instagram takes {'photos' if kind == 'image' else 'videos'} up to "
+                                                    f"{_IG_MEDIA_MB[kind]} MB.")
+    key = upload_ig_automation_media(current_user.tenant_id, content, content_type, ext)
+    name = re.sub(r"[\x00-\x1f/\\]", "", os.path.basename(file.filename or "")).strip()[:120] or f"file.{ext}"
+    return {"kind": kind, "key": key, "filename": name, "preview_url": get_presigned_media_url(key, expires_in=3600)}
+
+
+@router.post("/instagram/automations/{rule_id}/send-existing", status_code=202)
+def send_to_existing_comments(
+    rule_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Answer the comments the rule's post(s) already have from the last 7 days (runs in the background)."""
+    from app.core import cache
+    from app.core.audit import append_audit
+    from app.workers.tasks.ig_automation_tasks import send_existing
+
+    rule = db.query(AutomationRule).filter_by(id=rule_id, tenant_id=current_user.tenant_id).first()
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    if rule.trigger != "ig_comment_received" or not rule.is_active:
+        raise HTTPException(status_code=422, detail="Only a switched-on comment automation can answer existing comments.")
+    if not cache.idem_check_and_set(f"igauto:send_existing:{rule.id}", ttl=600):
+        raise HTTPException(status_code=409, detail="Already answering this post's comments. Try again in 10 minutes.")
+    append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id, action="ig_automation.send_existing",
+                 target_type="automation_rule", target_id=rule.id, payload={"name": rule.name})
+    db.commit()
+    send_existing.delay(current_user.tenant_id, rule.id)
+    return {"queued": True}
 
 
 @router.get("/l/{slug}/{code}", include_in_schema=False)

@@ -196,6 +196,34 @@ class InstagramGraphAdapter:
             "message": message,
         })
 
+    def send_media(self, recipient_id: str, kind: str, url: str) -> dict:
+        """A photo ("image": png/jpeg, 8 MB) or video ("video": 25 MB) by public URL; Instagram downloads it. The Instagram
+        Login API documents a single image under "attachments" and a video under "attachment"; the page API uses
+        "attachment" for both."""
+        key = "attachments" if kind == "image" and self._base == GRAPH_BASE else "attachment"
+        return self._post(f"/{self._inbox}/messages", {
+            "recipient": {"id": recipient_id},
+            "message": {key: {"type": kind, "payload": {"url": url}}},
+        })
+
+    def send_post(self, recipient_id: str, media_id: str) -> dict:
+        """Share one of the account's own posts or reels in the DM (MEDIA_SHARE; Instagram refuses anyone else's post)."""
+        return self._post(f"/{self._inbox}/messages", {
+            "recipient": {"id": recipient_id},
+            "message": {"attachment": {"type": "MEDIA_SHARE", "payload": {"id": media_id}}},
+        })
+
+    def list_comments(self, media_id: str, limit: int = 50, after: str | None = None) -> tuple[list[dict], str | None]:
+        """One page of a post's comments, newest first: (items with id, text, timestamp, from{id, username}; next cursor).
+        Paging with the `after` cursor against our own base, never Meta's `paging.next` URL (the token stays on our host)."""
+        params = {"fields": "id,text,timestamp,username,from", "limit": max(1, min(int(limit), 50))}
+        if after:
+            params["after"] = after
+        data = self._get(f"/{media_id}/comments", params=params)
+        paging = data.get("paging") or {}
+        cursor = (paging.get("cursors") or {}).get("after") if paging.get("next") else None
+        return data.get("data", []), cursor
+
     def send_link_button(self, recipient_id: str, text: str, button_title: str, url: str) -> dict:
         """A message with one link button (generic template; its title holds at most 80 characters, so a longer text goes
         first as its own message). Raises like _post; callers fall back to plain text + link."""

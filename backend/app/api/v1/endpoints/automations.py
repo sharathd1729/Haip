@@ -218,7 +218,7 @@ def _ig_configs(trigger: str, action: str, trigger_config: dict, action_config: 
     from pydantic import ValidationError
     from app.schemas.ig_automation import validate_ig_rule
     try:
-        return validate_ig_rule(trigger, trigger_config, action_config)
+        return validate_ig_rule(trigger, trigger_config, action_config, tenant_id)
     except ValidationError as exc:
         first = exc.errors()[0]
         raise HTTPException(status_code=422, detail=str(first.get("msg", "Invalid automation")).removeprefix("Value error, "))

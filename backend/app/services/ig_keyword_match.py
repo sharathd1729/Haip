@@ -38,6 +38,27 @@ def _contains_keyword(text: str, keywords: list[str]) -> bool:
     return any(re.search(r"\b" + re.escape(kw) + r"\b", lowered) for kw in keywords)
 
 
+_MENTION = re.compile(r"(?<![\w.@])@[A-Za-z0-9._]{1,30}")
+
+
+def has_mention(text: str) -> bool:
+    """The comment tags someone (@name): what a "tag a friend" automation waits for."""
+    return bool(_MENTION.search(text or ""))
+
+
+def rule_matches(rule: AutomationRule, text: str) -> bool:
+    """This rule's own words decide: not excluded, tags someone when it must, then any comment or a keyword."""
+    cfg = rule.trigger_config or {}
+    text = text or ""
+    if _contains_keyword(text, _keyword_list(cfg.get("exclude_keywords"))):
+        return False
+    if cfg.get("mention_only") and not has_mention(text):
+        return False
+    if cfg.get("reply_all") or cfg.get("mention_only"):
+        return True
+    return _contains_keyword(text, _keyword_list(cfg.get("keywords")))
+
+
 def _scope(rule: AutomationRule) -> str:
     cfg = rule.trigger_config or {}
     return cfg.get("scope") or ("post" if cfg.get("media_id") else "any")
@@ -76,12 +97,12 @@ def find_matching_rule(
         return _contains_keyword(text, exclude)
 
     def hit(rule: AutomationRule) -> bool:
-        cfg = rule.trigger_config or {}
-        if excluded(rule):
-            return False
-        return bool(cfg.get("reply_all")) or _contains_keyword(text, _keyword_list(cfg.get("keywords")))
+        return rule_matches(rule, text)
 
     def first(group: list[AutomationRule]) -> Optional[AutomationRule]:
+        for r in group:                      # a "tag someone" rule is the narrower one: it goes before "any comment"
+            if (r.trigger_config or {}).get("mention_only") and hit(r):
+                return r
         for r in group:                      # reply_all wins over keywords inside a group
             if (r.trigger_config or {}).get("reply_all") and hit(r):
                 return r

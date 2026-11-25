@@ -25,6 +25,7 @@ class IgTriggerConfig(BaseModel):
     keywords: list[str] = Field(default_factory=list, max_length=50)
     exclude_keywords: list[str] = Field(default_factory=list, max_length=50)
     reply_all: bool = False  # any comment / story reply / mention, no keyword needed
+    mention_only: bool = False  # comments only: the comment must tag someone (@name), e.g. "tag a friend" posts
     scope: Literal["post", "any", "next_post"] = "any"
     media_id: str | None = Field(default=None, max_length=64)
     media_thumb: str | None = Field(default=None, max_length=2000)  # display only
@@ -97,9 +98,12 @@ class IgForm(BaseModel):
     @model_validator(mode="after")
     def _phone_once(self):
         if self.enabled:
-            phones = [q for q in self.questions if q.key == "phone"]
-            if len(phones) != 1:
-                raise ValueError("The form must ask for the WhatsApp number once: that is what makes the person a lead.")
+            if not self.questions:
+                raise ValueError("Add at least one question.")
+            # The WhatsApp number is what makes the person a lead; a form without it (e.g. email only) collects details
+            # but leaves them a contact.
+            if len([q for q in self.questions if q.key == "phone"]) > 1:
+                raise ValueError("Ask for the WhatsApp number only once.")
             keys = [q.key for q in self.questions if q.key != "custom"]
             if len(keys) != len(set(keys)):
                 raise ValueError("Each question type can be asked only once (add more as 'your own question').")
@@ -127,19 +131,52 @@ class IgSuggestMore(BaseModel):
     button_title: str = Field(default="More stays", min_length=1, max_length=20)
 
 
+class IgAttachment(BaseModel):
+    """A photo or video sent after the final message (uploaded through POST /automations/ig-media; Instagram fetches it
+    from a short-lived link made at send time). Instagram: png/jpeg up to 8 MB, mp4/mov up to 25 MB."""
+
+    kind: Literal["image", "video"]
+    key: str = Field(min_length=1, max_length=300)
+    filename: str = Field(default="", max_length=120)
+
+
+class IgSharePost(BaseModel):
+    """Send one of our own posts or reels in the DM after the final message (Instagram only shares the account's own posts).
+    No media_id = the post they commented on."""
+
+    enabled: bool = False
+    media_id: str | None = Field(default=None, max_length=64)
+    media_thumb: str | None = Field(default=None, max_length=2000)  # display only
+
+
+DELAY_MAX_SECONDS = 3600
+
+
 class IgActionConfig(BaseModel):
-    message: str = Field(min_length=1, max_length=900)
+    message: str = Field(default="", max_length=900)
+    send_dm: bool = True  # False = comments only: post the public reply and send no DM
     button: IgButton | None = None
     opener: str = Field(default="Hi {first_name}! Tap below and I'll send it over 👇", max_length=640)
     opener_button: str = Field(default="Send it", max_length=20)
+    opener_always: bool = False  # start with the opener + tap even when nothing else needs it ("engagement starter")
     public_ack_pool: list[str] = Field(default_factory=list, max_length=10)
     follow_gate: IgFollowGate = Field(default_factory=IgFollowGate)
     once_per_person: bool = True
+    once_per_post: bool = False  # with once_per_person: once per person per post, not once per automation
+    delay_seconds: int = Field(default=0, ge=0, le=DELAY_MAX_SECONDS)  # wait before replying
+    attachment: IgAttachment | None = None
+    share_post: IgSharePost = Field(default_factory=IgSharePost)
     follow_up: str = Field(default="", max_length=500)  # DM-keyword rules only (endpoints/automations.py)
     follow_up_after_hours: int | None = Field(default=None, ge=1, le=23)
     form: IgForm = Field(default_factory=IgForm)
     sequence: list[IgSequenceStep] = Field(default_factory=list, max_length=3)
     suggest_more: IgSuggestMore = Field(default_factory=IgSuggestMore)
+
+    @model_validator(mode="after")
+    def _message_when_dm(self):
+        if self.send_dm and not self.message.strip():
+            raise ValueError("Write the message people get in their DMs.")
+        return self
 
     @model_validator(mode="after")
     def _sequence_fits_the_window(self):
@@ -155,16 +192,33 @@ class IgActionConfig(BaseModel):
         return [a.strip()[:300] for a in (v or []) if a and str(a).strip()]
 
 
-def validate_ig_rule(trigger: str, trigger_config: dict, action_config: dict) -> tuple[dict, dict]:
-    """Validated + normalised copies of both configs for an ig_* rule. Raises pydantic.ValidationError."""
+COMMENT_TRIGGERS = ("ig_comment_received", "ig_live_comment_received")
+
+
+def validate_ig_rule(
+    trigger: str, trigger_config: dict, action_config: dict, tenant_id: str | None = None
+) -> tuple[dict, dict]:
+    """Validated + normalised copies of both configs for an ig_* rule. Raises pydantic.ValidationError / ValueError."""
     t = IgTriggerConfig(**(trigger_config or {}))
+    if trigger not in COMMENT_TRIGGERS:
+        t.mention_only = False
     if (
         trigger in ("ig_comment_received", "ig_live_comment_received", "ig_dm_received", "ig_story_reply_received")
         and not t.reply_all
+        and not t.mention_only
         and not t.keywords
     ):
         raise ValueError("Add at least one keyword, or choose 'any comment'.")
     a = IgActionConfig(**(action_config or {}))
+    if not a.send_dm:
+        if trigger not in COMMENT_TRIGGERS:
+            raise ValueError("'Public reply only' works for comments; other automations always answer in the DM.")
+        if not a.public_ack_pool:
+            raise ValueError("Add at least one public reply: with 'Public reply only' it is the whole answer.")
+    if a.attachment and tenant_id and not a.attachment.key.startswith(f"{tenant_id}/ig_automations/"):
+        raise ValueError("Upload the photo or video again.")
+    if a.share_post.enabled and not a.share_post.media_id and trigger not in COMMENT_TRIGGERS:
+        raise ValueError("Pick the post or reel to share.")
     return t.model_dump(exclude_none=True), a.model_dump(exclude_none=True)
 
 
