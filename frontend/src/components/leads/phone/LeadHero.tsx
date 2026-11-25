@@ -10,6 +10,7 @@ import { useSegment } from "@/lib/segments";
 import { ChevronDown } from "@/lib/icons";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { RowTag } from "@/components/ui/kit";
+import { EditableName } from "@/components/leads/lead-page/EditableName";
 import { channelName, istDate, nights } from "@/components/leads/lead-page/format";
 import type { OutcomeView } from "@/components/leads/lead-page/OutcomeSheet";
 import type { LeadDetail, LeadFeed } from "@/components/leads/lead-page/types";
@@ -51,7 +52,8 @@ export function LeadHero({ lead, feed, stageLabel, canEdit, onStage, onOwner }: 
       <div className="flex min-w-0 items-center gap-3">
         <GuestAvatar name={lead.display_name} size="lg" />
         <div className="grid min-w-0 flex-1">
-          <h1 className="haip-page-title haip-page-title--keep truncate text-[20px] leading-tight">{lead.display_name}</h1>
+          <EditableName inquiryId={lead.inquiry_id} name={lead.display_name} canEdit={canEdit}
+            className="haip-page-title haip-page-title--keep truncate text-[20px] leading-tight" />
           <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[var(--haip-fg-subtle)]">
             <button type="button" onClick={onStage} disabled={!canEdit} aria-haspopup="dialog" aria-label={`Stage: ${stageLabel || "none"}`} className={`${chip} text-primary disabled:opacity-90`}>
               {stageLabel || "No stage"}{canEdit && <ChevronDown size={13} aria-hidden />}

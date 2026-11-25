@@ -255,3 +255,33 @@ def test_patch_inquiry_saves_route_pickup_and_special_requests(client, db, tenan
     client.patch(f"/api/v1/inquiries/{inq.id}", headers=headers, json={"pickup": "", "special_requests": ""})
     db.refresh(inq)
     assert "pickup" not in (inq.custom_fields or {}) and inq.special_requests is None
+
+
+def test_patch_inquiry_renames_the_guest_audited_never_empty(client, db, tenant_and_user):
+    tenant, owner = tenant_and_user["tenant"], tenant_and_user["user"]
+    g, inq = _lead(db, tenant.id, owner.id)
+    headers = _owner_headers(tenant_and_user)
+
+    res = client.patch(f"/api/v1/inquiries/{inq.id}", headers=headers, json={"guest_name": "  Sharath Nayak "})
+    assert res.status_code == 200, res.text
+    db.refresh(g)
+    assert g.name == "Sharath Nayak"
+    audit = db.query(AuditEvent).filter_by(tenant_id=tenant.id, action="guest.renamed", target_id=g.id).one()
+    assert "Sharath" not in str(audit.payload)   # who renamed whom, not the names
+
+    assert client.patch(f"/api/v1/inquiries/{inq.id}", headers=headers, json={"guest_name": "   "}).status_code == 422
+    db.refresh(g)
+    assert g.name == "Sharath Nayak"
+
+
+def test_patch_inquiry_cannot_rename_another_workspaces_guest(client, db, tenant_and_user):
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)
+    db.commit()
+    other_owner, _ = _user(db, other.id, UserRole.OWNER)
+    g, inq = _lead(db, other.id, other_owner.id)
+
+    res = client.patch(f"/api/v1/inquiries/{inq.id}", headers=_owner_headers(tenant_and_user), json={"guest_name": "Hacked"})
+    assert res.status_code == 404
+    db.refresh(g)
+    assert g.name == "Sharath N"
