@@ -214,7 +214,7 @@ def check_all_tenants():
     """Fan out -- one check_tenant_credentials subtask per active tenant."""
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
     finally:
         db.close()
 
@@ -351,7 +351,7 @@ def check_instagram_dm_access_all():
     """Fan out -- one Instagram message-access probe per active tenant."""
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
     finally:
         db.close()
 

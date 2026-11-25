@@ -58,7 +58,7 @@ def nightly_purge():
 
 def _get_all_tenant_ids(db) -> list[str]:
     from app.models.tenant import Tenant
-    return [t.id for t in db.query(Tenant).filter_by(is_active=True).all()]
+    return [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
 
 
 def _purge_tenant(db, tenant_id: str) -> None:

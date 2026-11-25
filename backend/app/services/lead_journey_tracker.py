@@ -5,7 +5,8 @@ Two ways a milestone gets written, both write-once (a guarded UPDATE ... WHERE c
 earlier time):
   * explicit marks, for things no other table records: an agent opened the lead (``record_view``), a click-to-call that may
     never connect (``record_call_attempt``), the "new lead for you" push (``record_notified``);
-  * ``refresh`` (beat every 5 minutes through ``sweep_tenant``), which reads the source rows: the enquiry (received,
+  * ``refresh`` (beat through ``sweep_tenant``: open enquiries of the last 2 days every 5 minutes, of the last 30 days every
+    30 minutes; closed ones stop a day after closing), which reads the source rows: the enquiry (received,
     assigned), calls (first attempt, first connected), the shared contact rule (work_queue_signals.touch_rows: first human
     contact and its channel), shared quotes (proposal sent or copied, delivered, read) and the playbook log.
 The outcome (active / won / lost / closed) follows the lead's stage (``on_stage_changed``, hooked on both stage paths).
@@ -18,8 +19,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
 import structlog
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.core.events import emit_event
 from app.models.call import Call, CallDirection
@@ -32,6 +34,7 @@ log = structlog.get_logger()
 
 SWEEP_WINDOW = timedelta(days=30)
 SWEEP_LIMIT = 500
+CLOSED_GRACE = timedelta(days=1)   # a won / lost / closed lead is still swept this long after closing, then left alone
 
 
 def _now() -> datetime:
@@ -138,11 +141,7 @@ def record_notified(db: Session, inquiry: Inquiry, user_id: Optional[str], why: 
                    inquiry_id=inquiry.id, payload={"user_id": user_id, "why": why}, preview=f"Team notified: {why}")
 
 
-def outcome_of(db: Session, inquiry: Inquiry) -> str:
-    if not inquiry.stage_id:
-        return "active"
-    from app.models.pipeline_stage import PipelineStage
-    st = db.query(PipelineStage).filter_by(id=inquiry.stage_id, tenant_id=inquiry.tenant_id).first()
+def _stage_outcome(st) -> str:
     if st is None:
         return "active"
     if st.is_closed_won:
@@ -154,10 +153,19 @@ def outcome_of(db: Session, inquiry: Inquiry) -> str:
     return "active"
 
 
+def outcome_of(db: Session, inquiry: Inquiry) -> str:
+    if not inquiry.stage_id:
+        return "active"
+    from app.models.pipeline_stage import PipelineStage
+    return _stage_outcome(db.query(PipelineStage).filter_by(id=inquiry.stage_id, tenant_id=inquiry.tenant_id).first())
+
+
 def on_stage_changed(db: Session, inquiry: Inquiry) -> None:
     """Follow the lead's stage: the outcome is the only journey field that can change back (a lost lead reopened)."""
-    row = ensure(db, inquiry)
-    outcome = outcome_of(db, inquiry)
+    _set_outcome(db, inquiry, ensure(db, inquiry), outcome_of(db, inquiry))
+
+
+def _set_outcome(db: Session, inquiry: Inquiry, row: LeadJourney, outcome: str) -> None:
     if row.outcome == outcome:
         return
     row.outcome = outcome
@@ -197,14 +205,24 @@ def on_message_status(db: Session, tenant_id: str, message, meta_status: str) ->
 def refresh(db: Session, tenant_id: str, inquiries: Iterable[Inquiry]) -> int:
     """Fill every milestone the source rows can prove for these enquiries. Returns how many columns were filled."""
     from app.models.inquiry_360 import InquiryQuote
+    from app.models.pipeline_stage import PipelineStage
     from app.services import call_status_service
-    from app.services.work_queue_signals import touch_rows
+    from app.services.work_queue_signals import call_rows, touch_rows
 
     inquiries = [i for i in inquiries if i is not None and i.guest_id]
     if not inquiries:
         return 0
+    inq_ids = [i.id for i in inquiries]
+    # One read for the batch's journey rows and one for their stages (they were read per enquiry, several times each).
+    rows = {r.inquiry_id: r for r in db.query(LeadJourney).filter(LeadJourney.tenant_id == tenant_id,
+                                                                  LeadJourney.inquiry_id.in_(inq_ids))}
     for inq in inquiries:
-        ensure(db, inq)
+        if inq.id not in rows:
+            rows[inq.id] = ensure(db, inq)
+    stage_ids = {i.stage_id for i in inquiries if i.stage_id}
+    stages = ({st.id: st for st in db.query(PipelineStage).filter(PipelineStage.tenant_id == tenant_id,
+                                                                  PipelineStage.id.in_(stage_ids))}
+              if stage_ids else {})
     since_by_guest: dict[str, datetime] = {}
     for inq in inquiries:
         at = _aware(inq.created_at) or _now()
@@ -212,9 +230,7 @@ def refresh(db: Session, tenant_id: str, inquiries: Iterable[Inquiry]) -> int:
     touches = touch_rows(db, tenant_id, since_by_guest)
     guest_ids = list(since_by_guest)
     earliest = min(since_by_guest.values())
-    calls = (db.query(Call).filter(Call.tenant_id == tenant_id, Call.guest_id.in_(guest_ids), Call.created_at >= earliest)
-             .order_by(Call.created_at).all())
-    inq_ids = [i.id for i in inquiries]
+    calls = call_rows(db, tenant_id, guest_ids, earliest)
     quotes = (db.query(InquiryQuote).filter(InquiryQuote.tenant_id == tenant_id, InquiryQuote.inquiry_id.in_(inq_ids),
                                             InquiryQuote.shared_at.isnot(None)).order_by(InquiryQuote.shared_at).all())
     autos: dict[str, int] = {}
@@ -246,18 +262,30 @@ def refresh(db: Session, tenant_id: str, inquiries: Iterable[Inquiry]) -> int:
             mode = "copied" if quote.shared_via == "copied" else "sent"
             fields.update(proposal_shared_at=_aware(quote.shared_at), proposal_mode=mode,
                           proposal_channel="copied" if mode == "copied" else "whatsapp")
-        filled += mark(db, tenant_id, inq.id, **fields)
-        row = db.query(LeadJourney).filter_by(tenant_id=tenant_id, inquiry_id=inq.id).first()
+        row = rows.get(inq.id)
+        # Only what is still empty on the row: a filled milestone never changes, so there is nothing to send for it.
+        todo = {k: v for k, v in fields.items() if v is not None and (row is None or getattr(row, k) is None)}
+        if todo:
+            filled += mark(db, tenant_id, inq.id, **todo)
         if row is not None:
-            row.auto_messages = autos.get(inq.id, 0)
-            on_stage_changed(db, inq)
+            if row.auto_messages != autos.get(inq.id, 0):
+                row.auto_messages = autos.get(inq.id, 0)
+            _set_outcome(db, inq, row, _stage_outcome(stages.get(inq.stage_id)))
     return filled
 
 
-def sweep_tenant(db: Session, tenant_id: str, now: Optional[datetime] = None) -> dict:
-    """Refresh recent enquiries (created in the last 30 days, or still open). Bounded; the caller commits."""
+def sweep_tenant(db: Session, tenant_id: str, now: Optional[datetime] = None, window: timedelta = SWEEP_WINDOW) -> dict:
+    """Refresh enquiries created within ``window`` that are open, new (no journey yet) or closed less than a day ago.
+    A lead that has been won / lost / closed for longer is left alone: its stage hook (on_stage_changed) still follows a
+    reopen, and the lead page refreshes its own journey on read. Bounded; the caller commits."""
     now = now or _now()
-    recent = (db.query(Inquiry).filter(Inquiry.tenant_id == tenant_id, Inquiry.created_at >= now - SWEEP_WINDOW)
+    recent = (db.query(Inquiry)
+              .options(load_only(Inquiry.id, Inquiry.tenant_id, Inquiry.guest_id, Inquiry.created_at, Inquiry.source,
+                                 Inquiry.assigned_at, Inquiry.assigned_to, Inquiry.stage_id, Inquiry.lost_reason))
+              .outerjoin(LeadJourney, and_(LeadJourney.inquiry_id == Inquiry.id, LeadJourney.tenant_id == tenant_id))
+              .filter(Inquiry.tenant_id == tenant_id, Inquiry.created_at >= now - window,
+                      or_(LeadJourney.id.is_(None), LeadJourney.outcome == "active",
+                          LeadJourney.outcome_at >= now - CLOSED_GRACE))
               .order_by(Inquiry.created_at.desc()).limit(SWEEP_LIMIT).all())
     filled = 0
     for i in range(0, len(recent), 100):

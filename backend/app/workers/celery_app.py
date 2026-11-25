@@ -513,9 +513,18 @@ celery_app.conf.beat_schedule = {
         "task": "lead_followups.sweep_all_tenants",
         "schedule": crontab(minute="6,21,36,51"),
     },
+    # Lead journey milestones (lead_journey_tracker.sweep_tenant, open enquiries only). New enquiries every 5 minutes, so the
+    # 15-minute "first contact" SLA reads right; the 30-day window only every 30 minutes (it was every 5 minutes and was most
+    # of the database's outbound traffic, Nov 2026).
     "lead-journey-sweep-5min": {
         "task": "lead_journey.sweep_all_tenants",
-        "schedule": crontab(minute="4,9,14,19,24,29,34,39,44,49,54,59"),
+        "schedule": crontab(minute="4,9,14,24,29,34,39,44,54,59"),
+        "kwargs": {"window_days": 2},
+    },
+    "lead-journey-sweep-30min": {
+        "task": "lead_journey.sweep_all_tenants",
+        "schedule": crontab(minute="19,49"),
+        "kwargs": {"window_days": 30},
     },
     # Ops escalation (ops_escalation.py): critical items have a 5-minute ack window, so this runs every minute.
     "ops-escalation-tick-1min": {

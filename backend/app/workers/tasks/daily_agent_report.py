@@ -96,7 +96,7 @@ def daily_agent_report_all_tenants():
 
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
         if batch.enabled("agent_performance_narrative"):
             # Claude Message Batches (half price): the emails go out when the batch ends, usually within the hour. The
             # day is pinned now, so an email sent after midnight still reports the day it was meant for.

@@ -106,6 +106,69 @@ def test_view_outcome_and_isolation(db, tenant_and_user):
     assert row.outcome == "lost" and row.lost_reason == "budget_mismatch" and row.outcome_at is not None
 
 
+def test_sweep_skips_leads_closed_over_a_day_ago_and_other_workspaces(db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    now = datetime.now(timezone.utc)
+    lost = PipelineStage(tenant_id=tid, key="lost", label="Lost", category="valid", is_closed_lost=True, order=5)
+    db.add(lost)
+    db.commit()
+    _, open_lead = _lead(db, tid, created=now - timedelta(days=1))
+    _, closed_long_ago = _lead(db, tid, created=now - timedelta(days=10))
+    _, closed_today = _lead(db, tid, created=now - timedelta(days=10))
+    _, newly_lost = _lead(db, tid, created=now - timedelta(days=1))
+    _, too_old = _lead(db, tid, created=now - timedelta(days=40))
+    for inq, closed_at in ((closed_long_ago, now - timedelta(days=3)), (closed_today, now - timedelta(hours=2))):
+        inq.stage_id = lost.id
+        row = journey.ensure(db, inq)
+        row.outcome, row.outcome_at = "lost", closed_at
+    newly_lost.stage_id = lost.id                                 # no journey yet: swept once, outcome follows the stage
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)
+    db.commit()
+    _, theirs = _lead(db, other.id, created=now - timedelta(days=1))
+
+    out = journey.sweep_tenant(db, tid, now=now)
+    db.commit()
+    assert out["inquiries"] == 3                                  # open, closed today, newly lost
+    swept = {r.inquiry_id for r in db.query(LeadJourney).filter_by(tenant_id=tid)}
+    assert open_lead.id in swept and newly_lost.id in swept and too_old.id not in swept
+    assert db.query(LeadJourney).filter_by(inquiry_id=newly_lost.id).one().outcome == "lost"
+    assert db.query(LeadJourney).filter_by(inquiry_id=theirs.id).first() is None
+
+    assert journey.sweep_tenant(db, tid, now=now, window=timedelta(days=2))["inquiries"] == 2   # 5-minute pass: the 2 recent ones
+
+
+def test_refresh_reads_the_journey_rows_and_stages_once_per_batch(db, tenant_and_user):
+    from sqlalchemy import event
+
+    tid = _tid(tenant_and_user)
+    sold = PipelineStage(tenant_id=tid, key="sold", label="Sold", category="valid", is_closed_won=True, order=6)
+    db.add(sold)
+    db.commit()
+    leads = [_lead(db, tid)[1] for _ in range(4)]
+    for inq in leads:
+        inq.stage_id = sold.id
+    db.commit()
+    journey.refresh(db, tid, leads)                               # first pass creates the rows
+    db.commit()
+
+    seen: list[str] = []
+    engine = db.get_bind()
+
+    def count(conn, cursor, statement, *a):
+        if statement.lstrip().upper().startswith("SELECT"):
+            seen.append(statement)
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        journey.refresh(db, tid, leads)
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
+    assert sum("FROM lead_journeys" in s for s in seen) == 1
+    assert sum("FROM pipeline_stages" in s for s in seen) == 1
+    assert all("transcript" not in s for s in seen if "FROM calls" in s)   # calls: only the status columns
+    assert {r.outcome for r in db.query(LeadJourney).filter(LeadJourney.inquiry_id.in_([i.id for i in leads]))} == {"won"}
+
+
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
 def test_catalog_settings_and_roles(client, db, tenant_and_user, capabilities_seeded):

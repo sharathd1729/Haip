@@ -121,7 +121,7 @@ def agent_worklist_email_all_tenants(time_of_day: str = "morning"):
 
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
         queued = 0
         for tid in tenant_ids:
             for agent in _recipients(db, tid):

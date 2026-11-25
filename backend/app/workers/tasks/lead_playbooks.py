@@ -4,8 +4,9 @@
                                     call turns out to be voicemail/no answer): runs P1 missed call / P2 no answer
   lead_playbooks.on_callback_tap    the WhatsApp webhook queues it when a guest taps "Call me back" on a playbook message
   lead_playbooks.drain_due          beat, every minute: runs whose time has come (safety net for a lost on_call)
-  lead_journey.sweep_all_tenants    beat, every 5 minutes: fan out lead_journey.sweep_tenant
-  lead_journey.sweep_tenant         refresh the journey milestones of recent enquiries
+  lead_journey.sweep_all_tenants    beat: every 5 minutes for enquiries of the last 2 days, every 30 minutes for the last 30
+                                    days (window_days); fans out lead_journey.sweep_tenant
+  lead_journey.sweep_tenant         refresh the journey milestones of recent open enquiries
   lead_alerts.tick_all_tenants      beat, every 2 minutes: fan out lead_alerts.tick_tenant
   lead_alerts.tick_tenant           team alerts (P3/P4): climb the ladder for items waiting in My day
   lead_followups.sweep_all_tenants  beat, every 15 minutes: fan out lead_followups.sweep_tenant
@@ -73,12 +74,14 @@ def drain_due() -> dict:
 
 
 @shared_task(name="lead_journey.sweep_tenant")
-def sweep_tenant(tenant_id: str) -> dict:
+def sweep_tenant(tenant_id: str, window_days: int = 30) -> dict:
+    from datetime import timedelta
+
     from app.services import lead_journey_tracker as journey
     db = SessionLocal()
     try:
         set_tenant_context(db, tenant_id)
-        out = journey.sweep_tenant(db, tenant_id)
+        out = journey.sweep_tenant(db, tenant_id, window=timedelta(days=window_days))
         db.commit()
         return out
     except Exception:
@@ -90,14 +93,14 @@ def sweep_tenant(tenant_id: str) -> dict:
 
 
 @shared_task(name="lead_journey.sweep_all_tenants")
-def sweep_all_tenants() -> dict:
+def sweep_all_tenants(window_days: int = 30) -> dict:
     db = SessionLocal()
     try:
-        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+        tenant_ids = [t.id for t in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all()]
     finally:
         db.close()
     for tid in tenant_ids:
-        sweep_tenant.delay(tid)
+        sweep_tenant.delay(tid, window_days)
     return {"tenants_queued": len(tenant_ids)}
 
 

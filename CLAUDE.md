@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.5 · **Owner**: Sharath D. · **Updated**: 22 Nov 2026 (Alembic head `218`)
+**Version**: 2.5 · **Owner**: Sharath D. · **Updated**: 25 Nov 2026 (Alembic head `218`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -251,7 +251,7 @@ Every table must have tenant_id.
   never-expiring System User token (keep `ads_read`, `business_management`, WhatsApp scopes).
 - Prod DB pool is capped via `DB_POOL_SIZE=3` / `DB_MAX_OVERFLOW=2` in `backend/.env` after
   Supabase `EMAXCONNSESSION`; prod uses `create_all` at startup, so migrations must be idempotent
-  (`IF NOT EXISTS`, guarded RLS policy).
+  (`IF NOT EXISTS`, guarded RLS policy). **Supabase Pro since 25 Nov 2026** (free 5 GB/month egress hit 117 GB; most of it was the 5-minute lead journey sweep). Beat jobs must read narrowly: batch per page (no per-row SELECT loops), name the columns (`work_queue_signals.call_rows`, never whole `Call` rows with transcripts; `db.query(Tenant.id)` to fan out), skip closed records; the journey sweep runs open leads of 2 days every 5 min, of 30 days every 30 min (`window_days`). SSE refreshes My day at most every 10 s (`DashboardSSEBridge`).
 
 ## OPERATIONS MODULE (Oct 2026 — foundations [178], written as 131 on `feat/ops-foundations`; ops files [179]; readiness + fleet [180]; villa pack, no migration; packs for every segment [192])
 
