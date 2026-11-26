@@ -7,7 +7,7 @@ import api from "@/lib/api";
 
 const OPTIONS: [number, string][] = [[1, "1 hour"], [4, "4 hours"], [24, "24 hours"], [72, "3 days"], [168, "7 days"]];
 
-export function PauseAll() {
+export function PauseAll({ banner = false }: { banner?: boolean }) {
   const qc = useQueryClient();
   const [err, setErr] = useState("");
   const q = useQuery<{ paused_until: string | null }>({
@@ -21,8 +21,7 @@ export function PauseAll() {
   });
   const until = q.data?.paused_until ? new Date(q.data.paused_until) : null;
 
-  if (until) {
-    return (
+  if (banner) return !until ? null : (
       <div role="status" className="flex flex-wrap items-center gap-2 rounded-[12px] border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] px-3 py-2">
         <p className="min-w-0 flex-1 text-[14px] font-medium">
           All Instagram automations are paused until {until.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.
@@ -31,8 +30,8 @@ export function PauseAll() {
           className="min-h-11 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground disabled:opacity-60">Resume now</button>
         {err && <p role="alert" className="w-full text-[13px] text-[var(--haip-status-danger-fg)]">{err}</p>}
       </div>
-    );
-  }
+  );
+  if (until) return null;
   return (
     <label className="inline-flex items-center gap-2 text-[14px]">
       <span className="sr-only">Pause all automations</span>

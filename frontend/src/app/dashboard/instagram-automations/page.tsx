@@ -106,25 +106,28 @@ export default function InstagramAutomationsPage() {
   const openCopy = (r: IgRule, m: { id: string; thumb?: string; caption?: string }) => { setEditing(null); setCopyFrom(r); setPreset(m); setOpen(true); };
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-5">
+    <div className="mx-auto grid max-w-5xl gap-5 px-3 py-4 sm:px-6">
       <AutomationsNav />
-      <PageHeader title="Instagram automations" subtitle="Reply to comments, story replies and DMs automatically: a public reply plus a DM with your link."
+      <PageHeader title="Instagram automations" subtitle="Auto-reply to comments, stories and DMs."
         actions={
-          <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setWelcomeOpen(true)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--haip-border)] px-4 text-[14.5px] font-medium">
-            <MessageSquare size={16} /> Welcome questions and menu
-          </button>
           <button type="button" onClick={openNew}
             className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[0.97]">
             <Plus size={16} /> New automation
           </button>
-          </div>
         } />
 
-      <PauseAll />
-      <Tabs label="Instagram automations" value={tab} onChange={setTab}
-        items={[{ value: "automations", label: "Automations" }, { value: "posts", label: "Posts" }]} />
+      <PauseAll banner />
+      <div className="flex flex-wrap items-center gap-2">
+        <Tabs label="Instagram automations" value={tab} onChange={setTab}
+          items={[{ value: "automations", label: "Automations" }, { value: "posts", label: "Posts" }]} />
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button type="button" onClick={() => setWelcomeOpen(true)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--haip-border)] px-4 text-[14px] font-medium">
+            <MessageSquare size={16} /> Welcome and menu
+          </button>
+          <PauseAll />
+        </div>
+      </div>
       {tab === "posts" ? <PostsBoard rules={ig} onSetUp={openForPost} onEdit={openEdit} onCopy={openCopy} /> : <>
       <PeriodBar value={period} onChange={setPeriod} />
       <AutomationsOverview period={period} onAdd={openForPost} />

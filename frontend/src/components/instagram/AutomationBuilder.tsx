@@ -2,7 +2,7 @@
 // Create / edit one Instagram automation (an automation_rules row; POST/PATCH /automations validates it server-side).
 import { useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, X } from "@/lib/icons";
+import { ChevronDown, Loader2, Plus, X } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Drawer } from "@/components/ui/kit";
@@ -19,13 +19,80 @@ const COMMENT_TRIGGERS: string[] = ["ig_comment_received", "ig_live_comment_rece
 // "Public reply only" sends no DM, so the default replies must not say "check your DMs".
 const PUBLIC_ONLY_ACKS = ["Thank you!", "Thanks for the love!", "So glad you like it!"];
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+// ReplyRush-style layout (Nov 2026): three numbered steps (Trigger, Message, Options), options as on/off cards that show
+// their settings only when on, and "Add to the message" chips instead of a long list of toggles.
+function Step({ n, title, hint, children }: { n: number; title: string; hint?: string; children: ReactNode }) {
   return (
-    <section className="border-b border-[var(--haip-border)] py-4 first:pt-0 last:border-b-0">
-      <h3 className="text-[14.5px] font-semibold text-[var(--haip-fg)]">{title}</h3>
-      {hint && <p className="mt-0.5 text-[13px] text-[var(--haip-fg-subtle)]">{hint}</p>}
-      <div className="mt-3 grid gap-3">{children}</div>
-    </section>
+    <details open className="group rounded-[16px] border border-[var(--haip-border)] bg-[var(--haip-card)]">
+      <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--haip-primary-tint)] text-[13px] font-bold text-primary">{n}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-[var(--haip-fg)]">{title}</span>
+          {hint && <span className="block text-[12.5px] text-[var(--haip-fg-subtle)]">{hint}</span>}
+        </span>
+        <ChevronDown size={16} aria-hidden className="shrink-0 text-[var(--haip-fg-subtle)] transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="grid gap-4 border-t border-[var(--haip-border)] px-4 py-4">{children}</div>
+    </details>
+  );
+}
+
+function Group({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-2">
+      <div>
+        <p className="text-[14px] font-semibold text-[var(--haip-fg)]">{label}</p>
+        {hint && <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Panel({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-2 rounded-[12px] bg-[var(--haip-surface)] p-3">
+      <div>
+        <p className="text-[13.5px] font-semibold">{title}</p>
+        {hint && <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Chips<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: readonly (readonly [T, string])[] }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map(([v, l]) => (
+        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={value === v}
+          className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
+            value === v ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
+function AddChip({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on}
+      className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[13.5px] font-medium",
+        on ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-dashed border-[var(--haip-border-strong)] text-[var(--haip-fg-2)]")}>
+      {on ? <X size={13} aria-hidden /> : <Plus size={13} aria-hidden />} {label}
+    </button>
+  );
+}
+
+function OptionCard({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint: string }) {
+  return (
+    <label className={cn("flex min-h-[72px] cursor-pointer items-start gap-3 rounded-[12px] border p-3 transition-colors",
+      checked ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] bg-[var(--haip-card)] hover:border-[var(--haip-border-strong)]")}>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-semibold text-[var(--haip-fg)]">{title}</span>
+        <span className="block text-[12.5px] leading-snug text-[var(--haip-fg-subtle)]">{hint}</span>
+      </span>
+      <input type="checkbox" role="switch" checked={checked} onChange={e => onChange(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]" />
+    </label>
   );
 }
 
@@ -117,6 +184,7 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
   const [oncePerPost, setOncePerPost] = useState(!!ac0.once_per_post);
   const [delay, setDelay] = useState(ac0.delay_seconds ?? 0);
   const [attachment, setAttachment] = useState<IgAttachment | null>(ac0.attachment ?? null);
+  const [attachOpen, setAttachOpen] = useState(!!ac0.attachment);
   const [sharePost, setSharePost] = useState<IgSharePost>(ac0.share_post ?? { enabled: false });
   const [sendExisting, setSendExisting] = useState(false);
   const [variants, setVariants] = useState<string[]>(ac0.message_variants ?? []);
@@ -218,20 +286,19 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
           </div>
         </div>
       }>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
-        <div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="grid min-w-0 content-start gap-3">
           {!initial && (
-            <Section title="Start from a template" hint="Fills in everything below. Change anything you like.">
-              <div className="flex flex-wrap gap-2">
-                {TEMPLATES.map(t => (
-                  <button key={t.key} type="button" onClick={() => applyTemplate(t)} title={t.hint}
-                    className="min-h-11 rounded-full border border-[var(--haip-border)] px-4 text-[13.5px] font-medium hover:border-primary">{t.label}</button>
-                ))}
-              </div>
-            </Section>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[13px] font-medium text-[var(--haip-fg-muted)]">Start from a template:</span>
+              {TEMPLATES.map(t => (
+                <button key={t.key} type="button" onClick={() => applyTemplate(t)} title={t.hint}
+                  className="min-h-11 rounded-full border border-[var(--haip-border)] px-3 text-[13px] font-medium hover:border-primary">{t.label}</button>
+              ))}
+            </div>
           )}
 
-          <Section title="When">
+          <Step n={1} title="Trigger" hint={triggerMeta(trigger)?.hint}>
             <div className="grid grid-cols-2 gap-2">
               {TRIGGERS.map(t => (
                 <button key={t.value} type="button" onClick={() => setTrigger(t.value)} aria-pressed={trigger === t.value}
@@ -241,153 +308,120 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
                 </button>
               ))}
             </div>
-            <p className="text-[13px] text-[var(--haip-fg-subtle)]">{triggerMeta(trigger)?.hint}</p>
-          </Section>
 
-          {trigger === "ig_comment_received" && (
-            <Section title="Which posts">
-              <div className="flex flex-wrap gap-2">
-                {([["post", "A specific post or reel"], ["any", "Any post"], ["next_post", "My next post"], ["caption_code", "Posts with a caption code"]] as const).map(([v, l]) => (
-                  <button key={v} type="button" onClick={() => setScope(v)} aria-pressed={scope === v}
-                    className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
-                      scope === v ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{l}</button>
+            {trigger === "ig_comment_received" && (
+              <Group label="Which posts">
+                <Chips value={scope} onChange={setScope} options={[["post", "One post or reel"], ["any", "Any post"], ["next_post", "My next post"], ["caption_code", "Caption code"]]} />
+                {scope === "caption_code" && (
+                  <div className="grid gap-1">
+                    <input className={field} value={captionCode} maxLength={31} onChange={e => setCaptionCode(e.target.value)} placeholder="e.g. JADE1" aria-label="Caption code" />
+                    <p className="text-[13px] text-[var(--haip-fg-subtle)]">Put #{(captionCode.trim().replace(/^#/, "") || "JADE1").toUpperCase()} in a caption and this runs on that post, old or new.</p>
+                  </div>
+                )}
+                {scope === "post" && <MediaPicker value={media.id} onPick={m => setMedia({ id: m.id, thumb: m.thumbnail ?? "", caption: m.caption })} />}
+                {scope === "next_post" && (
+                  <p className="text-[13px] text-[var(--haip-fg-subtle)]">
+                    {tc0.scope === "next_post" && tc0.media_id ? "Now running on the post you published after creating it." : "Starts on the first post or reel you publish after turning this on."}
+                  </p>
+                )}
+              </Group>
+            )}
+
+            {isGlobal && (
+              <Group label="Where it works" hint="Automations made for one place answer first; this one covers the rest.">
+                <SurfacesField value={surfaces} onChange={setSurfaces} />
+              </Group>
+            )}
+
+            {!keywordOptional && (
+              <Group label="Reply to" hint="Keywords are whole words in any capitals: PRICE matches “price?” and “Price pls”.">
+                <Chips value={matchMode} onChange={v => { setReplyAll(v === "all"); setMention(v === "mention"); }}
+                  options={isComment ? [["keywords", "Keywords"], ["all", "Every comment"], ["mention", "Tags someone (@)"]] : [["keywords", "Keywords"], ["all", "Every message"]]} />
+                {mention && <p className="text-[13px] text-[var(--haip-fg-subtle)]">Replies when a comment tags another account, e.g. “@meera look at this”. Good for “tag a friend” posts.</p>}
+                {!replyAll && !mention && <Keywords value={keywords} onChange={setKeywords} placeholder="e.g. PRICE, BOOK, LINK" />}
+                <details className="text-[14px]" open={excludes.length > 0}>
+                  <summary className="min-h-11 cursor-pointer py-2 font-medium text-[var(--haip-fg-muted)]">Skip messages containing…</summary>
+                  <Keywords value={excludes} onChange={setExcludes} placeholder="e.g. scam, refund" />
+                </details>
+              </Group>
+            )}
+          </Step>
+
+          <Step n={2} title="Message" hint={dm ? "What they see. Use {first_name} for their name." : "Only the public reply goes out."}>
+            {isComment && (
+              <Group label="Public reply under the comment" hint="One is picked at random, so replies don't look copy-pasted.">
+                {acks.map((a, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input className={field} value={a} maxLength={300} aria-label={`Public reply ${i + 1}`} onChange={e => setAcks(acks.map((x, j) => (j === i ? e.target.value : x)))} />
+                    <button type="button" aria-label="Remove reply" onClick={() => setAcks(acks.filter((_, j) => j !== i))} className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--haip-border)]"><X size={15} /></button>
+                  </div>
                 ))}
-              </div>
-              {scope === "caption_code" && (
-                <div className="grid gap-1">
-                  <input className={field} value={captionCode} maxLength={31} onChange={e => setCaptionCode(e.target.value)} placeholder="e.g. JADE1" aria-label="Caption code" />
-                  <p className="text-[13px] text-[var(--haip-fg-subtle)]">Put #{(captionCode.trim().replace(/^#/, "") || "JADE1").toUpperCase()} in a post caption and this automation runs on that post, old or new.</p>
-                </div>
-              )}
-              {scope === "post" && <MediaPicker value={media.id} onPick={m => setMedia({ id: m.id, thumb: m.thumbnail ?? "", caption: m.caption })} />}
-              {scope === "next_post" && (
-                <p className="text-[13px] text-[var(--haip-fg-subtle)]">
-                  {tc0.scope === "next_post" && tc0.media_id ? "Now running on the post you published after creating it." : "Starts on the first post or reel you publish after turning this on."}
-                </p>
-              )}
-            </Section>
-          )}
-
-          {isGlobal && (
-            <Section title="Where it works" hint="Automations made for one place (a post, DMs…) answer first; this one covers the rest.">
-              <SurfacesField value={surfaces} onChange={setSurfaces} />
-            </Section>
-          )}
-
-          {!keywordOptional && (
-            <Section title="Keywords" hint="Whole words, any capitalisation. PRICE matches “price?” and “Price pls”.">
-              {isComment ? (
-                <div className="flex flex-wrap gap-2">
-                  {([["keywords", "Keywords"], ["all", "Every comment"], ["mention", "Tags someone (@)"]] as const).map(([v, l]) => (
-                    <button key={v} type="button" aria-pressed={matchMode === v}
-                      onClick={() => { setReplyAll(v === "all"); setMention(v === "mention"); }}
-                      className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
-                        matchMode === v ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{l}</button>
-                  ))}
-                </div>
-              ) : <Toggle checked={replyAll} onChange={setReplyAll} label="Reply to every message" hint="No keyword needed." />}
-              {mention && <p className="text-[13px] text-[var(--haip-fg-subtle)]">Replies when a comment tags another account, e.g. “@meera look at this”. Good for “tag a friend” posts.</p>}
-              {!replyAll && !mention && <Keywords value={keywords} onChange={setKeywords} placeholder="e.g. PRICE, BOOK, LINK" />}
-              <details className="text-[14px]">
-                <summary className="min-h-11 cursor-pointer py-2 font-medium text-[var(--haip-fg-muted)]">Skip messages containing…</summary>
-                <Keywords value={excludes} onChange={setExcludes} placeholder="e.g. scam, refund" />
-              </details>
-            </Section>
-          )}
-
-          {isComment && (
-            <Section title="Public reply under the comment" hint="One is picked at random each time, so replies don't look copy-pasted.">
-              {!isGlobal && <Toggle checked={!sendDm} label="Public reply only, no DM" hint="HAIP answers under the comment and sends nothing in the DMs."
-                onChange={v => {
-                  setSendDm(!v);
-                  const same = (a: string[], b: string[]) => a.join("|") === b.join("|");
-                  if (v && same(acks, DEFAULT_ACKS)) setAcks(PUBLIC_ONLY_ACKS);
-                  if (!v && same(acks, PUBLIC_ONLY_ACKS)) setAcks(DEFAULT_ACKS);
-                }} />}
-              {acks.map((a, i) => (
-                <div key={i} className="flex gap-2">
-                  <input className={field} value={a} maxLength={300} onChange={e => setAcks(acks.map((x, j) => (j === i ? e.target.value : x)))} />
-                  <button type="button" aria-label="Remove reply" onClick={() => setAcks(acks.filter((_, j) => j !== i))} className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--haip-border)]"><X size={15} /></button>
-                </div>
-              ))}
-              {acks.length < 10 && (
-                <button type="button" onClick={() => setAcks([...acks, ""])} className="inline-flex min-h-11 items-center gap-1.5 self-start text-[14px] font-medium text-primary"><Plus size={15} /> Add a variation</button>
-              )}
-            </Section>
-          )}
-
-          {dm && <>
-          <Section title="Collect details in the DM" hint="HAIP asks a few short questions, one at a time. When the WhatsApp number arrives, the person becomes a lead.">
-            <Toggle checked={form.enabled} onChange={v => setForm({ ...form, enabled: v })} label="Ask questions before the final message"
-              hint="Typed answers work as well as the tap options. Asking for a person or saying stop ends it." />
-            {form.enabled && <FormQuestions value={form.questions} onChange={questions => setForm({ ...form, questions })} />}
-          </Section>
-
-          <Section title={form.enabled ? "After the last answer" : "The DM"} hint={form.enabled ? "Use {first_name} for their name and {agent_name} for the person the lead is assigned to." : "Use {first_name} for their name."}>
-            <textarea className={area} value={message} maxLength={900} onChange={e => setMessage(e.target.value)}
-              placeholder="Hi {first_name}! Here are our packages and prices…" />
-            <Toggle checked={withButton} onChange={setWithButton} label="Add a link button" hint="Clicks are counted in the stats." />
-            {withButton && (
-              <div className="grid gap-2 sm:grid-cols-[160px_1fr]">
-                <input className={field} value={button.title} maxLength={20} onChange={e => setButton({ ...button, title: e.target.value })} placeholder="Button text" aria-label="Button text" />
-                <input className={field} value={button.url} onChange={e => setButton({ ...button, url: e.target.value })} placeholder="https://…" inputMode="url" aria-label="Button link" />
-              </div>
+                {acks.length < 10 && (
+                  <button type="button" onClick={() => setAcks([...acks, ""])} className="inline-flex min-h-11 items-center gap-1.5 self-start text-[14px] font-medium text-primary"><Plus size={15} /> Add a variation</button>
+                )}
+              </Group>
             )}
-            <VariantsField value={variants} onChange={setVariants} />
-            <details className="text-[14px]" open={quickReplies.length > 0}>
-              <summary className="min-h-11 cursor-pointer py-2 font-medium text-[var(--haip-fg-muted)]">Quick reply buttons</summary>
-              <QuickRepliesField value={quickReplies} onChange={setQuickReplies} />
-            </details>
-            <AttachmentField value={attachment} onChange={setAttachment} />
-            <details className="text-[14px]" open={cards.length > 0}>
-              <summary className="min-h-11 cursor-pointer py-2 font-medium text-[var(--haip-fg-muted)]">Swipeable cards</summary>
-              <CardsField value={cards} onChange={setCards} />
-            </details>
-            <Toggle checked={sharePost.enabled} onChange={v => setSharePost(v ? { enabled: true, media_id: isComment ? null : "" } : { enabled: false })}
-              label="Share one of your posts" hint="Sent after the message. Instagram only shares your own posts and reels." />
-            {sharePost.enabled && <SharePostField value={sharePost} onChange={setSharePost} isComment={isComment} />}
-            <Toggle checked={openerAlways} onChange={setOpenerAlways} label="Start with an opening message"
-              hint="The first DM asks them to tap; the message above follows the tap." />
-            {needsTap && (
-              <div className="rounded-[12px] bg-[var(--haip-surface)] p-3">
-                <p className="text-[13px] text-[var(--haip-fg-muted)]">{openerAlways ? "The opening message:" : "Instagram only allows a link, photo or post after they reply, so the first DM asks them to tap:"}</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px]">
-                  <input className={field} value={opener} maxLength={640} onChange={e => setOpener(e.target.value)} aria-label="First message" />
-                  <input className={field} value={openerButton} maxLength={20} onChange={e => setOpenerButton(e.target.value)} aria-label="Tap button text" />
+            {dm && (
+              <Group label={form.enabled ? "DM after the last answer" : "DM"} hint={form.enabled ? "Use {agent_name} for the person the lead is assigned to." : undefined}>
+                <textarea className={area} value={message} maxLength={900} onChange={e => setMessage(e.target.value)}
+                  placeholder="Hi {first_name}! Here are our packages…" aria-label="DM message" />
+                <VariantsField value={variants} onChange={setVariants} />
+                <div className="grid gap-1.5">
+                  <span className="text-[13px] font-medium text-[var(--haip-fg-muted)]">Add to the message</span>
+                  <div className="flex flex-wrap gap-2">
+                    <AddChip on={withButton} label="Link button" onClick={() => setWithButton(!withButton)} />
+                    <AddChip on={quickReplies.length > 0} label="Quick replies" onClick={() => setQuickReplies(quickReplies.length ? [] : [{ title: "", reply: "" }])} />
+                    <AddChip on={attachOpen} label="Photo or video" onClick={() => { if (attachOpen) setAttachment(null); setAttachOpen(!attachOpen); }} />
+                    <AddChip on={cards.length > 0} label="Cards" onClick={() => setCards(cards.length ? [] : [{ title: "", subtitle: "", buttons: [] }])} />
+                    <AddChip on={sharePost.enabled} label="Share a post" onClick={() => setSharePost(sharePost.enabled ? { enabled: false } : { enabled: true, media_id: isComment ? null : "" })} />
+                  </div>
                 </div>
-              </div>
+                {withButton && (
+                  <Panel title="Link button" hint="Clicks are counted in the stats.">
+                    <div className="grid gap-2 sm:grid-cols-[160px_1fr]">
+                      <input className={field} value={button.title} maxLength={20} onChange={e => setButton({ ...button, title: e.target.value })} placeholder="Button text" aria-label="Button text" />
+                      <input className={field} value={button.url} onChange={e => setButton({ ...button, url: e.target.value })} placeholder="https://…" inputMode="url" aria-label="Button link" />
+                    </div>
+                  </Panel>
+                )}
+                {quickReplies.length > 0 && <Panel title="Quick replies" hint="Tap buttons under the message; each sends its own answer."><QuickRepliesField value={quickReplies} onChange={setQuickReplies} /></Panel>}
+                {attachOpen && <Panel title="Photo or video"><AttachmentField value={attachment} onChange={setAttachment} /></Panel>}
+                {cards.length > 0 && <Panel title="Swipeable cards" hint="Up to 10, each with a photo and up to 3 link buttons."><CardsField value={cards} onChange={setCards} /></Panel>}
+                {sharePost.enabled && <Panel title="Share a post" hint="Instagram only shares your own posts and reels."><SharePostField value={sharePost} onChange={setSharePost} isComment={isComment} /></Panel>}
+                {needsTap && (
+                  <Panel title="Opening message" hint={openerAlways ? undefined : "Instagram allows a link, photo, cards or a post only after they reply, so the first DM asks them to tap."}>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_140px]">
+                      <input className={field} value={opener} maxLength={640} onChange={e => setOpener(e.target.value)} aria-label="Opening message" />
+                      <input className={field} value={openerButton} maxLength={20} onChange={e => setOpenerButton(e.target.value)} aria-label="Tap button text" />
+                    </div>
+                  </Panel>
+                )}
+              </Group>
             )}
-          </Section>
+          </Step>
 
-          <Section title="Suggest more" hint="After the final message, offer a button that shows your stays or packages as swipeable cards. Cards never show prices.">
-            <Toggle checked={suggest.enabled} onChange={v => setSuggest({ ...suggest, enabled: v })} label="Offer more options"
-              hint="“I'm interested” on a card notes their pick on the lead and hands the chat to your team." />
-            {suggest.enabled && (
-              <div className="grid gap-2">
-                <div className="flex flex-wrap gap-2">
-                  {([["stays", "Our stays"], ["packages", "Our packages"]] as const).map(([v, l]) => (
-                    <button key={v} type="button" onClick={() => setSuggest({ ...suggest, source: v })} aria-pressed={suggest.source === v}
-                      className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
-                        suggest.source === v ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{l}</button>
-                  ))}
-                </div>
-                <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
-                  <input className={field} value={suggest.prompt} maxLength={300} onChange={e => setSuggest({ ...suggest, prompt: e.target.value })} aria-label="Offer message" />
-                  <input className={field} value={suggest.button_title} maxLength={20} onChange={e => setSuggest({ ...suggest, button_title: e.target.value })} aria-label="Offer button text" />
-                </div>
-              </div>
-            )}
-          </Section>
+          <Step n={3} title="Options" hint="Switch on what you need. Each one shows its settings when it is on.">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {isComment && !isGlobal && <OptionCard checked={!sendDm} onChange={v => {
+                setSendDm(!v);
+                const same = (a: string[], b: string[]) => a.join("|") === b.join("|");
+                if (v && same(acks, DEFAULT_ACKS)) setAcks(PUBLIC_ONLY_ACKS);
+                if (!v && same(acks, PUBLIC_ONLY_ACKS)) setAcks(DEFAULT_ACKS);
+              }} title="Public reply only" hint="Answer under the comment, send no DM." />}
+              {dm && <OptionCard checked={openerAlways} onChange={setOpenerAlways} title="Opening message" hint="Start with a short DM and a tap button." />}
+              {dm && <OptionCard checked={gate.enabled} onChange={v => setGate({ ...gate, enabled: v })} title="Ask to follow first" hint="Send the message only to followers." />}
+              {dm && <OptionCard checked={form.enabled} onChange={v => setForm({ ...form, enabled: v })} title="Collect details" hint="Ask dates, guests, WhatsApp number, email." />}
+              {dm && <OptionCard checked={suggest.enabled} onChange={v => setSuggest({ ...suggest, enabled: v })} title="Suggest more" hint="Offer your stays or packages as cards." />}
+              {dm && <OptionCard checked={sequence.length > 0} onChange={v => setSequence(v ? [{ text: "", after_minutes: 60 }] : [])} title="Follow-ups" hint="Up to 3 more messages if they go quiet." />}
+              <OptionCard checked={once} onChange={setOnce} title="Once per person" hint="Someone who writes twice gets one reply." />
+              {once && isComment && scope !== "post" && <OptionCard checked={oncePerPost} onChange={setOncePerPost} title="Once per post" hint="Reply again to the same person on another post." />}
+              <OptionCard checked={delay > 0} onChange={v => setDelay(v ? 60 : 0)} title="Reply time" hint="Wait a little before replying." />
+              {trigger === "ig_comment_received" && <OptionCard checked={sendExisting} onChange={setSendExisting} title="Answer past comments" hint="Reply to matching comments from the last 7 days when you save." />}
+            </div>
 
-          <Section title="Follow-up messages" hint={isComment ? "Sent after the final message, which goes out once they tap. Up to 3." : "Sent after the final message. Up to 3."}>
-            <SequenceSteps value={sequence} onChange={setSequence} />
-          </Section>
-
-          <Section title="Ask to follow first">
-            <Toggle checked={gate.enabled} onChange={v => setGate({ ...gate, enabled: v })} label="Only send after they follow"
-              hint="HAIP checks with Instagram whether they follow you." />
-            {gate.enabled && (
-              <>
+            {delay > 0 && <Panel title="Reply time"><DelayField value={delay} onChange={setDelay} className={field} /></Panel>}
+            {dm && gate.enabled && (
+              <Panel title="Ask to follow first" hint="HAIP checks with Instagram whether they follow you.">
                 <textarea className={area} value={gate.ask_text} maxLength={640} onChange={e => setGate({ ...gate, ask_text: e.target.value })} aria-label="Follow request message" />
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input className={field} value={gate.button_title} maxLength={20} onChange={e => setGate({ ...gate, button_title: e.target.value })} aria-label="Follow button text" />
@@ -396,32 +430,35 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
                   </select>
                 </div>
                 <Toggle checked={gate.send_anyway} onChange={v => setGate({ ...gate, send_anyway: v })} label="Send anyway after the last ask" />
-              </>
+              </Panel>
             )}
-          </Section>
-
-          </>}
-
-          <Section title="Details">
-            <input className={field} value={name} maxLength={120} onChange={e => setName(e.target.value)} placeholder="Name, e.g. PRICE reel – monsoon offer" aria-label="Automation name" />
-            <Toggle checked={once} onChange={setOnce} label="Only once per person" hint="Someone who comments twice gets one reply." />
-            {once && isComment && scope !== "post" && (
-              <Toggle checked={oncePerPost} onChange={setOncePerPost} label="Once per post, not once overall" hint="The same person gets a reply again on a different post." />
+            {dm && form.enabled && (
+              <Panel title="Collect details" hint="Asked one at a time before the DM. With a WhatsApp number the person becomes a lead.">
+                <FormQuestions value={form.questions} onChange={questions => setForm({ ...form, questions })} />
+              </Panel>
             )}
-            <label className="grid gap-1 text-[14px] font-medium">Reply time
-              <DelayField value={delay} onChange={setDelay} className={field} />
-            </label>
-            {trigger === "ig_comment_received" && (
-              <Toggle checked={sendExisting} onChange={setSendExisting} label="Also answer comments from the last 7 days"
-                hint="When you save, HAIP replies to matching comments the post already has. Instagram allows this for 7 days." />
+            {dm && suggest.enabled && (
+              <Panel title="Suggest more" hint="“I'm interested” on a card notes their pick and hands the chat to your team. Cards never show prices.">
+                <Chips value={suggest.source} onChange={v => setSuggest({ ...suggest, source: v })} options={[["stays", "Our stays"], ["packages", "Our packages"]]} />
+                <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
+                  <input className={field} value={suggest.prompt} maxLength={300} onChange={e => setSuggest({ ...suggest, prompt: e.target.value })} aria-label="Offer message" />
+                  <input className={field} value={suggest.button_title} maxLength={20} onChange={e => setSuggest({ ...suggest, button_title: e.target.value })} aria-label="Offer button text" />
+                </div>
+              </Panel>
             )}
-          </Section>
+            {dm && sequence.length > 0 && (
+              <Panel title="Follow-ups" hint={isComment ? "Sent after the final message, which goes out once they tap." : "Sent after the final message."}>
+                <SequenceSteps value={sequence} onChange={setSequence} />
+              </Panel>
+            )}
+            <input className={field} value={name} maxLength={120} onChange={e => setName(e.target.value)} placeholder="Name (optional), e.g. PRICE reel – monsoon offer" aria-label="Automation name" />
+          </Step>
         </div>
 
         <aside aria-label="Preview" className="lg:sticky lg:top-0 lg:self-start">
-          <p className="mb-2 text-[12.5px] font-semibold uppercase tracking-[0.05em] text-[var(--haip-fg-subtle)]">Preview</p>
-          <div className="grid gap-2 rounded-[20px] border border-[var(--haip-border)] bg-[var(--haip-card)] p-3">
-            {isComment && <Bubble who="them">{keywords[0] ? keywords[0].toUpperCase() : "Love this! 😍"}</Bubble>}
+          <p className="mb-2 text-[12.5px] font-semibold uppercase tracking-[0.05em] text-[var(--haip-fg-subtle)]">How it looks on Instagram</p>
+          <div className="grid gap-2 rounded-[24px] border-4 border-[var(--haip-border)] bg-[var(--haip-card)] p-3">
+            {isComment && <Bubble who="them">{keywords[0] ? keywords[0].toUpperCase() : mention ? "@meera look at this!" : "Love this!"}</Bubble>}
             {isComment && <p className="px-1 text-[12px] text-[var(--haip-fg-subtle)]">Your reply: “{acks.find(a => a.trim()) || DEFAULT_ACKS[0]}”</p>}
             {!isComment && <Bubble who="them">{trigger === "ig_story_mention_received" ? "Mentioned you in their story" : keywords[0] || "Hi!"}</Bubble>}
             {dm && needsTap && <Bubble who="you" button={openerButton}>{sample(opener)}</Bubble>}
@@ -430,8 +467,8 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
               {form.enabled && form.questions.slice(0, 3).map((q, i) => <Bubble key={i} who="you" button={q.options?.slice(0, 3).join(" · ") || undefined}>{q.text || "Question…"}</Bubble>)}
               <Bubble who="you" button={withButton ? button.title : undefined}>{sample(message).replaceAll("{agent_name}", "Priya") || "Your message…"}</Bubble>
               {quickReplies.length > 0 && <p className="px-1 text-[12px] text-[var(--haip-fg-subtle)]">Buttons: {quickReplies.map(q => q.title || "…").join(" · ")}</p>}
-              {cards.length > 0 && <Bubble who="you" button={cards[0].buttons[0]?.title}>{`${cards[0].title || "Card"}${cards.length > 1 ? ` + ${cards.length - 1} more cards` : ""}`}</Bubble>}
               {attachment && <Bubble who="you">{attachment.kind === "video" ? "Video" : "Photo"}{attachment.filename ? ` · ${attachment.filename}` : ""}</Bubble>}
+              {cards.length > 0 && <Bubble who="you" button={cards[0].buttons[0]?.title}>{`${cards[0].title || "Card"}${cards.length > 1 ? ` + ${cards.length - 1} more cards` : ""}`}</Bubble>}
               {sharePost.enabled && <Bubble who="you">Shared post</Bubble>}
               {suggest.enabled && <Bubble who="you" button={suggest.button_title}>{suggest.prompt}</Bubble>}
               {sequence.map((s, i) => <Bubble key={`seq-${i}`} who="you" button={s.button?.title || undefined}>{sample(s.text) || "Follow-up…"}</Bubble>)}
