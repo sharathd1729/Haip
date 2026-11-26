@@ -7,9 +7,11 @@ Trigger (``WaReplyTrigger``): keywords matched as whole words (``match="word"``,
 closed against the team hours in Settings (agent_consult_settings). A rule whose keyword matched wins over a reply-all
 rule, then the oldest rule first.
 
-Reply (``WaReplyAction``): text, up to 3 reply buttons or a link button (services/wa_interactive.py), and optionally one
-file (PDF or JPEG/PNG photo uploaded via ``POST /automations/wa-reply-file``): sent as one message, the file with the
-text as its caption, or as the header of the buttons / link message. ``once_per_person`` or ``repeat_after_hours``.
+Reply (``WaReplyAction``): text, up to 3 reply buttons or a link button (services/wa_interactive.py), and up to 5
+files (PDF or JPEG/PNG photo uploaded via ``POST /automations/wa-reply-file``). One file is sent with the text as one
+message (its caption, or the header of the buttons / link message); several go as the text first, then each file as its
+own message in order (a Celery chain, so they arrive in that order). Rules saved with the old single ``file`` are read
+as a one-item ``files`` list. ``once_per_person`` or ``repeat_after_hours``.
 
 A reply that only fires when closed is an away message: it is sent with sender_kind ``automation_away``, which never
 counts as an answer (the guest stays on Needs reply / My day for the team) or as a person's contact.
@@ -38,6 +40,7 @@ ACTION = "send_whatsapp_reply"
 KIND = "automation"
 AWAY_KIND = "automation_away"  # also listed in inbox_service, work_queue_signals and ai_draft_expiry
 FILE_FOLDER = "wa_replies"
+MAX_FILES = 5
 
 
 class WaReplyTrigger(BaseModel):
@@ -70,7 +73,7 @@ class WaReplyAction(BaseModel):
     message: str = Field(min_length=1, max_length=1024)
     buttons: list[str] = Field(default_factory=list, max_length=3)
     link: WaLink | None = None
-    file: WaFile | None = None
+    files: list[WaFile] = Field(default_factory=list, max_length=MAX_FILES)
     once_per_person: bool = False
     repeat_after_hours: int | None = Field(default=None, ge=1, le=168)
 
@@ -83,8 +86,9 @@ class WaReplyAction(BaseModel):
             link = data.get("link") or {}
             if not str(link.get("url") or "").strip() and not str(link.get("title") or "").strip():
                 data["link"] = None
-            if not (data.get("file") or {}).get("key"):
-                data["file"] = None
+            old = data.pop("file", None)  # rules saved before several files: one optional ``file``
+            files = data.get("files") if data.get("files") is not None else ([old] if old else [])
+            data["files"] = [f for f in files if isinstance(f, dict) and f.get("key")]
         return data
 
     @model_validator(mode="after")
@@ -110,7 +114,7 @@ def validate_rule(trigger_config: dict, action_config: dict, tenant_id: str | No
     """Validated copies of both configs. Raises pydantic.ValidationError / ValueError. A file must be one this
     workspace uploaded (its storage key starts with ``{tenant_id}/wa_replies/``)."""
     action = WaReplyAction(**(action_config or {}))
-    if action.file and (not tenant_id or not action.file.key.startswith(f"{tenant_id}/{FILE_FOLDER}/")):
+    if any(not tenant_id or not f.key.startswith(f"{tenant_id}/{FILE_FOLDER}/") for f in action.files):
         raise ValueError("Upload the file again: it does not belong to this workspace.")
     return WaReplyTrigger(**(trigger_config or {})).model_dump(), action.model_dump(exclude_none=True)
 
@@ -191,24 +195,30 @@ def handle(db: Session, tenant_id: str, guest, conversation, text: str) -> bool:
 
     try:
         action = WaReplyAction(**cfg)
-        spec, file = action.interactive(), action.file
+        spec, files = action.interactive(), action.files
     except Exception:  # noqa: BLE001 -- a rule saved before validation existed: send it as plain text
-        spec, file = None, None
-    if file and not file.key.startswith(f"{tenant_id}/{FILE_FOLDER}/"):
-        file = None  # never send another workspace's file
+        spec, files = None, []
+    files = [f for f in files if f.key.startswith(f"{tenant_id}/{FILE_FOLDER}/")]  # never another workspace's file
     name = (getattr(guest, "name", "") or "").strip()
     first = name.split()[0] if name else "there"
-    meta = {"automation_rule_id": rule.id, **({"interactive": spec} if spec else {}),
-            **({"filename": file.filename} if file and file.filename else {})}
     away = (rule.trigger_config or {}).get("hours") == "closed"
-    msg = Message(
-        id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conversation.id, direction="outbound",
-        channel=conversation.channel, body=(cfg.get("message") or "").replace("{first_name}", first)[:1024],
-        sender_kind=AWAY_KIND if away else KIND, sender_name=rule.name[:100] if rule.name else "Automation",
-        channel_metadata=meta, delivery_state=MessageDeliveryState.PENDING,
-        media_type=file.kind if file else None, media_url=file.key if file else None,
-    )
-    db.add(msg)
+    body = (cfg.get("message") or "").replace("{first_name}", first)[:1024]
+    lone = files[0] if len(files) == 1 else None  # one file rides with the text, as before several were allowed
+
+    def _reply(text: str, file: WaFile | None, extra: dict) -> Message:
+        meta = {"automation_rule_id": rule.id, **extra, **({"filename": file.filename} if file and file.filename else {})}
+        return Message(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conversation.id, direction="outbound",
+            channel=conversation.channel, body=text, sender_kind=AWAY_KIND if away else KIND,
+            sender_name=rule.name[:100] if rule.name else "Automation", channel_metadata=meta,
+            delivery_state=MessageDeliveryState.PENDING,
+            media_type=file.kind if file else None, media_url=file.key if file else None,
+        )
+
+    msg = _reply(body, lone, {"interactive": spec} if spec else {})
+    # "part" marks the follow-up files, so stats count one reply per guest message, not one per file.
+    parts = [_reply("", f, {"part": i}) for i, f in enumerate(files if lone is None else [], start=1)]
+    db.add_all([msg, *parts])
     rule.run_count = (rule.run_count or 0) + 1
     rule.last_run_at = datetime.now(UTC)
     db.add(AutomationRun(id=str(uuid.uuid4()), tenant_id=tenant_id, automation_id=rule.id, automation_name=rule.name,
@@ -216,11 +226,22 @@ def handle(db: Session, tenant_id: str, guest, conversation, text: str) -> bool:
                          context={"conversation_id": conversation.id, "guest_id": getattr(guest, "id", None)},
                          detail=f"Replied: {msg.body[:100]}"))
     db.commit()
+    _dispatch([msg.id, *(p.id for p in parts)], tenant_id)
+    log.info("wa_keyword_reply_sent", tenant_id=tenant_id, rule_id=rule.id, files=len(files))
+    return True
+
+
+def _dispatch(message_ids: list[str], tenant_id: str) -> None:
+    """Queue the reply's messages. Several go as one Celery chain so the guest gets them in order (send_whatsapp marks a
+    final failure and returns, so one bad file does not hold back the rest; a retry holds them until it settles)."""
     from app.workers.tasks.send_whatsapp import send_whatsapp
 
-    send_whatsapp.delay(message_id=msg.id, tenant_id=tenant_id)
-    log.info("wa_keyword_reply_sent", tenant_id=tenant_id, rule_id=rule.id)
-    return True
+    if len(message_ids) == 1:
+        send_whatsapp.delay(message_id=message_ids[0], tenant_id=tenant_id)
+        return
+    from celery import chain
+
+    chain(*(send_whatsapp.si(message_id=i, tenant_id=tenant_id) for i in message_ids)).apply_async()
 
 
 def stats(db: Session, tenant_id: str, since: datetime) -> list[dict]:
@@ -240,7 +261,7 @@ def stats(db: Session, tenant_id: str, since: datetime) -> list[dict]:
     people: dict[str, set] = {}
     for meta, state, conv_id in rows:
         rule_id = meta.get("automation_rule_id") if isinstance(meta, dict) else None
-        if not rule_id:
+        if not rule_id or meta.get("part"):
             continue
         s = out.setdefault(rule_id, {"rule_id": rule_id, "sent": 0, "delivered": 0, "read": 0, "failed": 0, "people": 0})
         if state in (S.SENT, S.DELIVERED, S.READ):

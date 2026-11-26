@@ -3,6 +3,7 @@
   GET    /api-keys          list keys (never the secret)
   POST   /api-keys          create a key; the raw key is returned once
   DELETE /api-keys/{id}     revoke
+  GET    /api-keys/{id}/usage  recent calls (last 100) + 7-day count
 
 Only owners create or revoke keys: a key with bookings:read exposes guest contact details.
 """
@@ -83,3 +84,12 @@ def revoke_key(key_id: str, current_user: User = Depends(require_roles(UserRole.
         append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id, action="api_key.revoked",
                      target_type="api_key", target_id=key.id, payload={"name": key.name})
         db.commit()
+
+
+@router.get("/{key_id}/usage")
+def key_usage(key_id: str, current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)), db: Session = Depends(get_db)):
+    """Recent calls (last 100) and the 7-day count for one key."""
+    from app.services import api_usage_service
+    if not db.query(ApiKey.id).filter_by(id=key_id, tenant_id=current_user.tenant_id).first():
+        raise HTTPException(status_code=404, detail="API key not found")
+    return api_usage_service.usage(db, current_user.tenant_id, key_id)

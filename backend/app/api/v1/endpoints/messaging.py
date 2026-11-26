@@ -104,6 +104,7 @@ class WASubscriber(Base, TimestampMixin, TenantMixin):
     # so VIP-tag/campaign-audience matching no longer depends on the
     # subscriber's phone having been typed in exact E.164 form.
     guest_id = Column(String, nullable=True, index=True)
+    list_ids = Column(JSON, default=list)   # migration 219 -- wa_contact_lists ids (services/wa_contacts.py)
 
 
 class WAFlow(Base, TimestampMixin, TenantMixin):
@@ -208,6 +209,7 @@ class SubscriberOut(BaseModel):
     source: Optional[str] = None
     tags: list
     guest_id: Optional[str] = None
+    list_ids: Optional[list] = None
 
     class Config:
         from_attributes = True
@@ -918,19 +920,15 @@ def delete_campaign(
 def list_subscribers(
     opted_in: Optional[bool] = None,
     search: Optional[str] = Query(default=None),
+    list_id: Optional[str] = Query(default=None),
+    tag: Optional[str] = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(WASubscriber).filter_by(tenant_id=current_user.tenant_id)
-    if opted_in is not None:
-        q = q.filter_by(opted_in=opted_in)
-    if search:
-        q = q.filter(
-            (WASubscriber.phone.ilike(f"%{search}%")) |
-            (WASubscriber.name.ilike(f"%{search}%"))
-        )
+    from app.services import wa_contacts
+    q = wa_contacts.matching(db, current_user.tenant_id, opted_in=opted_in, search=search, list_id=list_id, tag=tag)
     return q.order_by(WASubscriber.created_at.desc()).offset(offset).limit(limit).all()
 
 
@@ -1032,6 +1030,16 @@ def opt_in(
 
 # ─── Flow Builder ─────────────────────────────────────────────────────────────
 
+def _checked_trigger(body: FlowSaveRequest, tenant_id: str) -> Optional[str]:
+    """Canvas save checks (services/flow_validation.py): 422 with a plain message. The trigger column mirrors the
+    trigger node so _fire_matching_flows and the keyword trigger find the flow."""
+    from app.services.flow_validation import validate_flow
+    try:
+        return validate_flow(body.nodes, body.edges, tenant_id) or body.trigger
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 @router.get("/flows", response_model=List[FlowOut])
 def list_flows(
     limit: int = Query(default=100, ge=1, le=500),
@@ -1053,6 +1061,7 @@ def create_flow(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
 ):
+    trigger = _checked_trigger(body, current_user.tenant_id)
     flow = WAFlow(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
@@ -1060,7 +1069,7 @@ def create_flow(
         description=body.description,
         nodes=body.nodes,
         edges=body.edges,
-        trigger=body.trigger,
+        trigger=trigger,
     )
     db.add(flow)
     db.commit()
@@ -1078,11 +1087,12 @@ def save_flow(
     flow = db.query(WAFlow).filter_by(id=flow_id, tenant_id=current_user.tenant_id).first()
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found")
+    trigger = _checked_trigger(body, current_user.tenant_id)
     flow.name = body.name
     flow.description = body.description
     flow.nodes = body.nodes
     flow.edges = body.edges
-    flow.trigger = body.trigger
+    flow.trigger = trigger
     db.commit()
     db.refresh(flow)
     return flow

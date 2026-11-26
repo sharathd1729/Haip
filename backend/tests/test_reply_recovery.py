@@ -119,3 +119,20 @@ def test_another_workspaces_messages_are_never_queued(db, tenant_and_user, run):
     _msg(db, other.id, _conv(db, other.id), "inbound", 12)
     db.commit()
     assert run(tenant_and_user["tenant"].id)[0]["queued"] == 0
+
+
+
+def test_a_welcome_alone_does_not_count_as_the_answer(db, tenant_and_user, run):
+    """The welcome (wa_bot_replies) goes out before the AI reply; if the AI reply never came, the safety net re-queues
+    the guest's first message. An away message still counts as answered."""
+    tid = tenant_and_user["tenant"].id
+    c = _conv(db, tid)
+    _msg(db, tid, c, "inbound", 12)
+    _msg(db, tid, c, "outbound", 11, body="Welcome to Jade!", sender_kind="automation_away", channel_metadata={"source": "welcome"})
+    away = _conv(db, tid)
+    _msg(db, tid, away, "inbound", 12)
+    _msg(db, tid, away, "outbound", 11, body="We're closed now", sender_kind="automation_away",
+         channel_metadata={"source": "keyword_reply"})
+    db.commit()
+    out, sent = run(tid)
+    assert out["queued"] == 1 and sent.call_args.kwargs["kwargs"]["conversation_id"] == c.id

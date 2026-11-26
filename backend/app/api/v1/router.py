@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_reels, marketing_ads, marketing_results, marketing_home, marketing_sources, marketing_strategy, lead_touches, lead_calls, lead_review, lead_evidence, lead_validity, lead_outcome, package_share, marketing_partners, marketing_channels, marketing_public, website, website_builder, website_growth, website_google, website_seo_agency, website_public,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, ical_feeds, api_keys, mobile_devices, personal_calls, personal_folders, personal_calendar, personal_asks, app_releases, meta_ads, meta_business, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, instagram_automations, wa_links, wa_growth, audit, sse, messaging, messaging_campaign_reports, reports, reports_crm, saved_replies, saved_views,
+    qa, integrations, ical_feeds, api_keys, mobile_devices, personal_calls, personal_folders, personal_calendar, personal_asks, app_releases, meta_ads, meta_business, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, instagram_automations, wa_links, wa_growth, wa_flow_media, audit, sse, messaging, messaging_campaign_reports, wa_contacts, reports, reports_crm, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
     whatsapp_personal,
@@ -52,6 +52,8 @@ from app.api.v1.endpoints import (
     public_assessment,
 )
 
+from app.api.v1.endpoints import wa_bot_settings as wa_bot_settings_ep  # noqa: E402 -- WhatsApp hours and welcome
+
 api_router = APIRouter(prefix="/api/v1")
 
 # Auth
@@ -83,6 +85,7 @@ api_router.include_router(quotes.router)
 api_router.include_router(quote_calculator.router)
 api_router.include_router(sales_agent.router)
 api_router.include_router(agent_consults.router)
+api_router.include_router(wa_bot_settings_ep.router)
 api_router.include_router(analyst.router)
 api_router.include_router(analyst_public.router)
 api_router.include_router(chief.router)
@@ -159,6 +162,8 @@ api_router.include_router(wa_growth.router)   # /messaging/entry-links, /messagi
 
 # Integrations & compliance
 api_router.include_router(api_keys.router)
+from app.api.v1.endpoints import google_sheets  # noqa: E402 -- Google Sheets lead sync (/google-sheets)
+api_router.include_router(google_sheets.router)
 api_router.include_router(mobile_devices.router)        # Calls app: /devices/* (JWT or device token)
 api_router.include_router(mobile_devices.calls_router)  # Calls app: /device-calls (device token)
 api_router.include_router(personal_calls.router)        # Personal workspaces: /me/calls, /me/reminders
@@ -175,7 +180,9 @@ api_router.include_router(integrations.router)
 api_router.include_router(ical_feeds.router)
 api_router.include_router(ical_feeds.public_router)
 api_router.include_router(messaging.router)
+api_router.include_router(wa_flow_media.router)   # POST /messaging/flows/media (flow canvas files)
 api_router.include_router(messaging_campaign_reports.router)
+api_router.include_router(wa_contacts.router)   # contact lists, bulk actions, drip enrol, growth
 api_router.include_router(audit.router)
 api_router.include_router(sse.router)
 

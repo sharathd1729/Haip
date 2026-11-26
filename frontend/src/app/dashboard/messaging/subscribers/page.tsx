@@ -7,6 +7,10 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ImportSubscribersDialog } from "@/components/messaging/ImportSubscribersDialog";
+import { ContactGrowthChart } from "@/components/messaging/contacts/ContactGrowthChart";
+import { ContactListsBar, type ContactList } from "@/components/messaging/contacts/ContactListsBar";
+import { BulkActionBar } from "@/components/messaging/contacts/BulkActionBar";
+import type { ContactFilter } from "@/components/messaging/contacts/contactsHelpers";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +23,7 @@ interface Subscriber {
   opt_out_at: string | null;
   source: string | null;
   tags: string[];
+  list_ids?: string[] | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -143,6 +148,10 @@ export default function SubscribersPage() {
   const [filter, setFilter] = useState<"all" | "opted_in" | "opted_out">("all");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [listId, setListId] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [allMatching, setAllMatching] = useState(false);
   // Names and numbers are searched on the server so a search reaches everyone,
   // not just the newest rows that happen to be loaded.
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -153,18 +162,36 @@ export default function SubscribersPage() {
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 5000);
   };
+  const onToast = (msg: string, ok = true) => showToast(msg, ok ? "success" : "error");
+
+  // One filter drives the list, its count and "pick all matching", so a bulk action reaches exactly who is shown.
+  const contactFilter: ContactFilter = {
+    ...(filter !== "all" && { opted_in: filter === "opted_in" }),
+    ...(debouncedSearch && { search: debouncedSearch }),
+    ...(listId && { list_id: listId }),
+    ...(tag && { tag }),
+  };
+  const filterKey = JSON.stringify(contactFilter);
+  useEffect(() => { setPicked(new Set()); setAllMatching(false); }, [filterKey]);
 
   const { data: subscribers = [], isLoading, isError, refetch, isFetching } = useQuery<Subscriber[]>({
-    queryKey: ["wa-subscribers", filter, debouncedSearch],
-    queryFn: () => {
-      const params: Record<string, string | number> = { limit: 500 };
-      if (debouncedSearch) params.search = debouncedSearch;
-      if (filter === "opted_in") params.opted_in = "true";
-      if (filter === "opted_out") params.opted_in = "false";
-      return api.get("/messaging/subscribers", { params }).then(r => r.data);
-    },
+    queryKey: ["wa-subscribers", filterKey],
+    queryFn: () => api.get("/messaging/subscribers", { params: { limit: 500, ...contactFilter } }).then(r => r.data),
+    staleTime: 30_000,
+  });
+
+  const { data: lists = [], isLoading: listsLoading } = useQuery<ContactList[]>({
+    queryKey: ["wa-contact-lists"],
+    queryFn: () => api.get("/messaging/contact-lists").then(r => r.data),
+    staleTime: 30_000,
+  });
+
+  const { data: matching } = useQuery<{ count: number }>({
+    queryKey: ["wa-subscriber-count", filterKey],
+    queryFn: () => api.get("/messaging/subscribers/count", { params: contactFilter }).then(r => r.data),
+    enabled: picked.size > 0,
     staleTime: 30_000,
   });
 
@@ -178,6 +205,18 @@ export default function SubscribersPage() {
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ["wa-subscribers"] });
     queryClient.invalidateQueries({ queryKey: ["wa-subscriber-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["wa-subscriber-count"] });
+    queryClient.invalidateQueries({ queryKey: ["wa-subscriber-growth"] });
+    queryClient.invalidateQueries({ queryKey: ["wa-contact-lists"] });
+  };
+  const togglePick = (id: string) => {
+    setAllMatching(false);
+    setPicked(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+  const allShownPicked = subscribers.length > 0 && subscribers.every(s => picked.has(s.id));
+  const togglePickShown = () => {
+    setAllMatching(false);
+    setPicked(allShownPicked ? new Set() : new Set(subscribers.map(s => s.id)));
   };
 
   const optOutMutation = useMutation({
@@ -200,12 +239,8 @@ export default function SubscribersPage() {
     ]);
   };
 
-  const filtered = subscribers.filter(s =>
-    !search.trim() ||
-    s.phone.includes(search) ||
-    (s.name?.toLowerCase().includes(search.toLowerCase())) ||
-    s.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = subscribers;
+  const listName = (id: string) => lists.find(l => l.id === id)?.name;
 
   const totalCount = stats?.total ?? subscribers.length;
   const optedInCount = stats?.opted_in ?? subscribers.filter(s => s.opted_in).length;
@@ -214,13 +249,13 @@ export default function SubscribersPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
+      <div className="px-4 sm:px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <h1 className="haip-page-title">Subscribers</h1>
-            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">Manage opt-in/opt-out status for your WhatsApp marketing list.</p>
+            <h1 className="haip-page-title">WhatsApp contacts</h1>
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">Everyone you can send WhatsApp campaigns to. Tick contacts to tag them, put them on a list or start a drip.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-3 py-2 rounded-xl hover:bg-[var(--haip-surface)] transition-colors font-medium"
@@ -237,6 +272,8 @@ export default function SubscribersPage() {
           </div>
         </div>
 
+        <div className="mb-4"><ContactGrowthChart /></div>
+
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[
@@ -251,18 +288,20 @@ export default function SubscribersPage() {
           ))}
         </div>
 
-        {!debouncedSearch && filter === "all" && totalCount > subscribers.length && (
+        <ContactListsBar lists={lists} loading={listsLoading} active={listId} onPick={setListId} onToast={onToast} />
+
+        {!debouncedSearch && filter === "all" && !listId && !tag && totalCount > subscribers.length && (
           <p className="text-[11px] text-[var(--haip-fg-subtle)] mb-3">
             Showing the newest {subscribers.length.toLocaleString()} of {totalCount.toLocaleString()} contacts. Search by name or number to find anyone else.
           </p>
         )}
 
         {/* Search + filter */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, or tag…"
-              className="w-full pl-9 pr-4 py-2 text-sm border border-[var(--haip-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or phone"
+              className="w-full pl-9 pr-4 py-2 text-base sm:text-sm border border-[var(--haip-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
           </div>
           <div className="flex gap-1">
             {(["all", "opted_in", "opted_out"] as const).map(f => (
@@ -274,10 +313,22 @@ export default function SubscribersPage() {
             ))}
           </div>
         </div>
+        {tag && (
+          <button type="button" onClick={() => setTag(null)} className="mt-2 inline-flex items-center gap-1 text-[11.5px] bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] px-2.5 py-1 rounded-full min-h-[32px]">
+            <Tag size={10} /> Tag: {tag} <X size={11} aria-label="Clear tag filter" />
+          </button>
+        )}
       </div>
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
+        {picked.size > 0 && (
+          <BulkActionBar
+            selected={[...picked]} allMatching={allMatching} matchingCount={matching?.count} filter={contactFilter} lists={lists}
+            onSelectAll={() => setAllMatching(true)} onClear={() => { setPicked(new Set()); setAllMatching(false); }}
+            onDone={() => { setPicked(new Set()); setAllMatching(false); refreshAll(); }} onToast={onToast}
+          />
+        )}
         {isError ? (
           <div className="py-20 text-center">
             <AlertCircle size={32} className="text-[var(--haip-status-danger-fg)] mx-auto mb-3" />
@@ -296,13 +347,21 @@ export default function SubscribersPage() {
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
             <UserCheck size={40} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
-            <p className="text-sm text-[var(--haip-fg-subtle)] font-medium">No subscribers found</p>
-            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Add contacts manually or import a CSV file.</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)] font-medium">{listId || tag || debouncedSearch || filter !== "all" ? "No contacts match" : "No contacts yet"}</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">{listId ? "Tick contacts under Everyone and choose Add to list." : "Add a contact or import a spreadsheet (CSV)."}</p>
           </div>
         ) : (
           <div className="divide-y divide-[var(--haip-border)]">
+            <label className="px-4 sm:px-6 py-2 flex items-center gap-3 text-[11.5px] text-[var(--haip-fg-subtle)] cursor-pointer min-h-[44px]">
+              <input type="checkbox" checked={allShownPicked} onChange={togglePickShown} className="h-4 w-4 accent-[var(--primary)]" />
+              Pick all {filtered.length.toLocaleString("en-IN")} shown
+            </label>
             {filtered.map(sub => (
-              <div key={sub.id} className="px-6 py-3.5 flex items-center gap-4 hover:bg-[var(--haip-surface)]/60 transition-colors">
+              <div key={sub.id} className={cn("px-4 sm:px-6 py-3.5 flex items-center gap-3 sm:gap-4 hover:bg-[var(--haip-surface)]/60 transition-colors", (allMatching || picked.has(sub.id)) && "bg-[var(--haip-primary-tint)]")}>
+                <label className="-m-3 p-3 flex-shrink-0 cursor-pointer">
+                  <input type="checkbox" checked={allMatching || picked.has(sub.id)} onChange={() => togglePick(sub.id)}
+                    aria-label={`Pick ${sub.name || sub.phone}`} className="h-4 w-4 accent-[var(--primary)]" />
+                </label>
                 {/* Status indicator */}
                 <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", sub.opted_in ? "bg-primary" : "bg-[var(--haip-status-danger-fg)]")} />
 
@@ -313,17 +372,21 @@ export default function SubscribersPage() {
                     {sub.name && <span className="text-xs text-[var(--haip-fg-subtle)] font-mono truncate">{sub.phone}</span>}
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    {sub.tags.map(tag => (
-                      <span key={tag} className="inline-flex items-center gap-1 text-[11.5px] bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] px-1.5 py-0.5 rounded-full">
-                        <Tag size={8} /> {tag}
-                      </span>
+                    {sub.tags.map(t => (
+                      <button type="button" key={t} onClick={() => setTag(t)} title={`Show everyone tagged ${t}`}
+                        className="inline-flex items-center gap-1 text-[11.5px] bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] px-1.5 py-0.5 rounded-full">
+                        <Tag size={8} /> {t}
+                      </button>
+                    ))}
+                    {(sub.list_ids ?? []).map(id => listName(id) && (
+                      <span key={id} className="inline-flex items-center text-[11.5px] border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-1.5 py-0.5 rounded-full">{listName(id)}</span>
                     ))}
                     {sub.source && <span className="text-[11.5px] text-[var(--haip-fg-subtle)]">via {sub.source}</span>}
                   </div>
                 </div>
 
                 {/* Opt timing */}
-                <div className="text-right flex-shrink-0">
+                <div className="hidden md:block text-right flex-shrink-0">
                   <div className="flex items-center gap-1 text-[11.5px] text-[var(--haip-fg-subtle)] justify-end">
                     <Clock size={10} />
                     {sub.opted_in ? `Opt-in: ${timeAgo(sub.opt_in_at)}` : `Opt-out: ${timeAgo(sub.opt_out_at)}`}
@@ -332,7 +395,7 @@ export default function SubscribersPage() {
 
                 {/* Status badge + action */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border",
+                  <span className={cn("hidden sm:inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border",
                     sub.opted_in ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]")}>
                     {sub.opted_in ? <><CheckCircle2 size={9} /> Opted in</> : <><XCircle size={9} /> Opted out</>}
                   </span>

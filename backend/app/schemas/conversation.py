@@ -77,7 +77,10 @@ class ConversationOut(BaseModel):
 
 class SendMessageRequest(BaseModel):
     body: str
+    # An inbox upload key from POST /conversations/{id}/attachments (services/inbox_attachments.py); its kind comes
+    # from the key, the file name is shown to the guest on a PDF.
     media_url: Optional[str] = None
+    media_filename: Optional[str] = Field(default=None, max_length=120)
     is_internal: bool = False
     replied_to_message_id: Optional[str] = None
     scheduled_for: Optional[str] = None  # W4: ISO datetime

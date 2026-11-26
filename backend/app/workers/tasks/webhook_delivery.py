@@ -2,7 +2,9 @@
 
 deliver_webhook is queued right after the transaction that created the delivery commits.
 retry_due runs every minute and sends anything that is due (a retry whose backoff has
-elapsed, or a delivery whose first dispatch was lost because the broker was down).
+elapsed, or a delivery whose first dispatch was lost because the broker was down). It also
+queues task.due events for tasks that just became due (webhook_service.queue_due_tasks).
+send_sheet_row posts one new lead to the owner's Google Sheet (google_sheets_service).
 """
 from datetime import datetime, timedelta, timezone
 
@@ -46,6 +48,15 @@ def retry_due():
         queued = 0
         for (tenant_id,) in db.query(Tenant.id).filter(Tenant.is_active.is_(True)).all():
             set_tenant_context(db, tenant_id)
+            try:
+                from app.services.webhook_service import queue_due_tasks
+                if queue_due_tasks(db, tenant_id, now):
+                    db.commit()
+                    set_tenant_context(db, tenant_id)
+            except Exception as exc:  # noqa: BLE001 -- task.due must never stop retries for other tenants
+                db.rollback()
+                set_tenant_context(db, tenant_id)
+                log.error("webhook_task_due_failed", tenant_id=tenant_id, error=str(exc))
             due = (db.query(WebhookDelivery.id)
                    .filter(WebhookDelivery.tenant_id == tenant_id, WebhookDelivery.status == "pending",
                            WebhookDelivery.next_attempt_at <= now)
@@ -59,9 +70,37 @@ def retry_due():
         db.close()
 
 
+@celery_app.task(bind=True, max_retries=5, name="webhooks.send_sheet_row")
+def send_sheet_row(self, tenant_id: str, guest_id: str):
+    """One new lead -> one row in the owner's Google Sheet. Retries 5 times (1, 2, 4, 8, 16 min) unless retrying
+    cannot help (wrong address, script removed); the settings card shows the last error either way."""
+    from app.services import google_sheets_service as gs
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        gs.send_lead(db, tenant_id, guest_id)
+    except gs.SheetSendError as exc:
+        log.warning("sheet_row_failed", tenant_id=tenant_id, error=str(exc), will_retry=exc.retry)
+        if exc.retry:
+            try:
+                raise self.retry(exc=exc, countdown=60 * 2 ** self.request.retries)
+            except MaxRetriesExceededError:
+                log.error("sheet_row_retries_exhausted", tenant_id=tenant_id)
+    except Exception as exc:  # noqa: BLE001 -- DB trouble: retry the same way
+        db.rollback()
+        log.error("sheet_row_error", tenant_id=tenant_id, error=str(exc))
+        try:
+            raise self.retry(exc=exc, countdown=60 * 2 ** self.request.retries)
+        except MaxRetriesExceededError:
+            log.error("sheet_row_retries_exhausted", tenant_id=tenant_id)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="webhooks.purge_old")
 def purge_old():
-    """Keep the delivery log to 30 days."""
+    """Keep the delivery log and the API usage log to 30 days."""
+    from app.models.api_usage_log import ApiUsageLog
     from app.models.tenant import Tenant
     from app.models.webhook import WebhookDelivery
     db = SessionLocal()
@@ -71,6 +110,8 @@ def purge_old():
             set_tenant_context(db, tenant_id)
             db.query(WebhookDelivery).filter(WebhookDelivery.tenant_id == tenant_id, WebhookDelivery.created_at < cutoff,
                                              WebhookDelivery.status != "pending").delete(synchronize_session=False)
+            db.query(ApiUsageLog).filter(ApiUsageLog.tenant_id == tenant_id, ApiUsageLog.created_at < cutoff
+                                         ).delete(synchronize_session=False)
             db.commit()
     finally:
         db.close()

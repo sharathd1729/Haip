@@ -92,7 +92,7 @@ class MetaCloudAdapter:
             "recipient_type": "individual",
             "to": to,
             "type": "image",
-            "image": {"link": url, "caption": caption},
+            "image": {"link": url, **({"caption": caption} if caption else {})},  # no empty caption key
         }
         return await self._post(url_, payload)
 
@@ -103,7 +103,7 @@ class MetaCloudAdapter:
             "recipient_type": "individual",
             "to": to,
             "type": "video",
-            "video": {"link": url, "caption": caption},
+            "video": {"link": url, **({"caption": caption} if caption else {})},
         }
         return await self._post(url_, payload)
 
@@ -125,8 +125,17 @@ class MetaCloudAdapter:
             "recipient_type": "individual",
             "to": to,
             "type": "document",
-            "document": {"link": url, "filename": filename or "document", "caption": caption},
+            "document": {"link": url, "filename": filename or "document", **({"caption": caption} if caption else {})},
         }
+        return await self._post(url_, payload)
+
+    async def send_location(self, to: str, latitude: float, longitude: float, name: str = "", address: str = "") -> dict:
+        """A map pin (flow canvas "location" step). A session message: only inside the 24-hour window."""
+        url_ = f"{WA_BASE}/{self.phone_number_id}/messages"
+        location = {"latitude": latitude, "longitude": longitude,
+                    **({"name": name} if name else {}), **({"address": address} if address else {})}
+        payload = {"messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
+                   "type": "location", "location": location}
         return await self._post(url_, payload)
 
     async def mark_read(self, message_id: str) -> dict:

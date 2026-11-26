@@ -112,8 +112,8 @@ export function WebhooksSection({ isOwner }: { isOwner: boolean }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-[var(--haip-fg)]">Webhooks</h2>
-        <p className="text-xs text-[var(--haip-fg-subtle)]">HAIP calls your server the moment a booking, payment or message changes, so you never have to poll.</p>
+        <h2 className="text-sm font-semibold text-[var(--haip-fg)]">Send events to another app (webhooks)</h2>
+        <p className="text-xs text-[var(--haip-fg-subtle)]">HAIP tells your other app the moment something happens: a new lead, a stage change, a booking, a payment, a message, a closed chat or a task that is due.</p>
       </div>
 
       {secret && (

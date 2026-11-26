@@ -696,6 +696,8 @@ def _apply_stage(
         lead_outcome.record(db, inquiry, "won" if new_stage == InquiryStage.BOOKED else "lost", outcome, actor_user_id)
 
     _notify_stage_hooks(db, inquiry, actor_user_id)
+    from app.services.webhook_events import note_stage_changed   # lead.stage_changed (legacy path)
+    note_stage_changed(db, inquiry, old_stage.value if old_stage else None, new_stage.value)
 
     log.info(
         "inquiry_stage_changed",
@@ -919,6 +921,8 @@ def _apply_stage_by_id(
         lead_outcome.record(db, inquiry, "won" if new_stage.is_closed_won else "lost", outcome, actor_user_id)
 
     _notify_stage_hooks(db, inquiry, actor_user_id)
+    from app.services.webhook_events import note_stage_changed   # lead.stage_changed (stage_id path)
+    note_stage_changed(db, inquiry, old_stage.key, new_stage.key)
 
     log.info(
         "inquiry_stage_changed", inquiry_id=inquiry.id,

@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/page";
 import { errorMessage, fmtDate } from "@/lib/bookings";
 import { WebhooksSection } from "@/components/developers/WebhooksSection";
 import { ConnectorGuides } from "@/components/developers/ConnectorGuides";
+import { ApiKeyUsage } from "@/components/developers/ApiKeyUsage";
 
 interface ApiKeyRow {
   id: string; name: string; prefix: string; scopes: string[]; created_at: string | null;
@@ -38,6 +39,7 @@ export default function DevelopersPage() {
   const [scopes, setScopes] = useState<string[]>([]);
   const [expiry, setExpiry] = useState("");
   const [fresh, setFresh] = useState<Created | null>(null);
+  const [usageOpen, setUsageOpen] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<KeysResponse>({
     queryKey: ["api-keys"],
@@ -126,6 +128,11 @@ export default function DevelopersPage() {
                       Created {fmtDate(k.created_at)} · {k.last_used_at ? `last used ${fmtDate(k.last_used_at)}` : "never used"}
                       {k.expires_at ? ` · expires ${fmtDate(k.expires_at)}` : ""}
                     </p>
+                    <button type="button" onClick={() => setUsageOpen(usageOpen === k.id ? null : k.id)} aria-expanded={usageOpen === k.id}
+                      className="min-h-9 text-xs font-semibold text-primary hover:underline">
+                      {usageOpen === k.id ? "Hide recent calls" : "Recent calls"}
+                    </button>
+                    {usageOpen === k.id && <ApiKeyUsage keyId={k.id} />}
                   </div>
                   {isOwner && (
                     <button

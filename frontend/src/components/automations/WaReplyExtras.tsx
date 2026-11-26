@@ -1,9 +1,9 @@
 "use client";
-// WhatsApp keyword reply options (services/wa_keyword_replies.py): exact match, every message, team hours, a PDF or
-// photo with the reply, repeat after N hours, and the per-reply delivery counts shown on the rule card.
+// WhatsApp keyword reply options (services/wa_keyword_replies.py): exact match, every message, team hours, up to 5 PDFs or
+// photos with the reply, repeat after N hours, and the per-reply delivery counts shown on the rule card.
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Image as ImageIcon, Loader2, Trash2, Upload } from "@/lib/icons";
+import { ChevronDown, ChevronUp, FileText, Image as ImageIcon, Loader2, Trash2, Upload } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
@@ -28,12 +28,12 @@ const segBtn = (on: boolean) => cn("min-h-11 px-3 rounded-[10px] text-xs font-me
 
 /** Trigger part: how keywords match, reply to every message, and when (team hours). */
 export function WaTriggerExtras({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
-  const { data: team } = useQuery<{ business_start: string; business_end: string } | null>({
+  const { data: team } = useQuery<{ business_start: string; business_end: string; hours_summary?: string } | null>({
     queryKey: ["consult-settings"],
     queryFn: () => api.get("/ai/consult-settings").then(r => r.data).catch(() => null),
     staleTime: 300_000,
   });
-  const hours = team ? `${team.business_start} to ${team.business_end}` : "your team hours";
+  const hours = team ? team.hours_summary ?? `${team.business_start} to ${team.business_end}` : "your team hours";
   const match = config.match ?? "word";
   return (
     <div className="space-y-3">
@@ -62,7 +62,7 @@ export function WaTriggerExtras({ config, onChange }: { config: Cfg; onChange: (
           <option value="closed">Only outside team hours (away message)</option>
         </select>
         <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">
-          Team hours: {hours}, set under <a href="/dashboard/settings" className="underline">Settings, Ask a manager</a>.
+          Team hours: {hours}, set under <a href="/dashboard/automations/whatsapp-hours" className="underline">Automations, Hours and welcome</a> (off days and holidays count as closed).
           {config.hours === "closed" && " An away message does not count as an answer: the guest stays on My day for your team."}
         </p>
       </div>
@@ -76,12 +76,63 @@ export function applyRepeat(config: Cfg, v: string): Cfg {
   return v === "once" ? { ...rest, once_per_person: true } : v === "always" ? rest : { ...rest, repeat_after_hours: Number(v) };
 }
 
-/** Reply part: one PDF or photo sent with the text, and how often a guest may get this reply. */
+export interface WaFile { key: string; kind: "document" | "image"; filename?: string }
+export const MAX_REPLY_FILES = 5;
+
+/** The reply's files in send order. Rules saved before several files were allowed have one `file`. */
+export function readFiles(config: Cfg): WaFile[] {
+  const list: WaFile[] = Array.isArray(config.files) ? config.files : config.file?.key ? [config.file] : [];
+  return list.filter(f => f?.key);
+}
+
+/** The config with this file list (the old single `file` dropped). */
+export function withFiles(config: Cfg, files: WaFile[]): Cfg {
+  const { file: _f, ...rest } = config;
+  return { ...rest, files };
+}
+
+/** Move file `i` one place up (-1) or down (+1); unchanged at either end. */
+export function moveFile(files: WaFile[], i: number, dir: -1 | 1): WaFile[] {
+  const j = i + dir;
+  if (j < 0 || j >= files.length) return files;
+  const out = [...files];
+  [out[i], out[j]] = [out[j], out[i]];
+  return out;
+}
+
+const fileName = (f: WaFile) => f.filename || (f.kind === "image" ? "Photo" : "PDF");
+const iconBtn = "grid h-11 w-11 place-items-center rounded-lg text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] disabled:opacity-30";
+
+/** What the guest gets, in order: one file rides with the text; several follow it one by one. */
+function SequencePreview({ message, files }: { message: string; files: WaFile[] }) {
+  const lone = files.length === 1;
+  const bubble = "rounded-lg rounded-tl-none bg-[var(--haip-card)] p-2 shadow-sm text-[13px] leading-snug text-[var(--haip-fg)]";
+  const chip = (f: WaFile) => (
+    <span className="flex items-center gap-1.5 rounded-md bg-[var(--haip-status-neutral-bg)] px-2 py-1.5 text-[12px] text-[var(--haip-fg-muted)]">
+      {f.kind === "image" ? <ImageIcon size={14} /> : <FileText size={14} />}<span className="truncate">{fileName(f)}</span>
+    </span>
+  );
+  return (
+    <div className="rounded-2xl bg-[var(--haip-status-neutral-bg)] p-3">
+      <p className="mb-2 text-[11.5px] font-semibold text-[var(--haip-fg-subtle)]">What the guest gets</p>
+      <div className="max-w-[300px] space-y-1.5">
+        <div className={bubble}>
+          {lone && <div className="mb-1.5">{chip(files[0])}</div>}
+          <p className="whitespace-pre-wrap break-words">{message.replace("{first_name}", "Ananya") || "Your reply text"}</p>
+        </div>
+        {!lone && files.map(f => <div key={f.key} className={bubble}>{chip(f)}</div>)}
+      </div>
+    </div>
+  );
+}
+
+/** Reply part: up to 5 PDFs or photos sent with the text, and how often a guest may get this reply. */
 export function WaReplyExtras({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const file = config.file?.key ? config.file : null;
+  const files = readFiles(config);
+  const setFiles = (next: WaFile[]) => onChange(withFiles(config, next));
 
   const upload = async (f: File) => {
     const isPdf = f.type === "application/pdf";
@@ -93,7 +144,7 @@ export function WaReplyExtras({ config, onChange }: { config: Cfg; onChange: (c:
       const fd = new FormData();
       fd.append("file", f);
       const res = await api.post("/automations/wa-reply-file", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      onChange({ ...config, file: { key: res.data.key, kind: res.data.kind, filename: res.data.filename } });
+      setFiles([...files, { key: res.data.key, kind: res.data.kind, filename: res.data.filename }]);
     } catch (e: any) {
       setErr(e?.response?.data?.detail || "Upload failed. Check your connection and try again.");
     } finally {
@@ -108,27 +159,47 @@ export function WaReplyExtras({ config, onChange }: { config: Cfg; onChange: (c:
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">File <span className="text-[var(--haip-fg-subtle)] font-normal">(optional: a PDF up to 16 MB, or a JPEG or PNG photo up to 5 MB)</span></p>
-        {file ? (
-          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3">
-            {file.kind === "image" ? <ImageIcon size={15} className="text-[var(--haip-fg-subtle)]" /> : <FileText size={15} className="text-[var(--haip-fg-subtle)]" />}
-            <span className="min-w-0 flex-1 truncate text-sm">{file.filename || (file.kind === "image" ? "Photo" : "PDF")}</span>
-            <button type="button" aria-label="Remove the file" onClick={() => { const { file: _f, ...rest } = config; onChange(rest); }}
-              className="grid h-11 w-11 place-items-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-status-danger-fg)]">
-              <Trash2 size={15} />
-            </button>
-          </div>
-        ) : (
+        <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Files <span className="text-[var(--haip-fg-subtle)] font-normal">(optional: up to {MAX_REPLY_FILES}, PDFs up to 16 MB, JPEG or PNG photos up to 5 MB)</span></p>
+        {files.length > 0 && (
+          <ol className="mb-2 space-y-1.5">
+            {files.map((f, i) => (
+              <li key={f.key} className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] pl-3">
+                <span className="w-5 text-[11.5px] text-[var(--haip-fg-subtle)]">{i + 1}.</span>
+                {f.kind === "image" ? <ImageIcon size={15} className="text-[var(--haip-fg-subtle)]" /> : <FileText size={15} className="text-[var(--haip-fg-subtle)]" />}
+                <span className="min-w-0 flex-1 truncate text-sm">{fileName(f)}</span>
+                {files.length > 1 && (
+                  <>
+                    <button type="button" aria-label={`Move ${fileName(f)} up`} disabled={i === 0}
+                      onClick={() => setFiles(moveFile(files, i, -1))} className={iconBtn}><ChevronUp size={15} /></button>
+                    <button type="button" aria-label={`Move ${fileName(f)} down`} disabled={i === files.length - 1}
+                      onClick={() => setFiles(moveFile(files, i, 1))} className={iconBtn}><ChevronDown size={15} /></button>
+                  </>
+                )}
+                <button type="button" aria-label={`Remove ${fileName(f)}`} onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                  className={cn(iconBtn, "hover:text-[var(--haip-status-danger-fg)]")}>
+                  <Trash2 size={15} />
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+        {files.length < MAX_REPLY_FILES ? (
           <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-dashed border-[var(--haip-border-strong)] px-3 text-sm text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-60">
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {busy ? "Uploading…" : "Add a PDF or photo"}
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {busy ? "Uploading…" : files.length ? "Add another file" : "Add a PDF or photo"}
           </button>
+        ) : (
+          <p className="text-[11.5px] text-[var(--haip-fg-subtle)]">{MAX_REPLY_FILES} files is the most one reply can send.</p>
         )}
         <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
-        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Sent in the same message: your reply becomes its caption, or the file sits above the buttons.</p>
+        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">
+          {files.length > 1 ? "Your reply goes first, then each file as its own message, in this order."
+            : "One file goes in the same message: your reply becomes its caption, or the file sits above the buttons."}
+        </p>
         {err && <p role="alert" className="text-[11.5px] text-[var(--haip-status-danger-fg)] mt-1">{err}</p>}
       </div>
+      {files.length > 0 && <SequencePreview message={config.message ?? ""} files={files} />}
       <div>
         <label htmlFor="wa-repeat" className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">How often</label>
         <select id="wa-repeat" value={repeat} onChange={e => setRepeat(e.target.value)}
