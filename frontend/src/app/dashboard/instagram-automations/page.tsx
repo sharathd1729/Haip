@@ -13,11 +13,14 @@ import { AutomationsOverview } from "@/components/instagram/AutomationsOverview"
 import { WelcomeSettings } from "@/components/instagram/WelcomeSettings";
 import { AutomationBuilder } from "@/components/instagram/AutomationBuilder";
 import { PostsBoard } from "@/components/instagram/PostsBoard";
+import { PauseAll } from "@/components/instagram/PauseAll";
 import { isIgRule, triggerMeta, type IgRule, type IgRuleStats } from "@/components/instagram/automationTypes";
 
 
 function scopeLabel(r: IgRule): string {
+  if (r.trigger === "ig_global") return (r.trigger_config.surfaces ?? []).join(", ");
   if (r.trigger !== "ig_comment_received") return "";
+  if (r.trigger_config.scope === "caption_code") return `Caption code #${r.trigger_config.caption_code ?? ""}`;
   const s = r.trigger_config.scope ?? (r.trigger_config.media_id ? "post" : "any");
   if (s === "next_post") return r.trigger_config.media_id ? "Next post (running)" : "Next post (waiting)";
   return s === "post" ? "One post" : "Any post";
@@ -34,7 +37,7 @@ function RuleCard({ rule, stats, onEdit }: { rule: IgRule; stats?: IgRuleStats; 
     onSuccess: () => qc.invalidateQueries({ queryKey: ["automations"] }),
   });
   const tc = rule.trigger_config;
-  const words = tc.mention_only ? ["Tags someone"] : tc.reply_all ? ["Every comment"] : (tc.keywords ?? []);
+  const words = rule.trigger === "ig_dm_default" ? ["Anything else"] : tc.mention_only ? ["Tags someone"] : tc.reply_all ? ["Every comment"] : (tc.keywords ?? []);
   return (
     <Card className="flex gap-3 p-3 sm:p-4">
       <div className="size-16 shrink-0 overflow-hidden rounded-[12px] bg-[var(--haip-surface)]">
@@ -119,6 +122,7 @@ export default function InstagramAutomationsPage() {
           </div>
         } />
 
+      <PauseAll />
       <Tabs label="Instagram automations" value={tab} onChange={setTab}
         items={[{ value: "automations", label: "Automations" }, { value: "posts", label: "Posts" }]} />
       {tab === "posts" ? <PostsBoard rules={ig} onSetUp={openForPost} onEdit={openEdit} onCopy={openCopy} /> : <>

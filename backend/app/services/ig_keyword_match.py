@@ -64,6 +64,16 @@ def _scope(rule: AutomationRule) -> str:
     return cfg.get("scope") or ("post" if cfg.get("media_id") else "any")
 
 
+# Where a "global" automation (trigger ig_global, trigger_config.surfaces) can answer.
+SURFACE = {"ig_comment_received": "comment", "ig_live_comment_received": "live", "ig_story_reply_received": "story",
+           "ig_dm_received": "dm", "ig_ad_chat_started": "ad"}
+
+
+def caption_has_code(caption: Optional[str], code: Optional[str]) -> bool:
+    """A "caption code" automation (#JADE1) runs on every post whose caption carries its code, with or without the #."""
+    return bool(code and caption and re.search(r"(?<![\w])#?" + re.escape(code) + r"(?![\w])", caption, re.I))
+
+
 def find_matching_rule(
     db: Session,
     tenant_id: str,
@@ -71,6 +81,26 @@ def find_matching_rule(
     text: str,
     media_id: Optional[str] = None,
     ad_id: Optional[str] = None,
+    caption: Optional[str] = None,
+) -> Optional[AutomationRule]:
+    """The trigger's own automations first; then a global automation that covers this place."""
+    found = _find(db, tenant_id, trigger, text, media_id, ad_id, caption)
+    if found is not None or trigger not in SURFACE:
+        return found
+    rules = (db.query(AutomationRule).filter_by(tenant_id=tenant_id, trigger="ig_global", action=_ACTION, is_active=True)
+             .order_by(AutomationRule.created_at).all())
+    return next((r for r in rules if SURFACE[trigger] in ((r.trigger_config or {}).get("surfaces") or [])
+                 and rule_matches(r, text or "")), None)
+
+
+def _find(
+    db: Session,
+    tenant_id: str,
+    trigger: str,
+    text: str,
+    media_id: Optional[str] = None,
+    ad_id: Optional[str] = None,
+    caption: Optional[str] = None,
 ) -> Optional[AutomationRule]:
     """
     Return the first matching active automation_rules row for this
@@ -115,12 +145,18 @@ def find_matching_rule(
         if media_id:
             groups.append([r for r in rules if _scope(r) in ("post", "next_post")
                            and (r.trigger_config or {}).get("media_id") == media_id])
+        if caption:
+            groups.append([r for r in rules if _scope(r) == "caption_code"
+                           and caption_has_code(caption, (r.trigger_config or {}).get("caption_code"))])
         groups.append([r for r in rules if _scope(r) == "any" and not (r.trigger_config or {}).get("ad_id")])
         for group in groups:
             found = first(group)
             if found:
                 return found
         return None
+
+    if trigger == "ig_dm_default":  # the fallback answers anything not excluded
+        return next((r for r in rules if not excluded(r)), None)
 
     if trigger == "ig_ad_chat_started":
         # Welcome for a chat opened from an ad: a rule for that ad first, then one for any ad. No keyword needed.

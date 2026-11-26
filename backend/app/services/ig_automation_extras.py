@@ -15,7 +15,89 @@ logger = logging.getLogger(__name__)
 
 
 def wants_extras(cfg: dict) -> bool:
-    return bool(cfg.get("attachment") or (cfg.get("share_post") or {}).get("enabled"))
+    return bool(cfg.get("attachment") or (cfg.get("share_post") or {}).get("enabled") or cfg.get("cards"))
+
+
+def pick_message(cfg: dict) -> str:
+    """The final message: the rule's message, or one of its variants at random ("random messages")."""
+    import random
+
+    options = [m for m in [cfg.get("message") or "", *(cfg.get("message_variants") or [])] if m.strip()]
+    return random.choice(options) if options else ""
+
+
+def quick_replies(cfg: dict, rule_id: str) -> list[dict] | None:
+    """The rule's own tap buttons for the final message (payload igauto:<rule>:qr:<n>), or None."""
+    from app.services.ig_automation import PAYLOAD_PREFIX
+
+    qrs = cfg.get("quick_replies") or []
+    return [{"content_type": "text", "title": q["title"][:20], "payload": f"{PAYLOAD_PREFIX}{rule_id}:qr:{i}"}
+            for i, q in enumerate(qrs)] or None
+
+
+def answer_quick_reply(db: Session, tenant_id: str, rule: AutomationRule, n: int, adapter, *, recipient_id: str,
+                       guest_id: str | None, conversation_id: str | None) -> None:
+    """A tap on one of the rule's quick replies: send its text back. The caller commits."""
+    from app.services import ig_automation as engine
+
+    qrs = (rule.action_config or {}).get("quick_replies") or []
+    if not 0 <= n < len(qrs) or adapter is None:
+        return
+    try:
+        result = adapter.send_text(recipient_id, qrs[n]["reply"])
+    except Exception as exc:  # noqa: BLE001
+        engine.log_event(db, tenant_id, rule.id, "dm_failed", guest_id, detail=f"quick reply: {str(exc)[:250]}")
+        return
+    engine._record(db, tenant_id, conversation_id, qrs[n]["reply"], result, rule.id)
+    engine.log_event(db, tenant_id, rule.id, "quick_reply", guest_id, detail=qrs[n]["title"])
+
+
+def paused_until(db: Session, tenant_id: str):
+    """When "pause all automations" ends, or None (brand_config.ig_automations.paused_until, ISO time)."""
+    from datetime import UTC, datetime
+
+    from app.models.tenant import Tenant
+
+    cfg = (db.query(Tenant.brand_config).filter(Tenant.id == tenant_id).scalar() or {}).get("ig_automations") or {}
+    try:
+        until = datetime.fromisoformat(cfg.get("paused_until") or "")
+    except ValueError:
+        return None
+    until = until if until.tzinfo else until.replace(tzinfo=UTC)
+    return until if until > datetime.now(UTC) else None
+
+
+def caption_of(db: Session, tenant_id: str, media_id: str | None) -> str | None:
+    """A post's caption, only when a "caption code" automation exists (one Graph lookup per post, cached a week)."""
+    from app.core import cache
+    from app.services import ig_automation as engine
+
+    if not media_id or not db.query(AutomationRule.id).filter(
+            AutomationRule.tenant_id == tenant_id, AutomationRule.is_active.is_(True),
+            AutomationRule.trigger_config["scope"].as_string() == "caption_code").first():
+        return None
+    key = f"igcap:{tenant_id}:{media_id}"
+    r = cache._client()
+    if r is not None:
+        try:
+            hit = r.get(key)
+            if hit is not None:
+                return hit if isinstance(hit, str) else hit.decode()
+        except Exception:  # noqa: BLE001
+            pass
+    adapter = engine._adapter(db, tenant_id)
+    if adapter is None:
+        return None
+    try:
+        caption = (adapter._get(f"/{media_id}", {"fields": "caption"}) or {}).get("caption") or ""
+    except Exception:  # noqa: BLE001 -- the post stays unmatched by codes; other automations still run
+        return None
+    if r is not None:
+        try:
+            r.set(key, caption, ex=7 * 86400)
+        except Exception:  # noqa: BLE001
+            pass
+    return caption
 
 
 def trigger_media(db: Session, tenant_id: str, rule_id: str, guest_id: str | None) -> str | None:
@@ -75,6 +157,26 @@ def send_extras(
             logger.warning("ig_automation_share_post_failed rule=%s: %s", rule.id, exc)
             engine.log_event(db, tenant_id, rule.id, "dm_failed", guest_id, post_id, f"share post: {str(exc)[:250]}")
             notes.append("post not shared")
+    cards = cfg.get("cards") or []
+    if cards:
+        elements = []
+        for c in cards[:10]:
+            el = {"title": c["title"][:80], "subtitle": (c.get("subtitle") or "")[:80] or " "}
+            url = get_presigned_media_url(c["image_key"], expires_in=3600) if c.get("image_key") else None
+            if url:
+                el["image_url"] = url
+            if c.get("buttons"):
+                el["buttons"] = [{"type": "web_url", "url": engine.tracked_url(db, tenant_id, rule.id, b["url"]),
+                                  "title": b["title"][:20]} for b in c["buttons"][:3]]
+            elements.append(el)
+        try:
+            result = adapter.send_cards(recipient_id, elements)
+            engine._record(db, tenant_id, conversation_id, f"[{len(elements)} cards]", result, rule.id)
+            engine.log_event(db, tenant_id, rule.id, "cards_sent", guest_id, media_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ig_automation_cards_failed rule=%s: %s", rule.id, exc)
+            engine.log_event(db, tenant_id, rule.id, "dm_failed", guest_id, media_id, f"cards: {str(exc)[:250]}")
+            notes.append("cards not sent")
     return notes
 
 

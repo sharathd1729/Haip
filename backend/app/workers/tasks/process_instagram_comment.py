@@ -238,7 +238,9 @@ def process_instagram_comment(self, payload: dict) -> dict:
             trigger = "ig_live_comment_received" if payload.get("live") else "ig_comment_received"
             from app.services.ig_next_post import bind_next_post
             bind_next_post(db, tenant_id, media_id)
-            matched_rule = find_matching_rule(db, tenant_id, trigger, text, media_id=media_id, ad_id=media_ad_id or None)
+            from app.services.ig_automation_extras import caption_of
+            matched_rule = find_matching_rule(db, tenant_id, trigger, text, media_id=media_id, ad_id=media_ad_id or None,
+                                              caption=caption_of(db, tenant_id, media_id))
 
         if matched_rule:
             from app.services.ig_quick_reply import dispatch_quick_reply

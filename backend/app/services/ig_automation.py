@@ -130,6 +130,10 @@ def skip_reason(
 
     if guest_said_stop(db, tenant_id, guest_id):
         return "guest_said_stop"
+    from app.services.ig_automation_extras import paused_until
+
+    if paused_until(db, tenant_id):
+        return "all_automations_paused"
     hour = datetime.now(UTC) - timedelta(hours=1)
     if _count(db, tenant_id, since=hour) >= TENANT_HOURLY_CAP:
         return "workspace_hourly_cap"
@@ -155,20 +159,10 @@ def _record(db: Session, tenant_id: str, conversation_id: str | None, text: str,
     from app.models.conversation import ChannelType, Message, MessageDeliveryState, MessageDirection
 
     mid = (result or {}).get("message_id")
-    db.add(
-        Message(
-            tenant_id=tenant_id,
-            conversation_id=conversation_id,
-            direction=MessageDirection.OUTBOUND,
-            channel=ChannelType.INSTAGRAM,
-            body=text,
-            channel_message_id=mid,
-            channel_status="sent",
-            delivery_state=MessageDeliveryState.SENT,
-            sender_kind="automation",
-            channel_metadata={"automation_rule_id": rule_id},
-        )
-    )
+    db.add(Message(tenant_id=tenant_id, conversation_id=conversation_id, direction=MessageDirection.OUTBOUND,
+                   channel=ChannelType.INSTAGRAM, body=text, channel_message_id=mid, channel_status="sent",
+                   delivery_state=MessageDeliveryState.SENT, sender_kind="automation",
+                   channel_metadata={"automation_rule_id": rule_id}))
 
 
 def tracked_url(db: Session, tenant_id: str, rule_id: str, target_url: str) -> str:
@@ -204,23 +198,15 @@ def _final_text(db: Session, tenant_id: str, rule: AutomationRule, guest, keep) 
     from app.services import ig_automation_copy as copy_rules
 
     cfg = rule.action_config or {}
-    text, _changes = copy_rules.prepare_dm(_render(cfg.get("message") or "", guest), keep)
+    from app.services.ig_automation_extras import pick_message
+
+    text, _changes = copy_rules.prepare_dm(_render(pick_message(cfg), guest), keep)
     url = (cfg.get("button") or {}).get("url")
     return f"{text}\n{tracked_url(db, tenant_id, rule.id, url)}" if url else text
 
 
-def start(
-    db: Session,
-    tenant_id: str,
-    rule: AutomationRule,
-    *,
-    recipient_id: str,
-    guest_id: str | None,
-    conversation_id: str | None,
-    comment_id: str | None = None,
-    media_id: str | None = None,
-    guest=None,
-) -> bool:
+def start(db: Session, tenant_id: str, rule: AutomationRule, *, recipient_id: str, guest_id: str | None,
+          conversation_id: str | None, comment_id: str | None = None, media_id: str | None = None, guest=None) -> bool:
     """Run a matched rule for one person. True when the DM went out. Commits."""
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "comment_id": comment_id, "media_id": media_id}
@@ -280,8 +266,9 @@ def start(
     # A photo or shared post after a comment needs the open chat the tap gives; "opener_always" starts with the tap anyway.
     needs_tap = bool(cfg.get("button") or gate.get("enabled") or ig_dm_form.enabled(rule) or cfg.get("opener_always")
                      or (comment_id and extras.wants_extras(cfg)))
-    text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else cfg["message"], guest), keep)
-    quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else None
+    text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else extras.pick_message(cfg), guest),
+                                           keep)
+    quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else extras.quick_replies(cfg, rule.id)
     delivered_final = False
     try:
         if comment_id:
@@ -349,8 +336,8 @@ def parse_payload(payload: str | None) -> tuple[str, str] | None:
     parts = payload[len(PAYLOAD_PREFIX) :].split(":")
     if len(parts) == 2 and parts[1] in ("open", "followed", "more", "start"):
         return parts[0], parts[1]
-    if len(parts) == 3 and parts[1] == "ask" and parts[2].isdigit():  # "I'm interested" on card n (ig_suggest)
-        return parts[0], f"ask:{parts[2]}"
+    if len(parts) == 3 and parts[1] in ("ask", "qr") and parts[2].isdigit():  # ask: card pick; qr: quick reply  # "I'm interested" on card n (ig_suggest)
+        return parts[0], f"{parts[1]}:{parts[2]}"
     return None
 
 
@@ -374,6 +361,14 @@ def handle_payload(
         return True
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "step": step}
+    if step.startswith("qr:"):  # one of the rule's own quick replies
+        from app.services import ig_automation_extras as extras
+
+        if not skip_reason(db, tenant_id, rule, guest_id, starting=False):
+            extras.answer_quick_reply(db, tenant_id, rule, int(step[3:]), _adapter(db, tenant_id), recipient_id=recipient_id,
+                                      guest_id=guest_id, conversation_id=conversation_id)
+        db.commit()
+        return True
     if step == "start" or step == "more" or step.startswith("ask:"):  # welcome/menu start, suggest more (ig_suggest)
         from app.services import ig_suggest
 
@@ -459,8 +454,11 @@ def _send_final(
     cfg = rule.action_config or {}
     from app.services import ig_automation_copy as copy_rules
 
-    text, _changes = copy_rules.prepare_dm(_render(cfg.get("message") or "", guest), _keep_words(db, tenant_id))
+    from app.services import ig_automation_extras as extras
+
+    text, _changes = copy_rules.prepare_dm(_render(extras.pick_message(cfg), guest), _keep_words(db, tenant_id))
     button = cfg.get("button") or {}
+    quick = extras.quick_replies(cfg, rule.id)
     try:
         if button.get("url"):
             url = tracked_url(db, tenant_id, rule.id, button["url"])
@@ -470,6 +468,8 @@ def _send_final(
                 logger.warning("ig_automation_button_refused rule=%s: %s", rule.id, exc)
                 text = f"{text}\n{url}"
                 result = adapter.send_text(recipient_id, text)
+        elif quick:
+            result = adapter.send_quick_replies(recipient_id, text, quick)
         else:
             result = adapter.send_text(recipient_id, text)
     except Exception as exc:  # noqa: BLE001

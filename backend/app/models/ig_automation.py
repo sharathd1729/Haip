@@ -30,6 +30,7 @@ EVENT_KINDS = (
     "media_sent",  # the rule's photo / video (ig_automation_extras)
     "post_shared",  # one of our posts shared in the DM (ig_automation_extras)
     "delayed",  # queued to run after the rule's delay
+    "quick_reply",  # someone tapped one of the rule's quick replies
 )
 
 FORM_STATUSES = ("active", "completed", "handed_over", "stopped", "replaced")

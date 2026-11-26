@@ -9,7 +9,7 @@ import { Drawer } from "@/components/ui/kit";
 import { MediaPicker } from "./MediaPicker";
 import { FormQuestions } from "./FormQuestions";
 import { SequenceSteps, sequenceTotal } from "./SequenceSteps";
-import { AttachmentField, DelayField, SharePostField } from "./AutomationExtras";
+import { AttachmentField, CardsField, DelayField, QuickRepliesField, SharePostField, SurfacesField, VariantsField, type IgCardDraft, type QuickReply } from "./AutomationExtras";
 import { TEMPLATES, type IgTemplate } from "./templates";
 import { DEFAULT_ACKS, DEFAULT_FORM, DEFAULT_SUGGEST, IG_ACTION, SEQUENCE_WINDOW_MINUTES, TRIGGERS, triggerMeta, type IgActionConfig, type IgAttachment, type IgForm, type IgRule, type IgSharePost, type IgSequenceStep, type IgSuggestMore, type IgTrigger, type IgTriggerConfig } from "./automationTypes";
 
@@ -95,7 +95,7 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
   const ac0: IgActionConfig = initial?.action_config ?? copyFrom?.action_config ?? { message: "" };
   const [name, setName] = useState(initial?.name ?? (copyFrom ? `${copyFrom.name} (copy)` : ""));
   const [trigger, setTrigger] = useState<IgTrigger>(((initial ?? copyFrom)?.trigger as IgTrigger) ?? "ig_comment_received");
-  const [scope, setScope] = useState<"post" | "any" | "next_post">(tc0.scope ?? (tc0.media_id ? "post" : "any"));
+  const [scope, setScope] = useState<"post" | "any" | "next_post" | "caption_code">(tc0.scope ?? (tc0.media_id ? "post" : "any"));
   const [media, setMedia] = useState({ id: tc0.media_id ?? "", thumb: tc0.media_thumb ?? "", caption: tc0.media_caption ?? "" });
   const [keywords, setKeywords] = useState<string[]>(tc0.keywords ?? []);
   const [excludes, setExcludes] = useState<string[]>(tc0.exclude_keywords ?? []);
@@ -119,14 +119,20 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
   const [attachment, setAttachment] = useState<IgAttachment | null>(ac0.attachment ?? null);
   const [sharePost, setSharePost] = useState<IgSharePost>(ac0.share_post ?? { enabled: false });
   const [sendExisting, setSendExisting] = useState(false);
+  const [variants, setVariants] = useState<string[]>(ac0.message_variants ?? []);
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>(ac0.quick_replies ?? []);
+  const [cards, setCards] = useState<IgCardDraft[]>(ac0.cards ?? []);
+  const [surfaces, setSurfaces] = useState<string[]>(tc0.surfaces ?? ["comment", "dm"]);
+  const [captionCode, setCaptionCode] = useState(tc0.caption_code ?? "");
   const [error, setError] = useState("");
 
-  const isComment = COMMENT_TRIGGERS.includes(trigger);
-  const keywordOptional = trigger === "ig_story_mention_received" || trigger === "ig_ad_chat_started";
-  const dm = !isComment || sendDm; // comments can be "public reply only"
+  const isComment = COMMENT_TRIGGERS.includes(trigger) || (trigger === "ig_global" && surfaces.includes("comment"));
+  const keywordOptional = trigger === "ig_story_mention_received" || trigger === "ig_ad_chat_started" || trigger === "ig_dm_default";
+  const isGlobal = trigger === "ig_global";
+  const dm = !isComment || isGlobal || sendDm; // comments can be "public reply only"
   // Comments need a tap before Instagram allows more messages (a photo, a shared post, a form); an open chat (DM keyword,
   // story reply, ad) starts the form at once.
-  const needsTap = gate.enabled || openerAlways || (form.enabled ? isComment : withButton) || (isComment && (!!attachment || sharePost.enabled));
+  const needsTap = gate.enabled || openerAlways || (form.enabled ? isComment : withButton) || (isComment && (!!attachment || sharePost.enabled || cards.length > 0));
   const matchMode = mention ? "mention" : replyAll ? "all" : "keywords";
 
   const applyTemplate = (t: IgTemplate) => {
@@ -148,10 +154,15 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
         ...(isComment && trigger === "ig_comment_received" && scope === "post" && media.id
           ? { media_id: media.id, media_thumb: media.thumb || undefined, media_caption: media.caption.slice(0, 300) || undefined } : {}),
         ...(scope === "next_post" && tc0.scope === "next_post" && tc0.media_id ? { media_id: tc0.media_id, media_bound_at: tc0.media_bound_at } : {}),
+        ...(trigger === "ig_comment_received" && scope === "caption_code" ? { caption_code: captionCode.trim() } : {}),
+        ...(isGlobal ? { surfaces } : {}),
       };
       const action_config: IgActionConfig = {
         message, send_dm: dm, button: withButton ? button : null, opener, opener_button: openerButton, opener_always: openerAlways,
         once_per_post: oncePerPost, delay_seconds: delay, attachment,
+        message_variants: variants.map(v => v.trim()).filter(Boolean),
+        quick_replies: quickReplies.filter(q => q.title.trim() || q.reply.trim()).map(q => ({ title: q.title.trim(), reply: q.reply.trim() })),
+        cards: cards.map(c => ({ ...c, title: c.title.trim(), buttons: c.buttons.filter(b => b.url.trim()).map(b => ({ title: b.title.trim() || "Open", url: b.url.trim() })) })),
         share_post: sharePost.enabled ? { enabled: true, media_id: sharePost.media_id || null, media_thumb: sharePost.media_thumb || null } : { enabled: false },
         public_ack_pool: isComment ? acks.filter(a => a.trim()) : [], follow_gate: gate, once_per_person: once,
         form: { enabled: form.enabled, questions: form.questions.map(q => ({ ...q, text: q.text.trim(), options: (q.options ?? []).filter(Boolean) })) },
@@ -177,6 +188,11 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
     if (!dm && !acks.some(a => a.trim())) return setError("Add at least one public reply: with no DM it is the whole answer.");
     if (dm && sharePost.enabled && sharePost.media_id === "") return setError("Pick the post to share.");
     if (isComment && trigger === "ig_comment_received" && scope === "post" && !media.id) return setError("Pick the post or reel.");
+    if (trigger === "ig_comment_received" && scope === "caption_code" && !/^#?[A-Za-z0-9_]{3,30}$/.test(captionCode.trim())) return setError("The caption code needs 3 to 30 letters or numbers, e.g. JADE1.");
+    if (isGlobal && surfaces.length === 0) return setError("Pick at least one place this automation works.");
+    if (quickReplies.some(q => !q.title.trim() || !q.reply.trim())) return setError("Every quick reply needs a button text and a reply.");
+    if (cards.some(c => !c.title.trim())) return setError("Every card needs a headline.");
+    if (cards.some(c => c.buttons.some(b => b.url.trim() && !/^https:\/\/\S+$/.test(b.url.trim())))) return setError("Card links must start with https://");
     if (!keywordOptional && !replyAll && !mention && keywords.length === 0) return setError("Add a keyword, or turn on “Reply to every comment”.");
     if (withButton && !/^https:\/\/\S+$/.test(button.url.trim())) return setError("The button link must start with https://");
     if (dm && form.enabled && form.questions.filter(q => q.key === "phone").length > 1) return setError("Ask for the WhatsApp number only once.");
@@ -231,18 +247,30 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
           {trigger === "ig_comment_received" && (
             <Section title="Which posts">
               <div className="flex flex-wrap gap-2">
-                {([["post", "A specific post or reel"], ["any", "Any post"], ["next_post", "My next post"]] as const).map(([v, l]) => (
+                {([["post", "A specific post or reel"], ["any", "Any post"], ["next_post", "My next post"], ["caption_code", "Posts with a caption code"]] as const).map(([v, l]) => (
                   <button key={v} type="button" onClick={() => setScope(v)} aria-pressed={scope === v}
                     className={cn("min-h-11 rounded-full border px-4 text-[13.5px] font-medium",
                       scope === v ? "border-primary bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)]")}>{l}</button>
                 ))}
               </div>
+              {scope === "caption_code" && (
+                <div className="grid gap-1">
+                  <input className={field} value={captionCode} maxLength={31} onChange={e => setCaptionCode(e.target.value)} placeholder="e.g. JADE1" aria-label="Caption code" />
+                  <p className="text-[13px] text-[var(--haip-fg-subtle)]">Put #{(captionCode.trim().replace(/^#/, "") || "JADE1").toUpperCase()} in a post caption and this automation runs on that post, old or new.</p>
+                </div>
+              )}
               {scope === "post" && <MediaPicker value={media.id} onPick={m => setMedia({ id: m.id, thumb: m.thumbnail ?? "", caption: m.caption })} />}
               {scope === "next_post" && (
                 <p className="text-[13px] text-[var(--haip-fg-subtle)]">
                   {tc0.scope === "next_post" && tc0.media_id ? "Now running on the post you published after creating it." : "Starts on the first post or reel you publish after turning this on."}
                 </p>
               )}
+            </Section>
+          )}
+
+          {isGlobal && (
+            <Section title="Where it works" hint="Automations made for one place (a post, DMs…) answer first; this one covers the rest.">
+              <SurfacesField value={surfaces} onChange={setSurfaces} />
             </Section>
           )}
 
@@ -269,13 +297,13 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
 
           {isComment && (
             <Section title="Public reply under the comment" hint="One is picked at random each time, so replies don't look copy-pasted.">
-              <Toggle checked={!sendDm} label="Public reply only, no DM" hint="HAIP answers under the comment and sends nothing in the DMs."
+              {!isGlobal && <Toggle checked={!sendDm} label="Public reply only, no DM" hint="HAIP answers under the comment and sends nothing in the DMs."
                 onChange={v => {
                   setSendDm(!v);
                   const same = (a: string[], b: string[]) => a.join("|") === b.join("|");
                   if (v && same(acks, DEFAULT_ACKS)) setAcks(PUBLIC_ONLY_ACKS);
                   if (!v && same(acks, PUBLIC_ONLY_ACKS)) setAcks(DEFAULT_ACKS);
-                }} />
+                }} />}
               {acks.map((a, i) => (
                 <div key={i} className="flex gap-2">
                   <input className={field} value={a} maxLength={300} onChange={e => setAcks(acks.map((x, j) => (j === i ? e.target.value : x)))} />
@@ -305,7 +333,16 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
                 <input className={field} value={button.url} onChange={e => setButton({ ...button, url: e.target.value })} placeholder="https://…" inputMode="url" aria-label="Button link" />
               </div>
             )}
+            <VariantsField value={variants} onChange={setVariants} />
+            <details className="text-[14px]" open={quickReplies.length > 0}>
+              <summary className="min-h-11 cursor-pointer py-2 font-medium text-[var(--haip-fg-muted)]">Quick reply buttons</summary>
+              <QuickRepliesField value={quickReplies} onChange={setQuickReplies} />
+            </details>
             <AttachmentField value={attachment} onChange={setAttachment} />
+            <details className="text-[14px]" open={cards.length > 0}>
+              <summary className="min-h-11 cursor-pointer py-2 font-medium text-[var(--haip-fg-muted)]">Swipeable cards</summary>
+              <CardsField value={cards} onChange={setCards} />
+            </details>
             <Toggle checked={sharePost.enabled} onChange={v => setSharePost(v ? { enabled: true, media_id: isComment ? null : "" } : { enabled: false })}
               label="Share one of your posts" hint="Sent after the message. Instagram only shares your own posts and reels." />
             {sharePost.enabled && <SharePostField value={sharePost} onChange={setSharePost} isComment={isComment} />}
@@ -392,6 +429,8 @@ export function AutomationBuilder({ open, onOpenChange, initial, preset, copyFro
               {gate.enabled && <Bubble who="you" button={gate.button_title}>{sample(gate.ask_text)}</Bubble>}
               {form.enabled && form.questions.slice(0, 3).map((q, i) => <Bubble key={i} who="you" button={q.options?.slice(0, 3).join(" · ") || undefined}>{q.text || "Question…"}</Bubble>)}
               <Bubble who="you" button={withButton ? button.title : undefined}>{sample(message).replaceAll("{agent_name}", "Priya") || "Your message…"}</Bubble>
+              {quickReplies.length > 0 && <p className="px-1 text-[12px] text-[var(--haip-fg-subtle)]">Buttons: {quickReplies.map(q => q.title || "…").join(" · ")}</p>}
+              {cards.length > 0 && <Bubble who="you" button={cards[0].buttons[0]?.title}>{`${cards[0].title || "Card"}${cards.length > 1 ? ` + ${cards.length - 1} more cards` : ""}`}</Bubble>}
               {attachment && <Bubble who="you">{attachment.kind === "video" ? "Video" : "Photo"}{attachment.filename ? ` · ${attachment.filename}` : ""}</Bubble>}
               {sharePost.enabled && <Bubble who="you">Shared post</Bubble>}
               {suggest.enabled && <Bubble who="you" button={suggest.button_title}>{suggest.prompt}</Bubble>}

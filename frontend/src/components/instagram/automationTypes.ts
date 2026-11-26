@@ -6,7 +6,9 @@ export type IgTrigger =
   | "ig_story_reply_received"
   | "ig_story_mention_received"
   | "ig_dm_received"
-  | "ig_ad_chat_started";
+  | "ig_ad_chat_started"
+  | "ig_global"
+  | "ig_dm_default";
 
 export const IG_ACTION = "send_instagram_quick_reply";
 
@@ -17,6 +19,8 @@ export const TRIGGERS: { value: IgTrigger; label: string; short: string; hint: s
   { value: "ig_story_mention_received", label: "Mention in their story", short: "Story mention", hint: "Someone tags you in their story: thank them." },
   { value: "ig_dm_received", label: "DM with a keyword", short: "DM keyword", hint: "Someone sends you a keyword in a DM." },
   { value: "ig_ad_chat_started", label: "Chat started from an ad", short: "Ad chat", hint: "A welcome for people who open a chat from your ad." },
+  { value: "ig_global", label: "Several places at once", short: "Global", hint: "One keyword automation for comments, Live, stories, DMs and ads together. Specific automations answer first." },
+  { value: "ig_dm_default", label: "Default reply", short: "Default reply", hint: "A DM nothing else answers. Sent only when the AI will not reply (AI off, or a photo or sticker)." },
 ];
 
 export const triggerMeta = (t: string) => TRIGGERS.find(x => x.value === t);
@@ -26,7 +30,9 @@ export interface IgTriggerConfig {
   exclude_keywords?: string[];
   reply_all?: boolean;
   mention_only?: boolean; // comments: only ones that tag someone (@name)
-  scope?: "post" | "any" | "next_post";
+  scope?: "post" | "any" | "next_post" | "caption_code";
+  caption_code?: string;
+  surfaces?: string[];
   media_id?: string;
   media_thumb?: string;
   media_caption?: string;
@@ -104,6 +110,9 @@ export interface IgActionConfig {
   delay_seconds?: number;
   attachment?: IgAttachment | null;
   share_post?: IgSharePost;
+  message_variants?: string[];
+  quick_replies?: { title: string; reply: string }[];
+  cards?: { image_key?: string | null; title: string; subtitle?: string; buttons: { title: string; url: string }[] }[];
   public_ack_pool?: string[];
   follow_gate?: { enabled: boolean; ask_text?: string; button_title?: string; max_asks?: number; send_anyway?: boolean };
   once_per_person?: boolean;

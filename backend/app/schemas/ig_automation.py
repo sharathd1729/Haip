@@ -18,6 +18,8 @@ IG_TRIGGERS = (
     "ig_story_mention_received",  # someone mentions us in their story
     "ig_dm_received",  # DM keyword
     "ig_ad_chat_started",  # a chat opened from an ad
+    "ig_global",  # one keyword automation on several places at once (trigger_config.surfaces)
+    "ig_dm_default",  # a DM nothing else answers, when the AI would not reply either
 )
 
 
@@ -26,7 +28,9 @@ class IgTriggerConfig(BaseModel):
     exclude_keywords: list[str] = Field(default_factory=list, max_length=50)
     reply_all: bool = False  # any comment / story reply / mention, no keyword needed
     mention_only: bool = False  # comments only: the comment must tag someone (@name), e.g. "tag a friend" posts
-    scope: Literal["post", "any", "next_post"] = "any"
+    scope: Literal["post", "any", "next_post", "caption_code"] = "any"
+    caption_code: str | None = Field(default=None, max_length=30)  # scope caption_code: posts whose caption has it
+    surfaces: list[Literal["comment", "live", "story", "dm", "ad"]] = Field(default_factory=list)  # ig_global only
     media_id: str | None = Field(default=None, max_length=64)
     media_thumb: str | None = Field(default=None, max_length=2000)  # display only
     media_caption: str | None = Field(default=None, max_length=300)  # display only
@@ -42,6 +46,12 @@ class IgTriggerConfig(BaseModel):
 
     @model_validator(mode="after")
     def _media(self):
+        if self.scope == "caption_code":
+            code = (self.caption_code or "").strip().lstrip("#")
+            if not (3 <= len(code) <= 30 and code.replace("_", "").isalnum()):
+                raise ValueError("The caption code needs 3 to 30 letters or numbers, e.g. JADE1.")
+            self.caption_code = code.upper()
+            return self
         if self.scope == "any" and self.media_id:
             self.scope = "post"  # older rules: a media_id alone meant "this post"
         if self.scope == "post" and not self.media_id:
@@ -152,6 +162,22 @@ class IgSharePost(BaseModel):
 DELAY_MAX_SECONDS = 3600
 
 
+class IgQuickReply(BaseModel):
+    """A tap button on the final message and the text sent back when it is tapped."""
+
+    title: str = Field(min_length=1, max_length=20)
+    reply: str = Field(min_length=1, max_length=640)
+
+
+class IgCard(BaseModel):
+    """One swipeable card (Instagram generic template): image, headline, text, up to 3 link buttons."""
+
+    image_key: str | None = Field(default=None, max_length=300)
+    title: str = Field(min_length=1, max_length=80)
+    subtitle: str = Field(default="", max_length=80)
+    buttons: list[IgButton] = Field(default_factory=list, max_length=3)
+
+
 class IgActionConfig(BaseModel):
     message: str = Field(default="", max_length=900)
     send_dm: bool = True  # False = comments only: post the public reply and send no DM
@@ -166,6 +192,14 @@ class IgActionConfig(BaseModel):
     delay_seconds: int = Field(default=0, ge=0, le=DELAY_MAX_SECONDS)  # wait before replying
     attachment: IgAttachment | None = None
     share_post: IgSharePost = Field(default_factory=IgSharePost)
+    message_variants: list[str] = Field(default_factory=list, max_length=5)  # one of message + these, at random
+    quick_replies: list[IgQuickReply] = Field(default_factory=list, max_length=5)
+    cards: list[IgCard] = Field(default_factory=list, max_length=10)
+
+    @field_validator("message_variants", mode="before")
+    @classmethod
+    def _variants(cls, v):
+        return [str(x).strip()[:900] for x in (v or []) if str(x or "").strip()]
     follow_up: str = Field(default="", max_length=500)  # DM-keyword rules only (endpoints/automations.py)
     follow_up_after_hours: int | None = Field(default=None, ge=1, le=23)
     form: IgForm = Field(default_factory=IgForm)
@@ -217,6 +251,13 @@ def validate_ig_rule(
             raise ValueError("Add at least one public reply: with 'Public reply only' it is the whole answer.")
     if a.attachment and tenant_id and not a.attachment.key.startswith(f"{tenant_id}/ig_automations/"):
         raise ValueError("Upload the photo or video again.")
+    keys = [c.image_key for c in a.cards if c.image_key]
+    if tenant_id and any(not k.startswith(f"{tenant_id}/ig_automations/") for k in keys):
+        raise ValueError("Upload the card images again.")
+    if trigger == "ig_global" and not t.surfaces:
+        raise ValueError("Pick where this automation works: comments, Live, stories, DMs or ads.")
+    if trigger == "ig_global" and not t.reply_all and not t.keywords:
+        raise ValueError("Add at least one keyword, or choose 'any message'.")
     if a.share_post.enabled and not a.share_post.media_id and trigger not in COMMENT_TRIGGERS:
         raise ValueError("Pick the post or reel to share.")
     return t.model_dump(exclude_none=True), a.model_dump(exclude_none=True)

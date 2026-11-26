@@ -39,10 +39,20 @@ def _posts(adapter, rule: AutomationRule, since: datetime) -> list[str]:
     cfg = rule.trigger_config or {}
     if cfg.get("media_id"):  # a post rule, or a "next post" rule once bound
         return [cfg["media_id"]]
-    if (cfg.get("scope") or "any") != "any":
+    scope = cfg.get("scope") or "any"
+    if scope not in ("any", "caption_code"):
         return []  # a "next post" rule not bound yet has no post
+    from app.services.ig_keyword_match import caption_has_code
+
     return [m["id"] for m in adapter.get_recent_media(limit=MAX_POSTS)
-            if m.get("id") and (_when(m.get("timestamp")) or since) >= since]
+            if m.get("id") and (_when(m.get("timestamp")) or since) >= since
+            and (scope == "any" or caption_has_code(m.get("caption"), cfg.get("caption_code")))]
+
+
+def is_comment_rule(rule: AutomationRule) -> bool:
+    """A post-comment automation, or a global one that covers comments."""
+    return rule.trigger == "ig_comment_received" or (
+        rule.trigger == "ig_global" and "comment" in ((rule.trigger_config or {}).get("surfaces") or []))
 
 
 def run(db: Session, tenant_id: str, rule_id: str, now: datetime | None = None) -> dict:
@@ -55,7 +65,7 @@ def run(db: Session, tenant_id: str, rule_id: str, now: datetime | None = None) 
 
     out = {"read": 0, "matched": 0, "answered": 0, "queued": 0, "skipped": 0}
     rule = db.query(AutomationRule).filter_by(id=rule_id, tenant_id=tenant_id, is_active=True).first()
-    if rule is None or rule.trigger != "ig_comment_received":
+    if rule is None or not is_comment_rule(rule):
         return {**out, "status": "not_a_comment_automation"}
     adapter = ig_automation._adapter(db, tenant_id)
     if adapter is None:

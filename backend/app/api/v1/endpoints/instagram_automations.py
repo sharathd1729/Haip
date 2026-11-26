@@ -345,7 +345,9 @@ def send_to_existing_comments(
     rule = db.query(AutomationRule).filter_by(id=rule_id, tenant_id=current_user.tenant_id).first()
     if rule is None:
         raise HTTPException(status_code=404, detail="Automation not found")
-    if rule.trigger != "ig_comment_received" or not rule.is_active:
+    from app.services.ig_send_existing import is_comment_rule
+
+    if not is_comment_rule(rule) or not rule.is_active:
         raise HTTPException(status_code=422, detail="Only a switched-on comment automation can answer existing comments.")
     if not cache.idem_check_and_set(f"igauto:send_existing:{rule.id}", ttl=600):
         raise HTTPException(status_code=409, detail="Already answering this post's comments. Try again in 10 minutes.")
@@ -354,6 +356,87 @@ def send_to_existing_comments(
     db.commit()
     send_existing.delay(current_user.tenant_id, rule.id)
     return {"queued": True}
+
+
+PAUSE_HOURS = (1, 4, 24, 72, 168)
+
+
+@router.get("/instagram/automations/pause")
+def get_pause(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    from app.services.ig_automation_extras import paused_until
+
+    until = paused_until(db, current_user.tenant_id)
+    return {"paused_until": until.isoformat() if until else None}
+
+
+@router.put("/instagram/automations/pause")
+def set_pause(
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Pause every Instagram automation for `hours` (1, 4, 24, 72 or 168), or resume with hours = null. Audited."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.core.audit import append_audit
+
+    hours = body.get("hours")
+    if hours is not None and hours not in PAUSE_HOURS:
+        raise HTTPException(status_code=422, detail="Pause for 1, 4, 24, 72 or 168 hours.")
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    until = datetime.now(UTC) + timedelta(hours=hours) if hours else None
+    bc = dict(tenant.brand_config or {})
+    bc["ig_automations"] = {**(bc.get("ig_automations") or {}), "paused_until": until.isoformat() if until else None}
+    tenant.brand_config = bc
+    flag_modified(tenant, "brand_config")
+    append_audit(db, tenant_id=tenant.id, actor_user_id=current_user.id,
+                 action="ig_automation.paused" if until else "ig_automation.resumed", target_type="tenant",
+                 target_id=tenant.id, payload={"hours": hours})
+    db.commit()
+    return {"paused_until": until.isoformat() if until else None}
+
+
+@router.get("/instagram/card-library")
+def get_card_library(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Saved sets of swipeable cards to reuse in automations (brand_config.ig_card_library)."""
+    bc = db.query(Tenant.brand_config).filter(Tenant.id == current_user.tenant_id).scalar() or {}
+    return {"items": bc.get("ig_card_library") or []}
+
+
+@router.put("/instagram/card-library")
+def put_card_library(
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Replace the saved card sets: items [{name, cards}] (at most 20; cards as in an automation)."""
+    from pydantic import BaseModel, Field, ValidationError
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.schemas.ig_automation import IgCard
+
+    class Item(BaseModel):
+        name: str = Field(min_length=1, max_length=60)
+        cards: list[IgCard] = Field(min_length=1, max_length=10)
+
+    try:
+        items = [Item(**i) for i in (body.get("items") or [])][:20]
+    except (ValidationError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail="Each saved set needs a name and 1 to 10 cards with a headline.") from exc
+    prefix = f"{current_user.tenant_id}/ig_automations/"
+    if any(c.image_key and not c.image_key.startswith(prefix) for i in items for c in i.cards):
+        raise HTTPException(status_code=422, detail="Upload the card images again.")
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    tenant.brand_config = {**(tenant.brand_config or {}), "ig_card_library": [i.model_dump(exclude_none=True) for i in items]}
+    flag_modified(tenant, "brand_config")
+    db.commit()
+    return {"items": tenant.brand_config["ig_card_library"]}
 
 
 @router.get("/l/{slug}/{code}", include_in_schema=False)
