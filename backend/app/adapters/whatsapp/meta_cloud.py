@@ -129,6 +129,15 @@ class MetaCloudAdapter:
         }
         return await self._post(url_, payload)
 
+    async def send_location(self, to: str, latitude: float, longitude: float, name: str = "", address: str = "") -> dict:
+        """A map pin (flow canvas "location" step). A session message: only inside the 24-hour window."""
+        url_ = f"{WA_BASE}/{self.phone_number_id}/messages"
+        location = {"latitude": latitude, "longitude": longitude,
+                    **({"name": name} if name else {}), **({"address": address} if address else {})}
+        payload = {"messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
+                   "type": "location", "location": location}
+        return await self._post(url_, payload)
+
     async def mark_read(self, message_id: str) -> dict:
         url = f"{WA_BASE}/{self.phone_number_id}/messages"
         payload = {"messaging_product": "whatsapp", "status": "read", "message_id": message_id}

@@ -110,6 +110,10 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             if media_url and media_type in ("image", "document"):
                 header = {"type": media_type, media_type: {"link": media_url, **({"filename": filename} if filename and media_type == "document" else {})}}
             result = _run_async(adapter.send_interactive(to=guest.phone, interactive=wa_interactive.payload(interactive, body_text, header=header)))
+        elif media_type == "location" and isinstance(meta.get("location"), dict):
+            loc = meta["location"]   # a flow canvas map pin (services/flow_nodes.py)
+            result = _run_async(adapter.send_location(to=guest.phone, latitude=float(loc["latitude"]), longitude=float(loc["longitude"]),
+                                                      name=str(loc.get("name") or ""), address=str(loc.get("address") or "")))
         elif media_type and media_url:
             if media_type == "image":
                 result = _run_async(adapter.send_image(to=guest.phone, url=media_url, caption=body_text))

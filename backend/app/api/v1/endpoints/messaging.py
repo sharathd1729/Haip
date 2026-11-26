@@ -1032,6 +1032,16 @@ def opt_in(
 
 # ─── Flow Builder ─────────────────────────────────────────────────────────────
 
+def _checked_trigger(body: FlowSaveRequest, tenant_id: str) -> Optional[str]:
+    """Canvas save checks (services/flow_validation.py): 422 with a plain message. The trigger column mirrors the
+    trigger node so _fire_matching_flows and the keyword trigger find the flow."""
+    from app.services.flow_validation import validate_flow
+    try:
+        return validate_flow(body.nodes, body.edges, tenant_id) or body.trigger
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 @router.get("/flows", response_model=List[FlowOut])
 def list_flows(
     limit: int = Query(default=100, ge=1, le=500),
@@ -1053,6 +1063,7 @@ def create_flow(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
 ):
+    trigger = _checked_trigger(body, current_user.tenant_id)
     flow = WAFlow(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
@@ -1060,7 +1071,7 @@ def create_flow(
         description=body.description,
         nodes=body.nodes,
         edges=body.edges,
-        trigger=body.trigger,
+        trigger=trigger,
     )
     db.add(flow)
     db.commit()
@@ -1078,11 +1089,12 @@ def save_flow(
     flow = db.query(WAFlow).filter_by(id=flow_id, tenant_id=current_user.tenant_id).first()
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found")
+    trigger = _checked_trigger(body, current_user.tenant_id)
     flow.name = body.name
     flow.description = body.description
     flow.nodes = body.nodes
     flow.edges = body.edges
-    flow.trigger = body.trigger
+    flow.trigger = trigger
     db.commit()
     db.refresh(flow)
     return flow

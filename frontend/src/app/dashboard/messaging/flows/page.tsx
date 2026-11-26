@@ -1,72 +1,19 @@
 "use client";
-import { useState, useCallback, useRef } from "react";
+// WhatsApp Flow Builder: the list of flows (activate, logs, delete) and the drag-and-drop canvas editor
+// (components/flows/canvas, spec docs/whatsapp/FLOW_CANVAS_SPEC.md).
+import { useState } from "react";
 import { AutomationsNav } from "@/components/automations/AutomationsNav";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Play, Pause, Trash2, X, CheckCircle2, AlertCircle, Loader2, MessageSquare, Zap, ArrowRight, ChevronRight, Settings, Move, Clock, Users, Send, Hash, History } from "@/lib/icons";
-import { GitBranch, ToggleLeft } from "lucide-react";
+import { Plus, Play, Pause, Trash2, X, CheckCircle2, AlertCircle, Zap, Settings, History } from "@/lib/icons";
+import { GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DELAY_UNITS, appendIndex, describeDelay, insertNode, moveNode, splitDelay } from "@/components/flows/flowOrder";
-import { VariableMapping, defaultMap, type VariableMap } from "@/components/messaging/VariableMapping";
-import type { Template } from "@/components/messaging/templateModel";
+import { FlowCanvasEditor, type FlowRecord } from "@/components/flows/canvas/FlowCanvasEditor";
+import { TRIGGER_OPTIONS, triggerOf } from "@/components/flows/canvas/flowModel";
+import { blankFlow } from "@/components/flows/canvas/flowTemplates";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-
-interface FlowNode {
-  id: string;
-  type: "trigger" | "message" | "template" | "condition" | "delay" | "action" | "end";
-  label: string;
-  content?: string;
-  condition?: string;
-  delay_minutes?: number;
-  template_id?: string;
-  variable_map?: VariableMap;
-  x: number;
-  y: number;
-}
-
-interface FlowEdge {
-  id: string;
-  from: string;
-  to: string;
-  label?: string;
-}
-
-interface Flow {
-  id: string;
-  name: string;
-  description: string | null;
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  is_active: boolean;
-  trigger: string | null;
-  created_at: string | null;
-}
-
-// ─── Node type definitions ────────────────────────────────────────────────────
-
-const NODE_TYPES = {
-  trigger: { label: "Trigger", icon: <Zap size={14} />, color: "bg-[var(--haip-status-warning-bg)] border-[var(--haip-status-warning-border)] text-[var(--haip-status-warning-fg)]", dot: "bg-[var(--haip-amber)]" },
-  message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
-  template: { label: "Send Template", icon: <Send size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
-  condition: { label: "Condition", icon: <GitBranch size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
-  delay: { label: "Wait / Delay", icon: <Clock size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
-  action: { label: "Action", icon: <Zap size={14} />, color: "bg-[var(--haip-status-info-bg)] border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)]", dot: "bg-primary" },
-  end: { label: "End", icon: <Hash size={14} />, color: "bg-[var(--haip-surface)] border-[var(--haip-border-strong)] text-[var(--haip-fg-subtle)]", dot: "bg-[var(--haip-border-strong)]" },
-};
-
-// "Keyword reply" and "Campaign reply" were offered here with no fire
-// point anywhere in the backend -- a flow set to either trigger silently
-// never ran. Removed rather than left to quietly do nothing; each needs a
-// real hook (inbound-message keyword matching, campaign-reply-window
-// detection) before it belongs in this list again.
-const TRIGGER_OPTIONS = [
-  { value: "opt_in", label: "Contact opts in" },
-  { value: "new_inquiry", label: "New inquiry created" },
-  { value: "check_in", label: "Guest check-in (D-1)" },
-  { value: "check_out", label: "Guest check-out (D+1)" },
-];
+interface Flow extends FlowRecord { id: string; created_at: string | null }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -81,552 +28,12 @@ function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error";
   );
 }
 
-// ─── Flow Canvas (simplified visual builder) ──────────────────────────────────
-
-// Drag a step (or a palette item) onto a connector to place it there. Keyboard: the arrow buttons on each step.
-const DRAG_NODE = "application/x-haip-flow-node";
-const DRAG_TYPE = "application/x-haip-flow-type";
-
-function DropZone({ index, onDropAt, children }: { index: number; onDropAt: (index: number, dt: DataTransfer) => void; children: React.ReactNode }) {
-  const [over, setOver] = useState(false);
-  return (
-    <div
-      onDragOver={e => { if (e.dataTransfer.types.includes(DRAG_NODE) || e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); setOver(true); } }}
-      onDragLeave={() => setOver(false)}
-      onDrop={e => { e.preventDefault(); setOver(false); onDropAt(index, e.dataTransfer); }}
-      className={cn("flex flex-col items-center py-1 rounded-xl transition-colors", over && "bg-[var(--haip-primary-tint)] outline outline-2 outline-dashed outline-primary")}
-    >
-      {children}
-    </div>
-  );
-}
-
-function FlowCanvas({
-  nodes,
-  edges,
-  selectedNodeId,
-  onSelectNode,
-  onAddNode,
-  onDeleteNode,
-  onMove,
-  onInsertType,
-}: {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  selectedNodeId: string | null;
-  onSelectNode: (id: string | null) => void;
-  onAddNode: (type: FlowNode["type"], afterId?: string) => void;
-  onDeleteNode: (id: string) => void;
-  onMove: (id: string, toIndex: number) => void;
-  onInsertType: (type: FlowNode["type"], index: number) => void;
-}) {
-  const dropAt = (index: number, dt: DataTransfer) => {
-    const id = dt.getData(DRAG_NODE);
-    if (id) {
-      const from = nodes.findIndex(n => n.id === id);
-      onMove(id, from >= 0 && from < index ? index - 1 : index);   // index counts the dragged step itself
-      return;
-    }
-    const type = dt.getData(DRAG_TYPE) as FlowNode["type"];
-    if (type && type in NODE_TYPES) onInsertType(type, index);
-  };
-  return (
-    <div className="relative w-full overflow-auto bg-[var(--haip-surface)]" style={{ minHeight: "500px", backgroundImage: "radial-gradient(circle, var(--haip-border) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
-      <div className="p-8 flex flex-col items-start gap-0 min-w-[600px]">
-        {nodes.map((node, idx) => {
-          const cfg = NODE_TYPES[node.type] ?? NODE_TYPES.message;
-          const isSelected = selectedNodeId === node.id;
-          const nextNode = nodes[idx + 1];
-          const edge = edges.find(e => e.from === node.id);
-
-          return (
-            <div key={node.id} className="flex flex-col items-center">
-              {/* Node */}
-              <div
-                draggable={node.type !== "trigger"}
-                onDragStart={e => { e.dataTransfer.setData(DRAG_NODE, node.id); e.dataTransfer.effectAllowed = "move"; }}
-                onClick={() => onSelectNode(isSelected ? null : node.id)}
-                className={cn(
-                  "w-72 rounded-2xl border-2 p-4 cursor-pointer transition-all shadow-sm hover:shadow-md group relative",
-                  node.type !== "trigger" && "active:cursor-grabbing",
-                  cfg.color,
-                  isSelected && "ring-2 ring-offset-2 ring-primary shadow-md"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", cfg.dot.replace("bg-", "bg-").replace("400", "100"))}>
-                    <span className={cn(cfg.dot.replace("bg-", "text-"))}>{cfg.icon}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11.5px] font-bold uppercase tracking-wide opacity-60">{cfg.label}</span>
-                      {node.type !== "trigger" && (
-                        <span className="ml-auto mr-1 flex opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-                          <button type="button" aria-label={`Move ${node.label} up`} disabled={idx <= 1}
-                            onClick={e => { e.stopPropagation(); onMove(node.id, idx - 1); }} className="px-1 disabled:opacity-30">↑</button>
-                          <button type="button" aria-label={`Move ${node.label} down`} disabled={idx >= nodes.length - 1}
-                            onClick={e => { e.stopPropagation(); onMove(node.id, idx + 1); }} className="px-1 disabled:opacity-30">↓</button>
-                        </span>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onDeleteNode(node.id); }}
-                        className="opacity-0 group-hover:opacity-100 text-[var(--haip-status-danger-fg)] hover:text-[var(--haip-status-danger-fg)] transition-all"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                    <p className="text-sm font-semibold mt-0.5 truncate">{node.label}</p>
-                    {node.content && <p className="text-[11px] opacity-60 mt-0.5 truncate">{node.content}</p>}
-                    {node.delay_minutes && <p className="text-[11px] opacity-60 mt-0.5">{describeDelay(node.delay_minutes)}</p>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Connector + add button */}
-              {node.type !== "end" && (
-                <DropZone index={idx + 1} onDropAt={dropAt}>
-                  <div className="w-0.5 h-4 bg-[var(--haip-border-strong)]" />
-                  {edge?.label && (
-                    <span className="text-[11.5px] bg-white border border-[var(--haip-border)] rounded px-1.5 py-0.5 text-[var(--haip-fg-subtle)] font-medium">{edge.label}</span>
-                  )}
-                  <button
-                    onClick={() => onAddNode("message", node.id)}
-                    className="w-6 h-6 rounded-full bg-white border-2 border-[var(--haip-border-strong)] flex items-center justify-center text-[var(--haip-fg-subtle)] hover:border-primary hover:text-primary hover:bg-[var(--haip-primary-tint)] transition-all"
-                    title="Add step"
-                  >
-                    <Plus size={12} />
-                  </button>
-                  <div className="w-0.5 h-4 bg-[var(--haip-border-strong)]" />
-                </DropZone>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Node Editor Panel ────────────────────────────────────────────────────────
-
-// A flow "template" step (flow_engine._send_flow_template): an approved template, sent even outside the 24-hour window.
-function TemplateStepFields({ local, setLocal }: { local: FlowNode; setLocal: (f: (l: FlowNode) => FlowNode) => void }) {
-  const { data: templates = [] } = useQuery<Template[]>({
-    queryKey: ["wa-templates"],
-    queryFn: () => api.get("/messaging/templates").then(r => r.data).catch(() => []),
-    staleTime: 60_000,
-  });
-  const approved = (templates as (Template & { id: string; name: string; status: string })[]).filter(t => t.status === "approved");
-  const picked = approved.find(t => t.id === local.template_id);
-  return (
-    <div className="space-y-3">
-      <div>
-        <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Approved template</label>
-        <select value={local.template_id ?? ""} className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm"
-          onChange={e => { const t = approved.find(x => x.id === e.target.value); setLocal(l => ({ ...l, template_id: e.target.value, variable_map: defaultMap(t) })); }}>
-          <option value="">Select template…</option>
-          {approved.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Templates reach the guest even after the 24-hour window, unlike a plain message.</p>
-      </div>
-      {picked && <VariableMapping template={picked} value={local.variable_map ?? {}} onChange={(m: VariableMap) => setLocal(l => ({ ...l, variable_map: m }))} />}
-    </div>
-  );
-}
-
-function NodeEditorPanel({
-  node,
-  onUpdate,
-  onClose,
-}: {
-  node: FlowNode;
-  onUpdate: (id: string, changes: Partial<FlowNode>) => void;
-  onClose: () => void;
-}) {
-  const [local, setLocal] = useState({ ...node });
-
-  return (
-    <div className="w-72 bg-white border-l border-[var(--haip-border)] flex flex-col h-full shadow-xl">
-      <div className="px-4 py-4 border-b border-[var(--haip-border)] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-[var(--haip-fg)]">Edit step</span>
-        </div>
-        <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"><X size={16} /></button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div>
-          <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Step type</label>
-          <select value={local.type}
-            onChange={e => setLocal(l => ({ ...l, type: e.target.value as FlowNode["type"] }))}
-            className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-            {Object.entries(NODE_TYPES).map(([t, cfg]) => (
-              <option key={t} value={t}>{cfg.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Step label</label>
-          <input value={local.label} onChange={e => setLocal(l => ({ ...l, label: e.target.value }))}
-            className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-        </div>
-
-        {local.type === "trigger" && (
-          <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Trigger event</label>
-            <select value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))}
-              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-              <option value="">Select trigger…</option>
-              {TRIGGER_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-        )}
-
-        {local.type === "message" && (
-          <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Message content</label>
-            <textarea value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))} rows={4}
-              placeholder={"Hi {{name}}, welcome to our villa!\n\nYour booking is confirmed."}
-              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">Use {`{{name}}`}, {`{{property}}`} etc. for personalization.</p>
-          </div>
-        )}
-
-        {local.type === "template" && <TemplateStepFields local={local} setLocal={setLocal} />}
-
-        {local.type === "condition" && (
-          <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Condition</label>
-            <select value={local.condition ?? ""} onChange={e => setLocal(l => ({ ...l, condition: e.target.value }))}
-              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-              <option value="">Select condition…</option>
-              <option value="message_read">Message was read</option>
-              <option value="replied">Contact replied</option>
-              <option value="not_replied">Contact has not replied (drips)</option>
-              <option value="is_vip">Contact is VIP tag</option>
-              <option value="has_booking">Has active booking</option>
-            </select>
-            <p className="text-[11.5px] text-[var(--haip-fg-subtle)] mt-1">If the answer is no, the flow stops here.</p>
-          </div>
-        )}
-
-        {local.type === "delay" && (
-          <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Wait</label>
-            {(() => {
-              const { amount, unit } = splitDelay(local.delay_minutes ?? 60);
-              const per = (u: string) => DELAY_UNITS.find(d => d.value === u)?.minutes ?? 1;
-              return (
-                <div className="flex gap-2">
-                  <input type="number" min={1} value={amount} aria-label="Wait amount"
-                    onChange={e => setLocal(l => ({ ...l, delay_minutes: Math.max(1, parseInt(e.target.value) || 1) * per(unit) }))}
-                    className="w-24 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                  <select value={unit} aria-label="Wait unit" onChange={e => setLocal(l => ({ ...l, delay_minutes: amount * per(e.target.value) }))}
-                    className="flex-1 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                    {DELAY_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                  </select>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {local.type === "action" && (
-          <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Action</label>
-            <select value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))}
-              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-              <option value="">Select action…</option>
-              <option value="tag_vip">Add tag: VIP</option>
-              <option value="create_inquiry">Create inquiry</option>
-              <option value="notify_agent">Notify agent in inbox</option>
-              <option value="opt_out">Opt out contact</option>
-            </select>
-          </div>
-        )}
-      </div>
-      <div className="px-4 pb-4 pt-2 border-t border-[var(--haip-border)]">
-        <button
-          onClick={() => { onUpdate(node.id, local); onClose(); }}
-          className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors"
-        >
-          Apply changes
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Default flow template ────────────────────────────────────────────────────
-
-function makeDefaultFlow(name: string): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const trigger: FlowNode = { id: "n1", type: "trigger", label: "Contact opts in", content: "opt_in", x: 0, y: 0 };
-  const welcome: FlowNode = { id: "n2", type: "message", label: "Welcome message", content: "Hi {{name}}! Welcome. Reply YES to confirm you'd like to receive updates.", x: 0, y: 120 };
-  const delay: FlowNode = { id: "n3", type: "delay", label: "Wait 1 day", delay_minutes: 1440, x: 0, y: 240 };
-  const followup: FlowNode = { id: "n4", type: "message", label: "Follow-up offer", content: "We have a special offer for you! Reply OFFER to learn more.", x: 0, y: 360 };
-  const end: FlowNode = { id: "n5", type: "end", label: "End of flow", x: 0, y: 480 };
-  return {
-    nodes: [trigger, welcome, delay, followup, end],
-    edges: [
-      { id: "e1", from: "n1", to: "n2" },
-      { id: "e2", from: "n2", to: "n3" },
-      { id: "e3", from: "n3", to: "n4" },
-      { id: "e4", from: "n4", to: "n5" },
-    ],
-  };
-}
-
-// Owner-built drip: approved templates (they reach guests outside the 24-hour window), spaced by waits, and each later
-// message only goes if the guest hasn't replied yet (condition "not_replied").
-function makeDripFlow(): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const steps: FlowNode[] = [
-    { id: "d1", type: "trigger", label: "New inquiry created", content: "new_inquiry", x: 0, y: 0 },
-    { id: "d2", type: "template", label: "Day 0: welcome template", x: 0, y: 0 },
-    { id: "d3", type: "delay", label: "Wait 1 day", delay_minutes: 1440, x: 0, y: 0 },
-    { id: "d4", type: "condition", label: "Still no reply?", condition: "not_replied", x: 0, y: 0 },
-    { id: "d5", type: "template", label: "Day 1: follow-up template", x: 0, y: 0 },
-    { id: "d6", type: "delay", label: "Wait 3 days", delay_minutes: 4320, x: 0, y: 0 },
-    { id: "d7", type: "condition", label: "Still no reply?", condition: "not_replied", x: 0, y: 0 },
-    { id: "d8", type: "template", label: "Day 4: last nudge template", x: 0, y: 0 },
-    { id: "d9", type: "end", label: "End of drip", x: 0, y: 0 },
-  ];
-  return { nodes: steps, edges: steps.slice(0, -1).map((n, i) => ({ id: `de${i}`, from: n.id, to: steps[i + 1].id })) };
-}
-
-// ─── Create Flow Modal ────────────────────────────────────────────────────────
-
-function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreated: (flow: Flow) => void }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [preset, setPreset] = useState<"welcome" | "drip">("welcome");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleCreate = async () => {
-    if (!name.trim()) { setError("Flow name is required."); return; }
-    setError("");
-    setSubmitting(true);
-    try {
-      const { nodes, edges } = preset === "drip" ? makeDripFlow() : makeDefaultFlow(name);
-      const res = await api.post("/messaging/flows", { name, description, nodes, edges });
-      onCreated(res.data);
-      onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to create flow.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between">
-          <h2 className="text-base font-bold text-[var(--haip-fg)]">New flow</h2>
-          <button onClick={onClose}><X size={18} className="text-[var(--haip-fg-subtle)]" /></button>
-        </div>
-        <div className="px-6 py-5 space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Flow name <span className="text-[var(--haip-status-danger-fg)]">*</span></label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Welcome series"
-              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Description <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
-            <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Sent to new opt-ins"
-              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-          <fieldset>
-            <legend className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Start from</legend>
-            <div className="grid grid-cols-2 gap-2">
-              {([["welcome", "Welcome series", "Opt-in, wait a day, follow up"], ["drip", "Lead nurture drip", "3 templates over 4 days, stops when they reply"]] as const).map(([v, label, hint]) => (
-                <label key={v} className={cn("flex flex-col gap-0.5 p-2.5 rounded-xl border cursor-pointer text-xs", preset === v ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)]")}>
-                  <input type="radio" name="flow-preset" value={v} checked={preset === v} onChange={() => setPreset(v)} className="sr-only" />
-                  <span className="font-semibold text-[var(--haip-fg)]">{label}</span>
-                  <span className="text-[11.5px] text-[var(--haip-fg-subtle)] leading-snug">{hint}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {error && <div className="flex items-center gap-2 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
-        </div>
-        <div className="px-6 pb-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors">Cancel</button>
-          <button onClick={handleCreate} disabled={submitting}
-            className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-            {submitting ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
-            Create flow
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Flow Editor (full-page canvas view) ─────────────────────────────────────
-
-function FlowEditor({ flow: initialFlow, onBack, onSaved }: {
-  flow: Flow;
-  onBack: () => void;
-  onSaved: () => void;
-}) {
-  const [flow, setFlow] = useState(initialFlow);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-  const showToast = (msg: string, type: "success" | "error") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const addNode = useCallback((type: FlowNode["type"], afterId?: string) => {
-    const newNode: FlowNode = {
-      id: `n${Date.now()}`,
-      type,
-      label: NODE_TYPES[type].label,
-      x: 0,
-      y: 0,
-    };
-    setFlow(f => {
-      const nodes = [...f.nodes];
-      const edges = [...f.edges];
-      if (afterId) {
-        const afterIdx = nodes.findIndex(n => n.id === afterId);
-        const nextNode = nodes[afterIdx + 1];
-        // Remove edge from afterId to nextNode
-        const existingEdgeIdx = edges.findIndex(e => e.from === afterId);
-        if (existingEdgeIdx >= 0 && nextNode) {
-          edges.splice(existingEdgeIdx, 1, { id: `e${Date.now()}`, from: afterId, to: newNode.id });
-          edges.push({ id: `e${Date.now() + 1}`, from: newNode.id, to: nextNode.id });
-        } else {
-          edges.push({ id: `e${Date.now()}`, from: afterId, to: newNode.id });
-        }
-        nodes.splice(afterIdx + 1, 0, newNode);
-      } else {
-        nodes.push(newNode);
-      }
-      return { ...f, nodes, edges };
-    });
-    setSelectedNodeId(newNode.id);
-  }, []);
-
-  const moveStep = useCallback((id: string, toIndex: number) => {
-    setFlow(f => ({ ...f, ...moveNode(f.nodes, f.edges, id, toIndex) }));
-  }, []);
-
-  const insertStep = useCallback((type: FlowNode["type"], index: number) => {
-    const node: FlowNode = { id: `n${Date.now()}`, type, label: NODE_TYPES[type].label, x: 0, y: 0, ...(type === "delay" ? { delay_minutes: 1440 } : {}) };
-    setFlow(f => ({ ...f, ...insertNode(f.nodes, f.edges, node, index) }));
-    setSelectedNodeId(node.id);
-  }, []);
-
-  const updateNode = useCallback((id: string, changes: Partial<FlowNode>) => {
-    setFlow(f => ({
-      ...f,
-      nodes: f.nodes.map(n => n.id === id ? { ...n, ...changes } : n),
-    }));
-  }, []);
-
-  const deleteNode = useCallback((id: string) => {
-    setFlow(f => {
-      const nodes = f.nodes.filter(n => n.id !== id);
-      // Re-wire edges
-      const inEdge = f.edges.find(e => e.to === id);
-      const outEdge = f.edges.find(e => e.from === id);
-      let edges = f.edges.filter(e => e.from !== id && e.to !== id);
-      if (inEdge && outEdge) {
-        edges.push({ id: `e${Date.now()}`, from: inEdge.from, to: outEdge.to });
-      }
-      return { ...f, nodes, edges };
-    });
-    if (selectedNodeId === id) setSelectedNodeId(null);
-  }, [selectedNodeId]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await api.put(`/messaging/flows/${flow.id}`, {
-        name: flow.name,
-        description: flow.description,
-        nodes: flow.nodes,
-        edges: flow.edges,
-        trigger: flow.nodes.find(n => n.type === "trigger")?.content ?? null,
-      });
-      showToast("Flow saved!", "success");
-      onSaved();
-    } catch {
-      showToast("Save failed.", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const selectedNode = flow.nodes.find(n => n.id === selectedNodeId) ?? null;
-
-  return (
-    <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="px-4 py-3 bg-white border-b border-[var(--haip-border)] flex items-center gap-3 flex-shrink-0">
-        <button onClick={onBack} className="text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] flex items-center gap-1 transition-colors">
-          <ChevronRight size={14} className="rotate-180" /> Flows
-        </button>
-        <span className="text-[var(--haip-fg-subtle)]/70">/</span>
-        <span className="text-sm font-semibold text-[var(--haip-fg)] flex-1">{flow.name}</span>
-
-        <div className="flex items-center gap-2">
-          {/* Add node buttons */}
-          {(["message", "template", "condition", "delay", "action", "end"] as const).map(t => (
-            <button key={t} onClick={() => insertStep(t, appendIndex(flow.nodes))} draggable
-              onDragStart={e => { e.dataTransfer.setData(DRAG_TYPE, t); e.dataTransfer.effectAllowed = "copy"; }}
-              title="Click to add at the end, or drag onto a connector"
-              className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] transition-colors font-medium cursor-grab">
-              <Plus size={11} />
-              {NODE_TYPES[t].label}
-            </button>
-          ))}
-          <div className="w-px h-5 bg-[var(--haip-border)]" />
-          <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-1.5 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary transition-colors disabled:opacity-50">
-            {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
-            Save
-          </button>
-        </div>
-      </div>
-
-      {/* Canvas + panel */}
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-auto">
-          <FlowCanvas
-            nodes={flow.nodes}
-            edges={flow.edges}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={setSelectedNodeId}
-            onAddNode={addNode}
-            onDeleteNode={deleteNode}
-            onMove={moveStep}
-            onInsertType={insertStep}
-          />
-        </div>
-        {selectedNode && (
-          <NodeEditorPanel
-            node={selectedNode}
-            onUpdate={updateNode}
-            onClose={() => setSelectedNodeId(null)}
-          />
-        )}
-      </div>
-      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    </div>
-  );
-}
-
 // ─── Main page (flow list) ────────────────────────────────────────────────────
 
 export default function FlowsPage() {
   const queryClient = useQueryClient();
-  const [showCreate, setShowCreate] = useState(false);
-  const [editingFlow, setEditingFlow] = useState<Flow | null>(null);
+  const [editingFlow, setEditingFlow] = useState<FlowRecord | null>(null);
+  const newFlow = () => setEditingFlow({ name: "New flow", description: null, is_active: false, trigger: null, ...blankFlow() });
   const [viewingLogsFlow, setViewingLogsFlow] = useState<Flow | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -654,10 +61,11 @@ export default function FlowsPage() {
   // If editing a flow, show the editor full-page
   if (editingFlow) {
     return (
-      <FlowEditor
+      <FlowCanvasEditor
         flow={editingFlow}
         onBack={() => setEditingFlow(null)}
         onSaved={() => { queryClient.invalidateQueries({ queryKey: ["wa-flows"] }); }}
+        key={editingFlow.id ?? "new"}
       />
     );
   }
@@ -671,7 +79,7 @@ export default function FlowsPage() {
             <h1 className="haip-page-title">Flow Builder</h1>
             <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">Automate multi-step WhatsApp conversations triggered by guest actions.</p>
           </div>
-          <button onClick={() => setShowCreate(true)}
+          <button onClick={newFlow}
             className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]">
             <Plus size={15} /> New flow
           </button>
@@ -699,7 +107,7 @@ export default function FlowsPage() {
             <GitBranch size={40} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg-subtle)] font-medium">No flows yet</p>
             <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Build automated message sequences triggered by guest actions.</p>
-            <button onClick={() => setShowCreate(true)}
+            <button onClick={newFlow}
               className="mt-4 flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary transition-colors mx-auto">
               <Plus size={14} /> Create flow
             </button>
@@ -709,7 +117,9 @@ export default function FlowsPage() {
             {flows.map(flow => {
               const stepCount = flow.nodes.length;
               const triggerNode = flow.nodes.find(n => n.type === "trigger");
-              const triggerLabel = TRIGGER_OPTIONS.find(t => t.value === triggerNode?.content)?.label ?? triggerNode?.content ?? "No trigger";
+              const trig = triggerNode ? triggerOf(triggerNode) : "";
+              const triggerLabel = trig === "keyword" ? `Keyword: ${(triggerNode?.keywords ?? []).join(", ") || "none"}`
+                : TRIGGER_OPTIONS.find(t => t.value === trig)?.label ?? (trig || "No trigger");
 
               return (
                 <div key={flow.id} className="haip-card p-5 hover:shadow-sm transition-shadow">
@@ -764,7 +174,7 @@ export default function FlowsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             {[
               { step: "1", title: "Set a trigger", desc: "Choose what event starts the flow (opt-in, keyword, check-in…)" },
-              { step: "2", title: "Add steps", desc: "Mix messages, delays, conditions, and actions in any order" },
+              { step: "2", title: "Add blocks", desc: "Drag messages, buttons, questions and actions onto the canvas and connect them" },
               { step: "3", title: "Activate", desc: "Turn on the flow — it runs automatically for new contacts" },
               { step: "4", title: "Measure", desc: "Track delivery, read rates, and drop-off per step" },
             ].map(s => (
@@ -780,16 +190,6 @@ export default function FlowsPage() {
         </div>
       </div>
 
-      {showCreate && (
-        <CreateFlowModal
-          onClose={() => setShowCreate(false)}
-          onCreated={(flow) => {
-            queryClient.invalidateQueries({ queryKey: ["wa-flows"] });
-            setShowCreate(false);
-            setEditingFlow(flow);
-          }}
-        />
-      )}
       {viewingLogsFlow && (
         <FlowLogsModal flow={viewingLogsFlow} onClose={() => setViewingLogsFlow(null)} />
       )}

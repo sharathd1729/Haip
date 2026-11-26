@@ -24,6 +24,7 @@ import structlog
 log = structlog.get_logger()
 
 _TERMINAL_NODE_TYPES = {"end"}
+_MAX_STEPS = 50
 
 
 def _log_run(db: Session, tenant_id: str, flow_id: str, guest_id: str, node: dict, status: str, detail: str = "", error: str = "") -> None:
@@ -41,23 +42,35 @@ def _log_run(db: Session, tenant_id: str, flow_id: str, guest_id: str, node: dic
 
 
 def _render_template(text: str, guest, context: dict) -> str:
-    """Minimal {{name}}/{{property}} substitution -- flows have no richer
-    templating today (matches what the Flow Builder UI actually offers)."""
+    """Minimal substitution: {first_name} / {phone} (the canvas) and the older {{name}} / {{property}}."""
     if not text:
         return text
     name = (guest.name if guest else "") or "there"
+    first = (name.split() or ["there"])[0]
     property_name = context.get("property_name", "")
-    return text.replace("{{name}}", name).replace("{{property}}", property_name)
+    return (text.replace("{{name}}", name).replace("{{property}}", property_name)
+            .replace("{first_name}", first).replace("{phone}", (guest.phone if guest else "") or ""))
 
 
 def _execute_action_node(db: Session, tenant_id: str, guest_id: str, node: dict) -> str:
     from app.workers.tasks.automation_engine import dispatch_action
 
-    action_key = node.get("content", "")
+    action_key = node.get("action") or node.get("content", "")   # the canvas writes "action"; older flows "content"
     context = {"guest_id": guest_id}
 
     if action_key == "tag_vip":
         return dispatch_action(db, "tag_guest", {"tags": ["VIP"]}, context, tenant_id)
+    if action_key == "add_label":
+        tag = str(node.get("tag") or node.get("label") or "").strip()[:50]   # "label" is also the step's display name
+        if not tag:
+            return "skipped — no label set"
+        from app.models.guest import Guest
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+        if guest is not None and tag not in (guest.tags or []):
+            guest.tags = [*(guest.tags or []), tag]
+            db.commit()
+        dispatch_action(db, "tag_guest", {"tags": [tag]}, context, tenant_id)   # the subscriber row too, when there is one
+        return f"Label added: {tag}"
     if action_key == "notify_agent":
         return dispatch_action(db, "notify_team", {}, context, tenant_id)
     if action_key == "create_inquiry":
@@ -158,8 +171,8 @@ def _next_node_id(edges_by_from: dict, node_id: str, branch: Optional[bool] = No
     if not edges:
         return None
     if branch is not None:
-        wanted = "true" if branch else "false"
-        matched = next((e for e in edges if (e.get("label") or "").lower() == wanted), None)
+        wanted = ("true", "yes") if branch else ("false", "no")   # the canvas labels condition edges yes / no
+        matched = next((e for e in edges if (e.get("label") or "").lower() in wanted), None)
         if matched:
             return matched["to"]
         # Current Flow Builder UI only ever creates a single outgoing edge
@@ -194,13 +207,22 @@ def run_flow(
         current_id = trigger["id"]
 
     from app.models.guest import Guest
+    from app.services import flow_nodes
     guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
 
+    steps = 0
     while current_id:
         node = nodes_by_id.get(current_id)
-        if not node:
+        steps += 1
+        if not node or steps > _MAX_STEPS:   # the canvas allows loops: a loop with no waiting step must not spin forever
             break
         node_type = node.get("type")
+
+        if node_type in flow_nodes.NODE_TYPES:
+            current_id, parked = flow_nodes.run_node(db, tenant_id, flow, guest_id, guest, conversation_id, node, edges_by_from)
+            if parked:
+                return
+            continue
 
         if node_type == "trigger":
             current_id = _next_node_id(edges_by_from, current_id)
@@ -278,12 +300,14 @@ class FlowMessageNotSent(Exception):
     """A flow message that must not go out; the reason is logged on the flow run."""
 
 
-def _send_flow_message(db: Session, tenant_id: str, guest_id: str, conversation_id: Optional[str], text: str) -> None:
+def _send_flow_message(db: Session, tenant_id: str, guest_id: str, conversation_id: Optional[str], text: str, *,
+                       media_type: Optional[str] = None, media_url: Optional[str] = None, meta: Optional[dict] = None) -> str:
     """Send a flow "message" node's text to the guest on their official WhatsApp thread (Message row + send_whatsapp, the
     pipeline agent replies use; pre-authored, not AI-generated).
 
     Plain text only reaches a guest inside WhatsApp's 24-hour window (Meta drops it otherwise), so outside the window the
-    step is refused with a reason instead of queueing a message that never arrives. Never written into a thread mirrored
+    step is refused with a reason instead of queueing a message that never arrives. The canvas steps (flow_nodes) pass a
+    file key / map pin / interactive spec, which send_whatsapp turns into the right Meta message. Returns the message id. Never written into a thread mirrored
     from an agent's personal WhatsApp (whatsapp_state only returns official threads). Stamped sender_kind="system": an
     automatic flow message is not a person contacting the guest (work_queue_signals.touch_rows)."""
     import uuid
@@ -301,7 +325,8 @@ def _send_flow_message(db: Session, tenant_id: str, guest_id: str, conversation_
         id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=state["conversation_id"],
         direction=MessageDirection.OUTBOUND, channel=ChannelType.WHATSAPP,
         body=text, delivery_state=MessageDeliveryState.QUEUED, channel_status="queued",
-        sender_name="Flow", sender_kind="system",
+        sender_name="Flow", sender_kind="system", media_type=media_type, media_url=media_url,
+        channel_metadata=meta or None,
     )
     db.add(message)
     db.flush()
@@ -309,6 +334,7 @@ def _send_flow_message(db: Session, tenant_id: str, guest_id: str, conversation_
 
     from app.workers.tasks.send_whatsapp import send_whatsapp
     send_whatsapp.delay(message_id=message.id, tenant_id=tenant_id)
+    return message.id
 
 
 def _send_flow_template(db: Session, tenant_id: str, guest_id: str, node: dict) -> str:
