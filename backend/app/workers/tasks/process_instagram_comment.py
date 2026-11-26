@@ -215,20 +215,21 @@ def process_instagram_comment(self, payload: dict) -> dict:
         # Push notification (for staff with PWA on mobile / browser closed) --
         # same gap as process_instagram_dm.py: SSE alone only reaches an
         # already-open tab.
-        try:
-            from app.services.push_service import send_to_tenant
-            guest_name = guest.name if guest else display_name
-            send_to_tenant(
-                db=db,
-                tenant_id=tenant_id,
-                title="New Instagram comment",
-                body=f"{guest_name}: {(text or '[comment]')[:80]}",
-                url=f"/dashboard/inbox?id={conversation.id}",
-                tag="haip-message",
-                user_id=conversation.assigned_to or None,
-            )
-        except Exception as _push_exc:
-            logger.warning("push_send_failed: %s", _push_exc)
+        if not payload.get("backfill"):  # an old comment read by "answer existing comments": no "new comment" push
+            try:
+                from app.services.push_service import send_to_tenant
+                guest_name = guest.name if guest else display_name
+                send_to_tenant(
+                    db=db,
+                    tenant_id=tenant_id,
+                    title="New Instagram comment",
+                    body=f"{guest_name}: {(text or '[comment]')[:80]}",
+                    url=f"/dashboard/inbox?id={conversation.id}",
+                    tag="haip-message",
+                    user_id=conversation.assigned_to or None,
+                )
+            except Exception as _push_exc:
+                logger.warning("push_send_failed: %s", _push_exc)
 
         # ── T2/T3: keyword-match first; AI concierge draft is fallback only ──
         matched_rule = None
@@ -237,7 +238,9 @@ def process_instagram_comment(self, payload: dict) -> dict:
             trigger = "ig_live_comment_received" if payload.get("live") else "ig_comment_received"
             from app.services.ig_next_post import bind_next_post
             bind_next_post(db, tenant_id, media_id)
-            matched_rule = find_matching_rule(db, tenant_id, trigger, text, media_id=media_id, ad_id=media_ad_id or None)
+            from app.services.ig_automation_extras import caption_of
+            matched_rule = find_matching_rule(db, tenant_id, trigger, text, media_id=media_id, ad_id=media_ad_id or None,
+                                              caption=caption_of(db, tenant_id, media_id))
 
         if matched_rule:
             from app.services.ig_quick_reply import dispatch_quick_reply

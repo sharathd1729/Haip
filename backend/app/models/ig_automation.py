@@ -27,6 +27,10 @@ EVENT_KINDS = (
     "cards_sent",
     "card_interest",
     "opened",  # the person opened an automation DM (Instagram "seen", webhook field messaging_seen)
+    "media_sent",  # the rule's photo / video (ig_automation_extras)
+    "post_shared",  # one of our posts shared in the DM (ig_automation_extras)
+    "delayed",  # queued to run after the rule's delay
+    "quick_reply",  # someone tapped one of the rule's quick replies
 )
 
 FORM_STATUSES = ("active", "completed", "handed_over", "stopped", "replaced")

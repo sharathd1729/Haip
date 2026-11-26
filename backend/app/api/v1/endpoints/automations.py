@@ -133,6 +133,7 @@ VALID_TRIGGERS = {
     "ig_dm_received",
     # Instagram automations (services/ig_automation.py): Live comments, story replies, story mentions, ad-started chats.
     "ig_live_comment_received", "ig_story_reply_received", "ig_story_mention_received", "ig_ad_chat_started",
+    "ig_global", "ig_dm_default",  # one automation on several places; the DM fallback
     # WhatsApp keyword auto-replies (services/wa_keyword_replies.py), matched inline in workers/tasks/whatsapp.py.
     "wa_message_received",
 }
@@ -218,7 +219,7 @@ def _ig_configs(trigger: str, action: str, trigger_config: dict, action_config: 
     from pydantic import ValidationError
     from app.schemas.ig_automation import validate_ig_rule
     try:
-        return validate_ig_rule(trigger, trigger_config, action_config)
+        return validate_ig_rule(trigger, trigger_config, action_config, tenant_id)
     except ValidationError as exc:
         first = exc.errors()[0]
         raise HTTPException(status_code=422, detail=str(first.get("msg", "Invalid automation")).removeprefix("Value error, "))

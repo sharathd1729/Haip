@@ -18,6 +18,8 @@ IG_TRIGGERS = (
     "ig_story_mention_received",  # someone mentions us in their story
     "ig_dm_received",  # DM keyword
     "ig_ad_chat_started",  # a chat opened from an ad
+    "ig_global",  # one keyword automation on several places at once (trigger_config.surfaces)
+    "ig_dm_default",  # a DM nothing else answers, when the AI would not reply either
 )
 
 
@@ -25,7 +27,10 @@ class IgTriggerConfig(BaseModel):
     keywords: list[str] = Field(default_factory=list, max_length=50)
     exclude_keywords: list[str] = Field(default_factory=list, max_length=50)
     reply_all: bool = False  # any comment / story reply / mention, no keyword needed
-    scope: Literal["post", "any", "next_post"] = "any"
+    mention_only: bool = False  # comments only: the comment must tag someone (@name), e.g. "tag a friend" posts
+    scope: Literal["post", "any", "next_post", "caption_code"] = "any"
+    caption_code: str | None = Field(default=None, max_length=30)  # scope caption_code: posts whose caption has it
+    surfaces: list[Literal["comment", "live", "story", "dm", "ad"]] = Field(default_factory=list)  # ig_global only
     media_id: str | None = Field(default=None, max_length=64)
     media_thumb: str | None = Field(default=None, max_length=2000)  # display only
     media_caption: str | None = Field(default=None, max_length=300)  # display only
@@ -41,6 +46,12 @@ class IgTriggerConfig(BaseModel):
 
     @model_validator(mode="after")
     def _media(self):
+        if self.scope == "caption_code":
+            code = (self.caption_code or "").strip().lstrip("#")
+            if not (3 <= len(code) <= 30 and code.replace("_", "").isalnum()):
+                raise ValueError("The caption code needs 3 to 30 letters or numbers, e.g. JADE1.")
+            self.caption_code = code.upper()
+            return self
         if self.scope == "any" and self.media_id:
             self.scope = "post"  # older rules: a media_id alone meant "this post"
         if self.scope == "post" and not self.media_id:
@@ -97,9 +108,12 @@ class IgForm(BaseModel):
     @model_validator(mode="after")
     def _phone_once(self):
         if self.enabled:
-            phones = [q for q in self.questions if q.key == "phone"]
-            if len(phones) != 1:
-                raise ValueError("The form must ask for the WhatsApp number once: that is what makes the person a lead.")
+            if not self.questions:
+                raise ValueError("Add at least one question.")
+            # The WhatsApp number is what makes the person a lead; a form without it (e.g. email only) collects details
+            # but leaves them a contact.
+            if len([q for q in self.questions if q.key == "phone"]) > 1:
+                raise ValueError("Ask for the WhatsApp number only once.")
             keys = [q.key for q in self.questions if q.key != "custom"]
             if len(keys) != len(set(keys)):
                 raise ValueError("Each question type can be asked only once (add more as 'your own question').")
@@ -127,19 +141,76 @@ class IgSuggestMore(BaseModel):
     button_title: str = Field(default="More stays", min_length=1, max_length=20)
 
 
+class IgAttachment(BaseModel):
+    """A photo or video sent after the final message (uploaded through POST /automations/ig-media; Instagram fetches it
+    from a short-lived link made at send time). Instagram: png/jpeg up to 8 MB, mp4/mov up to 25 MB."""
+
+    kind: Literal["image", "video"]
+    key: str = Field(min_length=1, max_length=300)
+    filename: str = Field(default="", max_length=120)
+
+
+class IgSharePost(BaseModel):
+    """Send one of our own posts or reels in the DM after the final message (Instagram only shares the account's own posts).
+    No media_id = the post they commented on."""
+
+    enabled: bool = False
+    media_id: str | None = Field(default=None, max_length=64)
+    media_thumb: str | None = Field(default=None, max_length=2000)  # display only
+
+
+DELAY_MAX_SECONDS = 3600
+
+
+class IgQuickReply(BaseModel):
+    """A tap button on the final message and the text sent back when it is tapped."""
+
+    title: str = Field(min_length=1, max_length=20)
+    reply: str = Field(min_length=1, max_length=640)
+
+
+class IgCard(BaseModel):
+    """One swipeable card (Instagram generic template): image, headline, text, up to 3 link buttons."""
+
+    image_key: str | None = Field(default=None, max_length=300)
+    title: str = Field(min_length=1, max_length=80)
+    subtitle: str = Field(default="", max_length=80)
+    buttons: list[IgButton] = Field(default_factory=list, max_length=3)
+
+
 class IgActionConfig(BaseModel):
-    message: str = Field(min_length=1, max_length=900)
+    message: str = Field(default="", max_length=900)
+    send_dm: bool = True  # False = comments only: post the public reply and send no DM
     button: IgButton | None = None
     opener: str = Field(default="Hi {first_name}! Tap below and I'll send it over 👇", max_length=640)
     opener_button: str = Field(default="Send it", max_length=20)
+    opener_always: bool = False  # start with the opener + tap even when nothing else needs it ("engagement starter")
     public_ack_pool: list[str] = Field(default_factory=list, max_length=10)
     follow_gate: IgFollowGate = Field(default_factory=IgFollowGate)
     once_per_person: bool = True
+    once_per_post: bool = False  # with once_per_person: once per person per post, not once per automation
+    delay_seconds: int = Field(default=0, ge=0, le=DELAY_MAX_SECONDS)  # wait before replying
+    attachment: IgAttachment | None = None
+    share_post: IgSharePost = Field(default_factory=IgSharePost)
+    message_variants: list[str] = Field(default_factory=list, max_length=5)  # one of message + these, at random
+    quick_replies: list[IgQuickReply] = Field(default_factory=list, max_length=5)
+    cards: list[IgCard] = Field(default_factory=list, max_length=10)
+
+    @field_validator("message_variants", mode="before")
+    @classmethod
+    def _variants(cls, v):
+        return [str(x).strip()[:900] for x in (v or []) if str(x or "").strip()]
     follow_up: str = Field(default="", max_length=500)  # DM-keyword rules only (endpoints/automations.py)
     follow_up_after_hours: int | None = Field(default=None, ge=1, le=23)
     form: IgForm = Field(default_factory=IgForm)
     sequence: list[IgSequenceStep] = Field(default_factory=list, max_length=3)
     suggest_more: IgSuggestMore = Field(default_factory=IgSuggestMore)
+
+    @model_validator(mode="after")
+    def _message_when_dm(self):
+        if self.send_dm and not self.message.strip():
+            raise ValueError("Write the message people get in their DMs.")
+        return self
 
     @model_validator(mode="after")
     def _sequence_fits_the_window(self):
@@ -155,16 +226,40 @@ class IgActionConfig(BaseModel):
         return [a.strip()[:300] for a in (v or []) if a and str(a).strip()]
 
 
-def validate_ig_rule(trigger: str, trigger_config: dict, action_config: dict) -> tuple[dict, dict]:
-    """Validated + normalised copies of both configs for an ig_* rule. Raises pydantic.ValidationError."""
+COMMENT_TRIGGERS = ("ig_comment_received", "ig_live_comment_received")
+
+
+def validate_ig_rule(
+    trigger: str, trigger_config: dict, action_config: dict, tenant_id: str | None = None
+) -> tuple[dict, dict]:
+    """Validated + normalised copies of both configs for an ig_* rule. Raises pydantic.ValidationError / ValueError."""
     t = IgTriggerConfig(**(trigger_config or {}))
+    if trigger not in COMMENT_TRIGGERS:
+        t.mention_only = False
     if (
         trigger in ("ig_comment_received", "ig_live_comment_received", "ig_dm_received", "ig_story_reply_received")
         and not t.reply_all
+        and not t.mention_only
         and not t.keywords
     ):
         raise ValueError("Add at least one keyword, or choose 'any comment'.")
     a = IgActionConfig(**(action_config or {}))
+    if not a.send_dm:
+        if trigger not in COMMENT_TRIGGERS:
+            raise ValueError("'Public reply only' works for comments; other automations always answer in the DM.")
+        if not a.public_ack_pool:
+            raise ValueError("Add at least one public reply: with 'Public reply only' it is the whole answer.")
+    if a.attachment and tenant_id and not a.attachment.key.startswith(f"{tenant_id}/ig_automations/"):
+        raise ValueError("Upload the photo or video again.")
+    keys = [c.image_key for c in a.cards if c.image_key]
+    if tenant_id and any(not k.startswith(f"{tenant_id}/ig_automations/") for k in keys):
+        raise ValueError("Upload the card images again.")
+    if trigger == "ig_global" and not t.surfaces:
+        raise ValueError("Pick where this automation works: comments, Live, stories, DMs or ads.")
+    if trigger == "ig_global" and not t.reply_all and not t.keywords:
+        raise ValueError("Add at least one keyword, or choose 'any message'.")
+    if a.share_post.enabled and not a.share_post.media_id and trigger not in COMMENT_TRIGGERS:
+        raise ValueError("Pick the post or reel to share.")
     return t.model_dump(exclude_none=True), a.model_dump(exclude_none=True)
 
 

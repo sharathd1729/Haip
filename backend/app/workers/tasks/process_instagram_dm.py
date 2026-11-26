@@ -426,6 +426,14 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
             )
             message.automation_outcome = "matched_auto_replied"
+        elif not (body and body.strip() and not body.startswith("[")
+                  and ai_mode_service.resolve_mode(integration.tenant, conversation, message) != "off") \
+                and (default_rule := find_matching_rule(db, tenant_id, "ig_dm_default", body or "")) is not None:
+            # Default reply: nothing matched and the AI will not answer this one (AI off, or a photo/sticker).
+            from app.services.ig_quick_reply import dispatch_quick_reply
+            dispatch_quick_reply(db, tenant_id, default_rule, recipient_id=sender_id, guest_id=guest_id,
+                                 conversation_id=conversation.id)
+            message.automation_outcome = "matched_auto_replied"
         elif body and body.strip() and not body.startswith("[") and ai_mode_service.resolve_mode(integration.tenant, conversation, message) != "off":
             message.automation_outcome = "no_match_ai_drafted"
             try:

@@ -38,9 +38,40 @@ def _contains_keyword(text: str, keywords: list[str]) -> bool:
     return any(re.search(r"\b" + re.escape(kw) + r"\b", lowered) for kw in keywords)
 
 
+_MENTION = re.compile(r"(?<![\w.@])@[A-Za-z0-9._]{1,30}")
+
+
+def has_mention(text: str) -> bool:
+    """The comment tags someone (@name): what a "tag a friend" automation waits for."""
+    return bool(_MENTION.search(text or ""))
+
+
+def rule_matches(rule: AutomationRule, text: str) -> bool:
+    """This rule's own words decide: not excluded, tags someone when it must, then any comment or a keyword."""
+    cfg = rule.trigger_config or {}
+    text = text or ""
+    if _contains_keyword(text, _keyword_list(cfg.get("exclude_keywords"))):
+        return False
+    if cfg.get("mention_only") and not has_mention(text):
+        return False
+    if cfg.get("reply_all") or cfg.get("mention_only"):
+        return True
+    return _contains_keyword(text, _keyword_list(cfg.get("keywords")))
+
+
 def _scope(rule: AutomationRule) -> str:
     cfg = rule.trigger_config or {}
     return cfg.get("scope") or ("post" if cfg.get("media_id") else "any")
+
+
+# Where a "global" automation (trigger ig_global, trigger_config.surfaces) can answer.
+SURFACE = {"ig_comment_received": "comment", "ig_live_comment_received": "live", "ig_story_reply_received": "story",
+           "ig_dm_received": "dm", "ig_ad_chat_started": "ad"}
+
+
+def caption_has_code(caption: Optional[str], code: Optional[str]) -> bool:
+    """A "caption code" automation (#JADE1) runs on every post whose caption carries its code, with or without the #."""
+    return bool(code and caption and re.search(r"(?<![\w])#?" + re.escape(code) + r"(?![\w])", caption, re.I))
 
 
 def find_matching_rule(
@@ -50,6 +81,26 @@ def find_matching_rule(
     text: str,
     media_id: Optional[str] = None,
     ad_id: Optional[str] = None,
+    caption: Optional[str] = None,
+) -> Optional[AutomationRule]:
+    """The trigger's own automations first; then a global automation that covers this place."""
+    found = _find(db, tenant_id, trigger, text, media_id, ad_id, caption)
+    if found is not None or trigger not in SURFACE:
+        return found
+    rules = (db.query(AutomationRule).filter_by(tenant_id=tenant_id, trigger="ig_global", action=_ACTION, is_active=True)
+             .order_by(AutomationRule.created_at).all())
+    return next((r for r in rules if SURFACE[trigger] in ((r.trigger_config or {}).get("surfaces") or [])
+                 and rule_matches(r, text or "")), None)
+
+
+def _find(
+    db: Session,
+    tenant_id: str,
+    trigger: str,
+    text: str,
+    media_id: Optional[str] = None,
+    ad_id: Optional[str] = None,
+    caption: Optional[str] = None,
 ) -> Optional[AutomationRule]:
     """
     Return the first matching active automation_rules row for this
@@ -76,12 +127,12 @@ def find_matching_rule(
         return _contains_keyword(text, exclude)
 
     def hit(rule: AutomationRule) -> bool:
-        cfg = rule.trigger_config or {}
-        if excluded(rule):
-            return False
-        return bool(cfg.get("reply_all")) or _contains_keyword(text, _keyword_list(cfg.get("keywords")))
+        return rule_matches(rule, text)
 
     def first(group: list[AutomationRule]) -> Optional[AutomationRule]:
+        for r in group:                      # a "tag someone" rule is the narrower one: it goes before "any comment"
+            if (r.trigger_config or {}).get("mention_only") and hit(r):
+                return r
         for r in group:                      # reply_all wins over keywords inside a group
             if (r.trigger_config or {}).get("reply_all") and hit(r):
                 return r
@@ -94,12 +145,18 @@ def find_matching_rule(
         if media_id:
             groups.append([r for r in rules if _scope(r) in ("post", "next_post")
                            and (r.trigger_config or {}).get("media_id") == media_id])
+        if caption:
+            groups.append([r for r in rules if _scope(r) == "caption_code"
+                           and caption_has_code(caption, (r.trigger_config or {}).get("caption_code"))])
         groups.append([r for r in rules if _scope(r) == "any" and not (r.trigger_config or {}).get("ad_id")])
         for group in groups:
             found = first(group)
             if found:
                 return found
         return None
+
+    if trigger == "ig_dm_default":  # the fallback answers anything not excluded
+        return next((r for r in rules if not excluded(r)), None)
 
     if trigger == "ig_ad_chat_started":
         # Welcome for a chat opened from an ad: a rule for that ad first, then one for any ad. No keyword needed.

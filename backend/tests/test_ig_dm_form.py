@@ -206,9 +206,12 @@ def test_sessions_never_cross_workspaces(db, ig):
 def test_the_form_config_is_validated():
     ok = {"message": "Thanks!", "form": FORM}
     assert validate_ig_rule("ig_comment_received", {"keywords": ["price"]}, ok)[1]["form"]["enabled"] is True
-    no_phone = {"message": "x", "form": {"enabled": True, "questions": [{"key": "dates", "text": "When?"}]}}
+    no_phone = {"message": "x", "form": {"enabled": True, "questions": [{"key": "email", "text": "Email?"}]}}
+    assert validate_ig_rule("ig_comment_received", {"keywords": ["price"]}, no_phone)  # email only: details, not a lead
+    two_phones = {"message": "x", "form": {"enabled": True, "questions": [
+        {"key": "phone", "text": "Number?"}, {"key": "phone", "text": "Again?"}]}}
     with pytest.raises(ValidationError):
-        validate_ig_rule("ig_comment_received", {"keywords": ["price"]}, no_phone)
+        validate_ig_rule("ig_comment_received", {"keywords": ["price"]}, two_phones)
     long_option = {"message": "x", "form": {"enabled": True, "questions": [
         {"key": "phone", "text": "Number?"}, {"key": "dates", "text": "When?", "options": ["Sometime in the next month"]}]}}
     with pytest.raises(ValidationError):

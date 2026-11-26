@@ -43,15 +43,8 @@ ALREADY_REPLIED = "2534023"  # Meta error_subcode: "The comment you are trying t
 # ── small helpers ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
-def log_event(
-    db: Session,
-    tenant_id: str,
-    rule_id: str,
-    kind: str,
-    guest_id: str | None = None,
-    media_id: str | None = None,
-    detail: str | None = None,
-) -> None:
+def log_event(db: Session, tenant_id: str, rule_id: str, kind: str, guest_id: str | None = None,
+              media_id: str | None = None, detail: str | None = None) -> None:
     db.add(
         IgAutomationEvent(
             tenant_id=tenant_id,
@@ -115,16 +108,11 @@ def _render(text: str, guest) -> str:
     return (text or "").replace("{first_name}", first)
 
 
-def _count(
-    db: Session,
-    tenant_id: str,
-    *,
-    rule_id: str | None = None,
-    guest_id: str | None = None,
-    kinds=SENT_KINDS,
-    since: datetime | None = None,
-) -> int:
+def _count(db: Session, tenant_id: str, *, rule_id: str | None = None, guest_id: str | None = None, kinds=SENT_KINDS,
+           since: datetime | None = None, media_id: str | None = None) -> int:
     q = db.query(IgAutomationEvent).filter(IgAutomationEvent.tenant_id == tenant_id, IgAutomationEvent.kind.in_(kinds))
+    if media_id:
+        q = q.filter(IgAutomationEvent.media_id == media_id[:64])
     if rule_id:
         q = q.filter(IgAutomationEvent.rule_id == rule_id)
     if guest_id:
@@ -135,23 +123,30 @@ def _count(
 
 
 def skip_reason(
-    db: Session, tenant_id: str, rule: AutomationRule, guest_id: str | None, *, starting: bool
+    db: Session, tenant_id: str, rule: AutomationRule, guest_id: str | None, *, starting: bool, media_id: str | None = None
 ) -> str | None:
     """Why this rule must not message this person now, or None."""
     from app.services.sales_agent_service import guest_said_stop
 
     if guest_said_stop(db, tenant_id, guest_id):
         return "guest_said_stop"
+    from app.services.ig_automation_extras import paused_until
+
+    if paused_until(db, tenant_id):
+        return "all_automations_paused"
     hour = datetime.now(UTC) - timedelta(hours=1)
     if _count(db, tenant_id, since=hour) >= TENANT_HOURLY_CAP:
         return "workspace_hourly_cap"
     if guest_id and _count(db, tenant_id, guest_id=guest_id, since=hour) >= GUEST_HOURLY_CAP:
         return "person_hourly_cap"
+    cfg = rule.action_config or {}
+    per_post = media_id if cfg.get("once_per_post") else None  # "once per person per post" instead of per automation
+    done = ("dm_sent", "link_sent") if cfg.get("send_dm", True) else ("public_reply",)
     if (
         starting
-        and (rule.action_config or {}).get("once_per_person", True)
+        and cfg.get("once_per_person", True)
         and guest_id
-        and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=("dm_sent", "link_sent"))
+        and _count(db, tenant_id, rule_id=rule.id, guest_id=guest_id, kinds=done, media_id=per_post)
     ):
         return "already_sent_to_this_person"
     return None
@@ -164,20 +159,10 @@ def _record(db: Session, tenant_id: str, conversation_id: str | None, text: str,
     from app.models.conversation import ChannelType, Message, MessageDeliveryState, MessageDirection
 
     mid = (result or {}).get("message_id")
-    db.add(
-        Message(
-            tenant_id=tenant_id,
-            conversation_id=conversation_id,
-            direction=MessageDirection.OUTBOUND,
-            channel=ChannelType.INSTAGRAM,
-            body=text,
-            channel_message_id=mid,
-            channel_status="sent",
-            delivery_state=MessageDeliveryState.SENT,
-            sender_kind="automation",
-            channel_metadata={"automation_rule_id": rule_id},
-        )
-    )
+    db.add(Message(tenant_id=tenant_id, conversation_id=conversation_id, direction=MessageDirection.OUTBOUND,
+                   channel=ChannelType.INSTAGRAM, body=text, channel_message_id=mid, channel_status="sent",
+                   delivery_state=MessageDeliveryState.SENT, sender_kind="automation",
+                   channel_metadata={"automation_rule_id": rule_id}))
 
 
 def tracked_url(db: Session, tenant_id: str, rule_id: str, target_url: str) -> str:
@@ -213,29 +198,21 @@ def _final_text(db: Session, tenant_id: str, rule: AutomationRule, guest, keep) 
     from app.services import ig_automation_copy as copy_rules
 
     cfg = rule.action_config or {}
-    text, _changes = copy_rules.prepare_dm(_render(cfg.get("message") or "", guest), keep)
+    from app.services.ig_automation_extras import pick_message
+
+    text, _changes = copy_rules.prepare_dm(_render(pick_message(cfg), guest), keep)
     url = (cfg.get("button") or {}).get("url")
     return f"{text}\n{tracked_url(db, tenant_id, rule.id, url)}" if url else text
 
 
-def start(
-    db: Session,
-    tenant_id: str,
-    rule: AutomationRule,
-    *,
-    recipient_id: str,
-    guest_id: str | None,
-    conversation_id: str | None,
-    comment_id: str | None = None,
-    media_id: str | None = None,
-    guest=None,
-) -> bool:
+def start(db: Session, tenant_id: str, rule: AutomationRule, *, recipient_id: str, guest_id: str | None,
+          conversation_id: str | None, comment_id: str | None = None, media_id: str | None = None, guest=None) -> bool:
     """Run a matched rule for one person. True when the DM went out. Commits."""
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "comment_id": comment_id, "media_id": media_id}
     log_event(db, tenant_id, rule.id, "triggered", guest_id, media_id)
-    reason = skip_reason(db, tenant_id, rule, guest_id, starting=True)
-    if not cfg.get("message"):
+    reason = skip_reason(db, tenant_id, rule, guest_id, starting=True, media_id=media_id)
+    if cfg.get("send_dm", True) and not cfg.get("message"):
         reason = reason or "no_message"
     # One answer per comment. Meta can deliver the same comment twice at once (both copies pass the ingest dedup before
     # either commits); the second private reply then fails with "already has a reply" (subcode 2534023, seen live).
@@ -255,9 +232,12 @@ def start(
 
     from app.services import ig_automation_copy as copy_rules
 
+    from app.services import ig_automation_extras as extras
+
     keep = _keep_words(db, tenant_id)
     notes: list[str] = []
 
+    replied = False
     if comment_id:
         ack = random.choice(cfg.get("public_ack_pool") or [DEFAULT_ACK])
         ack, _changes, replaced = copy_rules.prepare_public(ack, keep)
@@ -266,8 +246,13 @@ def start(
         try:
             adapter.reply_to_comment(comment_id, ack)
             log_event(db, tenant_id, rule.id, "public_reply", guest_id, media_id)
+            replied = True
         except Exception as exc:  # noqa: BLE001 -- best effort; the DM is what answers the person
             logger.warning("ig_automation_public_reply_failed rule=%s: %s", rule.id, exc)
+    if not cfg.get("send_dm", True):  # "public reply only": no DM at all
+        done = extras.public_reply_only(db, tenant_id, rule, ctx, replied)
+        db.commit()
+        return done
 
     gate = cfg.get("follow_gate") or {}
     from app.services import ig_dm_form  # DM forms (Automations v2): an open chat starts the questions at once
@@ -278,9 +263,12 @@ def start(
         and ig_dm_form.start_from_trigger(db, tenant_id, rule, adapter, ctx, recipient_id, guest, media_id)
     ):
         return True
-    needs_tap = bool(cfg.get("button") or gate.get("enabled") or ig_dm_form.enabled(rule))
-    text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else cfg["message"], guest), keep)
-    quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else None
+    # A photo or shared post after a comment needs the open chat the tap gives; "opener_always" starts with the tap anyway.
+    needs_tap = bool(cfg.get("button") or gate.get("enabled") or ig_dm_form.enabled(rule) or cfg.get("opener_always")
+                     or (comment_id and extras.wants_extras(cfg)))
+    text, _changes = copy_rules.prepare_dm(_render(cfg.get("opener") if needs_tap else extras.pick_message(cfg), guest),
+                                           keep)
+    quick = _quick(cfg.get("opener_button"), rule.id, "open") if needs_tap else extras.quick_replies(cfg, rule.id)
     delivered_final = False
     try:
         if comment_id:
@@ -327,8 +315,13 @@ def start(
         )
     _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}" + (f" ({'; '.join(notes)})" if notes else ""), ctx)
     db.commit()
-    if not comment_id and not needs_tap:  # the final message went out in an open chat: suggest more, follow-ups
+    if not comment_id and not needs_tap:  # the final message went out in an open chat: extras, suggest more, follow-ups
         from app.services import ig_suggest
+
+        if extras.wants_extras(cfg):
+            extras.send_extras(db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id,
+                               conversation_id=conversation_id, media_id=media_id)
+            db.commit()
 
         ig_suggest.after_final(
             db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id, conversation_id=conversation_id
@@ -343,8 +336,8 @@ def parse_payload(payload: str | None) -> tuple[str, str] | None:
     parts = payload[len(PAYLOAD_PREFIX) :].split(":")
     if len(parts) == 2 and parts[1] in ("open", "followed", "more", "start"):
         return parts[0], parts[1]
-    if len(parts) == 3 and parts[1] == "ask" and parts[2].isdigit():  # "I'm interested" on card n (ig_suggest)
-        return parts[0], f"ask:{parts[2]}"
+    if len(parts) == 3 and parts[1] in ("ask", "qr") and parts[2].isdigit():  # ask: card pick; qr: quick reply  # "I'm interested" on card n (ig_suggest)
+        return parts[0], f"{parts[1]}:{parts[2]}"
     return None
 
 
@@ -368,6 +361,14 @@ def handle_payload(
         return True
     cfg = rule.action_config or {}
     ctx = {"conversation_id": conversation_id, "guest_id": guest_id, "step": step}
+    if step.startswith("qr:"):  # one of the rule's own quick replies
+        from app.services import ig_automation_extras as extras
+
+        if not skip_reason(db, tenant_id, rule, guest_id, starting=False):
+            extras.answer_quick_reply(db, tenant_id, rule, int(step[3:]), _adapter(db, tenant_id), recipient_id=recipient_id,
+                                      guest_id=guest_id, conversation_id=conversation_id)
+        db.commit()
+        return True
     if step == "start" or step == "more" or step.startswith("ask:"):  # welcome/menu start, suggest more (ig_suggest)
         from app.services import ig_suggest
 
@@ -453,8 +454,11 @@ def _send_final(
     cfg = rule.action_config or {}
     from app.services import ig_automation_copy as copy_rules
 
-    text, _changes = copy_rules.prepare_dm(_render(cfg.get("message") or "", guest), _keep_words(db, tenant_id))
+    from app.services import ig_automation_extras as extras
+
+    text, _changes = copy_rules.prepare_dm(_render(extras.pick_message(cfg), guest), _keep_words(db, tenant_id))
     button = cfg.get("button") or {}
+    quick = extras.quick_replies(cfg, rule.id)
     try:
         if button.get("url"):
             url = tracked_url(db, tenant_id, rule.id, button["url"])
@@ -464,6 +468,8 @@ def _send_final(
                 logger.warning("ig_automation_button_refused rule=%s: %s", rule.id, exc)
                 text = f"{text}\n{url}"
                 result = adapter.send_text(recipient_id, text)
+        elif quick:
+            result = adapter.send_quick_replies(recipient_id, text, quick)
         else:
             result = adapter.send_text(recipient_id, text)
     except Exception as exc:  # noqa: BLE001
@@ -473,7 +479,11 @@ def _send_final(
         return
     _record(db, tenant_id, conversation_id, text, result, rule.id)
     log_event(db, tenant_id, rule.id, "link_sent", guest_id)  # "the final message went out" (with or without a link)
-    _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}", ctx)
+    from app.services import ig_automation_extras as extras
+
+    notes = extras.send_extras(db, tenant_id, rule, adapter, recipient_id=recipient_id, guest_id=guest_id,
+                               conversation_id=conversation_id) if extras.wants_extras(cfg) else []
+    _log_run(db, tenant_id, rule, "success", f"Sent: {text[:100]}" + (f" ({'; '.join(notes)})" if notes else ""), ctx)
     db.commit()
     from app.services import ig_suggest
 

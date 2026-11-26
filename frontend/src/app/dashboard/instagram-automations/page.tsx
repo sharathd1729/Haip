@@ -7,16 +7,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, MessageSquare } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Card, EmptyState, PageHeader, StatusPill } from "@/components/ui/kit";
+import { Card, EmptyState, PageHeader, StatusPill, Tabs } from "@/components/ui/kit";
 import { PeriodBar } from "@/components/dashboard/PeriodBar";
 import { AutomationsOverview } from "@/components/instagram/AutomationsOverview";
 import { WelcomeSettings } from "@/components/instagram/WelcomeSettings";
 import { AutomationBuilder } from "@/components/instagram/AutomationBuilder";
+import { PostsBoard } from "@/components/instagram/PostsBoard";
+import { PauseAll } from "@/components/instagram/PauseAll";
 import { isIgRule, triggerMeta, type IgRule, type IgRuleStats } from "@/components/instagram/automationTypes";
 
 
 function scopeLabel(r: IgRule): string {
+  if (r.trigger === "ig_global") return (r.trigger_config.surfaces ?? []).join(", ");
   if (r.trigger !== "ig_comment_received") return "";
+  if (r.trigger_config.scope === "caption_code") return `Caption code #${r.trigger_config.caption_code ?? ""}`;
   const s = r.trigger_config.scope ?? (r.trigger_config.media_id ? "post" : "any");
   if (s === "next_post") return r.trigger_config.media_id ? "Next post (running)" : "Next post (waiting)";
   return s === "post" ? "One post" : "Any post";
@@ -33,7 +37,7 @@ function RuleCard({ rule, stats, onEdit }: { rule: IgRule; stats?: IgRuleStats; 
     onSuccess: () => qc.invalidateQueries({ queryKey: ["automations"] }),
   });
   const tc = rule.trigger_config;
-  const words = tc.reply_all ? ["Every comment"] : (tc.keywords ?? []);
+  const words = rule.trigger === "ig_dm_default" ? ["Anything else"] : tc.mention_only ? ["Tags someone"] : tc.reply_all ? ["Every comment"] : (tc.keywords ?? []);
   return (
     <Card className="flex gap-3 p-3 sm:p-4">
       <div className="size-16 shrink-0 overflow-hidden rounded-[12px] bg-[var(--haip-surface)]">
@@ -49,6 +53,7 @@ function RuleCard({ rule, stats, onEdit }: { rule: IgRule; stats?: IgRuleStats; 
         <p className="mt-0.5 text-[13px] text-[var(--haip-fg-subtle)]">
           {triggerMeta(rule.trigger)?.short ?? rule.trigger}{scopeLabel(rule) && ` · ${scopeLabel(rule)}`}
           {rule.action_config.follow_gate?.enabled && " · Follow first"}{rule.action_config.button?.url && " · Link button"}
+          {rule.action_config.send_dm === false && " · Public reply only"}{(rule.action_config.delay_seconds ?? 0) > 0 && " · Delayed"}
         </p>
         {words.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
@@ -82,6 +87,8 @@ export default function InstagramAutomationsPage() {
   const [period, setPeriod] = useState<string>("this_month");
   const [preset, setPreset] = useState<{ id: string; thumb?: string; caption?: string } | null>(null);
   const [editing, setEditing] = useState<IgRule | null>(null);
+  const [copyFrom, setCopyFrom] = useState<IgRule | null>(null);
+  const [tab, setTab] = useState("automations");
   const [open, setOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
 
@@ -93,26 +100,35 @@ export default function InstagramAutomationsPage() {
 
   const ig = (rules.data ?? []).filter(isIgRule);
   const byRule = new Map((stats.data?.automations ?? []).map(s => [s.rule_id, s]));
-  const openNew = () => { setEditing(null); setPreset(null); setOpen(true); };
-  const openForPost = (m: { id: string; thumb?: string; caption?: string }) => { setEditing(null); setPreset(m); setOpen(true); };
+  const openNew = () => { setEditing(null); setCopyFrom(null); setPreset(null); setOpen(true); };
+  const openForPost = (m: { id: string; thumb?: string; caption?: string }) => { setEditing(null); setCopyFrom(null); setPreset(m); setOpen(true); };
+  const openEdit = (r: IgRule) => { setEditing(r); setCopyFrom(null); setPreset(null); setOpen(true); };
+  const openCopy = (r: IgRule, m: { id: string; thumb?: string; caption?: string }) => { setEditing(null); setCopyFrom(r); setPreset(m); setOpen(true); };
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-5">
+    <div className="mx-auto grid max-w-5xl gap-5 px-3 py-4 sm:px-6">
       <AutomationsNav />
-      <PageHeader title="Instagram automations" subtitle="Reply to comments, story replies and DMs automatically: a public reply plus a DM with your link."
+      <PageHeader title="Instagram automations" subtitle="Auto-reply to comments, stories and DMs."
         actions={
-          <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setWelcomeOpen(true)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--haip-border)] px-4 text-[14.5px] font-medium">
-            <MessageSquare size={16} /> Welcome questions and menu
-          </button>
           <button type="button" onClick={openNew}
             className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[0.97]">
             <Plus size={16} /> New automation
           </button>
-          </div>
         } />
 
+      <PauseAll banner />
+      <div className="flex flex-wrap items-center gap-2">
+        <Tabs label="Instagram automations" value={tab} onChange={setTab}
+          items={[{ value: "automations", label: "Automations" }, { value: "posts", label: "Posts" }]} />
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button type="button" onClick={() => setWelcomeOpen(true)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--haip-border)] px-4 text-[14px] font-medium">
+            <MessageSquare size={16} /> Welcome and menu
+          </button>
+          <PauseAll />
+        </div>
+      </div>
+      {tab === "posts" ? <PostsBoard rules={ig} onSetUp={openForPost} onEdit={openEdit} onCopy={openCopy} /> : <>
       <PeriodBar value={period} onChange={setPeriod} />
       <AutomationsOverview period={period} onAdd={openForPost} />
 
@@ -130,12 +146,13 @@ export default function InstagramAutomationsPage() {
           action={<button type="button" onClick={openNew} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground"><Plus size={15} /> Create the first one</button>} /></Card>
       ) : (
         <div className="grid gap-3">
-          {ig.map(r => <RuleCard key={r.id} rule={r} stats={byRule.get(r.id)} onEdit={() => { setEditing(r); setPreset(null); setOpen(true); }} />)}
+          {ig.map(r => <RuleCard key={r.id} rule={r} stats={byRule.get(r.id)} onEdit={() => openEdit(r)} />)}
         </div>
       )}
+      </>}
 
       {welcomeOpen && <WelcomeSettings open={welcomeOpen} onOpenChange={setWelcomeOpen} rules={ig} />}
-      {open && <AutomationBuilder key={editing?.id ?? preset?.id ?? "new"} open={open} onOpenChange={setOpen} initial={editing} preset={preset} />}
+      {open && <AutomationBuilder key={`${editing?.id ?? copyFrom?.id ?? "new"}-${preset?.id ?? ""}`} open={open} onOpenChange={setOpen} initial={editing} preset={preset} copyFrom={copyFrom} />}
     </div>
   );
 }

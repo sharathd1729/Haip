@@ -33,11 +33,24 @@ def dispatch_quick_reply(
     conversation_id: str,
     comment_id: Optional[str] = None,
     media_id: Optional[str] = None,
+    delayed: bool = False,
 ) -> bool:
     """Run the rule for this person. comment_id set = answer with a public reply + Meta's private reply (a plain DM to
-    someone who only commented is refused). True when the DM went out."""
+    someone who only commented is refused). True when the DM went out (or, with the rule's delay, was queued)."""
     from app.models.guest import Guest
     from app.services import ig_automation
+
+    delay = int((rule.action_config or {}).get("delay_seconds") or 0)
+    if delay > 0 and not delayed:  # "Reply time": the whole answer waits (a comment's private reply has 7 days)
+        from app.workers.tasks.ig_automation_tasks import start_delayed
+
+        start_delayed.apply_async(kwargs={
+            "tenant_id": tenant_id, "rule_id": rule.id, "recipient_id": recipient_id, "guest_id": guest_id,
+            "conversation_id": conversation_id, "comment_id": comment_id, "media_id": media_id,
+        }, countdown=delay)
+        ig_automation.log_event(db, tenant_id, rule.id, "delayed", guest_id, media_id, f"{delay} s")
+        db.commit()
+        return True
 
     guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first() if guest_id else None
     return ig_automation.start(db, tenant_id, rule, recipient_id=recipient_id, guest_id=guest_id,
