@@ -22,7 +22,8 @@ const legacyEdges: StoredEdge[] = [
 describe("autoLayout", () => {
   it("lays position-less nodes out top to bottom from the trigger", () => {
     const out = autoLayout(legacy, legacyEdges);
-    expect(out.map(n => n.position!.y)).toEqual([0, GAP_Y, 2 * GAP_Y, 3 * GAP_Y, 4 * GAP_Y]);
+    // the condition (2 outputs) gets one extra line of room below it
+    expect(out.map(n => n.position!.y)).toEqual([0, GAP_Y, 2 * GAP_Y, 3 * GAP_Y + 26, 4 * GAP_Y + 26]);
     expect(out.every(n => n.position!.x === 0)).toBe(true);
   });
   it("spreads siblings sideways and keeps existing positions", () => {

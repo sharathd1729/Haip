@@ -55,7 +55,7 @@ const ROUTE_LABELS: Record<string, string> = {
   messaging:    "Messaging",
   templates:    "Templates",
   campaigns:    "Campaigns",
-  subscribers:  "Subscribers",
+  subscribers:  "WhatsApp contacts",
   flows:        "Flow Builder",
   growth:       "Growth tools",
   // Static page titles are hidden on phones (this bar names the page), so every route needs its own name here.

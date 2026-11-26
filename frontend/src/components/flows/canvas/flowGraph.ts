@@ -27,11 +27,20 @@ export function autoLayout(nodes: StoredNode[], edges: StoredEdge[]): StoredNode
   for (const n of nodes) if (!depth.has(n.id)) depth.set(n.id, next++);
   const rows = new Map<number, string[]>();
   for (const n of nodes) rows.set(depth.get(n.id)!, [...(rows.get(depth.get(n.id)!) ?? []), n.id]);
+  // A row starts below the tallest card of the row above: a buttons/list card grows by one line per option.
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const tall = (id: string) => GAP_Y + Math.max(0, outputsOf(byId.get(id)!).length - 1) * 26;
+  const rowY = new Map<number, number>();
+  let y = 0;
+  for (const d of [...rows.keys()].sort((a, b) => a - b)) {
+    rowY.set(d, y);
+    y += Math.max(...rows.get(d)!.map(tall));
+  }
   return nodes.map(n => {
     if (n.position) return n;
     const row = rows.get(depth.get(n.id)!)!;
     const i = row.indexOf(n.id);
-    return { ...n, position: { x: (i - (row.length - 1) / 2) * GAP_X, y: depth.get(n.id)! * GAP_Y } };
+    return { ...n, position: { x: (i - (row.length - 1) / 2) * GAP_X, y: rowY.get(depth.get(n.id)!)! } };
   });
 }
 
