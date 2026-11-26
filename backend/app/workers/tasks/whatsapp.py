@@ -687,7 +687,22 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         db.rollback()
         log.warning("wa_growth_inbound_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
+    # ── Flow canvas (services/flow_nodes.py): the answer to a flow's waiting step, else a keyword flow ─────
+    # Before keyword replies and the AI; a flow that took the message keeps both out.
+    if body and body.strip() and msg_type not in _NO_AI_TYPES:
+        try:
+            from app.services import flow_nodes
+            flow_outcome = flow_nodes.on_inbound(db, tenant.id, guest, conversation, msg, body.strip(), message.id)
+            if flow_outcome:
+                message.automation_outcome = flow_outcome
+                db.commit()
+                return
+        except Exception as exc:  # noqa: BLE001 -- fall through to keyword replies and the AI
+            db.rollback()
+            log.warning("wa_flow_inbound_failed", tenant_id=tenant.id, error=str(exc)[:200])
+
     # ── Location reply / first-message welcome (services/wa_bot_replies.py: order + one reply per message) ─────
+    # After the flow canvas: a keyword flow (e.g. "hi") answers a new guest instead of the welcome, never both.
     from app.services import wa_bot_replies
     bot_reply = wa_bot_replies.on_inbound(db, tenant, guest, conversation, message, msg_type)
     if bot_reply == "location":

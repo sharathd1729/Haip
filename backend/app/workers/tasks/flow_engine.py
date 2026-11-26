@@ -27,6 +27,10 @@ def drain_pending_executions():
             .limit(200)
             .all()
         )
+        # Canvas steps waiting for a guest's reply ("awaiting_reply") are never resumed here; past their 24 h they expire.
+        db.query(FlowPendingExecution).filter(
+            FlowPendingExecution.status == "awaiting_reply", FlowPendingExecution.resume_at <= now,
+        ).update({"status": "expired"}, synchronize_session=False)
         claimed_ids = []
         for row in due:
             # Two-step claim: UPDATE ... WHERE status='pending' AND id=:id,

@@ -173,6 +173,14 @@ def upload_wa_reply_file(tenant_id: str, content: bytes, content_type: str, exte
     return s3_key
 
 
+def upload_wa_flow_media(tenant_id: str, content: bytes, content_type: str, extension: str) -> str:
+    """The photo/video/audio/PDF a WhatsApp flow canvas "media" step sends (flow_nodes.FILE_FOLDER); one key per upload."""
+    import uuid
+    s3_key = f"{tenant_id}/wa_flows/{uuid.uuid4().hex}.{extension}"
+    _put(s3_key, content, content_type)
+    return s3_key
+
+
 def upload_ig_automation_media(tenant_id: str, content: bytes, content_type: str, extension: str) -> str:
     """The photo/video an Instagram automation sends (schemas/ig_automation.IgAttachment); one key per upload."""
     import uuid
