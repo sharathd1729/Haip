@@ -11,6 +11,7 @@ import { openOAuth } from "@/components/marketing/studio/types";
 import { MessageSquare, Phone, AtSign, CheckCircle2, AlertCircle, Loader2, RefreshCw, ExternalLink, Key, X, Check, Clock, Wifi, WifiOff, Zap, Shield, Copy, Info, ChevronDown, ChevronUp, Pencil } from "@/lib/icons";
 import { Plug, Unplug } from "lucide-react";
 import { GoogleConnections } from "@/components/website/GoogleConnections";
+import { GoogleSheetsCard } from "@/components/integrations/GoogleSheetsCard";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1232,6 +1233,9 @@ export default function IntegrationsPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {(activeCategory === "all" || activeCategory === "marketing") && (
           <div className="mb-4 max-w-3xl"><GoogleConnections canManage={["owner", "manager"].includes(String(session?.user?.role || ""))} hideOnError /></div>
+        )}
+        {activeCategory === "all" && (
+          <div className="mb-4 max-w-3xl"><GoogleSheetsCard isOwner={session?.user?.role === "owner"} canView={["owner", "manager"].includes(String(session?.user?.role || ""))} /></div>
         )}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

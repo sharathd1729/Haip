@@ -5,13 +5,16 @@ endpoints (never the internal ones), and its own error format.
 """
 from __future__ import annotations
 
+import time
+
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.public_api import routes_bookings, routes_messaging
+from app.public_api import routes_bookings, routes_contacts, routes_messaging
 from app.public_api import schemas as sc
 from app.public_api.deps import ApiError
 
@@ -46,6 +49,8 @@ An API key belongs to one HAIP account and can only see that account's data. Kee
 | `bookings:read` | Read bookings, including guest name, phone and email, add-ons, payments and service requests |
 | `messages:read` | Read WhatsApp templates, find conversations, read messages and delivery status |
 | `messages:send` | Send WhatsApp and Instagram messages |
+| `contacts:read` | Read WhatsApp contacts and contact lists |
+| `contacts:write` | Add or update WhatsApp contacts (upsert by phone), change their tags and lists, opt them out |
 
 A missing scope returns `403 insufficient_scope`.
 
@@ -99,6 +104,11 @@ Instead of polling, give HAIP a URL and it calls you when something happens. Cre
 | `payment.received` | A payment is recorded, including online payments |
 | `message.received` | A guest sends a WhatsApp or Instagram message |
 | `message.status` | An outbound message becomes sent, delivered, read or failed |
+| `message.sent` | A message goes out to a guest (from a person, the AI or an automation) |
+| `lead.created` | A person becomes a lead (shares a usable phone number) |
+| `lead.stage_changed` | A lead moves to another stage; `data` has `from_stage`, `to_stage` and `to_stage_label` |
+| `conversation.closed` | A chat is marked resolved or closed |
+| `task.due` | A follow-up or reminder task becomes due |
 
 Every delivery is a `POST` with a JSON body `{ "id", "type", "created_at", "data" }`. The shape of `data` for each event is listed under **Webhooks** in the reference below.
 
@@ -156,6 +166,39 @@ app = FastAPI(
     },
 )
 
+@app.middleware("http")
+async def _usage_log(request: Request, call_next):
+    """API usage log (Settings > Developers > Recent calls): one row per call made with a valid key, written after the
+    response is sent so it never slows the call."""
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        _log_usage(request, 500, start)
+        raise
+    task = _usage_task(request, response.status_code, start)
+    if task is not None and response.background is None:
+        response.background = task
+    return response
+
+
+def _usage_task(request: Request, status: int, start: float):
+    key_id, tenant_id = getattr(request.state, "api_key_id", None), getattr(request.state, "tenant_id", None)
+    if not key_id or not tenant_id:
+        return None
+    from app.services import api_usage_service
+    route = request.scope.get("route")
+    path = getattr(route, "path", None) or "(unknown path)"
+    return BackgroundTask(api_usage_service.record, tenant_id, key_id, request.method, path, status,
+                          int((time.perf_counter() - start) * 1000))
+
+
+def _log_usage(request: Request, status: int, start: float) -> None:
+    task = _usage_task(request, status, start)
+    if task is not None:
+        task.func(*task.args)
+
+
 # Webhook events appear under "Webhooks" in the generated reference (OpenAPI 3.1).
 @app.webhooks.post("booking-event", summary="booking.created / booking.updated / booking.cancelled")
 def _booking_event(event: sc.BookingEvent):
@@ -179,6 +222,7 @@ def _message_status_event(event: sc.MessageStatusEvent):
 
 app.include_router(routes_bookings.router)
 app.include_router(routes_messaging.router)
+app.include_router(routes_contacts.router)
 
 
 def _error(status: int, code: str, message: str, headers: dict | None = None, details=None) -> JSONResponse:

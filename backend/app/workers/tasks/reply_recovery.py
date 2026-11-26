@@ -46,9 +46,14 @@ def missed_replies(db, tenant_id: str, now: datetime) -> list[tuple[str, str]]:
               .group_by(Message.conversation_id).all())
     out = []
     for conversation_id, at in latest:
-        answered = (db.query(Message.id).filter(Message.conversation_id == conversation_id, Message.direction == MessageDirection.OUTBOUND,
-                                                Message.is_internal.is_(False), Message.created_at >= at).first())
-        if answered is not None:
+        # The welcome (wa_bot_replies, source "welcome") goes before the AI reply, so on its own it is not an answer: the AI
+        # still owes one. An away message still counts (the AI deliberately stays out when the away reply fires).
+        outs = (db.query(Message.sender_kind, Message.channel_metadata)
+                .filter(Message.conversation_id == conversation_id, Message.direction == MessageDirection.OUTBOUND,
+                        Message.is_internal.is_(False), Message.created_at >= at).limit(20).all())
+        answered = any(not (kind == "automation_away" and isinstance(meta, dict) and meta.get("source") == "welcome")
+                       for kind, meta in outs)
+        if answered:
             continue
         msg = (db.query(Message).filter(Message.conversation_id == conversation_id, Message.direction == MessageDirection.INBOUND,
                                         Message.is_internal.is_(False), Message.created_at == at).first())

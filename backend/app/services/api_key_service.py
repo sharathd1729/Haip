@@ -20,6 +20,8 @@ SCOPES: dict[str, str] = {
     "bookings:read": "Read bookings, including guest contact details, add-ons and payments",
     "messages:read": "Read WhatsApp templates, conversations and message delivery status",
     "messages:send": "Send WhatsApp and Instagram messages",
+    "contacts:read": "Read WhatsApp contacts (phone, name, opt-in status, tags) and contact lists",
+    "contacts:write": "Add and update WhatsApp contacts, their tags and lists, and opt contacts out",
 }
 
 _TOUCH_EVERY = timedelta(minutes=1)

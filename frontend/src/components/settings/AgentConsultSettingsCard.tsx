@@ -1,8 +1,9 @@
 "use client";
 // Settings > AI: "Ask a manager" (GET/PUT /ai/consult-settings). When the AI meets a question it must not answer alone, it holds
-// its draft, tells the guest the team is checking, and asks a person. The owner sets business hours, how long each level has to
+// its draft, tells the guest the team is checking, and asks a person. Team hours come from Automations > Hours and welcome. The owner sets how long each level has to
 // answer, and the holding texts. Managers can read; only the owner saves (the server enforces it and audits every change).
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { Loader2 } from "@/lib/icons";
@@ -14,12 +15,12 @@ import { BTN_PRIMARY, INPUT, LABEL } from "@/components/quotes/ui";
 
 export type ConsultSettings = {
   enabled: boolean; business_start: string; business_end: string; sla_minutes: number; offhours_reply_minutes: number;
-  send_holding_reply: boolean; holding_text: string; holding_text_offhours: string; timezone: string;
+  send_holding_reply: boolean; holding_text: string; holding_text_offhours: string; timezone: string; hours_summary?: string;
   preview: { in_hours: string; off_hours: string };
 };
-type Editable = Omit<ConsultSettings, "timezone" | "preview">;
-const FIELDS: (keyof Editable)[] = ["enabled", "business_start", "business_end", "sla_minutes", "offhours_reply_minutes",
-  "send_holding_reply", "holding_text", "holding_text_offhours"];
+// Team hours (weekly + holidays) are edited on Automations > Hours and welcome; business_start/end are the legacy window.
+type Editable = Omit<ConsultSettings, "timezone" | "preview" | "hours_summary" | "business_start" | "business_end">;
+const FIELDS: (keyof Editable)[] = ["enabled", "sla_minutes", "offhours_reply_minutes", "send_holding_reply", "holding_text", "holding_text_offhours"];
 
 export function AgentConsultSettingsCard() {
   const qc = useQueryClient();
@@ -36,7 +37,7 @@ export function AgentConsultSettingsCard() {
   const save = useMutation({
     mutationFn: (body: Partial<Editable>) => api.put("/ai/consult-settings", body).then(r => r.data),
     onSuccess: () => { toast({ variant: "success", title: "Ask-a-manager settings saved" }); qc.invalidateQueries({ queryKey: ["ai-consult-settings"] }); },
-    onError: () => toast({ variant: "error", title: "Couldn't save", description: "Check the times (HH:MM) and texts. Only the owner can change these." }),
+    onError: () => toast({ variant: "error", title: "Couldn't save", description: "Check the minutes and texts. Only the owner can change these." }),
   });
 
   if (isPending || (data && !form)) {
@@ -57,11 +58,11 @@ export function AgentConsultSettingsCard() {
           <input type="checkbox" checked={form.enabled} disabled={off} onChange={e => set("enabled", e.target.checked)} className="accent-primary" />
           Ask a person before answering refunds, discounts, custom routes, partner rates, unpublished prices and guests who want a person
         </label>
+        <p className="text-[13px] text-[var(--haip-fg-2)]">
+          Team hours: {data.hours_summary ?? `${data.business_start}-${data.business_end}`}.{" "}
+          <Link href="/dashboard/automations/whatsapp-hours" className="font-semibold text-primary underline">Change hours and holidays</Link>
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div><label className={LABEL} htmlFor="cs-start">Team starts</label>
-            <input id="cs-start" type="time" className={INPUT} value={form.business_start} disabled={off} onChange={e => set("business_start", e.target.value)} /></div>
-          <div><label className={LABEL} htmlFor="cs-end">Team stops</label>
-            <input id="cs-end" type="time" className={INPUT} value={form.business_end} disabled={off} onChange={e => set("business_end", e.target.value)} /></div>
           <div><label className={LABEL} htmlFor="cs-sla">Minutes to answer (each level)</label>
             <input id="cs-sla" type="number" min={5} max={240} className={INPUT} value={form.sla_minutes} disabled={off} onChange={e => set("sla_minutes", Number(e.target.value))} /></div>
           <div><label className={LABEL} htmlFor="cs-off">Outside hours: answer this many minutes after opening</label>

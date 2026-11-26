@@ -90,7 +90,7 @@ def test_a_file_from_another_workspace_is_refused_and_never_sent(db, queued):
     assert msg.media_url is None
     _, ac = wa_keyword_replies.validate_rule({"keywords": ["x"]}, {"message": "Hi", "file": {"key": f"{t.id}/wa_replies/a.png",
                                                                                           "kind": "image"}}, t.id)
-    assert ac["file"]["kind"] == "image"
+    assert ac["files"][0]["kind"] == "image" and "file" not in ac
 
 
 class _NoClose:

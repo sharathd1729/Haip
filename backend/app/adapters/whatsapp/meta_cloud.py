@@ -92,7 +92,7 @@ class MetaCloudAdapter:
             "recipient_type": "individual",
             "to": to,
             "type": "image",
-            "image": {"link": url, "caption": caption},
+            "image": {"link": url, **({"caption": caption} if caption else {})},  # no empty caption key
         }
         return await self._post(url_, payload)
 
@@ -103,7 +103,7 @@ class MetaCloudAdapter:
             "recipient_type": "individual",
             "to": to,
             "type": "video",
-            "video": {"link": url, "caption": caption},
+            "video": {"link": url, **({"caption": caption} if caption else {})},
         }
         return await self._post(url_, payload)
 
@@ -125,7 +125,7 @@ class MetaCloudAdapter:
             "recipient_type": "individual",
             "to": to,
             "type": "document",
-            "document": {"link": url, "filename": filename or "document", "caption": caption},
+            "document": {"link": url, "filename": filename or "document", **({"caption": caption} if caption else {})},
         }
         return await self._post(url_, payload)
 

@@ -60,6 +60,7 @@ const ROUTE_LABELS: Record<string, string> = {
   growth:       "Growth tools",
   // Static page titles are hidden on phones (this bar names the page), so every route needs its own name here.
   automations:  "Automations",
+  "whatsapp-hours": "Hours and welcome",
   calculator:   "Rate calculator",
   "calendar-sync": "Calendar sync",
   "channel-manager": "Channel manager",

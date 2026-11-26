@@ -104,6 +104,7 @@ class WASubscriber(Base, TimestampMixin, TenantMixin):
     # so VIP-tag/campaign-audience matching no longer depends on the
     # subscriber's phone having been typed in exact E.164 form.
     guest_id = Column(String, nullable=True, index=True)
+    list_ids = Column(JSON, default=list)   # migration 219 -- wa_contact_lists ids (services/wa_contacts.py)
 
 
 class WAFlow(Base, TimestampMixin, TenantMixin):
@@ -208,6 +209,7 @@ class SubscriberOut(BaseModel):
     source: Optional[str] = None
     tags: list
     guest_id: Optional[str] = None
+    list_ids: Optional[list] = None
 
     class Config:
         from_attributes = True
@@ -918,19 +920,15 @@ def delete_campaign(
 def list_subscribers(
     opted_in: Optional[bool] = None,
     search: Optional[str] = Query(default=None),
+    list_id: Optional[str] = Query(default=None),
+    tag: Optional[str] = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(WASubscriber).filter_by(tenant_id=current_user.tenant_id)
-    if opted_in is not None:
-        q = q.filter_by(opted_in=opted_in)
-    if search:
-        q = q.filter(
-            (WASubscriber.phone.ilike(f"%{search}%")) |
-            (WASubscriber.name.ilike(f"%{search}%"))
-        )
+    from app.services import wa_contacts
+    q = wa_contacts.matching(db, current_user.tenant_id, opted_in=opted_in, search=search, list_id=list_id, tag=tag)
     return q.order_by(WASubscriber.created_at.desc()).offset(offset).limit(limit).all()
 
 

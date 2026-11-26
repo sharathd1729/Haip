@@ -131,6 +131,7 @@ celery_app = Celery(
         "app.workers.tasks.check_automation_timers",
         # Flow Builder execution engine
         "app.workers.tasks.flow_engine",
+        "app.workers.tasks.wa_contacts",   # bulk drip enrolment from the contacts page
         # Dograh voice AI
         "app.workers.tasks.dograh_call_processor",
         # Adaptive dashboard widgets
@@ -251,6 +252,7 @@ celery_app.conf.update(
         "webhooks.deliver":                          {"queue": "call_ingest"},
         "webhooks.retry_due":                        {"queue": "call_ingest"},
         "webhooks.purge_old":                        {"queue": "call_ingest"},
+        "webhooks.send_sheet_row":                   {"queue": "call_ingest"},   # Google Sheets lead sync
         "tasks.transcribe":                          {"queue": "transcription"},
         "tasks.wrap_up":                             {"queue": "ai_scoring"},
         "ai_scoring.score_call":                     {"queue": "ai_scoring"},

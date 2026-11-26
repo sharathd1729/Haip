@@ -43,6 +43,10 @@ EVENTS: dict[str, str] = {
     "message.received": "A guest sent a WhatsApp or Instagram message",
     "message.status": "An outbound message changed state: sent, delivered, read or failed",
     "lead.created": "A person became a lead: they shared a usable phone number (HAIP's lead rule)",
+    "message.sent": "A message went out to a guest on WhatsApp or Instagram (from a person, the AI or an automation)",
+    "conversation.closed": "A chat was marked resolved or closed",
+    "lead.stage_changed": "A lead moved to another stage (for example Active to Sold)",
+    "task.due": "A follow-up or reminder task became due",
 }
 
 # Google Apps Script web apps (the Google Sheets connector) run doPost and then answer 302 to a
@@ -87,13 +91,13 @@ def envelope(event_type: str, data: dict, event_id: Optional[str] = None) -> dic
 
 
 def queue_event(db: Session, tenant_id: str, event_type: str, data: dict,
-                only_endpoint: Optional[str] = None) -> list[str]:
+                only_endpoint: Optional[str] = None, event_id: Optional[str] = None) -> list[str]:
     """Write one delivery row per active endpoint subscribed to this event, in the caller's
     transaction. Returns the delivery ids; the caller dispatches them after commit."""
     q = db.query(WebhookEndpoint).filter(WebhookEndpoint.tenant_id == tenant_id, WebhookEndpoint.is_active.is_(True))
     if only_endpoint:
         q = q.filter(WebhookEndpoint.id == only_endpoint)
-    env = envelope(event_type, data)
+    env = envelope(event_type, data, event_id)
     ids: list[str] = []
     now = datetime.now(timezone.utc)
     for ep in q.all():
@@ -171,3 +175,36 @@ def deliver(db: Session, delivery_id: str, tenant_id: str, client: Optional[http
         _fail(db, d, ep, f"Your server answered HTTP {resp.status_code}", resp.status_code)
     db.commit()
     return d.status
+
+
+def queue_due_tasks(db: Session, tenant_id: str, now: Optional[datetime] = None) -> list[str]:
+    """task.due: one event per open task whose due time passed in the last hour (run by the minute sweep in
+    webhook_delivery.retry_due). The event id is derived from the task and its due time, so a task fires once per due
+    time and again only if it is rescheduled. Caller commits, then dispatches the returned delivery ids."""
+    from app.models.task import Task
+    eps = db.query(WebhookEndpoint).filter(WebhookEndpoint.tenant_id == tenant_id, WebhookEndpoint.is_active.is_(True)).all()
+    if not any("task.due" in (ep.events or []) for ep in eps):
+        return []
+    now = now or datetime.now(timezone.utc)
+    tasks = (db.query(Task).filter(Task.tenant_id == tenant_id, Task.is_done.is_(False), Task.due_date.isnot(None),
+                                   Task.due_date <= now, Task.due_date > now - timedelta(hours=1))
+             .order_by(Task.due_date).limit(200).all())
+    if not tasks:
+        return []
+
+    def eid(t) -> str:
+        return "evt_due_" + hashlib.sha256(f"{t.id}|{t.due_date.isoformat()}".encode()).hexdigest()[:24]
+
+    wanted = {eid(t): t for t in tasks}
+    seen = {e for (e,) in db.query(WebhookDelivery.event_id).filter(
+        WebhookDelivery.tenant_id == tenant_id, WebhookDelivery.event_type == "task.due",
+        WebhookDelivery.event_id.in_(list(wanted))).distinct()}
+    ids: list[str] = []
+    for event_id, t in wanted.items():
+        if event_id in seen:
+            continue
+        ids += queue_event(db, tenant_id, "task.due", {
+            "id": t.id, "title": t.title, "due_at": t.due_date.isoformat(), "priority": t.priority, "kind": t.kind,
+            "lead_id": t.inquiry_id, "guest_id": t.guest_id, "conversation_id": t.conversation_id,
+            "assigned_to": t.assigned_to}, event_id=event_id)
+    return ids

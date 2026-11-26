@@ -5,9 +5,11 @@ When an inbound message matches an opt-out keyword:
 1. Find or create a Consent row for the guest (marketing scope).
 2. Set marketing_consent=False / True, record withdrawal proof.
 3. Write an AuditEvent.
-4. Queue a WhatsApp confirmation template (utility, pre-approved) through wa_booking_messages.send_guest_template,
-   the service every system-initiated template send uses: APPROVED templates only, one per guest per direction per day,
-   a Message row in the inbox, audited. Never into a personal-bridge thread. A failure is logged, never raised.
+4. Confirm to the guest, one per guest per direction per day, never into a personal-bridge thread: the owner's own text
+   (wa_bot_settings opt_confirm, default on) as a plain reply through wa_booking_messages.send_guest_text (the guest
+   just wrote, so the 24-hour window is open); only if that cannot be queued, the approved utility template
+   haip_optout_confirm_v1 / haip_optin_confirm_v1 via send_guest_template (also the path when the owner turned their
+   own text off). A failure is logged, never raised.
 """
 from datetime import datetime, timezone
 import uuid
@@ -139,7 +141,7 @@ def process_opt_out_event(
 
 
 def _send_confirmation(db: Session, tenant_id: str, guest_id: str, guest_phone: str, direction: str) -> dict | None:
-    """Queue the confirmation template. Returns send_guest_template's result, or None when nothing was tried.
+    """Queue the confirmation (own text, else the template). Returns the send result, or None when nothing was tried.
     Never raises: the consent change is already committed and the webhook must still switch the AI off."""
     template = OPT_IN_REPLY_TEMPLATE if direction == "opt_in" else OPT_OUT_REPLY_TEMPLATE
     try:
@@ -153,8 +155,17 @@ def _send_confirmation(db: Session, tenant_id: str, guest_id: str, guest_phone: 
             log.warning("opt_out_confirm_not_sent", tenant_id=tenant_id, phone=_phone_token(guest_phone), reason="personal_bridge")
             return None
         target = wbm.Target("guest", guest_id, "oo:", {"source": "opt_out_confirm", "consent_event": direction}, "consent")
-        result = wbm.send_guest_template(db, tenant_id, guest, template, [], target=target,
-                                         event=f"{direction}:{datetime.now(timezone.utc):%Y-%m-%d}")
+        event = f"{direction}:{datetime.now(timezone.utc):%Y-%m-%d}"
+        from app.models.tenant import Tenant
+        from app.services import wa_bot_settings
+        own = wa_bot_settings.get(db.query(Tenant).filter_by(id=tenant_id).first())["opt_confirm"]
+        if own["custom"]:
+            text = own["start_text" if direction == "opt_in" else "stop_text"]
+            result = wbm.send_guest_text(db, tenant_id, guest, text, target=target, event=event)
+            if result["status"] != "skipped":
+                return result
+            log.warning("opt_out_confirm_text_not_sent", tenant_id=tenant_id, phone=_phone_token(guest_phone), reason=result["reason"])
+        result = wbm.send_guest_template(db, tenant_id, guest, template, [], target=target, event=event)
         if result["status"] == "skipped":   # send_guest_template already logged + audited the reason (e.g. template not approved)
             log.warning("opt_out_confirm_not_sent", tenant_id=tenant_id, phone=_phone_token(guest_phone), template=template,
                         reason=result["reason"])

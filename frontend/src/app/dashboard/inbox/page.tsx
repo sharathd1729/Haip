@@ -34,6 +34,7 @@ import { Composer } from "@/components/inbox/thread/Composer";
 import { InboxListPane } from "@/components/inbox/thread/InboxListPane";
 import { type Message, type ConversationDetail, type TimelineItem, type TimelineCallItem, getWindowSecondsLeft } from "@/components/inbox/thread/types";
 import { useToast } from "@/components/ui/toast";
+import type { Attachment } from "@/components/inbox/thread/attachment";
 import { usePresence } from "@/hooks/usePresence";
 // B5: only needed once the user opens the template picker (WhatsApp window
 // re-open flow) -- keep it out of this route's initial chunk.
@@ -126,7 +127,10 @@ function InboxPageInner() {
 
   useAutoGrow(textareaRef, replyText, 6);
 
-  const isEmpty = replyText.trim().length === 0;
+  // WhatsApp file from the composer's paperclip (ComposerAttach); cleared when the thread changes.
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  useEffect(() => setAttachment(null), [activeConversationId]);
+  const isEmpty = replyText.trim().length === 0 && !attachment;
 
   // D9: tick every 60s to refresh the countdown display
   useEffect(() => {
@@ -422,9 +426,10 @@ function InboxPageInner() {
   // the send-message call itself.
 
   const sendMutation = useMutation({
-    mutationFn: ({ text, is_internal, replied_to_message_id, scheduled_for, buttons }: { text: string; is_internal?: boolean; replied_to_message_id?: string; scheduled_for?: string | null; buttons?: string[] }) =>
+    mutationFn: ({ text, is_internal, replied_to_message_id, scheduled_for, buttons, file }: { text: string; is_internal?: boolean; replied_to_message_id?: string; scheduled_for?: string | null; buttons?: string[]; file?: Attachment | null }) =>
       api.post(`/conversations/${activeConversationId}/messages`, {
         body: text,
+        ...(file ? { media_url: file.key, media_filename: file.filename } : {}),
         direction: "outbound",
         is_internal: is_internal ?? false,
         replied_to_message_id: replied_to_message_id ?? null,
@@ -434,7 +439,7 @@ function InboxPageInner() {
     // Optimistic insert — show the message immediately instead of waiting on
     // the full send round trip (Meta API call + DB write can take several
     // seconds). Reconciled with the real row once the query is invalidated.
-    onMutate: async ({ text, is_internal, replied_to_message_id }) => {
+    onMutate: async ({ text, is_internal, replied_to_message_id, file }) => {
       const key = ["conversation", activeConversationId];
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<ConversationDetail>(key);
@@ -446,6 +451,7 @@ function InboxPageInner() {
         timestamp: new Date().toISOString(),
         is_internal: is_internal ?? false,
         replied_to_message_id: replied_to_message_id ?? undefined,
+        ...(file ? { media_url: file.preview_url, media_type: file.kind } : {}),
       };
       queryClient.setQueryData<ConversationDetail>(key, (old) =>
         old ? { ...old, messages: [...old.messages, optimisticMessage] } : old
@@ -455,14 +461,17 @@ function InboxPageInner() {
       setReplyToMsg(null);
       setScheduledFor(null);
       setShowSchedule(false);
+      setAttachment(null);
       return { previous, key };
     },
     onSuccess: (_data, _vars, context) => {
       queryClient.invalidateQueries({ queryKey: context?.key ?? ["conversation", activeConversationId] });
     },
-    onError: (_err, _vars, context) => {
+    onError: (err: any, vars, context) => {
       if (context?.previous) queryClient.setQueryData(context.key, context.previous);
-      toast({ variant: "error", title: "Send failed" });
+      if (vars.file) { setAttachment(vars.file); setReplyText(vars.text); }  // keep the file and caption to try again
+      const detail = err?.response?.data?.detail;
+      toast({ variant: "error", title: "Send failed", ...(typeof detail === "string" ? { description: detail } : {}) });
     },
   });
 
@@ -595,8 +604,15 @@ function InboxPageInner() {
     if (!activeConversationId) return;
     // D9: block free-form send when service window is closed (except internal notes)
     if (windowBlocked) return;
-    const buttons = isWhatsApp && !isInternalNote ? replyButtons.map(b => b.trim()).filter(Boolean) : [];
+    const file = isInternalNote ? null : attachment;
+    if (file?.kind === "audio" && replyText.trim()) {
+      toast({ variant: "error", title: "Audio goes without a caption", description: "Send the text first, then the audio." });
+      return;
+    }
+    const buttonsOk = !file || file.kind === "image" || file.kind === "document";
+    const buttons = isWhatsApp && !isInternalNote && buttonsOk ? replyButtons.map(b => b.trim()).filter(Boolean) : [];
     sendMutation.mutate({
+      file,
       text: replyText.trim(),
       is_internal: isInternalNote,
       replied_to_message_id: replyToMsg?.id,
@@ -800,7 +816,7 @@ function InboxPageInner() {
               </div>
             ) : (
             <>
-            {isWhatsApp && !isInternalNote && !windowBlocked && (
+            {isWhatsApp && !isInternalNote && !windowBlocked && attachment?.kind !== "video" && attachment?.kind !== "audio" && (
               <ReplyButtonsBar key={activeConversationId ?? "none"} value={replyButtons} onChange={setReplyButtons} />
             )}
             {isWhatsApp && !isInternalNote && !windowBlocked && activeConversationId && <ChatSellBar key={`sell-${activeConversationId}`} conversationId={activeConversationId} />}
@@ -817,6 +833,7 @@ function InboxPageInner() {
               showSchedule={showSchedule} setShowSchedule={setShowSchedule} handleTextChange={handleTextChange}
               handleKeyDown={handleKeyDown} handleSend={handleSend} sendMutation={sendMutation}
               notesOnly={readOnly}
+              attachment={attachment} setAttachment={setAttachment} canAttach={canSend && isOfficialWhatsApp && !readOnly}
             />
             </>
             )}

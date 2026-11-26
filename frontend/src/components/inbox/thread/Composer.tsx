@@ -18,6 +18,8 @@ import {
   getWindowSecondsLeft, formatWindowCountdown, COMPOSER_REWRITE_LANGUAGES, COMPOSER_REWRITE_TONES,
   CHANNEL_FILTERS, SCHEDULE_OPTIONS,
 } from "./types";
+import { AttachButton, AttachmentChip } from "./ComposerAttach";
+import type { Attachment } from "./attachment";
 
 export function Composer({
   isVoiceOnly, windowBlocked, isInternalNote, exitInternalNote, replyToMsg, setReplyToMsg, scheduledFor, setScheduledFor,
@@ -25,6 +27,7 @@ export function Composer({
   showComposerLangPicker, setShowComposerLangPicker, composerRewrite, showSavedReplies, setShowSavedReplies,
   savedReplyQuery, detail, textareaRef, mentionQuery, mentionMatches, insertMention, onlineUsers, showSchedule,
   setShowSchedule, handleTextChange, handleKeyDown, handleSend, sendMutation, notesOnly = false,
+  attachment = null, setAttachment, canAttach = false,
 }: {
   isVoiceOnly: boolean; windowBlocked: boolean; isInternalNote: boolean; exitInternalNote: () => void;
   replyToMsg: Message | null; setReplyToMsg: (m: Message | null) => void;
@@ -47,7 +50,10 @@ export function Composer({
   sendMutation: Mut;
   /** Read-only thread: only internal notes, no way back to a guest reply. */
   notesOnly?: boolean;
+  /** WhatsApp file attachment (ComposerAttach): the typed text becomes its caption. */
+  attachment?: Attachment | null; setAttachment?: (a: Attachment | null) => void; canAttach?: boolean;
 }) {
+  const attachOn = canAttach && !isInternalNote && !!detail?.id && !!setAttachment;
   return (
             <div
               className={cn("px-3 md:px-4 pt-2 pb-2 md:pb-1 flex-shrink-0", (isVoiceOnly || (windowBlocked && !isInternalNote)) && "hidden")}
@@ -149,7 +155,9 @@ export function Composer({
                 </div>
               )}
 
+              {attachOn && attachment && <AttachmentChip attachment={attachment} onRemove={() => setAttachment!(null)} />}
               <div className="relative flex gap-2 items-end">
+                {attachOn && <AttachButton conversationId={detail!.id} onAttached={setAttachment!} disabled={sendMutation.isPending} />}
                 {/* W3: SavedReplyMenu */}
                 {showSavedReplies && (
                   <SavedReplyMenu
@@ -239,7 +247,9 @@ export function Composer({
                   onChange={handleTextChange}
                   onKeyDown={handleKeyDown}
                   rows={1}
-                  placeholder={isInternalNote ? "Write an internal note…" : "Type a message or / for saved replies…"}
+                  placeholder={isInternalNote ? "Write an internal note…"
+                    : attachOn && attachment ? (attachment.kind === "audio" ? "Audio goes without a caption" : "Add a caption (optional)…")
+                    : "Type a message or / for saved replies…"}
                   className={cn("flex-1 text-sm rounded-2xl px-4 py-2.5 focus:outline-none resize-none transition-[border-color,background-color]", emptyPulse && "animate-pulse")}
                   style={{
                     minHeight: "42px",

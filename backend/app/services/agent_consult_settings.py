@@ -1,19 +1,20 @@
 """The owner's "Ask a manager" settings, stored in ``tenants.brand_config.agent_consult`` (no migration needed):
 
   enabled                 true   consults open when a trigger fires (off = today's behaviour: drafts wait in the Inbox)
-  business_start / _end   "09:00" / "21:00" in the workspace timezone (IST by default)
+  business_start / _end   "09:00" / "21:00": legacy single window, only used until the weekly hours in wa_bot_settings are
+                          saved (they are the team hours now; in_business_hours / next_opening read them)
   sla_minutes             15     how long each level has to answer inside business hours
   offhours_reply_minutes  60     outside hours, the answer is promised this long after opening time ("by 10 am")
   send_holding_reply      true   send ONE honest "let me check with the team" reply
   holding_text            in hours; {minutes}
-  holding_text_offhours   outside hours; {time} and {day} ("today" / "tomorrow")
+  holding_text_offhours   outside hours; {time} and {day} ("today" / "tomorrow" / "on Monday")
 
 Only the owner changes them (PUT /ai/consult-settings; PATCH /tenants/me refuses the key). Every change is a chained audit
 row with before/after values.
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -54,34 +55,16 @@ def get(tenant) -> dict:
     return out
 
 
-def _clock(value: str) -> time:
-    try:
-        hh, mm = value.split(":")
-        return time(int(hh), int(mm))
-    except (ValueError, AttributeError):
-        return time(9, 0)
-
-
 def in_business_hours(tenant, now: Optional[datetime] = None) -> bool:
-    s = get(tenant)
-    local = (now or datetime.now(timezone.utc)).astimezone(get_tz(tenant))
-    start, end = _clock(s["business_start"]), _clock(s["business_end"])
-    t = local.time()
-    if start == end:
-        return True
-    return (start <= t < end) if start < end else (t >= start or t < end)
+    """The workspace's weekly hours + holidays (wa_bot_settings: the one place team hours live)."""
+    from app.services import wa_bot_settings
+    return wa_bot_settings.is_open(tenant, now or datetime.now(timezone.utc))
 
 
 def next_opening(tenant, now: Optional[datetime] = None) -> datetime:
-    """The next time business hours start (UTC), strictly after ``now``'s local time when we are outside hours."""
-    s = get(tenant)
-    tz = get_tz(tenant)
-    local = (now or datetime.now(timezone.utc)).astimezone(tz)
-    start = _clock(s["business_start"])
-    candidate = local.replace(hour=start.hour, minute=start.minute, second=0, microsecond=0)
-    if candidate <= local:
-        candidate += timedelta(days=1)
-    return candidate.astimezone(timezone.utc)
+    """The next time business hours start (UTC), skipping off days and holidays."""
+    from app.services import wa_bot_settings
+    return wa_bot_settings.next_opening(tenant, now or datetime.now(timezone.utc))
 
 
 def sla_due(tenant, now: Optional[datetime] = None) -> datetime:
@@ -105,8 +88,9 @@ def holding_text(tenant, now: Optional[datetime] = None) -> str:
         due = sla_due(tenant, now).astimezone(tz)
         local_now = now.astimezone(tz)
         hour = due.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        gap = (due.date() - local_now.date()).days
         values = {"minutes": int(s["sla_minutes"]), "time": hour,
-                  "day": "today" if due.date() == local_now.date() else "tomorrow"}
+                  "day": "today" if gap <= 0 else "tomorrow" if gap == 1 else due.strftime("on %A")}
         tpl, default = s["holding_text_offhours"], DEFAULTS["holding_text_offhours"]
     try:
         return tpl.format(**values).strip()
@@ -116,17 +100,19 @@ def holding_text(tenant, now: Optional[datetime] = None) -> str:
 
 def view(tenant) -> dict:
     s = get(tenant)
-    return {**s, "timezone": str(get_tz(tenant)), "preview": {"in_hours": holding_text(tenant, _sample(tenant, True)),
+    from app.services import wa_bot_settings
+    return {**s, "timezone": str(get_tz(tenant)), "hours_summary": wa_bot_settings.hours_summary(tenant), "preview": {"in_hours": holding_text(tenant, _sample(tenant, True)),
                                                              "off_hours": holding_text(tenant, _sample(tenant, False))}}
 
 
 def _sample(tenant, inside: bool) -> datetime:
-    """A moment inside (opening + 1 h) or outside (closing + 1 h) business hours today, for the settings preview."""
-    s = get(tenant)
-    tz = get_tz(tenant)
-    base = datetime.now(timezone.utc).astimezone(tz)
-    clock = _clock(s["business_start"] if inside else s["business_end"])
-    return (base.replace(hour=clock.hour, minute=clock.minute, second=0, microsecond=0) + timedelta(hours=1)).astimezone(timezone.utc)
+    """The next whole hour inside (or outside) business hours, for the settings preview."""
+    base = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    for h in range(1, 24 * 22):
+        at = base + timedelta(hours=h)
+        if in_business_hours(tenant, at) == inside:
+            return at
+    return base
 
 
 def update(db: Session, tenant, actor_id: str, changes_in: dict) -> dict:

@@ -37,7 +37,7 @@ import {
   TrashIcon, TrophyIcon, TruckIcon, UserCircleIcon,
   UserGroupIcon, UserIcon, UserMinusIcon, UserPlusIcon,
   UsersIcon, ViewfinderCircleIcon, WalletIcon, WifiIcon,
-  XCircleIcon, XMarkIcon,
+  XCircleIcon, XMarkIcon, PaperClipIcon, FilmIcon,
 } from "@heroicons/react/24/outline";
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, "ref"> {
@@ -180,6 +180,8 @@ export const PhoneIncoming = withSize(PhoneArrowDownLeftIcon);
 export const PhoneMissed = withSize(PhoneXMarkIcon);
 export const PhoneOutgoing = withSize(PhoneArrowUpRightIcon);
 export const Plane = withSize(PaperAirplaneIcon);
+export const Paperclip = withSize(PaperClipIcon);
+export const Film = withSize(FilmIcon);
 export const Play = withSize(PlayIcon);
 export const PlayCircle = withSize(PlayCircleIcon);
 export const Plus = withSize(PlusIcon);

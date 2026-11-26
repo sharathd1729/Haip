@@ -687,9 +687,15 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         db.rollback()
         log.warning("wa_growth_inbound_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
+    # ── Location reply / first-message welcome (services/wa_bot_replies.py: order + one reply per message) ─────
+    from app.services import wa_bot_replies
+    bot_reply = wa_bot_replies.on_inbound(db, tenant, guest, conversation, message, msg_type)
+    if bot_reply == "location":
+        return
+
     # ── WhatsApp keyword auto-replies (services/wa_keyword_replies.py) ─────
     # An active "wa_message_received" rule whose keyword is in the message answers it; the AI then stays out.
-    if body and body.strip() and msg_type not in _NO_AI_TYPES:
+    if not bot_reply and body and body.strip() and msg_type not in _NO_AI_TYPES:
         try:
             from app.services import wa_keyword_replies
             if wa_keyword_replies.handle(db, tenant.id, guest, conversation, body.strip()):

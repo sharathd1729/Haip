@@ -53,10 +53,12 @@ def unanswered_guest_text(db: Session, tenant_id: str, conversation_id: str) -> 
     like "Hi" + "I want to book this weekend" is treated as one combined
     query instead of just the last line -- matches what the LLM prompt
     already sees via recent_messages, which this doesn't feed into (that
-    already spans the full history)."""
+    already spans the full history). A welcome / location reply / away message (sender_kind automation_away) answered
+    nothing, so the guest's question before it is still unanswered (wa_bot_replies sends the welcome before the AI)."""
     last_outbound = (
         db.query(Message)
         .filter_by(conversation_id=conversation_id, direction=MessageDirection.OUTBOUND)
+        .filter(or_(Message.sender_kind.is_(None), Message.sender_kind != "automation_away"))
         .order_by(Message.created_at.desc())
         .first()
     )

@@ -2,7 +2,7 @@ import hashlib
 import uuid
 import re
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -494,6 +494,55 @@ def _whatsapp_window_open(db: Session, conv) -> bool:
     return datetime.now(timezone.utc) - last <= _WHATSAPP_WINDOW
 
 
+def _attachment_kind(conv, body: SendMessageRequest, tenant_id: str, interactive) -> str:
+    """The media kind of an inbox upload being sent, or 422 (services/inbox_attachments.py)."""
+    from app.services import inbox_attachments
+
+    kind = inbox_attachments.kind_for_key(tenant_id, body.media_url)
+    if not kind:
+        raise HTTPException(status_code=422, detail="Attach the file again: it is not one uploaded in this workspace.")
+    if not body.is_internal and _channel_value(conv) != "whatsapp":
+        raise HTTPException(status_code=422, detail="Files can only be sent on WhatsApp.")
+    if kind == "audio" and body.body.strip():
+        raise HTTPException(status_code=422, detail="Audio is sent without a caption: send the text as its own message.")
+    if interactive and kind not in ("image", "document"):
+        raise HTTPException(status_code=422, detail="Buttons can go with a photo or PDF, not a video or audio.")
+    return kind
+
+
+@router.post("/{conversation_id}/attachments")
+def upload_attachment(
+    conversation_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("conversations.send")),
+):
+    """Store a file to send in this WhatsApp conversation. Returns ``key`` (pass it as ``media_url`` on send),
+    ``kind``, ``filename``, ``size`` and a short-lived ``preview_url``."""
+    from app.services import inbox_attachments as att
+    from app.services.media_storage import get_presigned_media_url
+
+    conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_personal_bridge(conv)
+    if _channel_value(conv) != "whatsapp":
+        raise HTTPException(status_code=422, detail="Files can only be sent on WhatsApp.")
+    head = file.file.read(att.SNIFF_BYTES)
+    ext = att.sniff(head)
+    if not ext:
+        raise HTTPException(status_code=400, detail=att.LIMIT_HINT)
+    kind, _, cap = att.describe(ext)
+    content = head + file.file.read(cap + 1 - len(head))
+    if len(content) > cap:
+        raise HTTPException(status_code=400, detail=f"Keep this file under {cap // att.MB} MB (WhatsApp's limit).")
+    key = att.store(current_user.tenant_id, content, ext)
+    log.info("inbox_attachment_uploaded", tenant_id=current_user.tenant_id, kind=kind, bytes=len(content))
+    return {"key": key, "kind": kind, "filename": att.clean_filename(file.filename, ext), "size": len(content),
+            "preview_url": get_presigned_media_url(key, expires_in=3600)}
+
+
 @router.post("/{conversation_id}/messages", response_model=MessageOut, status_code=201)
 def send_message(
     conversation_id: str,
@@ -565,12 +614,19 @@ def send_message(
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc.errors()[0].get("msg", "Invalid buttons")).removeprefix("Value error, ")) from None
 
+    media_type, meta = None, ({"interactive": interactive} if interactive else {})
+    if body.media_url and not body.media_url.startswith(("http://", "https://")):
+        media_type = _attachment_kind(conv, body, current_user.tenant_id, interactive)
+        if body.media_filename and media_type == "document":
+            meta["filename"] = body.media_filename
+
     # ── Create new message ────────────────────────────────────────────────────
     msg = Message(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
         conversation_id=conversation_id,
-        **({"channel_metadata": {"interactive": interactive}} if interactive else {}),
+        **({"channel_metadata": meta} if meta else {}),
+        media_type=media_type,
         direction="outbound",
         channel=conv.channel,
         body=body.body,

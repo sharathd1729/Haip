@@ -10,7 +10,7 @@ import { useAppPathname } from "@/lib/useAppPathname";
 import type { ComponentType } from "react";
 import api from "@/lib/api";
 import {
-  AtSign, BadgeCheck, BarChart2, BellRing, Bot, BookOpen, BookmarkIcon, Building, Building2, Calculator, Calendar, CalendarClock,
+  AtSign, BadgeCheck, BarChart2, BellRing, Bot, BookOpen, BookmarkIcon, Building, Building2, Calculator, Calendar, CalendarClock, Clock,
   ClipboardList, CreditCard, FileText, FlaskConical, Globe, HelpCircle, Key, KeyRound, Link2, ListChecks, MapPin, Megaphone,
   AskBubble, MessageCircle, Palette, Phone, Send, Settings, Shield, ShieldCheck, Shuffle, Sparkles, Target, TrendingUp, UserCircle,
   UsersRound, Wallet, Workflow, Zap,
@@ -136,6 +136,7 @@ export const NAV_SECTIONS: NavSection[] = [
   // One home for everything that runs on its own (it used to be four places).
   { key: "automations", title: "Automations", icon: Zap, links: [
     { label: "WhatsApp and rules", href: "/dashboard/automations", icon: Zap, resource: "settings" },
+    { label: "Hours and welcome", href: "/dashboard/automations/whatsapp-hours", icon: Clock, resource: "settings", onlyRoles: MANAGERS },
     { label: "Instagram", href: "/dashboard/instagram-automations", icon: AtSign, resource: "settings", onlyRoles: MANAGERS },
     { label: "Lead workflows", href: "/dashboard/workflows", icon: Workflow, resource: "settings", onlyRoles: MANAGERS },
     { label: "Flows and drips", href: "/dashboard/messaging/flows", icon: GitBranch, resource: "flows" },
