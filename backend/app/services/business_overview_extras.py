@@ -26,6 +26,7 @@ from app.models.stay_finance import StayPayment
 from app.models.user import User
 from app.services import dashboard_service, kpi_metrics, lead_metrics
 from app.services.agent_analytics_service import get_agent_scorecard_rows
+from app.services.call_status_service import missed_call_sql_filter
 from app.services.business_overview_common import (
     Params, _ist_day, _lead_conditions, _linked_stay_ids, _money, _stay_conditions, people_filters,
 )
@@ -144,6 +145,17 @@ def trend_series(db: Session, p: Params) -> dict:
             q = q.filter(Stay.id.in_(scoped))
         for paid_on, kind, amount in q.all():
             cash[_bucket(paid_on, g)] += float(amount) * (-1 if kind == "refund" else 1)
+    # Calls made or received per bucket and how many of them were missed (the one missed-call rule, call_status_service).
+    # Whole-workspace viewers only, like the calls figure on the owner block; anyone else gets None, never 0.
+    calls, calls_missed = defaultdict(int), defaultdict(int)
+    if p.tenant_wide:
+        missed = missed_call_sql_filter()
+        for created, is_missed in (db.query(Call.created_at, missed).filter(
+                Call.tenant_id == p.tid, Call.is_sample.is_(False), Call.created_at >= start, Call.created_at <= end).all()):
+            k = _bucket(_ist_day(created), g)
+            calls[k] += 1
+            if is_missed:
+                calls_missed[k] += 1
     first_in_period = next((i for i, k in enumerate(keys) if _bucket_end(k, g) >= d_from), 0)
     return {
         "granularity": g,
@@ -154,6 +166,8 @@ def trend_series(db: Session, p: Params) -> dict:
         "bookings": [booked[k] for k in keys] if p.can_bookings else None,
         "booking_value": [round(value[k], 2) for k in keys] if p.can_revenue else None,
         "net_collected": [round(cash[k], 2) for k in keys] if p.can_revenue else None,
+        "calls": [calls[k] for k in keys] if p.tenant_wide else None,
+        "calls_missed": [calls_missed[k] for k in keys] if p.tenant_wide else None,
     }
 
 

@@ -2,6 +2,15 @@
 
 Newest first. One entry per decision that changes how the UI is built. Rule from `HAIP_UI_Redesign_Plan.md`: when two sources disagree, follow `docs/DESIGN.md`; if it is silent, follow the plan; log the choice here.
 
+## 2026-11-28
+
+**Home Overview is one glance (owner: minimum scroll, colour carries meaning, real charts).** For owners and managers the Overview fits one screen at 390x844 and 1280x800 and reads top to bottom as: who is waiting (the work queue), the period's four numbers, small charts, the next 7 days, who is waiting / who arrives next. Phone and desktop are built from the same parts (`components/dashboard/overview/OverviewParts.tsx`), so they cannot disagree.
+- One colour per domain, as tokens (`--haip-dom-lead-*` sea green, `--haip-dom-call-*` indigo, `--haip-dom-book-*` coral). New kit pieces: `KpiTile` (two rows: icon + label with side facts, then number + a tiny smooth `Sparkline`), `MiniBars` (one hue per chart; answered/missed calls use `--haip-viz-answered` / `--haip-viz-missed`, the one pair that passed the colour-blind check). Channels stay icons, never chart series.
+- The Overview has no greeting row and no subtitle on desktop (the phone has none either); other tabs keep them. The channel / property / agent pickers sit behind a Filters button on the Overview until one is in use. On phones the period is a pill beside the tabs.
+- Moved, not removed: attention cards are on Leads & sales, the target on Revenue, the full check-in / check-out card sits below the first screen. The "valid enquiries" hint and the phone's Collected and Due tiles are gone (To collect is in the 7-day row).
+- `GET /dashboard/business-overview` `series` gained `calls` and `calls_missed` per bucket (null for viewers who see only their own work).
+- Known: the floating Ask HAIP button (owners) covers the bottom-right corner of the first screen; moving it is a shell decision, not made here.
+
 ## 2026-11-10
 
 **Sea green + coral replaces greens + terracotta (owner-approved mock-ups: Home, parts sheet, My day, Leads).** Done as a token change in `globals.css` so every page follows: primary buttons are sea green (`--haip-action` falls back to `--primary`), coral marks only what needs attention and carries dark ink, the top bar is white, the font is Onest. `brandTheme.ts` default is #1E7A5A; a workspace still on #235347 follows it. Leads is the first page moved onto the new parts (kit `Tabs` for the two switches, 40px chips with the stage colour as a dot, tinted board lanes, a late card in coral instead of a left rail).

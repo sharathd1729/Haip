@@ -14,3 +14,7 @@ export { BottomSheet, SheetActions, SheetLine, sheetActionCls, SWIPE_CLOSE_PX } 
 export { OneLineSummary, ONE_LINE_CHARS } from "./OneLineSummary";
 export { Fab } from "./Fab";
 export { QuickAction } from "./QuickAction";
+// Dashboards (28 Nov 2026): compact domain-coloured KPI tile with a trend line, and a small bar chart.
+export { KpiTile, TileFact, type KpiTone } from "./KpiTile";
+export { Sparkline, sparkPath } from "./Sparkline";
+export { MiniBars, type Bar } from "./MiniBars";

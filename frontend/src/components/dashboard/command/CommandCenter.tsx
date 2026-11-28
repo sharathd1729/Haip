@@ -9,7 +9,8 @@ import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
-import { AlertTriangle, RefreshCw } from "@/lib/icons";
+import { AlertTriangle, RefreshCw, SlidersHorizontal } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
@@ -22,6 +23,8 @@ import { NeedsAttention } from "./NeedsAttention";
 import { AiCallsCard, CaravansCard, TeamCard } from "./OpsRow";
 import { OwnerKpis } from "./OwnerKpis";
 import { ArrivalsCard, TargetCard } from "./TargetAndArrivals";
+import { OverviewDesktop } from "@/components/dashboard/overview/OverviewDesktop";
+import { PeriodPill } from "@/components/dashboard/PeriodPill";
 import { periodLabel, type BusinessOverview } from "./types";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { PhoneHome } from "@/components/dashboard/phone/PhoneHome";
@@ -97,11 +100,16 @@ function Loading() {
 export function CommandCenter() {
   const home = useHomeTab();
   const phone = useIsPhone();
+  const [period, setPeriod] = useDashboardPeriod();
   if (phone && home.tab === "overview") {
+    // One row on top: the tabs scroll sideways, the period is a pill at the end. The numbers start right under it.
     return (
       <div className="flex h-full flex-col">
-        <div className="shrink-0 px-3 pt-2.5"><HomeTabBar {...home} /></div>
-        <div className="min-h-0 flex-1"><PhoneHome /></div>
+        <div className="flex shrink-0 items-center gap-2 pl-3 pr-3 pt-2">
+          <div className="min-w-0 flex-1 overflow-hidden"><HomeTabBar {...home} /></div>
+          <PeriodPill value={period} onChange={setPeriod} />
+        </div>
+        <div className="min-h-0 flex-1"><PhoneHome period={period} /></div>
       </div>
     );
   }
@@ -119,6 +127,10 @@ function DesktopCommandCenter({ home }: { home: ReturnType<typeof useHomeTab> })
   const [windowDays, setWindowDays] = useState(7);
   const preset = filters.preset === "custom" ? "custom" : period;
   const effective = { ...filters, preset };
+  // The Overview keeps its first screen for the numbers: channel / property / agent pickers stay behind "Filters" there until
+  // one is in use (or a custom range needs its date boxes). Every other tab shows them as before.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const showControls = tab !== "overview" || filtersOpen || preset === "custom" || !!(filters.channel || filters.propertyId || filters.agentId);
   const pickPeriod = (v: string) => {
     if (v === "custom") setFilters(f => ({ ...f, preset: "custom" }));
     else { setFilters(f => ({ ...f, preset: v })); setPeriod(v as PeriodValue); }
@@ -141,27 +153,39 @@ function DesktopCommandCenter({ home }: { home: ReturnType<typeof useHomeTab> })
   const periodText = data ? `${presetLabel} · ${range}` : presetLabel;
   const owner = data?.owner;
 
+  // One-glance Overview: no greeting row (the phone Home has none either), so the tabs lead and the first screen goes to
+  // the numbers. The freshness line then sits in the period bar and the team link beside the tabs.
+  const overview = tab === "overview";
+  const teamLink = <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline lg:min-h-0">Team, calls and response times</Link>;
+  const fresh = isFetching
+    ? <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>
+    : asOf ? <span>As of {asOf} IST</span> : null;
+
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
-      <div className="mx-auto max-w-[1360px] space-y-3 px-3 py-2.5 sm:space-y-5 sm:px-6 sm:py-5">
-        <PageHeader keepOnPhone className="justify-between gap-x-6 gap-y-1 sm:gap-y-2"
-          title={<>{greeting()}{firstName ? `, ${firstName}` : ""}</>}
-          subtitle={<>{periodText}. What needs you first, then the numbers.</>}
-          actions={
-            <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
-              {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
-              {asOf && !isFetching && <span>As of {asOf} IST</span>}
-              <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline lg:min-h-0">Team, calls and response times</Link>
-            </div>
-          } />
+      <div className={cn("mx-auto max-w-[1360px] space-y-3 px-3 py-2.5 sm:px-6", overview ? "sm:py-3" : "sm:space-y-5 sm:py-5")}>
+        {!overview && (
+          <PageHeader keepOnPhone className="justify-between gap-x-6 gap-y-1 sm:gap-y-2"
+            title={<>{greeting()}{firstName ? `, ${firstName}` : ""}</>}
+            subtitle={<>{periodText}. What needs you first, then the numbers.</>}
+            actions={<div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">{fresh}{teamLink}</div>} />
+        )}
 
         <HomeTabBar {...home} />
 
         {tab === "bookings" ? <PaymentsTab /> : tab === "ops" ? <OpsTab /> : <>
         <PeriodBar custom value={preset} onChange={pickPeriod}
-          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{range}</span><span> · India time (IST), full days</span></> : undefined} />
-        <Controls value={effective} onChange={next => { setFilters(next); if (next.preset !== "custom" && next.preset !== period) setPeriod(next.preset as PeriodValue); }}
-          properties={properties} agents={agents} from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />
+          extra={overview && !showControls ? (
+            <button type="button" onClick={() => setFiltersOpen(true)} aria-expanded={false}
+              className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-3 text-xs font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:min-h-8">
+              <SlidersHorizontal size={14} aria-hidden />Filters
+            </button>
+          ) : undefined}
+          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{range}</span>{overview ? fresh && <span aria-live="polite"> · {fresh}</span> : <span> · India time (IST), full days</span>}</> : undefined} />
+        {showControls && (
+          <Controls value={effective} onChange={next => { setFilters(next); if (next.preset !== "custom" && next.preset !== period) setPeriod(next.preset as PeriodValue); }}
+            properties={properties} agents={agents} from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />
+        )}
 
         {isError && data && (
           <p role="alert" className="flex items-start gap-2 rounded-lg border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] px-3 py-2 text-[13px] text-[var(--haip-status-warning-fg)]">
@@ -194,14 +218,13 @@ function DesktopCommandCenter({ home }: { home: ReturnType<typeof useHomeTab> })
         ) : (
           <div className={isPlaceholderData ? "space-y-4 opacity-60 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5" : "space-y-4 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5"}>
             {tab === "overview" && <>
-              <NeedsAttention cards={owner.attention} />
-              <OwnerKpis kpis={owner.kpis} period={periodText} />
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <TargetCard target={owner.target} />
-                <ArrivalsCard movements={owner.movements} windowDays={windowDays} onWindow={setWindowDays} pending={isPlaceholderData} />
-              </div>
+              <OverviewDesktop data={data} periodLabel={presetLabel} />
+              {/* below the first screen: every check-in and check-out, with the window the owner picks */}
+              <ArrivalsCard movements={owner.movements} windowDays={windowDays} onWindow={setWindowDays} pending={isPlaceholderData} />
+              {teamLink}
             </>}
             {tab === "leads" && <>
+              <NeedsAttention cards={owner.attention} />
               <OwnerKpis kpis={owner.kpis} period={periodText} />
               <LeadsRowCards owner={owner} sources={data.sources} period={periodText} />
               <AiCallsCard data={owner.ai_calls} period={presetLabel} />

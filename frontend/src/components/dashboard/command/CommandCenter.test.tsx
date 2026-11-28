@@ -69,9 +69,26 @@ function overview(o: OwnerBlock = owner()) {
     leads: { definition: "A lead is a person we hold a usable phone number for." },
     sources: [{ key: "instagram", label: "Instagram", leads: 15, bookings: null, booking_value: null }, { key: "organic_call", label: "Organic calls", leads: 3, bookings: null, booking_value: null }],
     insights: [],
+    bookings: { restricted: false, upcoming_checkouts: 4 },
+    series: { granularity: "day", days: ["2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18", "2026-10-19"], period_start_index: 6,
+      leads: [2, 1, 3, 0, 2, 4, 14], conversations: [0, 0, 0, 0, 0, 0, 0], bookings: [0, 1, 0, 0, 1, 0, 3], booking_value: [0, 40000, 0, 0, 52000, 0, 133000],
+      net_collected: [0, 0, 0, 0, 0, 0, 86000], calls: [40, 52, 38, 61, 47, 30, 61], calls_missed: [3, 5, 2, 8, 4, 1, 6] },
+    funnel: { basis: "People who became leads in the period", note: "", stages: [
+      { key: "identified", label: "New leads", count: 14, previous: 11, rate_from_previous: null, change: null },
+      { key: "qualified", label: "With dates", count: 9, previous: 0, rate_from_previous: 64.3, change: null },
+      { key: "booked", label: "Booked", count: 3, previous: 0, rate_from_previous: 33.3, change: null },
+      { key: "paid", label: "Paid", count: 2, previous: 0, rate_from_previous: 66.7, change: null }] },
     owner: o,
   };
 }
+
+const waiting = (kind: string, severity: string, id: string, title: string) =>
+  ({ kind, severity, guest_id: id, title, detail: "", action: "", href: `/dashboard/leads/${id}`, channels: ["whatsapp"], since: null });
+const QUEUE = { people_waiting: 3, total: 3, severity: {}, items: [waiting("callback", "urgent", "a", "Meera Iyer"), waiting("reply", "late", "b", "Ananya Rao"), waiting("followup", "fresh", "c", "Rohan Mehta")] };
+const TRIP = { id: "s1", external_id: "s1", checkin: "2026-10-21", checkout: "2026-10-23", adults: 2, children: 0, status: "confirmed", raw_status: "confirmed",
+  payment_status: "partial", total: 60000, total_paid: 30000, total_outstanding: 30000, payment_overdue: false, trip: "Coorg",
+  property: { id: "p1", name: "Ratha 1", type: "caravan" }, main_guest: { id: "g", first_name: "Fathima", last_name: "Rizwan", phone: null, email: null },
+  next_payment_due_date: null, next_payment_amount: 0, channel: null, created_at: null, inquiry_id: null, deposit: null, check_in_time: null, check_out_time: null };
 
 function wrap(ui: ReactNode) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -81,6 +98,8 @@ function wrap(ui: ReactNode) {
 function serve(payload: unknown | Error) {
   get.mockImplementation((url: string) => {
     if (url === "/dashboard/business-overview") return payload instanceof Error ? Promise.reject(payload) : Promise.resolve({ data: payload });
+    if (url === "/work-queue") return Promise.resolve({ data: QUEUE });
+    if (url === "/bookings") return Promise.resolve({ data: { data: [TRIP], meta: { current_page: 1, last_page: 1, per_page: 100, total: 1, from: 1, to: 1 } } });
     return Promise.resolve({ data: [] });
   });
 }
@@ -123,43 +142,61 @@ describe("owner dashboard helpers", () => {
 });
 
 describe("CommandCenter (layout A)", () => {
-  it("opens on Today and renders every block in the approved order", async () => {
+  it("opens on Today with the one-glance Overview in its order: who is waiting, the numbers, the trend, the next 7 days", async () => {
     serve(overview());
     const { container } = wrap(<CommandCenter />);
-    expect(await screen.findByRole("heading", { name: "Needs attention" })).toBeTruthy();
+    expect((await screen.findByRole("link", { name: "3 people waiting. Open My day" })).getAttribute("href")).toBe("/dashboard/my-day");
     const call = get.mock.calls.find(c => c[0] === "/dashboard/business-overview")!;
     expect(call[1].params).toEqual({ date_preset: "today" });
-    const order = ["Needs attention", "October target", "Check-ins and check-outs"];   // Overview tab; the rest have their own tabs
+
+    const tiles = within(await screen.findByRole("region", { name: "Numbers, Today" }));
+    expect(tiles.getByRole("link", { name: /New leads/ }).textContent).toContain("14");
+    expect(tiles.getByRole("img", { name: "15 from Instagram" })).toBeTruthy();
+    expect(tiles.getByRole("link", { name: /Calls/ }).textContent).toContain("61");
+    expect(tiles.getByRole("img", { name: "6 missed" })).toBeTruthy();
+    expect(tiles.getByRole("link", { name: /Bookings/ }).textContent).toContain("3");
+    expect(tiles.getByRole("link", { name: /Booked value/ }).textContent).toContain("₹1.33 L");
+    expect(tiles.getByRole("img", { name: "Calls, last 7 days: 40, 52, 38, 61, 47, 30, 61" })).toBeTruthy();
+
     const text = container.textContent ?? "";
-    let pos = text.indexOf("Needs attention");
-    for (const title of order) {                      // each block is found after the one before it
-      const next = text.indexOf(title, pos);
+    let pos = 0;
+    for (const title of ["waiting for your team", "New leads per day", "Calls per day", "From lead to booking", "Check-ins · 7 days", "Waiting for you", "Arriving next"]) {
+      const next = text.indexOf(title, pos);          // each block is found after the one before it
       expect(next, title).toBeGreaterThanOrEqual(pos);
       pos = next;
     }
-    expect(screen.getByText("Payment received", { selector: "span" })).toBeTruthy();
-    expect(text).not.toMatch(/Cash collected|Net cash/);
+    expect(within(screen.getByRole("region", { name: "Waiting for you" })).getByText("Meera Iyer")).toBeTruthy();
+    expect(within(await screen.findByRole("region", { name: "Arriving next" })).getByText("₹30,000 due")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Next 7 days" })).getByText("Check-outs · 7 days").closest("a")?.textContent).toContain("4");
+    // the pickers stay behind Filters until someone needs them; attention cards, target and payment received live on their tabs
+    expect(screen.queryByLabelText("Channel")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.getByLabelText("Channel")).toBeTruthy();
+    expect(text).not.toMatch(/Needs attention|October target|Cash collected|Net cash/);
     expect(text).not.toMatch(/conversation|without a phone number\b(?! are handled)/i);
   });
 
   it("puts each block on its dashboard tab", async () => {
     serve(overview());
-    for (const [tab, titles] of [["leads", ["When leads want to travel", "Where leads came from", "Leads by stage", "AI and calls"]],
+    for (const [tab, titles] of [["leads", ["Needs attention", "Payment received", "When leads want to travel", "Where leads came from", "Leads by stage", "AI and calls"]],
       ["revenue", ["October target", "Caravans"]], ["team", ["Team"]]] as const) {
       nav.search = `tab=${tab}`;
       const { container, unmount } = wrap(<CommandCenter />);
       await screen.findByRole("button", { name: "Overview" });
       await waitFor(() => { for (const t of titles) expect(container.textContent, `${tab}: ${t}`).toContain(t); });
-      expect(container.textContent).not.toContain("Needs attention");
+      if (tab !== "leads") expect(container.textContent).not.toContain("Needs attention");
+      expect(container.textContent).not.toContain("New leads per day");       // the one-glance blocks are the Overview's
       unmount();
     }
     nav.search = "";
   });
 
-  it("shows each attention card's count, reason, first names and link", async () => {
+  it("shows each attention card's count, reason, first names and link on the Leads tab", async () => {
+    nav.search = "tab=leads";
     serve(overview());
     wrap(<CommandCenter />);
     const card = (await screen.findByRole("heading", { name: "Not replying" })).closest("div.haip-card") as HTMLElement;
+    nav.search = "";
     expect(within(card).getByText("Pooja Nair")).toBeTruthy();
     expect(within(card).getByText(/24 h or more/)).toBeTruthy();
     expect(within(card).getByRole("link").getAttribute("href")).toBe("/dashboard/my-day?kind=no_reply");
@@ -173,7 +210,7 @@ describe("CommandCenter (layout A)", () => {
   it("asks the server again for another period and another check-in window", async () => {
     serve(overview());
     wrap(<CommandCenter />);
-    await screen.findByRole("heading", { name: "Needs attention" });
+    await screen.findByText("New leads per day");
     await userEvent.click(screen.getByRole("tab", { name: "This month" }));
     await waitFor(() => expect(get.mock.calls.some(c => c[1]?.params?.date_preset === "this_month")).toBe(true));
     await userEvent.click(screen.getByRole("button", { name: "Next 30 days" }));
@@ -183,21 +220,33 @@ describe("CommandCenter (layout A)", () => {
   });
 
   it("shows the empty target state with a link when no target is set", async () => {
+    nav.search = "tab=revenue";
     serve(overview(owner({ target: { restricted: false, month: "2026-10-01", from: "2026-10-01", to: "2026-10-31", days_in_month: 31, days_elapsed: 19,
       days_left: 12, basis: "", available: false, reason: "No target is set for this month.", href: "/dashboard/targets",
       booked: { total: 1000, rental: 1000, add_ons: 0, count: 1 }, payment_received: 0, pace_pct: 61.3 } })));
     wrap(<CommandCenter />);
     expect(await screen.findByText("No target is set for this month.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Set this month’s target" }).getAttribute("href")).toBe("/dashboard/targets");
+    nav.search = "";
   });
 
-  it("explains hidden blocks instead of showing zeros", async () => {
-    serve(overview(owner({ target: { restricted: true }, movements: { restricted: true }, caravans: { restricted: true }, team: null, ai_calls: null,
-      kpis: { ...owner().kpis, booked_value: { restricted: true }, payment_received: { restricted: true } } })));
+  it("explains hidden numbers instead of showing zeros", async () => {
+    const hidden = overview(owner({ target: { restricted: true }, movements: { restricted: true }, caravans: { restricted: true }, team: null, ai_calls: null,
+      kpis: { ...owner().kpis, booked_value: { restricted: true }, payment_received: { restricted: true } } }));
+    serve(hidden);
+    const first = wrap(<CommandCenter />);
+    // Overview: the tile says the number is hidden; with no call figures for this viewer there is no Calls tile at all
+    expect(await screen.findByRole("link", { name: "Booked value: hidden for your role" })).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Numbers, Today" })).queryByRole("link", { name: /Calls/ })).toBeNull();
+    expect(first.container.textContent).not.toMatch(/₹0\b/);
+    first.unmount();
+
+    nav.search = "tab=revenue";
     const { container } = wrap(<CommandCenter />);
     expect(await screen.findByText(/Targets and amounts are hidden for your role/)).toBeTruthy();
     expect(screen.getAllByText(/Bookings are hidden for your role/).length).toBeGreaterThanOrEqual(1);
     expect(container.textContent).not.toMatch(/₹0\b/);
+    nav.search = "";
   });
 
   it("shows an error state with a retry when the first load fails", async () => {
