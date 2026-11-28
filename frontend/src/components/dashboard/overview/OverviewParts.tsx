@@ -300,7 +300,8 @@ function ListCard({ title, icon: Icon, more, children, className }: {
     <section aria-label={title} className={cn("min-w-0", className)}>
       <div className="mb-1 flex items-center gap-2 px-1">
         <h2 className={cardTitle}><Icon size={15} className="shrink-0 text-[var(--haip-fg-subtle)]" aria-hidden />{title}</h2>
-        {more && <Link href={more.href} className="ml-auto inline-flex min-h-9 items-center gap-1 text-[12.5px] font-bold text-primary hover:underline">{more.label}<ArrowRight size={13} aria-hidden /></Link>}
+        {/* 36px tall to keep the first screen; the ::after stretches the touch area to 44px */}
+        {more && <Link href={more.href} className="relative ml-auto inline-flex min-h-9 items-center gap-1 text-[12.5px] font-bold text-primary after:absolute after:-inset-x-2 after:-inset-y-1 after:content-[''] hover:underline">{more.label}<ArrowRight size={13} aria-hidden /></Link>}
       </div>
       {children}
     </section>
