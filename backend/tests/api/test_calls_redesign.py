@@ -134,3 +134,30 @@ def test_wrap_up_notes_do_not_overwrite_ai_summary(client, db, tenant_and_user):
     detail = client.get(f"/api/v1/calls/{c.id}", headers=_auth(tenant_and_user)).json()
     assert detail["wrap_up_notes"] == "Wants veg menu"
     assert detail["ai_summary"] == "AI: booked Coorg for 6."
+
+
+def test_a_read_call_needs_its_wrap_up_until_a_person_saves_one(client, db, tenant_and_user):
+    """Answered + analysed + nobody wrapped it up = needs_wrap_up, on the list and the call page. A missed call, or one
+    HAIP has not read yet, never asks for one; saving the wrap-up (even with only a note) clears it."""
+    tid = _tid(tenant_and_user)
+    g = _guest(db, tid)
+    done = _call(db, tid, g, duration=200, dial_status="completed")
+    done.ai_score_status = "done"
+    unread = _call(db, tid, g, duration=200, dial_status="completed")          # not analysed yet
+    missed = _call(db, tid, g, duration=0, dial_status="no-answer")
+    missed.ai_score_status = "done"
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other); db.flush()
+    theirs = _call(db, other.id, _guest(db, other.id), duration=200, dial_status="completed")
+    theirs.ai_score_status = "done"
+    db.commit()
+
+    rows = client.get("/api/v1/calls?limit=50", headers=_auth(tenant_and_user)).json()
+    rows = rows.get("calls") or rows.get("data") or rows.get("items") or rows
+    flags = {r["id"]: r["needs_wrap_up"] for r in rows}
+    assert flags == {done.id: True, unread.id: False, missed.id: False}          # another workspace's call is not listed
+    assert client.get(f"/api/v1/calls/{done.id}", headers=_auth(tenant_and_user)).json()["needs_wrap_up"] is True
+
+    assert client.post(f"/api/v1/calls/{done.id}/wrap-up", json={"notes": "Call back Friday"}, headers=_auth(tenant_and_user)).status_code == 200
+    assert client.get(f"/api/v1/calls/{done.id}", headers=_auth(tenant_and_user)).json()["needs_wrap_up"] is False
+    assert client.post(f"/api/v1/calls/{theirs.id}/wrap-up", json={"notes": "x"}, headers=_auth(tenant_and_user)).status_code == 404

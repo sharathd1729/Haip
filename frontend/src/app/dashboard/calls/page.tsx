@@ -7,13 +7,13 @@ import { useMemo, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { Phone, Upload, X, Search, Loader2, PhoneMissed, Delete, PhoneCall, AlertCircle, CheckCircle2 } from "@/lib/icons";
+import { Phone, Upload, X, Search, Loader2, PhoneMissed, Delete, PhoneCall, AlertCircle, CheckCircle2, ChevronDown, SlidersHorizontal } from "@/lib/icons";
 import { PageHeader } from "@/components/ui/page";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useCallsStore } from "@/store/calls";
-import { MobileFilterSheet, MobileFilterTrigger } from "@/components/ui/MobileFilterSheet";
+import { MobileFilterSheet } from "@/components/ui/MobileFilterSheet";
 import { CallDetailPanel, OUTCOMES } from "@/components/calls/CallDetailPanel";
 import {
   CallRow, SummaryTiles, RANGES, rangeParams, dayLabel,
@@ -129,6 +129,9 @@ function DialerModal({ onClose }: { onClose: () => void }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const TABS = [["callback", "Call back"], ["all", "All"], ["incoming", "Incoming"], ["outgoing", "Outgoing"]] as const;
+const TAB_LABEL: Record<Tab, string> = { callback: "Call back", all: "All calls", incoming: "Incoming", outgoing: "Outgoing" };
+
 export default function CallsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -153,6 +156,8 @@ export default function CallsPage() {
   const [filterSheet, setFilterSheet] = useState(false);
   const pageSize = 25;
   const rangeLabel = RANGES.find(r => r.value === range)?.label ?? "Today";
+  // The phone filter button's badge: everything that differs from how the page opens (Call back, last 7 days).
+  const nOn = (tab !== "callback" ? 1 : 0) + (range !== "last_7d" ? 1 : 0) + (agentId ? 1 : 0) + (outcome ? 1 : 0);
 
   const { data: summary } = useQuery<CallsSummary>({
   queryKey: ["calls", "summary", dates],
@@ -233,8 +238,15 @@ export default function CallsPage() {
   className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none border focus-visible:ring-2 focus-visible:ring-primary"
   style={{ background: "var(--haip-card)", borderColor: "var(--haip-border)", color: "var(--haip-fg)" }} />
   </div>
-  <button onClick={() => setShowDialer(true)} className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90">
-  <PhoneCall size={13} /> Dial
+  {/* Phone: ONE header row (owner, 28 Nov 2026). One filter button, its badge counting what is on; the call type, dates,
+      agent and outcome are picked in its sheet. Desktop keeps its visible tabs and pickers below. */}
+  <button type="button" onClick={() => setFilterSheet(true)} aria-label={nOn ? `Filters, ${nOn} on` : "Filters"}
+    className="relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-2)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 md:hidden">
+    <SlidersHorizontal size={18} aria-hidden />
+    {nOn > 0 && <span aria-hidden className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold tabular-nums text-primary-foreground">{nOn}</span>}
+  </button>
+  <button onClick={() => setShowDialer(true)} aria-label="Dial" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 max-sm:min-h-11">
+  <PhoneCall size={13} /> <span className="max-sm:hidden">Dial</span>
   </button>
   {/* Phones too (owner feedback, Oct 2026: there was no way to add a call record on a phone); labelled "Add call" there. */}
   <button onClick={() => setShowUpload(true)} className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border max-sm:min-h-11"
@@ -246,9 +258,18 @@ export default function CallsPage() {
 
   <SummaryTiles s={summary} rangeLabel={rangeLabel} onPick={pickTab} />
 
-  <div className="flex flex-wrap items-center gap-2">
+  {/* Phone: one thin line says what is shown; tapping it opens the same sheet. */}
+  <button type="button" onClick={() => setFilterSheet(true)}
+    className="-my-0.5 flex min-h-8 cursor-pointer items-center gap-1 rounded-lg text-left text-[13px] font-semibold text-[var(--haip-fg-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 md:hidden">
+    <span>{TAB_LABEL[tab]}</span>
+    {!isLoading && !isError && <span className="tabular-nums text-[var(--haip-fg-subtle)]">· {total}</span>}
+    <span className="text-[var(--haip-fg-subtle)]">· {rangeLabel}</span>
+    <ChevronDown size={14} aria-hidden className="text-[var(--haip-fg-subtle)]" />
+  </button>
+
+  <div className="flex flex-wrap items-center gap-2 max-md:hidden">
   <div role="tablist" aria-label="Call type" className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-  {([["callback", "Call back"], ["all", "All"], ["incoming", "Incoming"], ["outgoing", "Outgoing"]] as const).map(([key, label]) => {
+  {TABS.map(([key, label]) => {
   const on = tab === key;
   const n = key === "callback" ? summary?.missed_not_called_back : undefined;
   return (
@@ -284,9 +305,35 @@ export default function CallsPage() {
   {OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
   </select>
   </div>
-  <MobileFilterTrigger onClick={() => setFilterSheet(true)} hasActiveFilters={!!(agentId || outcome)} className="min-h-10" />
   </div>
-  <MobileFilterSheet open={filterSheet} onOpenChange={setFilterSheet} hasActiveFilters={!!(agentId || outcome)}>
+  </div>
+  <div>
+  <MobileFilterSheet open={filterSheet} onOpenChange={setFilterSheet} title="Show and filter" hasActiveFilters={nOn > 0}>
+  <div role="radiogroup" aria-label="Call type" className="grid gap-1.5">
+    {TABS.map(([key, label]) => {
+      const on = tab === key;
+      const n = key === "callback" ? summary?.missed_not_called_back : undefined;
+      return (
+        <button key={key} type="button" role="radio" aria-checked={on} onClick={() => pickTab(key)}
+          className={cn("flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 text-left text-[14.5px] font-semibold text-[var(--haip-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            on ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] bg-[var(--haip-card)]")}>
+          <span>{label}</span>
+          <span className="flex items-center gap-2 tabular-nums text-[13px] text-[var(--haip-fg-subtle)]">{n ?? ""}{on && <CheckCircle2 size={16} className="text-primary" aria-hidden />}</span>
+        </button>
+      );
+    })}
+  </div>
+  <label className="flex flex-col gap-1 text-[13px] font-medium text-[var(--haip-fg-2)]">Dates
+  <select value={range} onChange={e => setRange(e.target.value)} className={cn(selectCls, "h-12 w-full text-[16px]")} style={selectStyle}>
+  {RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+  </select>
+  </label>
+  {range === "custom" && (
+    <div className="grid grid-cols-2 gap-2">
+      <input type="date" value={customFrom} max={customTo || undefined} onChange={e => setCustomFrom(e.target.value)} aria-label="From date" className={cn(selectCls, "h-12 w-full text-[16px]")} style={selectStyle} />
+      <input type="date" value={customTo} min={customFrom || undefined} onChange={e => setCustomTo(e.target.value)} aria-label="To date" className={cn(selectCls, "h-12 w-full text-[16px]")} style={selectStyle} />
+    </div>
+  )}
   <label className="flex flex-col gap-1 text-[13px] font-medium text-[var(--haip-fg-2)]">Agent
   <select value={agentId} onChange={e => setAgentId(e.target.value)} className={cn(selectCls, "h-12 w-full text-[16px]")} style={selectStyle}>
   <option value="">All agents</option>
@@ -299,7 +346,8 @@ export default function CallsPage() {
   {OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
   </select>
   </label>
-  <button type="button" onClick={() => setFilterSheet(false)} className="mt-1 h-12 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground">Show calls</button>
+  <button type="button" onClick={() => setFilterSheet(false)} className="mt-1 h-12 cursor-pointer rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground">
+    {isLoading || isError ? "Show calls" : `Show ${total} ${total === 1 ? "call" : "calls"}`}</button>
   </MobileFilterSheet>
   </div>
 

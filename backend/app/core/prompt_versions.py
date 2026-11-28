@@ -36,7 +36,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v6 (2026-11-08, AI cost audit): classify (call-classify-v2) + judge (call-judge-v3) + wrap-up (call-wrap-up-v5)
     # merged into ONE tool call; the rubric/auto-fail rules and the wrap-up/actionable wording are unchanged.
     # call_scores.analysis_version stores this string (one score row per call per version).
-    "call_analysis":   "call-analysis-v6",      # call_analysis.jinja
+    "call_analysis":   "call-analysis-v7",      # call_analysis.jinja (v7: from_call trip facts with the second they were said)
     # Personal workspaces (one person's own phone calls, NeoSapien-style read instead of the hospitality QA + wrap-up).
     "personal_call":   "personal-call-v3",      # personal_call.jinja (v3: a source quote + time per point)
     "personal_ask":    "personal-ask-v2",       # personal_ask.jinja (Ask Yaad; v2: [n] citations, follow-ups, earlier turns)

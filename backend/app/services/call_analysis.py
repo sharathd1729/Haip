@@ -122,6 +122,11 @@ CALL_ANALYSIS_TOOL = {
             "conversion_probability": _NUM,
             "lost_reason": _STR,
             "guest_name": _STR,
+            # Part 4: trip facts stated on the call, each with the transcript second it was said at (clean_from_call)
+            "from_call": {
+                "type": "array",
+                "items": {"type": "object", "properties": {"field": _STR, "value": _STR, "said_at": _NUM}},
+            },
         },
         "required": [
             "criterion_scores",
@@ -301,7 +306,64 @@ def _phrases(value: Any) -> list[str]:
     return [p for p in (ai_actionable._text(v, 160) for v in value) if p][:3]
 
 
-def apply_result(db, *, call, tenant_id: str, rubric, result: dict) -> str:
+# Trip facts a call can put on its lead (after-call wrap-up, owner 28 Nov 2026). `destination` and `requests` are saved
+# as inquiries.route_mentioned / special_requests by the wrap-up; the rest carry the lead's own field names.
+FROM_CALL_FIELDS = ("check_in", "check_out", "adults", "children", "budget", "occasion", "destination", "guest_location", "requests")
+_SNAP_SECONDS = 5.0      # a said_at further than this from every transcript line was made up: the fact keeps no moment
+
+
+def _turn_start(turn: dict) -> float | None:
+    for key in ("t0", "start", "timestamp"):
+        v = turn.get(key)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return float(v)
+    return None
+
+
+def clean_from_call(raw: Any, turns: list) -> list[dict]:
+    """The model's `from_call` -> [{field, value, said_at, quote}], one per field (a later statement replaces an earlier
+    one). Nothing is trusted: an unknown field, a date that is not a real day or a count that is not a sane number is
+    dropped, and `said_at` is snapped to a real transcript line (whose text becomes `quote`) or cleared."""
+    from datetime import date
+
+    lines = sorted((s, (t.get("text") or "").strip()) for t in turns if isinstance(t, dict) for s in [_turn_start(t)] if s is not None)
+    found: dict[str, dict] = {}
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        field = str(item.get("field") or "").strip().lower()
+        value: Any = item.get("value")
+        if field not in FROM_CALL_FIELDS or value is None or isinstance(value, bool):
+            continue
+        if field in ("check_in", "check_out"):
+            try:
+                value = date.fromisoformat(str(value).strip()).isoformat()
+            except ValueError:
+                continue
+        elif field in ("adults", "children", "budget"):
+            try:
+                number = float(str(value).replace(",", "").strip())
+            except ValueError:
+                continue
+            top = 100_000_000 if field == "budget" else 100
+            if not (number == number and (0 <= number if field == "children" else 0 < number) and number <= top):
+                continue
+            value = number if field == "budget" else int(number)
+        else:
+            value = " ".join(str(value).split())[:200]
+            if not value:
+                continue
+        said_at, quote = None, None
+        at = item.get("said_at")
+        if lines and isinstance(at, (int, float)) and not isinstance(at, bool):
+            start, text = min(lines, key=lambda line: abs(line[0] - float(at)))
+            if abs(start - float(at)) <= _SNAP_SECONDS:
+                said_at, quote = round(start, 1), text[:200] or None
+        found[field] = {"field": field, "value": value, "said_at": said_at, "quote": quote}
+    return [found[f] for f in FROM_CALL_FIELDS if f in found]
+
+
+def apply_result(db, *, call, tenant_id: str, rubric, result: dict, turns: list | None = None) -> str:
     """Write the read onto the call, the guest's name (only when unnamed) and ONE call_scores row for this version.
     Does not commit. Returns the normalised disposition string (for the automation trigger)."""
     from app.models.guest import Guest
@@ -351,6 +413,11 @@ def apply_result(db, *, call, tenant_id: str, rubric, result: dict) -> str:
         strengths, growth = _phrases(result.get("agent_strengths")), _phrases(result.get("agent_growth_areas"))
         if strengths or growth:
             insights.update(agent_strengths=strengths, agent_growth_areas=growth)
+    # After-call wrap-up: the trip facts said on the call (with the moment) and the name heard, for a person to confirm.
+    # Never written to the lead here: the agent ticks what to save.
+    from_call = clean_from_call(result.get("from_call"), turns or [])
+    if from_call or guest_name:
+        insights = {**(insights or {}), "from_call": from_call, "heard_name": guest_name[:120] or None}
     call.ai_insights = insights
     call.ai_next_action = result.get("next_action") or ai_actionable.next_action_text(
         (insights or {}).get("next_best_action")

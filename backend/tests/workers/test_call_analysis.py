@@ -3,6 +3,8 @@
 borderline score, no model call for an empty transcript, and a retry / recovery run that resumes instead of asking the
 model again or adding a second score row. No real LLM: the model is scripted (call_analysis_harness)."""
 
+import uuid
+
 import pytest
 
 from app.core.prompt_versions import get_version
@@ -64,7 +66,7 @@ def test_one_model_call_writes_every_field_the_three_steps_wrote(db):
     # was judge
     assert c.ai_score_status == "done" and float(c.ai_score) == 100.0
     [row] = _scores(db, c.id)
-    assert row.analysis_version == get_version("call_analysis") == "call-analysis-v6"
+    assert row.analysis_version == get_version("call_analysis") == "call-analysis-v7"
     assert float(row.ai_confidence) == 0.9 and row.model_used == "fake-call_analysis"
     # was wrap-up
     assert c.ai_summary == "Guest wants to book for 4 next weekend." and c.ai_next_action == "Send the quote"
@@ -300,3 +302,50 @@ def test_old_task_names_hand_over_to_the_single_analysis():
         h.task_mod.judge.run(call_id="c1", tenant_id="t1", classification={"sentiment": "positive"})
         h.task_mod.wrap_up.run(call_id="c1", tenant_id="t1", classification={}, judge_result={})
     assert [kw for _, kw in delay.call_args_list] == [{"call_id": "c1", "tenant_id": "t1"}] * 2
+
+
+# ── from the call: trip facts for the after-call wrap-up (call-analysis-v7) ──────────────────────────────────
+
+def test_clean_from_call_keeps_only_real_facts_and_snaps_each_to_a_transcript_line():
+    from app.services.call_analysis import clean_from_call
+
+    turns = [{"speaker": "agent", "t0": 0.0, "text": "Hello"}, {"speaker": "guest", "t0": 12.4, "text": "Four of us, 14th to 16th December"},
+             {"speaker": "guest", "start": 31.0, "text": "Budget around 70 thousand, and a cake please"}]
+    raw = [
+        {"field": "check_in", "value": "2026-12-14", "said_at": 12.0},          # 0.4 s off a real line: snapped to it
+        {"field": "check_out", "value": "16 December", "said_at": 12.4},        # not a real date: dropped
+        {"field": "adults", "value": "2", "said_at": 5},
+        {"field": "adults", "value": "4", "said_at": 12.4},                     # restated: the later one wins
+        {"field": "children", "value": 0, "said_at": 12.4},
+        {"field": "budget", "value": "70,000", "said_at": 31},
+        {"field": "requests", "value": "  anniversary   cake ", "said_at": 300},  # no line near 300 s: fact kept, no moment
+        {"field": "stage", "value": "sold", "said_at": 12.4},                   # not a trip field
+        {"field": "adults", "value": True}, "junk", {"field": "budget", "value": "lots"}, {"field": "adults", "value": 0},
+    ]
+    assert clean_from_call(raw, turns) == [
+        {"field": "check_in", "value": "2026-12-14", "said_at": 12.4, "quote": "Four of us, 14th to 16th December"},
+        {"field": "adults", "value": 4, "said_at": 12.4, "quote": "Four of us, 14th to 16th December"},
+        {"field": "children", "value": 0, "said_at": 12.4, "quote": "Four of us, 14th to 16th December"},
+        {"field": "budget", "value": 70000.0, "said_at": 31.0, "quote": "Budget around 70 thousand, and a cake please"},
+        {"field": "requests", "value": "anniversary cake", "said_at": None, "quote": None},
+    ]
+    assert clean_from_call(None, turns) == [] and clean_from_call([{"field": "adults", "value": 3, "said_at": 2}], []) == [
+        {"field": "adults", "value": 3, "said_at": None, "quote": None}]
+
+
+def test_the_analysis_stores_what_was_said_and_the_name_heard_without_touching_the_lead(db):
+    t = h.tenant(db)
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=t.id, name="Old Name", phone="+919000000077")
+    db.add(guest)
+    db.commit()
+    c = h.call(db, t.id, guest_id=guest.id)
+    llm = h.ScriptedLLM(tool_use=h.answer(guest_name="Priya", from_call=[{"field": "adults", "value": 4, "said_at": 2.0},
+                                                                         {"field": "destination", "value": "Coorg", "said_at": 2.2}]))
+    h.run(db, t.id, c.id, llm)
+    c = db.get(Call, c.id)
+    assert c.ai_insights["heard_name"] == "Priya"
+    assert c.ai_insights["from_call"] == [
+        {"field": "adults", "value": 4, "said_at": 2.0, "quote": "I'd like to book for a family of four next weekend."},
+        {"field": "destination", "value": "Coorg", "said_at": 2.0, "quote": "I'd like to book for a family of four next weekend."},
+    ]
+    assert db.get(Guest, guest.id).name == "Old Name"          # a name on file is only suggested against, never replaced
