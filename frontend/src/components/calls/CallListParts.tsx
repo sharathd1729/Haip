@@ -4,6 +4,7 @@
 // Call back / play). Used by app/dashboard/calls/page.tsx.
 import { Phone, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed, Play, CheckCircle2 } from "@/lib/icons";
 import Link from "next/link";
+import { useContactChoice } from "@/components/contact/ContactChoice";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
@@ -17,6 +18,8 @@ export interface CallItem {
   id: string;
   direction: "inbound" | "outbound";
   is_missed?: boolean;
+  /** Answered and read by HAIP, and no person has wrapped it up yet (backend calls.needs_wrap_up). */
+  needs_wrap_up?: boolean;
   called_back?: boolean | null;
   called_back_at?: string | null;
   duration_seconds: number;
@@ -170,6 +173,9 @@ export function CallRow({
   const when = call.created_at || call.started_at || "";
   const outcome = outcomeMeta(call.disposition);
   const score = call.qa_score != null && call.qa_score > 0 ? Math.round(call.qa_score) : null;
+  // Call back = My phone | Office line (components/contact/ContactChoice); the list already shows this person the number.
+  const callChoice = useContactChoice({ kind: "call", inquiryId: "", name: call.guest_name || "the caller", canReveal: false,
+    phone: call.guest_phone, onOffice: onCallBack });
   return (
   <div
   role="button" tabIndex={0} onClick={onSelect} onKeyDown={e => { if (e.key === "Enter") onSelect(); }}
@@ -182,6 +188,7 @@ export function CallRow({
   <div className="flex items-center gap-1.5 min-w-0">
   <span className="text-sm font-bold truncate" style={{ color: "var(--haip-fg)" }}>{call.guest_name || call.guest_phone || "Unknown caller"}</span>
   <ChannelBadges channels={call.guest_channels} size={13} />
+  {call.needs_wrap_up && <span className="shrink-0 rounded-full bg-[var(--haip-accent-light)] px-2 py-0.5 text-[11px] font-bold text-[var(--haip-accent-ink)]">Wrap-up</span>}
   </div>
   <p className="text-xs mt-0.5 truncate" style={{ color: "var(--haip-fg-subtle)" }}>
   {call.is_missed ? "Unanswered" : call.agent_name || "—"}{when ? ` · ${timeOf(when)}` : ""}
@@ -211,10 +218,11 @@ export function CallRow({
   ) : (
   <>
   <span className="hidden sm:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]">Not called back</span>
-  <button type="button" onClick={e => { e.stopPropagation(); onCallBack(); }} disabled={calling || !call.guest_phone}
+  <button type="button" onClick={e => { e.stopPropagation(); callChoice.start(); }} disabled={calling || !call.guest_phone}
   className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60">
   {calling ? <Loader2 size={12} className="animate-spin" /> : <Phone size={12} />} Call back
   </button>
+  <span onClick={e => e.stopPropagation()}>{callChoice.sheet}</span>
   </>
   )}
   </>

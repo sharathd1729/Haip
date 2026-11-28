@@ -139,7 +139,7 @@ def _analyse(task, db, call_id: str, tenant_id: str):
             tenant_id=tenant_id, call_id=call_id, system=system, user=user, rubric_criteria=rubric.criteria or []
         )
 
-        disposition = analysis.apply_result(db, call=call, tenant_id=tenant_id, rubric=rubric, result=result)
+        disposition = analysis.apply_result(db, call=call, tenant_id=tenant_id, rubric=rubric, result=result, turns=turns)
         call.ai_score_status = "done"
         db.commit()
         log.info(

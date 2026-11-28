@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
 import { ActionableInsights } from "@/components/ai/ActionableInsights";
+import { WrapUpCard, type WrapUpCall } from "@/components/calls/WrapUpCard";
 import { hasActionable, type Actionable } from "@/lib/actionable";
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { AiCheck } from "@/components/calls/AiCheck";
@@ -42,6 +43,8 @@ interface Layer2 {
 
 interface CallDetail {
   wrap_up_notes?: string | null;  // agent's own wrap-up notes (separate from ai_summary)
+  is_missed?: boolean;
+  needs_wrap_up?: boolean;        // answered + analysed, and no person has wrapped it up yet
   id: string;
   started_at: string;
   duration_seconds: number;
@@ -207,11 +210,11 @@ export default function CallDetailPage() {
   const criteria = call.score?.criteria ?? [];
 
   return (
-  <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
-  {/* Header */}
-  <div className="flex items-center gap-4">
-  <Link href="/dashboard/calls" className="flex items-center gap-1.5 text-sm text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] transition-colors">
-  <ArrowLeft size={16} /> Back to calls
+  <div className="max-w-6xl mx-auto px-3 py-3 space-y-4 sm:px-6 sm:py-6 sm:space-y-6">
+  {/* Header: wraps on a phone (back arrow + who and when on one row, the badges under it) instead of squeezing */}
+  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+  <Link href="/dashboard/calls" aria-label="Back to calls" className="flex min-h-11 items-center gap-1.5 text-sm text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] transition-colors sm:min-h-0">
+  <ArrowLeft size={16} /> <span className="max-sm:hidden">Back to calls</span>
   </Link>
   <div className="flex-1 min-w-0">
   <h1 className="haip-page-title haip-page-title--keep truncate">
@@ -221,7 +224,7 @@ export default function CallDetailPage() {
   </div>
 
   {/* Meta badges */}
-  <div className="flex items-center gap-2 flex-shrink-0">
+  <div className="flex flex-wrap items-center gap-2">
   <SendQuoteButton variant="primary" args={{ callId: call.id, from: "call", name: call.guest_name || null }} />
   <Badge variant={call.direction === "inbound" ? "info" : "secondary"} className="capitalize">
   <Phone size={11} /> {call.direction}
@@ -334,6 +337,18 @@ export default function CallDetailPage() {
   </button>
   )}
   </div>
+  )}
+
+  {/* The agent's next step comes first (owner, 28 Nov 2026): the after-call wrap-up. Recording, score and transcript follow.
+      A missed call has nothing to wrap up. */}
+  {!call.is_missed && (
+    <WrapUpCard call={call as unknown as WrapUpCall}
+      onPlay={t => {
+        const audio = document.querySelector("audio") as HTMLAudioElement | null;     // the page's own way to jump the recording
+        if (!audio) { toast({ variant: "error", title: "No recording to play", description: "This call has no recording yet." }); return; }
+        audio.currentTime = t;
+        audio.play().catch(() => {});
+      }} />
   )}
 
   <div className="grid grid-cols-12 gap-6">

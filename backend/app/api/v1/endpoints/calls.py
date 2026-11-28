@@ -836,7 +836,8 @@ def save_wrap_up(
             call.human_disposition = CallDisposition(req.disposition)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid disposition: {req.disposition}")
-        call.disposition_set_by = current_user.id
+    # Saving the wrap-up is what takes the call off the "needs wrap-up" list, with or without an outcome picked.
+    call.disposition_set_by = current_user.id
 
     if req.notes is not None:
         # The agent's own notes -- kept separate from the AI summary, which
@@ -904,6 +905,12 @@ def _guest_facing_number(call: Call) -> str:
     return call.to_number if direction == "outbound" else call.from_number
 
 
+def needs_wrap_up(call: Call) -> bool:
+    """After-call wrap-up (owner, 28 Nov 2026): a conversation HAIP has read (answered + analysed) that no person has
+    wrapped up yet. Saving the wrap-up, or confirming / correcting the outcome, counts (calls.disposition_set_by)."""
+    return bool(call.ai_score_status == "done" and not call.disposition_set_by and not call_status_service.is_missed_call(call))
+
+
 def _serialize_call(
     call: Call,
     guest_name: Optional[str] = None,
@@ -925,6 +932,7 @@ def _serialize_call(
         # an outbound attempt that didn't connect is a failed dial, not a
         # "missed call" in the way agents mean it.
         "is_missed": is_missed,
+        "needs_wrap_up": needs_wrap_up(call),
         # Only meaningful on a missed call: did an outbound call reach this
         # guest afterwards (call_ingest._link_recovered_call). None rather
         # than False on answered calls, so the UI never shows "not called
@@ -1045,6 +1053,7 @@ def _serialize_call_detail(call: Call, db) -> dict:
         "direction": _direction,
         "duration_seconds": call.duration_seconds or 0,
         "is_missed": call_status_service.is_missed_call(call),
+        "needs_wrap_up": needs_wrap_up(call),
         "started_at": call.started_at,
         "ended_at": call.ended_at,
         "guest_id": call.guest_id,
