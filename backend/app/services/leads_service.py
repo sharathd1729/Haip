@@ -1196,6 +1196,8 @@ def get_lead_detail(
         custom_field_values=custom_field_values,
         recommended_actions=recommended_actions,
         autopilot=autopilot_block,
+        trip={"route": inquiry.route_mentioned, "special_requests": inquiry.special_requests,
+              "pickup": (inquiry.custom_fields or {}).get("pickup") if isinstance(inquiry.custom_fields, dict) else None},
     )
 
 

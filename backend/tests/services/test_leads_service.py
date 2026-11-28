@@ -432,3 +432,17 @@ class TestTriggerSummaryRefreshBurst:
         assert leads_service.trigger_summary_refresh(db, "inq-2", "tenant-1", source="message") is True
         assert leads_service.trigger_summary_refresh(db, "inq-1", "tenant-2", source="message") is True
         assert len(scheduled) == 3
+
+
+def test_get_lead_detail_carries_the_trip_fields_the_inbox_edits(db):
+    """route, pickup and special requests ride on the detail (the Inbox guest panel loads only this, not the feed)."""
+    tenant = _make_tenant(db)
+    inq = _make_inquiry(db, tenant.id, _make_guest(db, tenant.id).id)
+    inq.route_mentioned, inq.special_requests, inq.custom_fields = "Pune to Goa", "jain food", {"pickup": "Airport", "utm": {"source": "ig"}}
+    bare = _make_inquiry(db, tenant.id, _make_guest(db, tenant.id).id)
+    db.commit()
+
+    assert leads_service.get_lead_detail(db, tenant.id, inq.id).trip == {"route": "Pune to Goa", "special_requests": "jain food", "pickup": "Airport"}
+    assert leads_service.get_lead_detail(db, tenant.id, bare.id).trip == {"route": None, "special_requests": None, "pickup": None}
+    other = _make_tenant(db)
+    assert leads_service.get_lead_detail(db, other.id, inq.id) is None          # another workspace never sees it

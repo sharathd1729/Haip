@@ -194,6 +194,9 @@ class LeadDetailSchema(LeadCardSchema):
     recommended_actions: List[dict] = []
     # Lead autopilot (lead_autopilot_view.lead_block): {mode, pinned, pinned_at, last_move, suggestion, history}.
     autopilot: Optional[dict] = None
+    # {route, pickup, special_requests}: the same three the lead feed's `trip` carries, so a screen that loads only the
+    # detail (the Inbox guest panel) can show and edit them. Edited with PATCH /inquiries/{id}.
+    trip: Optional[dict] = None
 
 
 # ─── List Response ────────────────────────────────────────────────────────────

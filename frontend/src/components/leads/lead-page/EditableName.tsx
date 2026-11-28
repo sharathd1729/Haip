@@ -23,6 +23,8 @@ export function EditableName({ inquiryId, name, canEdit, className }: {
       qc.invalidateQueries({ queryKey: ["lead", inquiryId] });
       qc.invalidateQueries({ queryKey: ["lead-feed", inquiryId] });
       qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["conversation"] });      // the Inbox thread and list show the name too
+      qc.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (e: unknown) => {
       const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
@@ -47,7 +49,7 @@ export function EditableName({ inquiryId, name, canEdit, className }: {
   }
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <h1 className={cn("min-w-0", className)}>{name}</h1>
+      <h1 className={cn("min-w-0", className)}>{name || <span className="text-[var(--haip-fg-subtle)]">No name yet</span>}</h1>
       {canEdit && (
         <button type="button" onClick={() => { setDraft(name ?? ""); setEditing(true); }} aria-label="Edit the guest's name"
           title="Edit name" disabled={save.isPending}

@@ -4,9 +4,12 @@ import { TalkedOn, toGuestChannel } from "./ChannelBadges";
 import type { GuestChannel } from "@/store/inbox";
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { useSession } from "next-auth/react";
-import { Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
+import { Star, Sparkles, Phone, Mail, Loader2 } from "@/lib/icons";
 import { Bed, UserCheck } from "lucide-react";
 import { ChannelIcon } from "./ChannelIcon";
+import { TripFields } from "@/components/leads/lead-page/TripFields";
+import { EditableName } from "@/components/leads/lead-page/EditableName";
+import type { LeadDetail } from "@/components/leads/lead-page/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
@@ -102,6 +105,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
   const inquiryId = detail.inquiry_id ?? null;
   const currentUserId = session?.user?.id;
   const canAssignAnyone = session?.user?.role === "owner" || session?.user?.role === "manager";
+  const canEditLead = ["owner", "manager", "reservations", "concierge"].includes(session?.user?.role ?? "");   // the lead page's rule
 
   const { data: leadOwnerStage } = useQuery<LeadOwnerStage>({
     queryKey: ["lead-detail", inquiryId],
@@ -215,9 +219,15 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
           <GuestAvatar name={detail.guest_name} phone={detail.guest_phone} size="lg" className={isVip ? "size-11 ring-2 ring-[var(--haip-accent)] ring-offset-2 ring-offset-[var(--haip-card)]" : "size-11"} />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate font-[family-name:var(--font-display)] text-[16px] font-semibold text-[var(--haip-fg)]">
-                {detail.guest_name || "Unknown"}
-              </p>
+              {/* The name can be corrected here (unknown callers, wrong auto-fill): saved on the guest, through the lead. */}
+              {inquiryId && canEditLead ? (
+                <EditableName inquiryId={inquiryId} name={detail.guest_name} canEdit
+                  className="min-w-0 font-[family-name:var(--font-display)] text-[16px] font-semibold text-[var(--haip-fg)]" />
+              ) : (
+                <p className="truncate font-[family-name:var(--font-display)] text-[16px] font-semibold text-[var(--haip-fg)]">
+                  {detail.guest_name || "Unknown"}
+                </p>
+              )}
               {isVip && <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--haip-accent-light)] px-1.5 text-[11px] font-bold text-[var(--haip-accent-ink)]"><Star size={10} />VIP</span>}
             </div>
             <p className="num truncate text-[12.5px] text-[var(--haip-fg-subtle)]">
@@ -253,79 +263,11 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
             {/* The stay that matters now (in progress, else next), when the viewer may see bookings. */}
             <StayCard guestId={detail.guest_id ?? guest?.id} role={session?.user?.role} />
             <SendQuoteButton className="w-full" args={{ conversationId: detail.id, inquiryId, from: "inbox", name: detail.guest_name || null }} />
-            {/* Trip Details -- same card as leads/[inquiryId]/page.tsx's
-                Overview tab: guests, dates, property/route, budget,
-                occasion, special requests. Reads the same /leads/{inquiry_id}
-                response GuestPanel already fetches -- special_requests
-                comes off the Lead Field Registry (migration 044) via
-                custom_field_values, same as the Leads360 detail page.
-                Placed first in the panel body (replacing the old LTV
-                stats row, which was frequently all-zero noise for a
-                fresh lead) since trip intent is the most actionable
-                thing an agent needs at a glance. */}
-            {(() => {
-              const specialRequests = (leadOwnerStage?.custom_field_values ?? []).find(f => f.field_key === "special_requests");
-              const guestCountLabel = leadOwnerStage
-                ? [
-                    leadOwnerStage.adults ? `${leadOwnerStage.adults} adult${leadOwnerStage.adults > 1 ? "s" : ""}` : null,
-                    leadOwnerStage.children ? `${leadOwnerStage.children} child${leadOwnerStage.children > 1 ? "ren" : ""}` : null,
-                  ].filter(Boolean).join(", ") || null
-                : null;
-              const datesLabel = leadOwnerStage?.check_in
-                ? `${new Date(leadOwnerStage.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}${leadOwnerStage.check_out ? ` → ${new Date(leadOwnerStage.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : ""}`
-                : null;
-              const budgetLabel = leadOwnerStage?.budget_range_label
-                ?? (leadOwnerStage?.budget_estimate != null ? `${leadOwnerStage.budget_currency ?? "INR"} ${leadOwnerStage.budget_estimate.toLocaleString("en-IN")}` : null);
-              const routeLabel = (leadOwnerStage?.property_interest ?? [])[0] ?? null;
-              const hasAny = guestCountLabel || datesLabel || routeLabel || budgetLabel || leadOwnerStage?.occasion || (specialRequests?.value != null && specialRequests.value !== "");
-              if (!hasAny) return null;
-              return (
-                <div className="haip-card p-3.5 space-y-2" style={{ background: "var(--muted)" }}>
-                  <p className="text-[11.5px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
-                    <FileText size={11} />
-                    {seg.booking.One} Details
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    {guestCountLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Users size={11} />Guests</span>
-                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{guestCountLabel}</span>
-                      </div>
-                    )}
-                    {datesLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Calendar size={11} />Dates</span>
-                        <span className="font-bold tabular-nums" style={{ color: "var(--haip-fg)" }}>{datesLabel}</span>
-                      </div>
-                    )}
-                    {routeLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><MapPin size={11} />Property / Route</span>
-                        <span className="font-bold truncate block" style={{ color: "var(--haip-fg)" }}>{routeLabel}</span>
-                      </div>
-                    )}
-                    {budgetLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Wallet size={11} />Budget</span>
-                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{budgetLabel}</span>
-                      </div>
-                    )}
-                    {leadOwnerStage?.occasion && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><Heart size={11} />Occasion</span>
-                        <span className="font-bold capitalize" style={{ color: "var(--haip-fg)" }}>{leadOwnerStage.occasion}</span>
-                      </div>
-                    )}
-                    {specialRequests?.value != null && specialRequests.value !== "" && (
-                      <div className="col-span-2 p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[11.5px]" style={{ color: "var(--haip-fg-subtle)" }}><MessageSquare size={11} />Special Requests</span>
-                        <span className="font-medium" style={{ color: "var(--haip-fg)" }}>{String(specialRequests.value)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+            {/* Trip details: the lead page's own editable card (lead-page/TripFields), so an agent can correct what the AI or a
+                form filled in without leaving the chat (owner, 28 Nov 2026: agents must be able to override what was captured). */}
+            {inquiryId && leadOwnerStage && (
+              <TripFields lead={{ ...leadOwnerStage, inquiry_id: inquiryId } as unknown as LeadDetail} canEdit={canEditLead} />
+            )}
 
             {/* Tags */}
             {(guest?.tags ?? []).length > 0 && (
