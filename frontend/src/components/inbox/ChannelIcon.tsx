@@ -109,6 +109,10 @@ const LABELS: Record<string, string> = {
 };
 const FALLBACK_LABEL = "Other";
 
+// Marks everyone knows (owner, 28 Nov 2026: "the WhatsApp icon is already there, the word is not needed"): these never show
+// their word, even where a caller asks for a label. Sources that share a generic icon (OTAs, referral, website) keep theirs.
+const ICON_SAYS_IT = new Set(["wa_direct", "whatsapp", "click_to_wa", "meta_ig", "instagram", "inbound_call", "outbound_call", "call", "voice"]);
+
 /** Human-facing label for a channel/source key — same normalization
  * ChannelIcon uses internally, exported so non-icon contexts (e.g. a plain
  * text list) can stay consistent without duplicating the map. */
@@ -134,24 +138,28 @@ export function ChannelIcon({ channel, showBg = true, showLabel = false, classNa
   const cfg = CONFIGS[key] ?? FALLBACK;
   const label = LABELS[key] ?? FALLBACK_LABEL;
 
+  const wordless = !showLabel || ICON_SAYS_IT.has(key);
+  // Icon only: the name is the tooltip and the accessible name.
+  const named = wordless ? { role: "img", "aria-label": label, title: label } as const : {};
   const iconEl = !showBg ? (
-    <span className={cn("inline-flex items-center flex-shrink-0", cfg.color, !showLabel && className)}>
+    <span {...named} className={cn("inline-flex items-center flex-shrink-0", cfg.color, wordless && className)}>
       {cfg.icon}
     </span>
   ) : (
     <span
+      {...named}
       className={cn(
         "inline-flex w-[22px] h-[22px] rounded-md items-center justify-center flex-shrink-0",
         cfg.bg,
         cfg.color,
-        !showLabel && className,
+        wordless && className,
       )}
     >
       {cfg.icon}
     </span>
   );
 
-  if (!showLabel) {
+  if (wordless) {
     return iconEl;
   }
 

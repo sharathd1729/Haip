@@ -80,6 +80,9 @@ export interface SeriesBlock {
   bookings: number[] | null;
   booking_value: number[] | null;
   net_collected: number[] | null;
+  /** Calls per bucket and how many were missed; null unless the viewer sees the whole workspace. */
+  calls?: number[] | null;
+  calls_missed?: number[] | null;
 }
 
 export interface PipelineRow { stage: string; category: string | null; won: boolean; lost: boolean; count: number }

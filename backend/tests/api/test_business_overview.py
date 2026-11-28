@@ -259,6 +259,31 @@ def test_the_daily_series_covers_the_period_and_adds_up(client, world):
     assert round(sum(s["net_collected"][start:]), 2) == 25000.0
 
 
+def test_the_daily_series_counts_calls_and_missed_calls_for_whole_workspace_viewers_only(client, db, world):
+    from app.models.call import Call, CallDirection
+    tid = world["tid"]
+
+    def call(day, duration, direction=CallDirection.INBOUND, tenant=tid):
+        db.add(Call(id=str(uuid.uuid4()), tenant_id=tenant, ivr_provider="vobiz", ivr_call_id=f"c-{uuid.uuid4().hex[:10]}",
+                    direction=direction, from_number="+919800000001", to_number="+918000000000",
+                    duration_seconds=duration, created_at=_ist(day)))
+
+    call("2026-09-13", 120)                                   # answered
+    call("2026-09-13", 0)                                     # missed (inbound, nobody picked up)
+    call("2026-09-14", 60, CallDirection.OUTBOUND)            # outbound: a call, never "missed"
+    call("2026-09-13", 0, tenant=_tenant(db).id)              # another workspace: never counted
+    db.commit()
+
+    s = _get(client, world["h_owner"]).json()["series"]
+    by_day = dict(zip(s["days"], zip(s["calls"], s["calls_missed"])))
+    assert by_day["2026-09-13"] == (2, 1)
+    assert by_day["2026-09-14"] == (1, 0)
+    assert sum(s["calls"]) == 3 and sum(s["calls_missed"]) == 1
+
+    agent = _get(client, world["h_a1"]).json()["series"]      # an agent sees their own leads, not the workspace's calls
+    assert agent["calls"] is None and agent["calls_missed"] is None
+
+
 def test_the_pipeline_lists_stages_for_the_same_leads(client, world):
     rows = {r["stage"]: r["count"] for r in _get(client, world["h_owner"]).json()["pipeline"]}
     assert rows == {"General Enquiry": 1, "Active": 2, "Sold": 1}

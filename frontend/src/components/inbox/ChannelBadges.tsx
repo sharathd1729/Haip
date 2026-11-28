@@ -72,13 +72,9 @@ export function AvatarChannelBadges({ channels, size = 16 }: { channels?: GuestC
 export function TalkedOn({ channels, size = 16 }: { channels?: GuestChannel[] | null; size?: number }) {
   if (!channels?.length) return null;
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-      {channels.map(ch => (
-        <span key={ch} className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>
-          <ChannelBadge channel={ch} size={size} />
-          {META[ch].label}
-        </span>
-      ))}
+    // A channel is its icon (owner, 28 Nov 2026): no word beside it. The badge carries the name as its tooltip and for screen readers.
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      {channels.map(ch => <ChannelBadge key={ch} channel={ch} size={size} />)}
     </span>
   );
 }

@@ -41,9 +41,14 @@ describe("Phone Inbox list", () => {
 
   it("Our turn uses the server's needs_reply view and count; AI drafts filters the loaded chats", async () => {
     const p = renderIt();
-    expect(screen.getByRole("button", { name: /Our turn\s*6/ }).getAttribute("aria-pressed")).toBe("true");
-    await userEvent.click(screen.getByRole("button", { name: /AI drafts/ }));
+    expect(screen.getByRole("button", { name: /Our turn\s*·\s*6/ })).toBeTruthy();                 // the thin line: what is shown, how many
+    expect(screen.queryByRole("group", { name: "Which chats" })).toBeNull();                        // no chip row on a phone
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));                         // nothing on yet: no badge
+    expect((await screen.findByRole("radio", { name: /Our turn\s*6/ })).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("button", { name: "Show 6 chats" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("radio", { name: /AI drafts/ }));
     expect(p.onViewChange).toHaveBeenLastCalledWith("");
+    await userEvent.click(screen.getByRole("button", { name: /^Show/ }));
     expect(screen.queryByText("Anita")).toBeNull();
     expect(screen.getByText("Shubham")).toBeTruthy();
   });

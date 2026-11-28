@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const get = vi.fn();
@@ -9,9 +9,10 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: str
 vi.mock("@/components/providers/WorkspaceProvider", async (orig) => ({ ...(await orig<object>()), useBusinessType: () => "caravan" }));   // the caravan words ("Trips next 7 days")
 
 import { PhoneHome, dueThisWeek } from "./PhoneHome";
-import { waitingBreakdown } from "./WaitingBanner";
+import { callBars, leadBars, waitingKinds } from "@/components/dashboard/overview/OverviewParts";
 
 const R = { restricted: true } as const;
+const DAYS = ["2026-10-18", "2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"];
 
 // Fixtures for the component, not product data.
 function overview({ bookings = true, revenue = true } = {}) {
@@ -20,7 +21,19 @@ function overview({ bookings = true, revenue = true } = {}) {
     period: { date_from: "2026-10-24", date_to: "2026-10-24", timezone: "Asia/Kolkata", previous_from: "", previous_to: "" },
     access: { tenant_wide: true, bookings, revenue },
     insights: [{ id: "x", severity: "critical", title: "2169 leads not followed up in 24h", body: "" }],
+    sources: [{ key: "whatsapp", label: "WhatsApp", leads: 4, bookings: null, booking_value: null }, { key: "call", label: "Calls", leads: 2, bookings: null, booking_value: null },
+      { key: "website", label: "Website", leads: 0, bookings: null, booking_value: null }],
+    series: { granularity: "day", days: DAYS, period_start_index: 6, leads: [1, 0, 2, 1, 0, 1, 6], conversations: [0, 0, 0, 0, 0, 0, 0],
+      bookings: bookings ? [0, 1, 0, 0, 0, 0, 2] : null, booking_value: revenue ? [0, 50000, 0, 0, 0, 0, 132000] : null, net_collected: revenue ? [0, 0, 0, 0, 0, 0, 45000] : null,
+      calls: [3, 5, 2, 4, 6, 1, 9], calls_missed: [0, 1, 0, 0, 2, 0, 2] },
+    funnel: { basis: "People who became leads in the period", note: "", stages: [
+      { key: "identified", label: "New leads", count: 6, previous: 0, rate_from_previous: null, change: null },
+      { key: "qualified", label: "With dates", count: 4, previous: 0, rate_from_previous: 66.7, change: null },
+      { key: "booked", label: "Booked", count: 2, previous: 0, rate_from_previous: 50, change: null },
+      { key: "paid", label: "Paid", count: 1, previous: 0, rate_from_previous: 50, change: null }] },
     owner: {
+      ai_calls: { sales_actions: { count: 0, href: "/dashboard/inbox", items: [] }, autopilot: { count: 0, href: "/x", by_stage: [], items: [] },
+        calls: { total: 9, missed: 2, returned: 1, not_returned: 1, href: "/dashboard/calls" } },
       kpis: {
         new_leads: { count: 6, previous: 0, change: null, basis: "" },
         qualified: { count: 4, previous: 0, change: null, basis: "" },
@@ -39,9 +52,11 @@ function trip(id: string, patch: Record<string, unknown> = {}) {
     next_payment_due_date: null, next_payment_amount: 0, channel: null, created_at: null, inquiry_id: null, deposit: null, check_in_time: null, check_out_time: null, ...patch };
 }
 
+const person = (kind: string, severity: string, guest_id: string, title: string) =>
+  ({ kind, severity, guest_id, title, detail: "", action: "", href: `/dashboard/leads/${guest_id}`, channels: [], since: null });
 const queue = { people_waiting: 3, total: 4, unowned: 1, severity: { stale: 1 },
-  items: [{ kind: "callback", severity: "urgent", guest_id: "a" }, { kind: "callback", severity: "late", guest_id: "b" },
-    { kind: "new_lead", severity: "fresh", guest_id: "c", owner_id: null, unowned: true }, { kind: "new_lead", severity: "stale", guest_id: "e", owner_id: null, unowned: true }, { kind: "reply", severity: "stale", guest_id: "d" }] };
+  items: [person("callback", "urgent", "a", "Meera"), person("callback", "late", "b", "Vikram"), person("new_lead", "fresh", "c", "Kavya"),
+    person("new_lead", "stale", "e", "Old lead"), person("reply", "stale", "d", "Older lead")] };
 
 function route(ov: ReturnType<typeof overview>, trips = [trip("b1"), trip("b2", { main_guest: { id: "g2", first_name: "Shruthi", last_name: "", phone: null, email: null }, trip: "Wild Karnataka", total_outstanding: 0, payment_status: "paid" })]) {
   get.mockImplementation((url: string) => {
@@ -65,27 +80,38 @@ function renderHome() {
 beforeEach(() => { cleanup(); get.mockReset(); });
 
 describe("Phone Home", () => {
-  it("shows who is waiting from the work queue, the four numbers and the next 7 days of trips", async () => {
+  it("shows who is waiting from the work queue, the four numbers with their trend, and the next 7 days", async () => {
     route(overview());
     renderHome();
-    expect(await screen.findByText("3 people waiting for you")).toBeTruthy();
-    expect(screen.getByText("2 call-backs · 1 new lead")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Assign 1" }).getAttribute("href")).toBe("/dashboard/my-day?kind=new_lead");
-    expect(await screen.findByText("New leads")).toBeTruthy();
-    expect(await screen.findByText(/4 valid enquiries · today/)).toBeTruthy();
-    expect(get).toHaveBeenCalledWith("/leads", { params: { validity: "valid", lead_type: "guest", enquiry_date_preset: "today", page: 1, page_size: 1 } });
-    expect(screen.getByText("Booked")).toBeTruthy();
-    expect(screen.getByText("₹45,000")).toBeTruthy();
-    expect(await screen.findByText("Due this week")).toBeTruthy();
-    expect(await screen.findByText("Anita · Coorg")).toBeTruthy();
-    expect(screen.getByText("₹5,000 due")).toBeTruthy();
-    expect(screen.getByText("Paid")).toBeTruthy();
+    // the people still waiting (not the cold tail), and the way into My day
+    expect((await screen.findByRole("link", { name: "3 people waiting. Open My day" })).getAttribute("href")).toBe("/dashboard/my-day");
+    // four tiles, each a link to the list behind its number
+    const tiles = within(await screen.findByRole("region", { name: "Numbers, Today" }));
+    const leads = tiles.getByRole("link", { name: /New leads/ });
+    expect(leads.getAttribute("href")).toBe("/dashboard/leads");
+    expect(leads.textContent).toContain("6");
+    expect(tiles.getByRole("img", { name: "4 from WhatsApp" })).toBeTruthy();           // channel counts are icons with a spoken label
+    expect(tiles.queryByRole("img", { name: /from Website/ })).toBeNull();              // a channel with no leads is left out
+    expect(tiles.getByRole("img", { name: "New leads, last 7 days: 1, 0, 2, 1, 0, 1, 6" })).toBeTruthy();
+    expect(tiles.getByRole("link", { name: /Calls/ }).textContent).toContain("9");
+    expect(tiles.getByRole("img", { name: "2 missed" })).toBeTruthy();
+    expect(tiles.getByRole("link", { name: /Bookings/ }).textContent).toContain("2");
+    expect(tiles.getByRole("link", { name: /Booked value/ }).textContent).toContain("₹1.32 L");
+    // the chart says what it answers; the funnel is the server's
+    expect(screen.getByText("New leads per day")).toBeTruthy();
+    expect(screen.getByText("From lead to booking")).toBeTruthy();
+    // next 7 days: money still owed on the trips, then who arrives
+    expect((await screen.findByText("To collect · 7 days")).closest("a")?.textContent).toContain("₹5,000");
+    const arriving = within(screen.getByRole("region", { name: "Arriving next" }));
+    expect(await arriving.findByText("Anita")).toBeTruthy();
+    expect(arriving.getByText("₹5,000 due")).toBeTruthy();
+    expect(arriving.getByText("Paid")).toBeTruthy();
   });
 
   it("leaves 'What the AI noticed' and the definitions off the phone", async () => {
     route(overview());
     renderHome();
-    await screen.findByText("New leads");
+    await screen.findByText("New leads per day");
     expect(screen.queryByText(/What the AI noticed/)).toBeNull();
     expect(screen.queryByText(/2169 leads/)).toBeNull();
     expect(screen.queryByText(/How these numbers are defined/)).toBeNull();
@@ -94,11 +120,12 @@ describe("Phone Home", () => {
   it("hides money and bookings a role may not see instead of showing 0", async () => {
     route(overview({ bookings: false, revenue: false }));
     renderHome();
-    await screen.findByText("New leads");
-    expect(screen.queryByText("Booked")).toBeNull();
-    expect(screen.queryByText("Collected")).toBeNull();
-    expect(screen.queryByText("Due this week")).toBeNull();
-    expect(screen.queryByText("Trips next 7 days")).toBeNull();
+    await screen.findByText("New leads per day");
+    expect(screen.getByRole("link", { name: "Bookings: hidden for your role" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Booked value: hidden for your role" })).toBeTruthy();
+    expect(screen.queryByText("To collect · 7 days")).toBeNull();
+    expect(screen.queryByText("Arriving next")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/₹0\b/);
     expect(get.mock.calls.some(c => c[0] === "/bookings")).toBe(false);
   });
 });
@@ -120,7 +147,7 @@ describe("Leads by check-in", () => {
     get.mockImplementation((url: string, cfg?: unknown) => url === "/reports/checkin-months"
       ? Promise.reject({ response: { status: 403 } }) : base(url, cfg));
     renderHome();
-    await screen.findByText("New leads");
+    await screen.findByText("New leads per day");
     await new Promise(r => setTimeout(r, 30));
     expect(screen.queryByText("Leads by check-in")).toBeNull();
   });
@@ -131,8 +158,20 @@ describe("helpers", () => {
     const rows = [trip("a"), trip("b", { total_outstanding: 12000 }), trip("c", { raw_status: "cancelled", total_outstanding: 9000 }), trip("d", { total_outstanding: 0 })];
     expect(dueThisWeek(rows as never)).toEqual({ amount: 17000, count: 2 });
   });
-  it("names the three biggest reasons and skips the cold tail and calendar clashes", () => {
-    expect(waitingBreakdown([{ kind: "reply", severity: "fresh", guest_id: "1" }, { kind: "clash", severity: "fresh", guest_id: null },
-      { kind: "new_lead", severity: "stale", guest_id: "2" }])).toBe("1 reply");
+  it("sorts the people waiting into calls to return, people to answer and follow-ups", () => {
+    expect(waitingKinds([person("callback", "urgent", "1", "A"), person("reply", "fresh", "2", "B"), person("new_lead", "fresh", "3", "C"),
+      person("followup", "late", "4", "D")] as never)).toEqual({ calls: 1, replies: 2, followups: 1 });
+  });
+  it("draws one bar per day, marks today, and splits calls into answered and missed", () => {
+    const s = overview().series as never;
+    const leads = leadBars(s, "2026-10-24");
+    expect(leads).toHaveLength(7);
+    expect(leads[6]).toMatchObject({ value: 6, now: true });
+    expect(leads[6].tip).toMatch(/24 Oct.*: 6 new leads$/);
+    expect(leads[0].now).toBe(false);
+    const calls = callBars(s, "2026-10-24")!;
+    expect(calls[6]).toMatchObject({ value: 7, top: 2 });                    // 9 calls, 2 of them missed
+    expect(calls[6].tip).toMatch(/7 answered, 2 missed$/);
+    expect(callBars({ ...(s as object), calls: null, calls_missed: null } as never)).toBeNull();   // an agent's view has no call series
   });
 });

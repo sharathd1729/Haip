@@ -100,6 +100,26 @@ def test_waiting_conversation_outranks_responded_one(db):
     assert seconds == 10 * 60
 
 
+def test_last_inbound_is_the_newest_guest_message_across_the_leads_conversations(db):
+    """The lead cards' heat (Hot / Warm / Cold) reads this: when the guest last wrote, whatever we sent after."""
+    t = _mk_tenant(db)
+    inq, quiet = _mk_inquiry(db, t.id), _mk_inquiry(db, t.id)
+    wa = _mk_conversation(db, t.id, inq, ChannelType.WHATSAPP)
+    _mk_message(db, t.id, wa, MessageDirection.INBOUND, NOW - timedelta(days=3))
+    _mk_message(db, t.id, wa, MessageDirection.OUTBOUND, NOW - timedelta(hours=1))        # our reply does not count
+    ig = _mk_conversation(db, t.id, inq, ChannelType.INSTAGRAM)
+    _mk_message(db, t.id, ig, MessageDirection.INBOUND, NOW - timedelta(hours=5))
+    other = _mk_tenant(db)
+    theirs = _mk_inquiry(db, other.id)
+    _mk_message(db, other.id, _mk_conversation(db, other.id, theirs), MessageDirection.INBOUND, NOW)
+    db.commit()
+
+    seen: dict = {}
+    _batch_response_time(db, t.id, [inq.id, quiet.id, theirs.id], now=NOW, last_inbound=seen)
+    assert set(seen) == {inq.id}                                # no messages = absent; another workspace's lead never appears
+    assert seen[inq.id].replace(tzinfo=timezone.utc) == NOW - timedelta(hours=5)
+
+
 def test_no_messages_absent_from_result(db):
     t = _mk_tenant(db)
     inq = _mk_inquiry(db, t.id)

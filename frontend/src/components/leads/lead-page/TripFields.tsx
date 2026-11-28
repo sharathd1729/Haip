@@ -23,7 +23,7 @@ export function TripFields({ lead, feed, canEdit }: { lead: LeadDetail; feed?: L
   const trip_ = seg.sections.bookingDetail.route;  // route + pickup are trip things: villas and other stays have neither
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const trip = feed?.trip ?? {};
+  const trip = feed?.trip ?? lead.trip ?? {};          // the lead page has the feed; the Inbox panel has only the detail
   const n = nights(lead.check_in, lead.check_out);
 
   const save = useMutation({
@@ -32,6 +32,7 @@ export function TripFields({ lead, feed, canEdit }: { lead: LeadDetail; feed?: L
       toast({ variant: "success", title: `${booking} details saved` });
       qc.invalidateQueries({ queryKey: ["lead", lead.inquiry_id] });
       qc.invalidateQueries({ queryKey: ["lead-feed", lead.inquiry_id] });
+      qc.invalidateQueries({ queryKey: ["lead-detail", lead.inquiry_id] });     // the Inbox guest panel
     },
     onError: (e: unknown) => {
       const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;

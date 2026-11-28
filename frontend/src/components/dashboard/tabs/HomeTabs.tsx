@@ -38,7 +38,7 @@ export function useHomeTab(): { tab: HomeTab; tabs: typeof ALL; setTab: (t: Home
 
 export function HomeTabBar({ tab, tabs, setTab }: ReturnType<typeof useHomeTab>) {
   return (
-    <nav aria-label="Dashboards" className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+    <nav aria-label="Dashboards" className="-mx-3 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
       <div className="inline-flex gap-1 rounded-full bg-[var(--haip-tabs-track,var(--haip-surface))] p-1">
         {tabs.map(t => (
           <button key={t.value} type="button" onClick={() => setTab(t.value)} aria-current={tab === t.value ? "page" : undefined}

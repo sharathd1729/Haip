@@ -68,12 +68,17 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Lead page (C · Chat)", () => {
-  it("Call posts click-to-call for this lead and nothing on the page is a tel: or wa.me link", async () => {
+  it("Call offers My phone or Office line; Office line posts click-to-call and the page holds no tel: or wa.me link", async () => {
     post.mockResolvedValue({ data: { status: "initiated", provider_call_id: "req-1" } });
     renderPage();
     expect(await screen.findByText("Asked about Kabini.")).toBeTruthy();
 
     await userEvent.click(screen.getAllByRole("button", { name: /^Call$/ })[0]);
+    expect(await screen.findByRole("button", { name: /My phone/ })).toBeTruthy();
+    // nothing dials, and no number is fetched, until the person chooses
+    expect(post).not.toHaveBeenCalledWith("/calls/click-to-call", expect.anything());
+    expect(post).not.toHaveBeenCalledWith("/leads/i1/contact/reveal");
+    await userEvent.click(screen.getByRole("button", { name: /Office line/ }));
 
     await waitFor(() => expect(post).toHaveBeenCalledWith("/calls/click-to-call", { inquiry_id: "i1" }));
     const panel = await screen.findByTestId("call-panel");

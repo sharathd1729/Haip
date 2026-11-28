@@ -31,7 +31,7 @@ export function AskHaipLauncher({ user }: { user?: { role?: string } }) {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label="Ask HAIP"
-        className={`fixed right-4 z-40 flex h-14 items-center gap-2 rounded-full bg-primary pl-4 pr-5 text-[15px] font-semibold text-primary-foreground shadow-[0_8px_24px_color-mix(in_srgb,var(--primary)_35%,transparent)] transition-transform active:scale-[0.97] md:right-6 ${lift}`}>
+        className={`haip-ask-fab fixed right-4 z-40 flex h-14 items-center gap-2 rounded-full bg-primary pl-4 pr-5 text-[15px] font-semibold text-primary-foreground shadow-[0_8px_24px_color-mix(in_srgb,var(--primary)_35%,transparent)] transition-transform active:scale-[0.97] md:right-6 ${lift}`}>
         <AskBubble size={20} aria-hidden />
         <span className="hidden sm:inline">Ask HAIP</span>
       </button>
