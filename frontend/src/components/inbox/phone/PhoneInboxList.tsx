@@ -5,16 +5,22 @@
 // from this list. Chips: Our turn (the server's needs_reply view, counted server-side), AI drafts (loaded chats with a draft
 // held for a person) and All; the channel lives in Filters. Tapping a row opens the thread, as before.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles } from "@/lib/icons";
+import { Check, ChevronDown, SlidersHorizontal, Sparkles } from "@/lib/icons";
+import { cn } from "@/lib/utils";
+import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { AvatarChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges";
 import type { InboxView } from "@/components/inbox/ConversationList";
 import type { ConversationSummary, GuestChannel } from "@/store/inbox";
-import { BottomSheet, ChipRow, CompactRow, EmptyState, FilterSearch, RowAction, RowList, RowTag } from "@/components/ui/kit";
+import { BottomSheet, CompactRow, EmptyState, FilterSearch, RowAction, RowList, RowTag } from "@/components/ui/kit";
 import { shortAgo } from "@/lib/waitText";
 
 type Chip = "our_turn" | "drafts" | "all";
+
+const pickCls = (on: boolean) => cn(
+  "flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 text-left text-[14.5px] font-semibold text-[var(--haip-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+  on ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] bg-[var(--haip-card)]");
 
 /** Whose turn, said the way the mockup does: an AI draft waits for approval, the guest waits on us, or we replied last. */
 export function turnOf(c: ConversationSummary): { label: string; tone: "danger" | "warning" | "success" | "info" | "neutral" } {
@@ -65,17 +71,35 @@ export function PhoneInboxList({
       && (!t || [c.guest_name, c.guest_phone, c.last_message].some(v => (v ?? "").toLowerCase().includes(t))));
   }, [conversations, drafts, q]);
   const draftCount = drafts || view === "" ? conversations.filter(c => c.has_ai_draft).length : undefined;
+  const views = [
+    { value: "our_turn", label: "Our turn", count: counts?.needs_reply },
+    { value: "drafts", label: "AI drafts", count: onLoadMore ? undefined : draftCount },
+    { value: "all", label: "All chats", count: undefined as number | undefined },
+  ];
+  const nOn = (chip !== "our_turn" ? 1 : 0) + (channelFilter ? 1 : 0);       // "Our turn" is how the phone opens: not a filter
+  // What the thin line can honestly count: the server's number for Our turn, else nothing while more chats can still load.
+  const shownCount = q ? rows.length : chip === "our_turn" ? counts?.needs_reply : onLoadMore ? undefined : rows.length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="grid gap-2 border-b border-[var(--haip-border)] px-4 pb-2 pt-3">
-        <FilterSearch value={q} onChange={setQ} placeholder="Name, phone or message" label="Search chats" className="min-w-0 max-w-none" />
-        <ChipRow label="Which chats" value={chip} onChange={pick} onFilters={() => setFilters(true)} filterCount={channelFilter ? 1 : 0}
-          items={[
-            { value: "our_turn", label: "Our turn", count: counts?.needs_reply },
-            { value: "drafts", label: "AI drafts", count: onLoadMore ? undefined : draftCount },
-            { value: "all", label: "All" },
-          ]} />
+      {/* ONE row on top (owner, 28 Nov 2026): the search bar is the header, with one filter button whose badge counts what is
+          on. Which chats and which channel are picked in the sheet; no chip row. One thin line says what is shown. */}
+      <div className="grid gap-1 border-b border-[var(--haip-border)] px-4 pb-1.5 pt-3">
+        <div className="flex items-center gap-2">
+          <FilterSearch value={q} onChange={setQ} placeholder="Name, phone or message" label="Search chats" className="min-w-0 max-w-none" />
+          <button type="button" onClick={() => setFilters(true)} aria-label={nOn ? `Filters, ${nOn} on` : "Filters"}
+            className="relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-2)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+            <SlidersHorizontal size={18} aria-hidden />
+            {nOn > 0 && <span aria-hidden className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold tabular-nums text-primary-foreground">{nOn}</span>}
+          </button>
+        </div>
+        <button type="button" onClick={() => setFilters(true)}
+          className="flex min-h-8 cursor-pointer items-center gap-1 self-start rounded-lg text-left text-[13px] font-semibold text-[var(--haip-fg-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+          <span>{views.find(v => v.value === chip)?.label}</span>
+          {shownCount != null && <span className="tabular-nums text-[var(--haip-fg-subtle)]">· {shownCount}</span>}
+          {channelFilter && <ChannelIcon channel={channelFilter} showBg={false} />}
+          <ChevronDown size={14} aria-hidden className="text-[var(--haip-fg-subtle)]" />
+        </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-3">
         {isLoading ? (
@@ -113,17 +137,28 @@ export function PhoneInboxList({
         )}
       </div>
 
-      <BottomSheet open={filters} onOpenChange={setFilters} title="Channel" description="Show chats from one channel.">
-        <ul className="grid">
-          {channelOptions.map(o => (
-            <li key={o.value}>
-              <button type="button" aria-pressed={channelFilter === o.value} onClick={() => { onChannelChange(o.value); setFilters(false); }}
-                className="flex min-h-12 w-full items-center border-t border-[var(--haip-border)] text-left text-[15px] text-[var(--haip-fg)] first:border-t-0 aria-pressed:font-bold aria-pressed:text-primary">
-                {o.label}
-              </button>
-            </li>
+      <BottomSheet open={filters} onOpenChange={setFilters} title="Show and filter" description="Which chats, and from which channel."
+        footer={<button type="button" onClick={() => setFilters(false)} className="haip-btn-primary min-h-11 w-full cursor-pointer">
+          {shownCount == null ? "Show chats" : `Show ${shownCount} ${shownCount === 1 ? "chat" : "chats"}`}</button>}>
+        <div role="radiogroup" aria-label="Which chats" className="grid gap-1.5">
+          {views.map(v => (
+            <button key={v.value} type="button" role="radio" aria-checked={chip === v.value} onClick={() => pick(v.value)} className={pickCls(chip === v.value)}>
+              <span className="min-w-0 truncate">{v.label}</span>
+              <span className="flex shrink-0 items-center gap-2 tabular-nums text-[13px] text-[var(--haip-fg-subtle)]">
+                {v.count ?? ""}{chip === v.value && <Check size={16} className="text-primary" aria-hidden />}
+              </span>
+            </button>
           ))}
-        </ul>
+        </div>
+        <p className="mb-1.5 mt-4 text-[12.5px] font-bold text-[var(--haip-fg-2)]">Channel</p>
+        <div role="radiogroup" aria-label="Channel" className="grid gap-1.5">
+          {channelOptions.map(o => (
+            <button key={o.value} type="button" role="radio" aria-checked={channelFilter === o.value} onClick={() => onChannelChange(o.value)} className={pickCls(channelFilter === o.value)}>
+              <span className="flex min-w-0 items-center gap-2">{o.value && <ChannelIcon channel={o.value} />}<span className="truncate">{o.label}</span></span>
+              {channelFilter === o.value && <Check size={16} className="shrink-0 text-primary" aria-hidden />}
+            </button>
+          ))}
+        </div>
       </BottomSheet>
     </div>
   );

@@ -6,7 +6,7 @@ import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { useSession } from "next-auth/react";
 import { Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
 import { Bed, UserCheck } from "lucide-react";
-import { ChannelIcon, channelLabel } from "./ChannelIcon";
+import { ChannelIcon } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
@@ -347,12 +347,8 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
 
             {/* Channel + status */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <ChannelIcon channel={detail.channel} />
-                <span className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
-                  {channelLabel(detail.channel)}
-                </span>
-              </div>
+              {/* WhatsApp, Instagram and Call show their icon only (ChannelIcon decides) */}
+              <ChannelIcon channel={detail.channel} showLabel />
               <span
                 className="px-2 py-0.5 rounded-full text-[11.5px] font-medium capitalize"
                 style={{

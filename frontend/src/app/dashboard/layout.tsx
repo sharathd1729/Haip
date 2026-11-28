@@ -87,7 +87,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
 
           {/* Mobile header */}
-          <div className="md:hidden">
+          <div className="haip-phone-top md:hidden">
             <MobileHeader user={user} />
           </div>
 
@@ -108,7 +108,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           >
             {/* Scroll wrapper — flex-1 gives it a defined height for h-full children. On phones the fixed bottom tab bar
                 (60px + the device's safe-area inset) sits over the bottom of the viewport, so the content ends above it. */}
-            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0">
+            <div className="haip-phone-scroll flex-1 overflow-y-auto overscroll-contain min-h-0 pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0">
               {children}
             </div>
           </main>

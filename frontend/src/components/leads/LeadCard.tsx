@@ -393,11 +393,8 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           )}
         </div>
         {heat && <span className="shrink-0 text-[11.5px] font-bold text-[var(--haip-fg-2)]">{HEAT_LABEL[heat]}</span>}
-        {/* a channel is its icon; the name stays for screen readers and as the tooltip */}
-        {/* relative: the sr-only text is absolutely placed; unanchored it escapes the board's sideways scroller and widens the page */}
-        <span title={src.replace(/_/g, " ")} className="relative inline-flex shrink-0">
-          <ChannelIcon channel={src} /><span className="sr-only">{src.replace(/_/g, " ")}</span>
-        </span>
+        {/* WhatsApp, Instagram and Call show their icon only (ChannelIcon decides); other sources keep their word */}
+        <ChannelIcon channel={src} showLabel className="flex-shrink-0" />
       </div>
 
       {/* Row 1b: stage dropdown on its own line so it never squeezes the name, sharing it with "last touch" and the

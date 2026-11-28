@@ -58,14 +58,18 @@ const small = "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-
 
 /** `start()` is what a Call / WhatsApp button runs; render `sheet` once beside it. `onOffice` is the existing HAIP action
  *  (click-to-call, or opening the HAIP WhatsApp composer). */
-export function useContactChoice({ kind, inquiryId, name, onOffice, canReveal, phoneMasked }: {
+export function useContactChoice({ kind, inquiryId, name, onOffice, canReveal, phoneMasked, phone }: {
   kind: ContactKind; inquiryId: string; name: string; onOffice: () => void; canReveal: boolean; phoneMasked?: string | null;
+  /** The number, when this screen already shows it to this person (the Inbox does): used as is, with no reveal call. */
+  phone?: string | null;
 }): { start: () => void; sheet: ReactNode } {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [keep, setKeep] = useState(false);
-  const [shown, setShown] = useState<string | null>(null);
+  const [revealed, setShown] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const shown = revealed ?? phone ?? null;
+  canReveal = canReveal || !!phone;
   const w = WORDS[kind];
 
   const reveal = useMutation({
@@ -133,7 +137,7 @@ export function useContactChoice({ kind, inquiryId, name, onOffice, canReveal, p
         ) : (
           <p className="text-[13px] text-[var(--haip-fg-subtle)]">{w.noReveal}</p>
         )}
-        {canReveal && <p className="-mt-1 text-[12px] text-[var(--haip-fg-subtle)]">Using or showing the number is logged.</p>}
+        {canReveal && !phone && <p className="-mt-1 text-[12px] text-[var(--haip-fg-subtle)]">Using or showing the number is logged.</p>}
 
         <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-[14px] text-[var(--haip-fg-2)]">
           <input type="checkbox" checked={keep} onChange={e => setKeep(e.target.checked)} className={cn("size-5 cursor-pointer accent-[var(--primary)]")} />
