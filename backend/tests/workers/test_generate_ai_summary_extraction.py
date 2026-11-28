@@ -195,6 +195,29 @@ class TestExtractionNeverOverwritesExistingData:
         assert updated.route_mentioned == "Bengaluru to Gokarna"
         assert updated.upsell_offered == "private chef"
 
+    def test_fields_a_person_typed_are_left_alone_and_the_rest_still_update(self, db):
+        # Owner, 28 Nov 2026: an agent's correction must stick. Before this the next run re-read the old chat and put
+        # the old values back.
+        tenant_id, inquiry_id = _setup(
+            db, adults=6, children=1, occasion="anniversary", budget=40000, check_in="2026-12-24", check_out="2026-12-26",
+            dates_from_chat=True, special_requests="jain food", route_mentioned="Pune to Goa",
+            custom_fields={"utm": {"source": "ig"}, "set_by_person": [
+                "adults", "occasion", "budget", "check_in", "check_out", "special_requests", "route_mentioned"]},
+        )
+        adapter = _fake_adapter({
+            "check_in": "2026-12-20", "check_out": "2026-12-22",
+            "adults": 4, "children": 2,
+            "occasion": "family trip", "budget": 25000,
+            "special_requests": "no pork", "route_mentioned": "Pune to Gokarna",
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert (updated.adults, updated.occasion, float(updated.budget)) == (6, "anniversary", 40000)
+        assert (updated.check_in, updated.check_out) == ("2026-12-24", "2026-12-26")
+        assert (updated.special_requests, updated.route_mentioned) == ("jain food", "Pune to Goa")
+        assert updated.children == 2                                  # nobody typed this one: the AI still updates it
+        assert updated.custom_fields["utm"] == {"source": "ig"}      # the other keys kept there are untouched
+
     def test_quoted_amount_is_still_write_once(self, db):
         # A formal quote is a fact once made -- unlike the trip-detail
         # fields above, a misread later number must never silently change

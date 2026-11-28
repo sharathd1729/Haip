@@ -194,6 +194,10 @@ def update_inquiry(
     for k in ("route_mentioned", "special_requests", "guest_location"):
         if k in updates:
             updates[k] = updates[k].strip() or None
+    # What this person typed is theirs from now on: the AI summary will not write these fields again (cleared = handed back).
+    typed = {k: updates[k] for k in inquiry_service.PERSON_SETTABLE_FIELDS if k in updates}
+    for k in ("route_mentioned", "special_requests", "guest_location"):
+        if k in updates:
             setattr(inq, k, updates.pop(k))
     if "guest_name" in updates:
         name = updates.pop("guest_name").strip()
@@ -217,6 +221,7 @@ def update_inquiry(
     for k, v in updates.items():
         if hasattr(inq, k):
             setattr(inq, k, v)
+    inquiry_service.mark_fields_set_by_person(inq, typed)      # after the pickup branch: both write custom_fields
 
     # Assign-to-me visibility fix: this was the ONLY writer of
     # Inquiry.assigned_to (used by _action_assign_to/automation_engine.py

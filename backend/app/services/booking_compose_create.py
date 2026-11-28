@@ -170,19 +170,21 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
         db.add(StayDeposit(tenant_id=tid, stay_id=stay.id, amount=body.deposit_amount, status="pending",
                            notes="Collect at pickup" if body.deposit_collect == "pickup" else "Collect with the balance"))
     pay = body.payment
-    if pay.kind == "paid":
-        ref_txt = (pay.reference or "").strip() or None
-        db.add(StayPayment(tenant_id=tid, stay_id=stay.id, kind="payment", amount=plan.paid, method=pay.method, reference=ref_txt,
-                           external_id=ref_txt if pay.method == "razorpay" and ref_txt and ref_txt.startswith("pay_") else None,
-                           paid_on=plan.today, created_by=user.id,
-                           notes=f"Received by {user.name}" if pay.method == "cash" else "Recorded when the booking was made"))
+    # One ledger row per payment, each on the day it was really paid (earlier payments keep their own date).
+    for got in plan.received:
+        ref_txt, method = got["reference"], got["method"]
+        db.add(StayPayment(tenant_id=tid, stay_id=stay.id, kind="payment", amount=got["amount"], method=method, reference=ref_txt,
+                           external_id=ref_txt if method == "razorpay" and ref_txt and ref_txt.startswith("pay_") else None,
+                           paid_on=got["paid_on"], created_by=user.id,
+                           notes=f"Received by {user.name}" if method == "cash" else "Recorded when the booking was made"))
         append_audit(db, tenant_id=tid, actor_user_id=user.id, action="booking.payment_recorded", target_type="booking", target_id=stay.id,
-                     payload={"amount": str(plan.paid), "method": pay.method, "reference": ref_txt})
+                     payload={"amount": str(got["amount"]), "method": method, "reference": ref_txt,
+                              "paid_on": got["paid_on"].isoformat()})
     tasks = []
-    if pay.kind == "none" and plan.advance > 0:
-        tasks.append((f"Collect the {inr(plan.advance)} advance from {guest.name or 'the guest'} ({ref})", plan.advance_due))
-    if plan.balance > 0:
-        tasks.append((f"Collect the {inr(plan.balance)} balance from {guest.name or 'the guest'} ({ref})",
+    if pay.kind == "none" and plan.advance_left > 0:
+        tasks.append((f"Collect the {inr(plan.advance_left)} advance from {guest.name or 'the guest'} ({ref})", plan.advance_due))
+    if plan.balance_left > 0:
+        tasks.append((f"Collect the {inr(plan.balance_left)} balance from {guest.name or 'the guest'} ({ref})",
                       max(plan.today, plan.balance_due - timedelta(days=1))))
     for title, d in tasks:
         db.add(Task(tenant_id=tid, title=title[:255], due_date=_due(d), priority="medium", guest_id=guest.id,
@@ -213,7 +215,7 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
         extra = "" if not closed_quotes else (" The other quote for this lead is closed." if closed_quotes == 1
                                               else f" The other {closed_quotes} quotes for this lead are closed.")
         items.append({"done": True, "kind": "quote", "text": f"Quote {qss.quote_number(plan.quote)} marked Booked.{extra}"})
-    paid_all = pay.kind == "paid" and plan.paid >= plan.advance
+    paid_all = plan.paid > 0 and plan.advance_left == 0
     items.append({"done": True, "kind": "schedule", "text":
                   f"Payment schedule: advance {inr(plan.advance)} {'paid' if paid_all else 'due ' + bc.day(plan.advance_due)}"
                   + (f", balance {inr(plan.balance)} due {bc.day(plan.balance_due)}{' before pickup' if body.balance_rule == 'pickup' else ''}"
@@ -221,12 +223,14 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
     if body.deposit_amount > 0:
         items.append({"done": True, "kind": "deposit", "text": f"Security deposit {inr(body.deposit_amount)} to collect "
                       f"{'at pickup' if body.deposit_collect == 'pickup' else 'with the balance'}. Kept apart, not revenue."})
-    if pay.kind == "paid":
-        items.append({"done": True, "kind": "payment", "text": f"{inr(plan.paid)} recorded: {svc.METHOD_LABELS[pay.method]}"
-                      f"{' · ' + pay.reference.strip() if (pay.reference or '').strip() else ''}."})
-    elif pay.kind == "none":
-        items.append({"done": False, "kind": "payment", "text": f"Nothing paid yet. Reminder for {send.first_name(user.name)} on "
-                      f"{bc.day(plan.advance_due)} to collect the {inr(plan.advance)} advance."})
+    for got in plan.received:
+        on = "" if got["paid_on"] == plan.today else f", paid {bc.day(got['paid_on'])}"
+        items.append({"done": True, "kind": "payment", "text": f"{inr(got['amount'])} recorded: {svc.METHOD_LABELS[got['method']]}"
+                      f"{' · ' + got['reference'] if got['reference'] else ''}{on}."})
+    if pay.kind == "none" and plan.advance_left > 0:
+        items.append({"done": False, "kind": "payment", "text":
+                      f"{'Nothing paid yet' if not plan.received else 'Part of the advance is still due'}. Reminder for "
+                      f"{send.first_name(user.name)} on {bc.day(plan.advance_due)} to collect the {inr(plan.advance_left)} advance."})
     items.append({"done": True, "kind": "calendar", "text": f"Calendar: {prop.name} blocked {bc.span(body.check_in, body.check_out)}. "
                   "Shared calendar links update within 30 min."})
     notes = svc.staff_notes(body)

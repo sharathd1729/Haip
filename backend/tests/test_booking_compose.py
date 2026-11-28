@@ -204,6 +204,62 @@ def test_paid_now_records_the_payment_and_needs_a_reference(client, db, w):
     assert any(i["kind"] == "payment" and i["done"] and "₹35,000 recorded: UPI" in i["text"] for i in r.json()["items"])
 
 
+def test_payments_collected_earlier_keep_their_own_dates_and_count_towards_the_advance(client, db, w):
+    # Total 70,000, advance 35,000. A 10,000 token last week (cash) and 15,000 by UPI three days ago: 10,000 of the advance is left.
+    g = person(db, w.t.id)
+    week_ago, three_ago = TODAY - timedelta(days=7), TODAY - timedelta(days=3)
+    earlier = [{"amount": "10000", "method": "cash", "paid_on": week_ago.isoformat()},
+               {"amount": "15000", "method": "upi", "reference": "UTR-771", "paid_on": three_ago.isoformat()}]
+    r = go(client, w.res, guest_id=g.id, earlier_payments=earlier)
+    assert r.status_code == 201, r.text
+    rows = sorted((p.paid_on, p.amount, p.method, p.reference) for p in db.query(StayPayment).filter_by(stay_id=r.json()["booking_id"]))
+    assert rows == [(week_ago, Decimal("10000"), "cash", None), (three_ago, Decimal("15000"), "upi", "UTR-771")]
+    stay = db.query(Stay).filter_by(id=r.json()["booking_id"]).one()
+    assert bsvc.financials_for(db, w.t.id, [stay])[stay.id]["paid"] == 25000.0
+    titles = [t.title for t in db.query(Task).filter_by(tenant_id=w.t.id, guest_id=g.id)]
+    assert any("Collect the ₹10,000 advance" in t for t in titles) and any("₹35,000 balance" in t for t in titles)
+    texts = [i["text"] for i in r.json()["items"] if i["kind"] == "payment"]
+    assert any("₹10,000 recorded: Cash" in t and "paid " in t for t in texts)          # says the day it was paid
+    assert any("Part of the advance is still due" in t and "₹10,000" in t for t in texts)
+
+
+def test_a_payment_received_now_can_carry_its_real_date_and_tops_up_earlier_ones(client, db, w):
+    g = person(db, w.t.id)
+    yesterday = TODAY - timedelta(days=1)
+    r = go(client, w.res, guest_id=g.id,
+           earlier_payments=[{"amount": "20000", "method": "cash", "paid_on": (TODAY - timedelta(days=5)).isoformat()}],
+           payment={"kind": "paid", "method": "upi", "reference": "UTR-9", "paid_on": yesterday.isoformat()})
+    assert r.status_code == 201, r.text
+    upi = db.query(StayPayment).filter_by(stay_id=r.json()["booking_id"], method="upi").one()
+    assert (upi.amount, upi.paid_on) == (Decimal("15000"), yesterday)          # no amount typed = the rest of the advance
+    assert not any("advance from" in t.title for t in db.query(Task).filter_by(tenant_id=w.t.id, guest_id=g.id))
+
+
+def test_earlier_payments_are_checked_before_anything_is_saved(client, db, w, rzp):
+    g = person(db, w.t.id)
+
+    def problems(**kw):
+        r = go(client, w.res, guest_id=g.id, **kw)
+        assert r.status_code == 422, r.text
+        return " ".join(p["message"] for p in r.json()["detail"]["problems"])
+
+    tomorrow = (TODAY + timedelta(days=1)).isoformat()
+    assert "dated in the future" in problems(earlier_payments=[{"amount": "5000", "method": "cash", "paid_on": tomorrow}])
+    assert "UTR" in problems(earlier_payments=[{"amount": "5000", "method": "upi", "paid_on": TODAY.isoformat()}])
+    assert "more than the booking total" in problems(
+        earlier_payments=[{"amount": "80000", "method": "cash", "paid_on": TODAY.isoformat()}])
+    assert "payment date is in the future" in problems(payment={"kind": "paid", "method": "cash", "paid_on": tomorrow})
+    connect_razorpay(db, w.t.id)
+    assert "already cover the advance" in problems(
+        payment={"kind": "link"}, earlier_payments=[{"amount": "35000", "method": "cash", "paid_on": TODAY.isoformat()}])
+    assert db.query(Stay).filter_by(tenant_id=w.t.id, guest_id=g.id).count() == 0
+    # a link asks only for what the earlier payment did not cover
+    r = go(client, w.res, guest_id=g.id, payment={"kind": "link"},
+           earlier_payments=[{"amount": "10000", "method": "cash", "paid_on": TODAY.isoformat()}])
+    assert r.status_code == 201, r.text
+    assert rzp.create.call_args.kwargs["amount_inr"] == 25000.0
+
+
 def test_link_now_makes_a_razorpay_link_after_the_booking(client, db, w, rzp):
     g = person(db, w.t.id)
     assert go(client, w.res, guest_id=g.id, payment={"kind": "link"}).status_code == 422          # Razorpay not connected
