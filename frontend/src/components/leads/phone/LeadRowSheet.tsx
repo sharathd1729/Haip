@@ -7,17 +7,21 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { ExternalLink, Flag, Phone, UserPlus } from "@/lib/icons";
+import { Check, ExternalLink, Flag, Phone, UserPlus } from "@/lib/icons";
 import { BottomSheet, OneLineSummary, RowTag, SheetActions, sheetActionCls } from "@/components/ui/kit";
 import type { LeadCard } from "@/components/leads/LeadCard";
 import { FilterControls, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { LostSheet, OwnerSheet, StageSheet } from "@/components/leads/lead-page/LeadSheets";
+import { SoldSheet } from "@/components/leads/lead-page/SoldSheet";
+import type { PipelineStage } from "@/components/leads/lead-page/types";
 import type { PipelineStageRow } from "@/hooks/usePipelineStages";
 import { useDial } from "@/components/myday/useDial";
-import { formatINR } from "@/lib/utils";
+import { useSession } from "next-auth/react";
+import { canRevealNumbers, useContactChoice } from "@/components/contact/ContactChoice";
+import { cn, formatINR } from "@/lib/utils";
 import { tripText } from "./leadRow";
 
-type Sub = "stage" | "lost" | "owner" | null;
+type Sub = "stage" | "lost" | "won" | "owner" | null;
 
 function facts(l: LeadCard): string[] {
   const party = [l.adults ? `${l.adults} adult${l.adults === 1 ? "" : "s"}` : null, l.children ? `${l.children} child${l.children === 1 ? "" : "ren"}` : null]
@@ -32,8 +36,13 @@ export function LeadRowSheet({ lead, onClose, stages, canReverse }: {
   // The lead stays in view while one of its sub-sheets is open, even after the row sheet itself closes.
   const [sub, setSub] = useState<Sub>(null);
   const [held, setHeld] = useState<LeadCard | null>(null);
+  const [wonStage, setWonStage] = useState<PipelineStage | null>(null);
   const l = lead ?? held;
   const dial = useDial(l?.display_name ?? "");
+  const role = (useSession().data?.user as { role?: string } | undefined)?.role;
+  // Call = My phone | Office line (components/contact/ContactChoice)
+  const callChoice = useContactChoice({ kind: "call", inquiryId: l?.inquiry_id ?? "", name: l?.display_name ?? "", canReveal: canRevealNumbers(role),
+    onOffice: () => { if (l) dial.mutate({ inquiry_id: l.inquiry_id }); } });
   const stage = stages.find(s => s.key === l?.stage_key);
   const open = (s: Sub) => { setHeld(lead); setSub(s); onClose(); };
   const done = () => { setSub(null); setHeld(null); };
@@ -45,7 +54,7 @@ export function LeadRowSheet({ lead, onClose, stages, canReverse }: {
         description={[stage?.label, l.assigned_agent_name ?? "Unassigned", l.primary_channel].filter(Boolean).join(" · ")}
         footer={<SheetActions>
           {hasPhone && (
-            <button type="button" className={sheetActionCls(true)} disabled={dial.isPending} onClick={() => dial.mutate({ inquiry_id: l.inquiry_id })}>
+            <button type="button" className={sheetActionCls(true)} disabled={dial.isPending} onClick={() => { setHeld(lead); onClose(); callChoice.start(); }}>
               <Phone size={18} />{dial.isPending ? "Calling…" : "Call"}
             </button>
           )}
@@ -68,15 +77,20 @@ export function LeadRowSheet({ lead, onClose, stages, canReverse }: {
         </div>
       </BottomSheet>
       <StageSheet open={sub === "stage"} onClose={done} inquiryId={l.inquiry_id} stages={stages} currentKey={l.stage_key}
-        canReverse={canReverse} onLost={() => setSub("lost")} />
+        canReverse={canReverse} onLost={() => setSub("lost")} onWon={s => { setWonStage(s); setSub("won"); }} />
+      {/* a list row does not know whether a booking is linked, so the sheet asks */}
+      <SoldSheet open={sub === "won"} onClose={done} inquiryId={l.inquiry_id} name={l.display_name} stage={wonStage ?? undefined} />
       <LostSheet open={sub === "lost"} onClose={done} inquiryId={l.inquiry_id} name={l.display_name} lostStage={stages.find(s => s.is_closed_lost)} />
       <OwnerSheet open={sub === "owner"} onClose={done} inquiryId={l.inquiry_id} ownerId={l.assigned_agent_id} />
+      {callChoice.sheet}
     </>
   );
 }
 
-export function LeadFiltersSheet({ open, onClose, filters, onChange }: {
+export function LeadFiltersSheet({ open, onClose, filters, onChange, views, view, onView }: {
   open: boolean; onClose: () => void; filters: LeadsFilters; onChange: (f: LeadsFilters) => void;
+  /** What the list shows: Needs action, then the workspace's own stages (never fixed names), each with its count. */
+  views: { value: string; label: string; count?: number }[]; view: string; onView: (value: string) => void;
 }) {
   const { data: users = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["users-lite"], queryFn: () => api.get("/users/lite").then(r => r.data), staleTime: 5 * 60_000, enabled: open,
@@ -85,9 +99,26 @@ export function LeadFiltersSheet({ open, onClose, filters, onChange }: {
     queryKey: ["properties-lite"], queryFn: () => api.get("/properties").then(r => r.data), staleTime: 5 * 60_000, enabled: open,
   });
   const active = Object.values(filters).filter(Boolean).length;
+  const shown = views.find(v => v.value === view)?.count;          // the picked view's count, for "Show N leads"
   return (
-    <BottomSheet open={open} onOpenChange={o => { if (!o) onClose(); }} title="Filters" description="Owner, source, dates and more."
-      footer={<button type="button" onClick={onClose} className="haip-btn-primary min-h-11 w-full">Show leads</button>}>
+    <BottomSheet open={open} onOpenChange={o => { if (!o) onClose(); }} title="Show and filter" description="Stage, owner, source, dates and more."
+      footer={<button type="button" onClick={onClose} className="haip-btn-primary min-h-11 w-full cursor-pointer">
+        {shown == null ? "Show leads" : `Show ${shown} ${shown === 1 ? "lead" : "leads"}`}</button>}>
+      <div role="radiogroup" aria-label="Show" className="mb-4 grid gap-1.5">
+        {views.map(v => {
+          const on = v.value === view;
+          return (
+            <button key={v.value} type="button" role="radio" aria-checked={on} onClick={() => onView(v.value)}
+              className={cn("flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 text-left text-[14.5px] font-semibold text-[var(--haip-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                on ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] bg-[var(--haip-card)]")}>
+              <span className="min-w-0 truncate">{v.label}</span>
+              <span className="flex shrink-0 items-center gap-2 tabular-nums text-[13px] text-[var(--haip-fg-subtle)]">
+                {v.count ?? ""}{on && <Check size={16} className="text-primary" aria-hidden />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
       <FilterControls filters={filters} set={patch => onChange({ ...filters, ...patch })} clearAll={() => onChange({})}
         activeCount={active} users={users} properties={properties} layout="column" />
     </BottomSheet>

@@ -29,13 +29,14 @@ import { LeadComposer, type ComposerHandle } from "@/components/leads/lead-page/
 import { CallPanel, useClickToCall } from "@/components/leads/lead-page/CallPanel";
 import { LogCallSheet } from "@/components/leads/lead-page/LogCallSheet";
 import { LostSheet, MoreSheet, OwnerSheet, StageSheet, TaskSheet, type SheetKey } from "@/components/leads/lead-page/LeadSheets";
-import { OutcomeSheet } from "@/components/leads/lead-page/OutcomeSheet";
+import { SoldSheet } from "@/components/leads/lead-page/SoldSheet";
 import { SendPackageSheet } from "@/components/leads/lead-page/SendPackageSheet";
 import { TripFields } from "@/components/leads/lead-page/TripFields";
 import { LeadReviewCard } from "@/components/leads/lead-page/LeadReviewCard";
 import { WhereFromCard } from "@/components/leads/lead-page/WhereFromCard";
 import { EvidenceCard } from "@/components/leads/lead-page/EvidenceCard";
 import { DealsCard, TasksCard, useReveal } from "@/components/leads/lead-page/PanelSections";
+import { forgetChoices, hasRememberedChoice, useContactChoice } from "@/components/contact/ContactChoice";
 import { firstName } from "@/components/leads/lead-page/format";
 import type { LeadActionKey, LeadDetail, LeadFeed, PipelineStage } from "@/components/leads/lead-page/types";
 import { LeadHero, OutcomeReasonCard } from "./LeadHero";
@@ -118,12 +119,15 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
   }) : null;
 
   const message = () => { setTab("activity"); setTimeout(() => composer.current?.focus("whatsapp"), 250); };
+  // Agents also use their own phone and WhatsApp (owner, 28 Nov 2026): Call and WhatsApp each offer two ways.
+  const callChoice = useContactChoice({ kind: "call", inquiryId, name, canReveal, phoneMasked: feed?.contact.phone_masked, onOffice: () => call.start() });
+  const waChoice = useContactChoice({ kind: "whatsapp", inquiryId, name, canReveal, phoneMasked: feed?.contact.phone_masked, onOffice: message });
   const run = (key: LeadActionKey) => {
     switch (key) {
       case "call":
         if (!hasPhone) { toast({ variant: "error", title: `${name} hasn't shared a phone number yet` }); return; }
-        setSheet(null); call.start(); return;
-      case "message": setSheet(null); message(); return;
+        setSheet(null); callChoice.start(); return;                            // My phone | Office line
+      case "message": setSheet(null); if (hasPhone) waChoice.start(); else message(); return;   // My WhatsApp | HAIP WhatsApp
       case "quote": setSheet(null); quoteSheet.open({ inquiryId, from: "lead", name: lead?.display_name }); return;
       case "book": router.push(`/dashboard/bookings/new?inquiry=${encodeURIComponent(inquiryId)}`); return;
       case "open_booking": if (booking) router.push(`/dashboard/bookings/${booking.booking_id}`); return;
@@ -231,7 +235,7 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
       <SendPackageSheet open={packageOpen} onClose={() => setPackageOpen(false)} inquiryId={inquiryId} name={name} />
       <StageSheet open={sheet === "stage"} onClose={() => setSheet(null)} inquiryId={inquiryId} stages={stages} currentKey={lead.stage_key}
         canReverse={["owner", "manager"].includes(role)} onLost={() => setSheet("lost")} onWon={s => { setWonStage(s); setSheet("won"); }} />
-      <OutcomeSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} kind="won" stage={wonStage ?? stages.find(s => s.is_closed_won)} />
+      <SoldSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} hasBooking={!!booking} stage={wonStage ?? stages.find(s => s.is_closed_won)} />
       <LostSheet open={sheet === "lost"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} lostStage={stages.find(s => s.is_closed_lost)} />
       <OwnerSheet open={sheet === "owner"} onClose={() => setSheet(null)} inquiryId={inquiryId} ownerId={lead.assigned_agent_id} />
       <TaskSheet open={sheet === "task"} onClose={() => setSheet(null)} inquiryId={inquiryId} guestId={lead.guest_id} meId={me?.id ?? user?.id} name={name} />
@@ -244,7 +248,11 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
         { key: "task" as const, label: "Add a task", icon: <CheckSquare size={15} aria-hidden />, onClick: () => setSheet("task") },
         ...(canEdit ? [{ key: "owner" as const, label: "Change owner", hint: `Now: ${lead.assigned_agent_name || "nobody"}`, icon: <User size={15} aria-hidden />, onClick: () => setSheet("owner") }] : []),
         ...(canReveal && hasPhone ? [{ key: "reveal" as const, label: reveal.shown?.phone ? `Phone: ${reveal.shown.phone}` : "Show full phone number", hint: "Shown for 30 seconds · logged", icon: <Eye size={15} aria-hidden />, onClick: () => { reveal.reveal(); } }] : []),
+        ...(mounted && hasRememberedChoice() ? [{ key: "forget_choice" as const, label: "Ask me again for Call and WhatsApp", hint: "Forgets the choice remembered on this device",
+          onClick: () => { forgetChoices(); setSheet(null); toast({ title: "You will be asked next time" }); } }] : []),
       ]} />
+      {callChoice.sheet}
+      {waChoice.sheet}
     </div>
   );
 }

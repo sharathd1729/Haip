@@ -170,7 +170,7 @@ export function TaskSheet({ open, onClose, inquiryId, guestId, meId, name }: {
 }
 
 export function MoreSheet({ open, onClose, items }: {
-  open: boolean; onClose: () => void; items: { key: LeadActionKey | "reveal" | "log_call" | "send_package"; label: string; hint?: string; icon?: ReactNode; onClick: () => void }[];
+  open: boolean; onClose: () => void; items: { key: LeadActionKey | "reveal" | "log_call" | "send_package" | "forget_choice"; label: string; hint?: string; icon?: ReactNode; onClick: () => void }[];
 }) {
   return (
     <Drawer open={open} onOpenChange={o => { if (!o) onClose(); }} title="More actions">

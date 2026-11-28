@@ -34,6 +34,8 @@ export interface LeadDetail {
   lead_type?: string | null; came_from?: "paid" | "organic" | "unknown" | null; validation?: LeadValidation | null;
   /** Migration 171 (lead_validity): the automatic rule's answer + the effective validity; the guest's starting city. */
   validity?: LeadValidity | null; guest_location?: string | null;
+  /** route / pickup / special requests on the detail itself (the Inbox guest panel loads no feed). */
+  trip?: { route?: string | null; pickup?: string | null; special_requests?: string | null } | null;
 }
 
 export interface LeadValidation {

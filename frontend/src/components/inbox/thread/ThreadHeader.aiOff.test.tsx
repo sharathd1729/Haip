@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/components/quotes/QuoteSheetProvider", () => ({ useQuoteSheet: () => ({ open: vi.fn(), close: vi.fn() }) }));
+vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/lib/api", () => ({ default: { post: vi.fn(), get: vi.fn() } }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { role: "concierge" } }, status: "authenticated" }) }));
 
 import { ThreadHeader } from "./ThreadHeader";
@@ -16,19 +19,21 @@ const base: ConversationDetail = {
 
 function renderHeader(detail: ConversationDetail, aiToggle: Mut) {
   const mut = { mutate: vi.fn(), isPending: false } as unknown as Mut;
-  render(<ThreadHeader detail={detail} setMobileView={vi.fn()} isOfficialWhatsApp windowOpen aiToggleMutation={aiToggle} assignMutation={mut}
+  // jsdom applies no media queries, so the phone and the desktop variants are both in the tree (two switches, two reasons).
+  render(<QueryClientProvider client={new QueryClient()}><ThreadHeader detail={detail} setMobileView={vi.fn()} isOfficialWhatsApp windowOpen aiToggleMutation={aiToggle} assignMutation={mut}
     teamMembers={[]} currentUserId="u1" clickToCallMutation={mut} resolveMutation={mut} setShowGuestSheet={vi.fn()} setShowSearch={vi.fn()}
-    snoozeMutation={mut} />);
+    snoozeMutation={mut} /></QueryClientProvider>);
 }
 
 describe("Inbox header when the guest asked for a person", () => {
   it("says why the AI is off, shows the switch off, and a person can turn it back on", async () => {
     const toggle = { mutate: vi.fn(), isPending: false } as unknown as Mut;
     renderHeader({ ...base, ai_enabled: false, ai_off_reason: "guest asked for a person" }, toggle);
-    expect(screen.getByText("AI turned off: guest asked for a person")).toBeTruthy();
-    const sw = screen.getByRole("switch");
-    expect(sw.getAttribute("aria-checked")).toBe("false");
-    await userEvent.click(sw);
+    expect(screen.getAllByText("AI turned off: guest asked for a person").length).toBe(2);       // phone line + desktop pill
+    const switches = screen.getAllByRole("switch");
+    expect(switches.map(sw => sw.getAttribute("aria-checked"))).toEqual(["false", "false"]);
+    for (const sw of switches) await userEvent.click(sw);
+    expect(toggle.mutate).toHaveBeenCalledTimes(2);
     expect(toggle.mutate).toHaveBeenCalledWith(true);
   });
 

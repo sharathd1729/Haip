@@ -85,6 +85,12 @@ function InboxPageInner() {
 
   // Mobile: single-panel navigation ("list" | "thread")
   const [mobileView, setMobileView] = useState<"list" | "thread">("list");
+  // A phone chat takes the whole screen: the app's bars step aside while a thread is open (globals.css, data-phone-chat).
+  useEffect(() => {
+    if (mobileView !== "thread") return;
+    document.documentElement.setAttribute("data-phone-chat", "");
+    return () => document.documentElement.removeAttribute("data-phone-chat");
+  }, [mobileView]);
   // Guest 360 panel is desktop-only (hidden md:flex on GuestPanel) -- on
   // mobile it opens as a sheet from the thread header instead.
   const [showGuestSheet, setShowGuestSheet] = useState(false);
@@ -730,7 +736,8 @@ function InboxPageInner() {
       {/* Center: message thread — full-width on mobile when mobileView==="thread" */}
       <div className={cn(
         "flex-col overflow-hidden bg-card",
-        mobileView === "thread" ? "flex flex-1" : "hidden",
+        // full-screen on a phone: the composer keeps clear of the home indicator (the bottom bar is hidden in a chat)
+        mobileView === "thread" ? "flex flex-1 pb-[env(safe-area-inset-bottom)] md:pb-0" : "hidden",
         "md:flex md:flex-1",
       )}>
         {!activeConversationId ? (

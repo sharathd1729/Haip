@@ -433,6 +433,31 @@
   --haip-accent-light:  #FDE6DF;
   --haip-accent-ink:    #A23A1C;
   --haip-accent-line:   #F5C4B5;
+
+  /* Colour carries meaning (owner, 28 Nov 2026): ONE colour per domain everywhere. Leads and people = sea green, calls = indigo,
+     bookings and money = coral. A tile or card of that domain wears the soft background + border and the ink for its label.
+     Charts: one hue per chart; calls answered / missed is the only two-series pair (validated for colour-blind readers in
+     light and dark). Channel brand colours are never chart series (they fail that check): channels stay icons with counts. */
+  --haip-dom-lead-bg:   var(--haip-primary-tint);
+  --haip-dom-lead-bd:   color-mix(in srgb, var(--primary) 28%, var(--card));
+  --haip-dom-lead-ink:  #17604A;
+  --haip-dom-call-bg:   #ECF0FA;
+  --haip-dom-call-bd:   #C9D5F0;
+  --haip-dom-call-ink:  #34509A;
+  --haip-dom-book-bg:   var(--haip-accent-light);
+  --haip-dom-book-bd:   color-mix(in srgb, var(--haip-accent) 34%, var(--card));
+  --haip-dom-book-ink:  var(--haip-accent-ink);
+  --haip-viz-answered:  #5470C6;
+  --haip-viz-missed:    #E0694A;
+  --haip-viz-soft:      color-mix(in srgb, var(--primary) 38%, var(--card));
+  /* Lead heat (owner, 28 Nov 2026): a lead card is tinted by how recently the guest reached us. Hot = coral, Warm = amber,
+     Cold = blue; always with the word or an icon beside it, never colour alone. */
+  --haip-heat-hot-bg:   var(--haip-dom-book-bg);
+  --haip-heat-hot-bd:   var(--haip-dom-book-bd);
+  --haip-heat-warm-bg:  #FBF1D9;
+  --haip-heat-warm-bd:  #EBD9A6;
+  --haip-heat-cold-bg:  var(--haip-dom-call-bg);
+  --haip-heat-cold-bd:  var(--haip-dom-call-bd);
   --haip-on-accent:     #3B1205;
   --haip-gold:          #E8663F;
   --haip-gold-light:    #FDE6DF;
@@ -602,6 +627,13 @@
   --haip-accent-light:  rgba(217,120,90,0.16);
   --haip-accent-ink:    #F3B9A2;
   --haip-accent-line:   rgba(217,120,90,0.36);
+  --haip-dom-lead-ink:  var(--primary);
+  --haip-dom-call-bg:   rgba(143,168,232,0.13);
+  --haip-dom-call-bd:   rgba(143,168,232,0.30);
+  --haip-dom-call-ink:  #AFC2F0;
+  --haip-viz-answered:  #6680D2;
+  --haip-heat-warm-bg:  rgba(232,196,96,0.12);
+  --haip-heat-warm-bd:  rgba(232,196,96,0.30);
   --haip-on-accent:     #0B2B26;
   --haip-gold:          #D9785A;
   --haip-gold-light:    rgba(217,120,90,0.16);
@@ -1632,3 +1664,13 @@
 .yaad .y-dot { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; animation: yPulse 1.2s ease-in-out infinite; }
 .yaad .y-dot:nth-child(2) { animation-delay: 0.15s; }
 .yaad .y-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* A phone chat takes the whole screen (owner, 28 Nov 2026): while a conversation is open the Inbox sets data-phone-chat on
+   <html>, and the app's top bar, bottom bar and the floating Ask HAIP button step aside. Its own header and composer take
+   the safe-area insets instead (inbox/thread). Back returns to the list and the bars come back. */
+@media (max-width: 767.98px) {
+  html[data-phone-chat] .haip-phone-top,
+  html[data-phone-chat] .haip-phone-nav,
+  html[data-phone-chat] .haip-ask-fab { display: none; }
+  html[data-phone-chat] .haip-phone-scroll { padding-bottom: 0; }
+}

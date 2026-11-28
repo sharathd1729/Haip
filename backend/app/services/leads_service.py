@@ -184,6 +184,7 @@ def _batch_response_time(
     tenant_id: str,
     inquiry_ids: list[str],
     now: Optional[datetime] = None,
+    last_inbound: Optional[dict[str, datetime]] = None,
 ) -> dict[str, tuple[int, str]]:
     """Per-inquiry response time across all its conversations, in two batch
     queries (no N+1): (1) latest inbound message per conversation, (2) the
@@ -193,7 +194,9 @@ def _batch_response_time(
     conversation outranks responded ones, and the longest wait wins.
 
     Returns {inquiry_id: (seconds, status)}; inquiries with no inbound
-    messages are absent from the result."""
+    messages are absent from the result. Pass a dict as `last_inbound` to
+    also get {inquiry_id: when the guest last wrote} from the same rows
+    (the lead cards' heat: Hot / Warm / Cold)."""
     from sqlalchemy import func
     from app.models.conversation import Conversation, Message, MessageDirection
 
@@ -257,6 +260,8 @@ def _batch_response_time(
     result: dict[str, tuple[int, str]] = {}
     for conv_id, inquiry_id, last_in_at in inbound_rows:
         last_in = _aware(last_in_at)
+        if last_inbound is not None and (inquiry_id not in last_inbound or last_in > last_inbound[inquiry_id]):
+            last_inbound[inquiry_id] = last_in
         reply_at = reply_at_by_conv.get(conv_id)
         if reply_at is None:
             seconds = max(0, int((now - last_in).total_seconds()))
@@ -673,6 +678,7 @@ def _build_lead_card(
     response_time: Optional[tuple[int, str]] = None,
     pending_draft: Optional[PendingDraftSchema] = None,
     needs_agent_followup_reason: Optional[str] = None,
+    last_inbound_at: Optional[datetime] = None,
 ) -> LeadCardSchema:
     """Build a LeadCardSchema from an Inquiry ORM object and precomputed fields."""
     guest = inquiry.guest
@@ -721,6 +727,7 @@ def _build_lead_card(
         assigned_agent_avatar_url=assigned.avatar_url if assigned else None,
         last_touch_at=inquiry.updated_at,
         created_at=inquiry.created_at,
+        last_inbound_at=last_inbound_at,
         response_time_seconds=response_time[0] if response_time else None,
         response_time_status=response_time[1] if response_time else None,
         pending_draft=pending_draft,
@@ -868,7 +875,8 @@ def get_leads_pipeline(
     # Batch-fetch property interest per inquiry (calls.ai_score)
     prop_interest_map = _batch_property_interest(db, tenant_id, [inq.id for inq in inquiries])
 
-    response_time_map = _batch_response_time(db, tenant_id, [inq.id for inq in inquiries])
+    last_in_map: dict[str, datetime] = {}
+    response_time_map = _batch_response_time(db, tenant_id, [inq.id for inq in inquiries], last_inbound=last_in_map)
     pending_draft_map = _batch_pending_drafts(db, tenant_id, [inq.id for inq in inquiries])
     needs_followup_map = _batch_needs_agent_followup(db, tenant_id, [inq.id for inq in inquiries])
 
@@ -881,6 +889,7 @@ def get_leads_pipeline(
             response_time=response_time_map.get(inq.id),
             pending_draft=pending_draft_map.get(inq.id),
             needs_agent_followup_reason=needs_followup_map.get(inq.id),
+            last_inbound_at=last_in_map.get(inq.id),
         )
         for inq in inquiries
     ]
@@ -1187,6 +1196,8 @@ def get_lead_detail(
         custom_field_values=custom_field_values,
         recommended_actions=recommended_actions,
         autopilot=autopilot_block,
+        trip={"route": inquiry.route_mentioned, "special_requests": inquiry.special_requests,
+              "pickup": (inquiry.custom_fields or {}).get("pickup") if isinstance(inquiry.custom_fields, dict) else None},
     )
 
 
@@ -1377,7 +1388,8 @@ def get_needs_action(
     completeness_map = _batch_completeness(db, tenant_id, guest_ids)
     signals_map = _batch_signals(db, tenant_id, guest_ids)
     prop_interest_map = _batch_property_interest(db, tenant_id, ids)
-    response_time_map = _batch_response_time(db, tenant_id, ids, now=now)
+    last_in_map: dict[str, datetime] = {}
+    response_time_map = _batch_response_time(db, tenant_id, ids, now=now, last_inbound=last_in_map)
     pending_draft_map = _batch_pending_drafts(db, tenant_id, ids)
     needs_followup_map = _batch_needs_agent_followup(db, tenant_id, ids)
     spoken = _batch_spoken_since(db, tenant_id, inquiries)
@@ -1394,6 +1406,7 @@ def get_needs_action(
             response_time=response_time_map.get(inq.id),
             pending_draft=pending_draft_map.get(inq.id),
             needs_agent_followup_reason=needs_followup_map.get(inq.id),
+            last_inbound_at=last_in_map.get(inq.id),
         )
         card.latest_quote = latest_quotes.get(inq.id)
         waiting = (

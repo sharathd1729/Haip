@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BellOff, Check, ChevronLeft, Loader2, MessageSquare, MoreHorizontal, Phone, Search, Timer, User } from "@/lib/icons";
+import { BellOff, Calculator, Check, ChevronLeft, Loader2, MessageSquare, MoreHorizontal, Phone, Search, Timer, User } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/ui/page";
-import { TalkedOn, toGuestChannel } from "@/components/inbox/ChannelBadges";
-import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
+import { ChannelBadges, TalkedOn, toGuestChannel } from "@/components/inbox/ChannelBadges";
+import { SendQuoteButton, useCanQuote } from "@/components/quotes/SendQuoteButton";
+import { useQuoteSheet } from "@/components/quotes/QuoteSheetProvider";
+import { useContactChoice } from "@/components/contact/ContactChoice";
 import {
   type ConversationDetail, type Mut, getWindowSecondsLeft, formatWindowCountdown,
 } from "./types";
@@ -26,7 +28,7 @@ function waitLabel(iso: string): { text: string; mins: number } {
 }
 
 const ITEM = "flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-[var(--haip-fg)] hover:bg-[var(--haip-surface)] disabled:opacity-50";
-const ICON_BTN = "flex size-9 flex-shrink-0 items-center justify-center rounded-lg text-[var(--haip-icon-neutral)] transition-colors hover:bg-[var(--haip-surface)] hover:text-[var(--haip-fg)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+const ICON_BTN = "relative after:absolute after:-inset-1 after:content-[''] md:after:hidden flex size-9 flex-shrink-0 items-center justify-center rounded-lg text-[var(--haip-icon-neutral)] transition-colors hover:bg-[var(--haip-surface)] hover:text-[var(--haip-fg)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
 /** "More" menu: the things an agent does occasionally (find in thread, snooze, hand over). It closes on
  *  Escape or an outside click, and each action closes it. Opens from the button's corner, not the centre. */
@@ -79,8 +81,17 @@ export function ThreadHeader({
   /** An Instagram chat with a guest who gave their number: message that number on the official WhatsApp. */
   onStartWhatsApp?: () => void;
 }) {
+  // Call = My phone | Office line; WhatsApp = My WhatsApp | HAIP WhatsApp (components/contact/ContactChoice). The Inbox already
+  // shows this person the number, so it is used as is.
+  const guestName = detail?.guest_name || "the guest";
+  const callChoice = useContactChoice({ kind: "call", inquiryId: detail?.inquiry_id ?? "", name: guestName, canReveal: false,
+    phone: detail?.guest_phone, onOffice: () => { if (detail?.guest_phone) clickToCallMutation.mutate(detail.guest_phone); } });
+  const waChoice = useContactChoice({ kind: "whatsapp", inquiryId: detail?.inquiry_id ?? "", name: guestName, canReveal: false,
+    phone: detail?.guest_phone, onOffice: () => { if (detail?.channel === "instagram") onStartWhatsApp?.(); } });
+  const canQuote = useCanQuote();
+  const quoteSheet = useQuoteSheet();
   if (!detail) {
-    return <div className="flex-shrink-0 border-b border-[var(--haip-border)] px-3 py-3 md:px-5"><Skeleton className="h-10 w-56" /></div>;
+    return <div className="flex-shrink-0 border-b border-[var(--haip-border)] px-3 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:px-5 md:pt-3"><Skeleton className="h-10 w-56" /></div>;
   }
 
   const aiOn = detail.ai_enabled ?? true;
@@ -94,18 +105,30 @@ export function ThreadHeader({
   return (
     // @container: the buttons show their words by the thread column's width, not the window's (the column is ~384px
     // between the list and the guest panel at 1024px, where the words did not fit).
-    <div className="@container flex-shrink-0 border-b border-[var(--haip-border)]">
-      <div className="flex items-center gap-2 px-3 py-2.5 md:gap-3 md:px-5">
+    <div className="@container flex-shrink-0 border-b border-[var(--haip-border)] pt-[env(safe-area-inset-top)] md:pt-0">
+      <div className="flex items-center gap-1.5 px-3 py-2 md:gap-3 md:px-5 md:py-2.5">
         <button type="button" onClick={() => setMobileView("list")} aria-label="Back to conversations"
           className={cn(ICON_BTN, "-ml-1 md:hidden")}>
           <ChevronLeft size={18} />
         </button>
 
-        <div className="ibx-avatar flex-shrink-0 !size-10 !text-[15px]" aria-hidden>
+        <div className="ibx-avatar flex-shrink-0 !size-9 !text-[14px] md:!size-10 md:!text-[15px]" aria-hidden>
           {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
         </div>
 
-        <div className="min-w-0 flex-1">
+        {/* Phone: ONE header row (owner, 28 Nov 2026). The name opens the guest's details; the line under it says who is
+            waiting and how long to reply. Quote, Resolve and the rest live in More. Desktop keeps its buttons and the strip. */}
+        <button type="button" onClick={() => setShowGuestSheet(true)} aria-label={`${name}, guest details`}
+          className="min-w-0 flex-1 cursor-pointer rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 md:hidden">
+          <span className="block truncate text-[15px] font-bold leading-tight text-[var(--haip-fg)]">{name}</span>
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-[var(--haip-fg-subtle)]">
+            <ChannelBadges size={14} channels={channels} className="shrink-0" />{/* a channel is its icon */}
+            {wait ? <span className={cn("truncate font-semibold", wait.mins >= 120 ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-status-warning-fg)]")}>Waiting {wait.text}</span>
+              : showWindow && windowOpen ? <span className="truncate tabular-nums">{formatWindowCountdown(getWindowSecondsLeft(detail.last_inbound_at))} to reply</span>
+                : <span className="truncate">{owner ? (owner.id === currentUserId ? "Yours" : owner.name) : "No owner yet"}</span>}
+          </span>
+        </button>
+        <div className="hidden min-w-0 flex-1 md:block">
           <h2 className="truncate text-[15px] font-bold leading-tight text-[var(--haip-fg)]" title={name}>{name}</h2>
           <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-[var(--haip-fg-subtle)]">
             <TalkedOn size={14} channels={channels} />
@@ -113,40 +136,70 @@ export function ThreadHeader({
           </div>
         </div>
 
+        {/* Phone: the AI switch sits in the header row (the strip below is desktop only). */}
+        {detail.can_send !== false && (
+          <button type="button" role="switch" aria-checked={aiOn} onClick={() => aiToggleMutation.mutate(!aiOn)} disabled={aiToggleMutation.isPending}
+            aria-label={aiOn ? "AI is replying to this guest. Tap to pause." : `AI is paused for this guest${detail.ai_off_reason ? ` (${detail.ai_off_reason})` : ""}. Tap to resume.`}
+            className="inline-flex min-h-11 flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-1 text-[11.5px] font-bold text-[var(--haip-fg-2)] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 md:hidden">
+            <span aria-hidden className={cn("relative h-4 w-7 rounded-full transition-colors", aiOn ? "bg-primary" : "bg-[var(--haip-border-strong)]")}>
+              <span className={cn("absolute top-0.5 size-3 rounded-full bg-white transition-[left]", aiOn ? "left-3.5" : "left-0.5")} />
+            </span>
+            AI
+          </button>
+        )}
+
         {detail.guest_phone && (
-          <button type="button" onClick={() => clickToCallMutation.mutate(detail.guest_phone)} disabled={clickToCallMutation.isPending} aria-label="Call"
-            className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform] hover:opacity-90 active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2">
+          <button type="button" onClick={callChoice.start} disabled={clickToCallMutation.isPending} aria-label="Call"
+            className="relative inline-flex h-9 flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3.5 after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] md:after:hidden text-[13px] font-semibold text-primary-foreground transition-[opacity,transform] hover:opacity-90 active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2">
             {clickToCallMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Phone size={14} />}
             <span className="hidden @md:inline">Call</span>
           </button>
         )}
 
         {onStartWhatsApp && detail.channel === "instagram" && detail.guest_phone && (
-          <button type="button" onClick={onStartWhatsApp} aria-label="Start on WhatsApp"
-            className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-status-success-fg)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <button type="button" onClick={waChoice.start} aria-label="Start on WhatsApp"
+            className="hidden h-9 flex-shrink-0 items-center md:inline-flex gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-status-success-fg)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
             <MessageSquare size={15} />
             <span className="hidden @md:inline">WhatsApp</span>
           </button>
         )}
 
         {/* The rate calculator on top of the chat, prefilled with this lead and the trip the chat mentioned. */}
-        <SendQuoteButton iconOnlyBelowSm labelClassName="hidden @md:inline" className="h-9 min-h-0 sm:min-h-0"
+        <SendQuoteButton iconOnlyBelowSm labelClassName="hidden @md:inline" className="hidden h-9 min-h-0 sm:min-h-0 md:inline-flex"
           args={{ conversationId: detail.id, inquiryId: detail.inquiry_id ?? null, from: "inbox", name: detail.guest_name || null }} />
 
         <button type="button" onClick={() => resolveMutation.mutate()} disabled={resolveMutation.isPending || detail.status === "resolved"}
           aria-label={detail.status === "resolved" ? "Resolved" : "Mark resolved"}
-          className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-fg-2)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] hover:text-[var(--haip-status-success-fg)] active:scale-[0.97] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          className="hidden h-9 flex-shrink-0 items-center md:inline-flex gap-1.5 rounded-lg border border-[var(--haip-border)] px-2.5 text-[13px] font-semibold text-[var(--haip-fg-2)] transition-[background-color,transform] hover:bg-[var(--haip-status-success-bg)] hover:text-[var(--haip-status-success-fg)] active:scale-[0.97] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <Check size={15} />
           <span className="hidden @2xl:inline">{detail.status === "resolved" ? "Resolved" : "Resolve"}</span>
-        </button>
-
-        <button type="button" onClick={() => setShowGuestSheet(true)} aria-label="Guest details" className={cn(ICON_BTN, "md:hidden")}>
-          <User size={16} />
         </button>
 
         <MoreMenu label="More actions">
           {close => (
             <>
+              {/* Phone only: what the desktop header shows as buttons */}
+              <div className="md:hidden">
+                <button type="button" role="menuitem" className={ITEM} onClick={() => { setShowGuestSheet(true); close(); }}>
+                  <User size={15} className="text-[var(--haip-icon-neutral)]" /> Guest details
+                </button>
+                {canQuote && (
+                  <button type="button" role="menuitem" className={ITEM}
+                    onClick={() => { quoteSheet.open({ conversationId: detail.id, inquiryId: detail.inquiry_id ?? null, from: "inbox", name: detail.guest_name || null }); close(); }}>
+                    <Calculator size={15} className="text-[var(--haip-icon-neutral)]" /> Send quote
+                  </button>
+                )}
+                <button type="button" role="menuitem" className={ITEM} disabled={resolveMutation.isPending || detail.status === "resolved"}
+                  onClick={() => { resolveMutation.mutate(); close(); }}>
+                  <Check size={15} className="text-[var(--haip-icon-neutral)]" /> {detail.status === "resolved" ? "Resolved" : "Mark resolved"}
+                </button>
+                {detail.guest_phone && (
+                  <button type="button" role="menuitem" className={ITEM} onClick={() => { waChoice.start(); close(); }}>
+                    <MessageSquare size={15} className="text-[var(--haip-icon-neutral)]" /> {detail.channel === "instagram" ? "Start on WhatsApp" : "Open in my WhatsApp"}
+                  </button>
+                )}
+              </div>
+
               <button type="button" role="menuitem" className={ITEM} onClick={() => { setShowSearch(s => !s); close(); }}>
                 <Search size={15} className="text-[var(--haip-icon-neutral)]" /> Search in this conversation
               </button>
@@ -180,7 +233,12 @@ export function ThreadHeader({
 
       {/* State strip: only what needs attention. Who is waiting, whether a template is needed, and whether the
           AI is replying. Empty strips are not rendered. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 pb-2.5 md:px-5">
+      {!aiOn && detail.ai_off_reason && (
+        <p className="px-3 pb-2 text-[12px] font-semibold text-[var(--haip-status-warning-fg)] md:hidden">AI turned off: {detail.ai_off_reason}</p>
+      )}
+      {callChoice.sheet}
+      {waChoice.sheet}
+      <div className="hidden flex-wrap items-center gap-x-3 gap-y-1.5 px-3 pb-2.5 md:flex md:px-5">
         {wait && (
           <StatusPill tone={wait.mins >= 120 ? "danger" : "warning"}>
             Waiting {wait.text}<span className="hidden sm:inline">&nbsp;for a reply</span>

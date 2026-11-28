@@ -78,9 +78,12 @@ describe("Phone lead page", () => {
     expect(await screen.findByText("Can you share details of renting a caravan?")).toBeTruthy();
   });
 
-  it("Call uses click-to-call for this lead, and the stage chip opens the audited stage sheet", async () => {
+  it("Call offers My phone or Office line; Office line uses click-to-call, and the stage chip opens the audited stage sheet", async () => {
     renderPage();
     await userEvent.click((await screen.findAllByRole("button", { name: /^Call$/ }))[0]);
+    expect(await screen.findByRole("button", { name: /My phone/ })).toBeTruthy();
+    expect(post).not.toHaveBeenCalledWith("/calls/click-to-call", expect.anything());   // nothing dials until the person chooses
+    await userEvent.click(screen.getByRole("button", { name: /Office line/ }));
     expect(post).toHaveBeenCalledWith("/calls/click-to-call", { inquiry_id: "i1" });
     await userEvent.click(screen.getByRole("button", { name: "Stage: Active" }));
     expect(await screen.findByText("Move stage")).toBeTruthy();

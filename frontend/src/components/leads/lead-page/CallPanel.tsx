@@ -4,6 +4,7 @@
 // live (no such API), so the panel only says what it knows: the request went out, then the call once it is logged
 // (the feed is polled while the panel waits). Never a tel: link.
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Loader2, Phone, X } from "@/lib/icons";
@@ -114,10 +115,19 @@ export function CallPanel({ phase, error, newCall, name, onClose, onRetry, onLog
             {newCall.answered ? `Call logged · ${durationText(newCall.duration_seconds)}` : `${name} didn't answer`}
           </h2>
           <p className="text-[14px] text-[var(--haip-fg-2)]">
-            {newCall.answered ? "The recording, transcript and AI summary appear in the conversation in a few minutes."
+            {newCall.answered ? "Note what was agreed while it is fresh. The recording, transcript and what HAIP heard appear there in a few minutes."
               : "Logged as a call attempt. Try again in a while; if they ring you back on your own phone, log that call here."}
           </p>
-          {newCall.answered && packageBtn && <div className="flex flex-wrap gap-2">{packageBtn}</div>}
+          {/* The agent's next step right after a call (owner, 28 Nov 2026): the wrap-up, on the call's own page. */}
+          {newCall.answered && (
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/dashboard/calls/${newCall.id}`} onClick={onClose}
+                className="inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-primary px-4 text-[14px] font-semibold text-primary-foreground active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2">
+                Wrap up this call
+              </Link>
+              {packageBtn}
+            </div>
+          )}
           {!newCall.answered && (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={onRetry} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-[14px] font-semibold text-primary-foreground">Try again</button>

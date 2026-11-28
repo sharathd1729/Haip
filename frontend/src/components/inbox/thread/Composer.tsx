@@ -7,7 +7,7 @@ import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { TalkedOn, ChannelBadge, toGuestChannel } from "@/components/inbox/ChannelBadges";
-import { ChannelIcon, channelLabel } from "@/components/inbox/ChannelIcon";
+import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { MessageBubble } from "@/components/inbox/MessageBubble";
 import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
 import { TypingDots } from "@/components/inbox/TypingDots";
@@ -300,8 +300,7 @@ export function Composer({
                     has talked to us on more than one. */}
                 {!isInternalNote && detail && toGuestChannel(detail.channel) && (
                   <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--haip-fg-muted)" }}>
-                    <ChannelBadge channel={toGuestChannel(detail.channel)!} size={12} />
-                    Replying on {channelLabel(detail.channel)}
+                    Replying on <ChannelBadge channel={toGuestChannel(detail.channel)!} size={12} />
                   </span>
                 )}
                 {/* Shortcuts help a keyboard user; on a phone they are noise. */}

@@ -68,7 +68,7 @@ def scores(**overrides):
 
 
 def answer(**overrides):
-    """A complete call-analysis-v6 tool answer."""
+    """A complete call-analysis tool answer."""
     base = {
         "criterion_scores": scores(),
         "has_auto_fail": False,

@@ -9,7 +9,10 @@ import type { AutopilotMoveBadge } from "@/lib/actionable";
 import { UserCheck } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
-import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
+import { LostSheet } from "@/components/leads/lead-page/LeadSheets";
+import { SoldSheet } from "@/components/leads/lead-page/SoldSheet";
+import { HEAT_CARD, HEAT_LABEL, leadHeat } from "@/components/leads/phone/leadRow";
 import { useToast } from "@/components/ui/toast";
 import { askReason, reasonNeeded, stageErrorText } from "@/lib/stageMove";
 import api from "@/lib/api";
@@ -52,6 +55,8 @@ export interface LeadCard {
   assigned_agent_id?: string;
   assigned_agent_avatar_url?: string | null;
   last_touch_at?: string;
+  /** When the guest last wrote; null = no message from them yet. Drives the card's heat (leadRow.leadHeat). */
+  last_inbound_at?: string | null;
   created_at?: string;
   // Computed on read from messages (see LeadCardSchema): "waiting" = guest's
   // latest message unanswered, seconds = wait so far; "responded" = gap
@@ -221,12 +226,16 @@ function StageSelect({ lead }: { lead: LeadCard }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState<{ kind: "won" | "lost"; stage: PipelineStageRow } | null>(null);
 
   const current = stages.find(s => s.key === lead.stage_key);
 
   async function handleChange(newStageId: string) {
     if (!newStageId || newStageId === current?.id) return;
     const target = stages.find(s => s.id === newStageId);
+    // Closing a lead asks first (the server refuses a bare stage change with 422): Sold wants its booking, Lost its reason.
+    if (target?.is_closed_won) { setClosing({ kind: "won", stage: target }); return; }
+    if (target?.is_closed_lost) { setClosing({ kind: "lost", stage: target }); return; }
     const need = target ? reasonNeeded(current, target) : null;
     const reason = need && target ? askReason(need, target.label) : null;
     if (need && !reason) return;                       // a reopen / move back needs a reason; cancelled = nothing changes
@@ -261,6 +270,9 @@ function StageSelect({ lead }: { lead: LeadCard }) {
         ))}
       </select>
       <ChevronDown size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
+      {/* mounted only while open: a board holds dozens of cards */}
+      {closing?.kind === "won" && <SoldSheet open onClose={() => setClosing(null)} inquiryId={lead.inquiry_id} name={lead.display_name} stage={closing.stage} />}
+      {closing?.kind === "lost" && <LostSheet open onClose={() => setClosing(null)} inquiryId={lead.inquiry_id} name={lead.display_name} lostStage={closing.stage} />}
     </div>
   );
 }
@@ -360,11 +372,14 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
   // are late must stay readable). A guest who is only
   // waiting is already marked by the reply-time badge, so the card itself stays calm.
   const late = !!lead.sla_breached;
+  // Heat (owner, 28 Nov 2026): the card's soft tint says how recently the guest reached us; the word sits beside the name.
+  const { data: stages = [] } = usePipelineStages();
+  const heat = leadHeat(lead, stages.find(s => s.key === lead.stage_key));
 
   return (
     <div
       className={cn("haip-card cursor-pointer space-y-2.5 p-3 transition-shadow duration-150",
-        late && "!border-[var(--haip-accent)]")}
+        heat && HEAT_CARD[heat], late && "!border-[var(--haip-accent)]")}
       onClick={() => router.push(`/dashboard/leads/${lead.inquiry_id}`)}
     >
       {/* Row 1: Guest name + source icon */}
@@ -377,6 +392,8 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             <AlertCircle size={10} style={{ color: "var(--haip-fg-subtle)", flexShrink: 0 }} />
           )}
         </div>
+        {heat && <span className="shrink-0 text-[11.5px] font-bold text-[var(--haip-fg-2)]">{HEAT_LABEL[heat]}</span>}
+        {/* WhatsApp, Instagram and Call show their icon only (ChannelIcon decides); other sources keep their word */}
         <ChannelIcon channel={src} showLabel className="flex-shrink-0" />
       </div>
 

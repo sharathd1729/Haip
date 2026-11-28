@@ -131,6 +131,8 @@ class LeadCardSchema(BaseModel):
     # is a local HMAC signature, not a network call.
     assigned_agent_avatar_url: Optional[str] = None
     last_touch_at: Optional[datetime] = None
+    # When the guest last wrote (any conversation of the lead); None = no inbound message. Drives the card's heat.
+    last_inbound_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     # Response time — computed on read from messages, never stored (same
@@ -192,6 +194,9 @@ class LeadDetailSchema(LeadCardSchema):
     recommended_actions: List[dict] = []
     # Lead autopilot (lead_autopilot_view.lead_block): {mode, pinned, pinned_at, last_move, suggestion, history}.
     autopilot: Optional[dict] = None
+    # {route, pickup, special_requests}: the same three the lead feed's `trip` carries, so a screen that loads only the
+    # detail (the Inbox guest panel) can show and edit them. Edited with PATCH /inquiries/{id}.
+    trip: Optional[dict] = None
 
 
 # ─── List Response ────────────────────────────────────────────────────────────

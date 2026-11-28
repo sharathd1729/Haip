@@ -4,7 +4,9 @@ changed_at: 2026-11-08
 rubric_id: tenant default (hospitality_v1 unless the tenant changed it)
 purpose: ONE read of a phone call: QA rubric scores, the after-call wrap-up and the call's details (was three prompts:
          classify.jinja call-classify-v2, judge.jinja call-judge-v3, wrap_up.jinja call-wrap-up-v5)
-changes: v6 (registry call-analysis-v6) -- classify + judge + wrap-up merged into one tool call (AI cost audit, 8 Nov
+changes: v7 (registry call-analysis-v7, 28 Nov 2026) -- PART 4 from_call: trip facts the guest stated, each with the
+         transcript second it was said (the after-call wrap-up shows them for a person to tick; nothing is auto-saved).
+         v6 (registry call-analysis-v6) -- classify + judge + wrap-up merged into one tool call (AI cost audit, 8 Nov
          2026). Rubric scoring rules, auto-fail, the IVR/no_answer/voicemail rules, outcome and the actionable block are
          the old wording. Dropped: sentiment, intent, themes (nothing stored them), the judge's own missed_revenue (the
          wrap-up's grounded list is the one kept), follow_up_message (never stored). agent_strengths / agent_growth_areas
@@ -65,3 +67,14 @@ PART 3 -- CALL DETAILS (empty string when the call does not say)
 - lost_reason: if the call ended without converting: price | dates_unavailable | still_comparing | no_response |
   wrong_property | other.
 - guest_name: the guest's own first name, ONLY if they state it themselves on the call -- never the agent's name.
+
+PART 4 -- FROM THE CALL (what the agent should save on the lead; an empty list when nothing was said)
+- from_call: one item per trip fact the GUEST stated or clearly agreed to on this call. Never guess, never fill a
+  field from what the agent merely offered. Each item is {"field", "value", "said_at"}:
+  - field: one of check_in | check_out | adults | children | budget | occasion | destination | guest_location | requests
+  - value: check_in / check_out as YYYY-MM-DD (resolve "next Friday" against the call date; skip a date you cannot pin
+    to a day); adults / children / budget as a plain number (budget in rupees: "70k" is 70000); destination = the
+    place, route, area or property they asked for; guest_location = the city they travel from; requests = special
+    requests in a few words (cake, jain food, early check-in).
+  - said_at: the number in the [..s] bracket of the transcript line where it was said.
+  If a fact is restated later with a different value, give only the later one.

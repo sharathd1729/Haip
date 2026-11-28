@@ -26,9 +26,10 @@ import { CallPanel, useClickToCall } from "@/components/leads/lead-page/CallPane
 import { LogCallSheet } from "@/components/leads/lead-page/LogCallSheet";
 import { LeadDetailsPanel, StepButton, stepButtons, type LeadPerms } from "@/components/leads/lead-page/LeadDetailsPanel";
 import { LostSheet, MoreSheet, OwnerSheet, StageSheet, TaskSheet, type SheetKey } from "@/components/leads/lead-page/LeadSheets";
-import { OutcomeSheet } from "@/components/leads/lead-page/OutcomeSheet";
+import { SoldSheet } from "@/components/leads/lead-page/SoldSheet";
 import { SendPackageSheet } from "@/components/leads/lead-page/SendPackageSheet";
 import { useReveal } from "@/components/leads/lead-page/PanelSections";
+import { forgetChoices, hasRememberedChoice, useContactChoice } from "@/components/contact/ContactChoice";
 import { SalesActionCard } from "@/components/sales/SalesActionCard";
 import { SignalDrawer } from "@/components/leads/SignalDrawer";
 import { firstName, inr, istDate, nights } from "@/components/leads/lead-page/format";
@@ -126,6 +127,12 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
     canReveal: ["owner", "manager", "reservations", "concierge", "compliance"].includes(role),
     canOpenBookings: (BOOKING_READ_ROLES as string[]).includes(role),
   };
+  // Agents also use their own phone and WhatsApp (owner, 28 Nov 2026): Call and WhatsApp each offer two ways.
+  const openComposer = () => { setTimeout(() => composer.current?.focus("whatsapp"), 250); };
+  const callChoice = useContactChoice({ kind: "call", inquiryId, name, canReveal: perms.canReveal,
+    phoneMasked: feed?.contact.phone_masked, onOffice: () => call.start() });
+  const waChoice = useContactChoice({ kind: "whatsapp", inquiryId, name, canReveal: perms.canReveal,
+    phoneMasked: feed?.contact.phone_masked, onOffice: openComposer });
   const stage = stages.find(s => s.key === lead?.stage_key);
   const quote = (lead?.quote_history ?? []).find(q => (q.option_rank ?? 1) === 1 && LIVE_QUOTE.has(q.status || ""));
   const booking = pickLiveBooking(feed?.bookings ?? [], inquiryId, lead?.check_in);
@@ -158,8 +165,11 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
     switch (key) {
       case "call":
         if (!hasPhone) { toast({ variant: "error", title: `${name} hasn't shared a phone number yet` }); return; }
-        closeSheetOnPhone(); setSheet(null); call.start(); return;
-      case "message": closeSheetOnPhone(); setSheet(null); setTimeout(() => composer.current?.focus("whatsapp"), 250); return;
+        closeSheetOnPhone(); setSheet(null); callChoice.start(); return;      // My phone | Office line
+      case "message":
+        closeSheetOnPhone(); setSheet(null);
+        if (hasPhone) waChoice.start(); else openComposer();                 // My WhatsApp | HAIP WhatsApp
+        return;
       case "quote": setSheet(null); quoteSheet.open({ inquiryId, from: "lead", name: lead?.display_name }); return;
       case "book": router.push(`/dashboard/bookings/new?inquiry=${encodeURIComponent(inquiryId)}`); return;
       case "open_booking": if (booking) router.push(`/dashboard/bookings/${booking.booking_id}`); return;
@@ -296,7 +306,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
       )}
       <StageSheet open={sheet === "stage"} onClose={() => setSheet(null)} inquiryId={inquiryId} stages={stages} currentKey={lead.stage_key}
         canReverse={["owner", "manager"].includes(role)} onLost={() => setSheet("lost")} onWon={s => { setWonStage(s); setSheet("won"); }} />
-      <OutcomeSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} kind="won"
+      <SoldSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} hasBooking={!!booking}
         stage={wonStage ?? stages.find(s => s.is_closed_won)} />
       <LostSheet open={sheet === "lost"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} lostStage={stages.find(s => s.is_closed_lost)} />
       <OwnerSheet open={sheet === "owner"} onClose={() => setSheet(null)} inquiryId={inquiryId} ownerId={lead.assigned_agent_id} />
@@ -311,7 +321,11 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
         ...(perms.canEdit ? [{ key: "owner" as const, label: "Change owner", hint: `Now: ${lead.assigned_agent_name || "nobody"}`, icon: <User size={15} aria-hidden />, onClick: () => setSheet("owner") }] : []),
         ...(perms.canReveal && hasPhone ? [{ key: "reveal" as const, label: "Show full phone number", hint: "Shown for 30 seconds · logged", icon: <Eye size={15} aria-hidden />, onClick: () => { setSheet(null); reveal.reveal(); } }] : []),
         { key: "more" as const, label: "Lead details", hint: `${seg.booking.One}, tasks, quotes, contact`, onClick: () => { setSheet(null); setPanelOpen(true); } },
+        ...(mounted && hasRememberedChoice() ? [{ key: "forget_choice" as const, label: "Ask me again for Call and WhatsApp", hint: "Forgets the choice remembered on this device",
+          onClick: () => { forgetChoices(); setSheet(null); toast({ title: "You will be asked next time" }); } }] : []),
       ]} />
+      {callChoice.sheet}
+      {waChoice.sheet}
     </div>
   );
 }
