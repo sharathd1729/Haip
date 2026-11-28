@@ -18,6 +18,7 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import type { LeadCard } from "@/components/leads/LeadCard";
 import type { LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { useDial } from "@/components/myday/useDial";
+import { canRevealNumbers, useContactChoice } from "@/components/contact/ContactChoice";
 import { LeadFiltersSheet, LeadRowSheet } from "./LeadRowSheet";
 import { NewLeadAction } from "@/components/phone/QuickAdd";
 import { HEAT_LABEL, HEAT_ROW, leadHeat, matches, tripText, waitedText, type Heat } from "./leadRow";
@@ -29,13 +30,16 @@ const NEEDS_ACTION = "__needs_action__";
 interface LeadsPage { total: number; page: number; page_size: number; stages: Record<string, { count: number }>; leads: LeadCard[] }
 interface NeedsAction { buckets: { key: string; total: number; leads: LeadCard[] }[] }
 
-function Row({ lead, stageLabel, heat, onOpen }: { lead: LeadCard; stageLabel?: string; heat: Heat | null; onOpen: () => void }) {
+function Row({ lead, stageLabel, heat, canReveal, onOpen }: { lead: LeadCard; stageLabel?: string; heat: Heat | null; canReveal: boolean; onOpen: () => void }) {
   const dial = useDial(lead.display_name);
+  // Call = My phone | Office line (components/contact/ContactChoice)
+  const callChoice = useContactChoice({ kind: "call", inquiryId: lead.inquiry_id, name: lead.display_name, canReveal,
+    onOffice: () => dial.mutate({ inquiry_id: lead.inquiry_id }) });
   const hasPhone = lead.identity_signals?.includes("phone");
   const trip = tripText(lead);
   const waiting = lead.response_time_status === "waiting";
   const action = hasPhone
-    ? <RowAction icon={Phone} label={`Call ${lead.display_name}`} primary disabled={dial.isPending} onClick={() => dial.mutate({ inquiry_id: lead.inquiry_id })} />
+    ? <><RowAction icon={Phone} label={`Call ${lead.display_name}`} primary disabled={dial.isPending} onClick={callChoice.start} />{callChoice.sheet}</>
     : lead.pending_draft
       ? <RowAction icon={MessageCircle} label={`Review the AI reply to ${lead.display_name}`} href={`/dashboard/inbox?conversation=${lead.pending_draft.conversation_id}`} />
       : !lead.assigned_agent_id
@@ -143,7 +147,7 @@ export function PhoneLeads() {
           <>
             <RowList label={onStage ? label[chip] : "Needs action"}>
               {rows.map(l => <Row key={l.inquiry_id} lead={l} stageLabel={onStage ? undefined : label[l.stage_key ?? ""]}
-                heat={leadHeat(l, stages.find(s => s.key === l.stage_key))} onOpen={() => setPicked(l)} />)}
+                heat={leadHeat(l, stages.find(s => s.key === l.stage_key))} canReveal={canRevealNumbers(role)} onOpen={() => setPicked(l)} />)}
             </RowList>
             {onStage && list.hasNextPage && (
               <button type="button" onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage} className="haip-btn-secondary min-h-11">

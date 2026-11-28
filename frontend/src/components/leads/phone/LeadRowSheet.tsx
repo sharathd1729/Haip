@@ -16,6 +16,8 @@ import { SoldSheet } from "@/components/leads/lead-page/SoldSheet";
 import type { PipelineStage } from "@/components/leads/lead-page/types";
 import type { PipelineStageRow } from "@/hooks/usePipelineStages";
 import { useDial } from "@/components/myday/useDial";
+import { useSession } from "next-auth/react";
+import { canRevealNumbers, useContactChoice } from "@/components/contact/ContactChoice";
 import { cn, formatINR } from "@/lib/utils";
 import { tripText } from "./leadRow";
 
@@ -37,6 +39,10 @@ export function LeadRowSheet({ lead, onClose, stages, canReverse }: {
   const [wonStage, setWonStage] = useState<PipelineStage | null>(null);
   const l = lead ?? held;
   const dial = useDial(l?.display_name ?? "");
+  const role = (useSession().data?.user as { role?: string } | undefined)?.role;
+  // Call = My phone | Office line (components/contact/ContactChoice)
+  const callChoice = useContactChoice({ kind: "call", inquiryId: l?.inquiry_id ?? "", name: l?.display_name ?? "", canReveal: canRevealNumbers(role),
+    onOffice: () => { if (l) dial.mutate({ inquiry_id: l.inquiry_id }); } });
   const stage = stages.find(s => s.key === l?.stage_key);
   const open = (s: Sub) => { setHeld(lead); setSub(s); onClose(); };
   const done = () => { setSub(null); setHeld(null); };
@@ -48,7 +54,7 @@ export function LeadRowSheet({ lead, onClose, stages, canReverse }: {
         description={[stage?.label, l.assigned_agent_name ?? "Unassigned", l.primary_channel].filter(Boolean).join(" · ")}
         footer={<SheetActions>
           {hasPhone && (
-            <button type="button" className={sheetActionCls(true)} disabled={dial.isPending} onClick={() => dial.mutate({ inquiry_id: l.inquiry_id })}>
+            <button type="button" className={sheetActionCls(true)} disabled={dial.isPending} onClick={() => { setHeld(lead); onClose(); callChoice.start(); }}>
               <Phone size={18} />{dial.isPending ? "Calling…" : "Call"}
             </button>
           )}
@@ -76,6 +82,7 @@ export function LeadRowSheet({ lead, onClose, stages, canReverse }: {
       <SoldSheet open={sub === "won"} onClose={done} inquiryId={l.inquiry_id} name={l.display_name} stage={wonStage ?? undefined} />
       <LostSheet open={sub === "lost"} onClose={done} inquiryId={l.inquiry_id} name={l.display_name} lostStage={stages.find(s => s.is_closed_lost)} />
       <OwnerSheet open={sub === "owner"} onClose={done} inquiryId={l.inquiry_id} ownerId={l.assigned_agent_id} />
+      {callChoice.sheet}
     </>
   );
 }

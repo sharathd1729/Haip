@@ -74,6 +74,7 @@ describe("Phone Leads", () => {
     post.mockResolvedValue({ data: {} });
     renderIt();
     await userEvent.click(await screen.findByRole("button", { name: "Call Monika" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Office line/ }));          // Call = My phone | Office line
     expect(post).toHaveBeenCalledWith("/calls/click-to-call", { inquiry_id: "1" });
     expect(screen.getByRole("button", { name: "Assign Suleman" })).toBeTruthy();
   });
