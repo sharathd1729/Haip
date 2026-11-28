@@ -46,6 +46,16 @@ class PaymentNowIn(_Strict):
     method: Literal["upi", "cash", "bank_transfer", "razorpay"] = "upi"
     amount: Optional[Decimal] = Field(default=None, ge=0, le=_MONEY)   # None = the advance
     reference: Optional[str] = Field(default=None, max_length=120)     # UTR, or the Razorpay pay_ id
+    paid_on: Optional[date] = None                                     # kind "paid": the day it was received. None = today
+
+
+class EarlierPaymentIn(_Strict):
+    """Money the guest paid before this booking was typed in (a token last week, an earlier UPI). Recorded on the day it was
+    actually paid, so collections land in the right day and month."""
+    amount: Decimal = Field(gt=0, le=_MONEY)
+    method: Literal["upi", "cash", "bank_transfer", "razorpay"] = "upi"
+    reference: Optional[str] = Field(default=None, max_length=120)
+    paid_on: date
 
 
 class ComposeIn(_Strict):
@@ -87,6 +97,9 @@ class ComposeIn(_Strict):
     deposit_amount: Decimal = Field(default=Decimal("0"), ge=0, le=_MONEY)
     deposit_collect: Literal["pickup", "balance"] = "pickup"
     payment: PaymentNowIn = Field(default_factory=PaymentNowIn)
+    # Payments collected before today, each with its own date. They count towards the advance: `payment` then says what
+    # happens with the rest (nothing yet / a link / one more payment received now).
+    earlier_payments: list[EarlierPaymentIn] = Field(default_factory=list, max_length=10)
 
     # 7 Confirmation
     confirmation: Literal["now", "later"] = "now"

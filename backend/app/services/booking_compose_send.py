@@ -95,7 +95,7 @@ def after_commit(db: Session, tenant: Tenant, user, stay: Stay, *, plan, body, m
     guest = db.query(Guest).filter_by(id=stay.guest_id, tenant_id=tenant.id).first()
     from app.services.guest_names import best_first_name
     first = best_first_name(db, tenant.id, guest)
-    advance, due = plan.advance, plan.advance_due
+    advance, due = plan.advance_left, plan.advance_due      # a link asks only for what earlier payments did not cover
     link = None
     if body.payment.kind == "link":
         days = max(1, min(30, (due - date.today()).days if due else 3))

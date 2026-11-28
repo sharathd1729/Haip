@@ -326,19 +326,24 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     Most fields below now behave like check_in/check_out already did: a
     later message that clearly restates a value updates it, the same way a
     human editing the field again would. Real product decision (Ratha, Sep
-    2026, "autopilot" request): a human correction does not need to be
-    permanently protected from a later AI update -- if a new message gives
-    different info, the field should move again, and staff can always edit
-    it back. This trades a small risk (a misheard later value overwriting a
-    deliberate correction) for the alternative that was actually reported as
-    broken (a lead's real, later-stated details never landing at all).
+    2026, "autopilot" request): a value already on file does not stop a later
+    AI update -- if a new message gives different info, the field moves
+    again. That was reported as broken before (a lead's real, later-stated
+    details never landing at all). Since 28 Nov 2026 it applies to values the
+    AI, a call or a form wrote; see the person rule below.
 
     quoted_amount/quoted_at stay write-once -- a formal quote is a fact once
     made, categorically different from a re-statable trip detail: a
     misread number here must never silently change a price already implied
     to a guest.
 
+    A field a PERSON typed on the lead is never written here (inquiry_service.fields_set_by_person; owner, 28 Nov 2026:
+    an agent's correction must stick). Before that rule a later run re-read the old chat and put the old value back.
+    A person clearing the field hands it back to the AI.
+
     Returns the list of field names actually written, for logging."""
+    from app.services.inquiry_service import fields_set_by_person
+    locked = fields_set_by_person(inquiry)
     written = []
 
     # Unlike a formal quote or the guest's stated occasion, travel dates are
@@ -360,12 +365,12 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     if effective_in and effective_out and effective_out < effective_in:
         log.warning("generate_ai_summary_dates_inverted", inquiry_id=getattr(inquiry, "id", None))
         check_in = check_out = None
-    if check_in and (not inquiry.check_in or inquiry.dates_from_chat) and check_in != inquiry.check_in:
+    if check_in and "check_in" not in locked and (not inquiry.check_in or inquiry.dates_from_chat) and check_in != inquiry.check_in:
         inquiry.check_in = check_in
         inquiry.dates_from_chat = True
         written.append("check_in")
 
-    if check_out and (not inquiry.check_out or inquiry.dates_from_chat) and check_out != inquiry.check_out:
+    if check_out and "check_out" not in locked and (not inquiry.check_out or inquiry.dates_from_chat) and check_out != inquiry.check_out:
         inquiry.check_out = check_out
         inquiry.dates_from_chat = True
         written.append("check_out")
@@ -376,24 +381,24 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         _coerce_number(extracted.get("party_size")),
         inquiry.children,
     )
-    if adults is not None and 0 < adults <= 100 and int(adults) != inquiry.adults:
+    if adults is not None and "adults" not in locked and 0 < adults <= 100 and int(adults) != inquiry.adults:
         inquiry.adults = int(adults)
         written.append("adults")
 
     children = _coerce_number(extracted.get("children"))
-    if children is not None and 0 <= children <= 100 and int(children) != inquiry.children:
+    if children is not None and "children" not in locked and 0 <= children <= 100 and int(children) != inquiry.children:
         inquiry.children = int(children)
         written.append("children")
 
     occasion = extracted.get("occasion")
-    if isinstance(occasion, str) and occasion.strip():
+    if isinstance(occasion, str) and occasion.strip() and "occasion" not in locked:
         occasion = occasion.strip()[:100]
         if occasion != inquiry.occasion:
             inquiry.occasion = occasion
             written.append("occasion")
 
     budget = _coerce_number(extracted.get("budget"))
-    if budget is not None and 0 < budget < 100_000_000:
+    if budget is not None and "budget" not in locked and 0 < budget < 100_000_000:
         from decimal import Decimal
         new_budget = Decimal(str(budget))
         if new_budget != inquiry.budget:
@@ -401,7 +406,7 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
             written.append("budget")
 
     special_requests = extracted.get("special_requests")
-    if isinstance(special_requests, str) and special_requests.strip():
+    if isinstance(special_requests, str) and special_requests.strip() and "special_requests" not in locked:
         special_requests = special_requests.strip()
         if special_requests != inquiry.special_requests:
             inquiry.special_requests = special_requests
@@ -410,7 +415,7 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     route_mentioned = extracted.get("route_mentioned")
     if isinstance(route_mentioned, str) and route_mentioned.strip():
         route_mentioned = route_mentioned.strip()[:255]
-        if route_mentioned != inquiry.route_mentioned:
+        if route_mentioned != inquiry.route_mentioned and "route_mentioned" not in locked:
             inquiry.route_mentioned = route_mentioned
             written.append("route_mentioned")
         # The guest's starting city (lead_validity's location check): the origin of an "A to B" route, only while empty --

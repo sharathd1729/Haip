@@ -10,6 +10,43 @@ import structlog
 
 log = structlog.get_logger()
 
+# Trip fields the AI fills from chat (generate_ai_summary._apply_extracted_fields). Once a PERSON types one of them on the
+# lead, it is theirs: the AI stops writing it until a person clears it again (owner, 28 Nov 2026: an agent's correction must
+# stick; before this a later summary run re-read the old chat and put the old value back). The names live in
+# inquiries.custom_fields["set_by_person"], next to the other system keys kept there (utm, google_click, website_ref).
+PERSON_SETTABLE_FIELDS = ("check_in", "check_out", "adults", "children", "occasion", "budget",
+                          "special_requests", "route_mentioned", "guest_location")
+
+
+def fields_set_by_person(inquiry) -> set[str]:
+    """Trip fields a person has typed on this lead; the AI must leave them alone."""
+    custom = inquiry.custom_fields if isinstance(inquiry.custom_fields, dict) else {}
+    marked = custom.get("set_by_person")
+    return set(marked) if isinstance(marked, list) else set()
+
+
+def mark_fields_set_by_person(inquiry, written: dict) -> None:
+    """Record a person's edit. `written` is field -> the value just saved: a value locks the field, an emptied field
+    (None / "") is handed back to the AI. Reassigns custom_fields so SQLAlchemy sees the JSON change."""
+    touched = {k: v for k, v in written.items() if k in PERSON_SETTABLE_FIELDS}
+    if not touched:
+        return
+    marked = fields_set_by_person(inquiry)
+    for field, value in touched.items():
+        if value is None or value == "":
+            marked.discard(field)
+        else:
+            marked.add(field)
+    custom = dict(inquiry.custom_fields or {}) if isinstance(inquiry.custom_fields, dict) else {}
+    if marked:
+        custom["set_by_person"] = sorted(marked)
+    else:
+        custom.pop("set_by_person", None)
+    inquiry.custom_fields = custom
+    # A date a person typed is no longer the chat's guess (same flag a voice-call date uses).
+    if touched.get("check_in") or touched.get("check_out"):
+        inquiry.dates_from_chat = False
+
 # Leads360 restructure Phase 1: legacy enum member -> pipeline_stages.key.
 # GHOSTED groups under the same "Closed" stage as LOST (CLAUDE.md); the
 # deprecated SITE_VISIT alias maps to site_visit_scheduled.

@@ -84,8 +84,19 @@ class Plan:
     advance_due: Optional[date] = None
     balance: Decimal = ZERO
     balance_due: Optional[date] = None
-    paid: Decimal = ZERO
+    paid: Decimal = ZERO                               # everything received: earlier payments + one received now
+    received: list[dict] = field(default_factory=list)  # each payment to record: amount, method, reference, paid_on
     window_open: bool = False
+
+    @property
+    def advance_left(self) -> Decimal:
+        """The part of the advance not covered by what was received."""
+        return max(ZERO, self.advance - self.paid)
+
+    @property
+    def balance_left(self) -> Decimal:
+        """The balance still to pay: money received beyond the advance comes off it."""
+        return max(ZERO, self.balance - max(ZERO, self.paid - self.advance))
 
     def need(self, section: str, message: str, live: bool = False) -> None:
         self.problems.append({"section": section, "message": message, "live": live})
@@ -345,22 +356,42 @@ def _payment(db: Session, tid: str, body: ComposeIn, p: Plan) -> None:
         seven = ci - timedelta(days=7)
         p.balance_due = seven if body.balance_rule == "7_days" and seven >= p.today else ci
     pay = body.payment
+
+    def ref_needed(method: str) -> str:
+        return ("Add the Razorpay payment id (starts with pay_) so the payment matches." if method == "razorpay"
+                else "Add the UPI or bank reference (UTR) so accounts can match the payment.")
+
+    def receive(amount: Decimal, method: str, reference: Optional[str], paid_on: date) -> None:
+        p.paid += amount
+        p.received.append({"amount": amount, "method": method, "reference": (reference or "").strip() or None, "paid_on": paid_on})
+
+    # Money collected before today, each on the day it was really paid; then anything received now.
+    for i, e in enumerate(body.earlier_payments, 1):
+        if e.paid_on > p.today:
+            p.need("pay", f"Earlier payment {i} is dated in the future. Use the day the guest paid.", True)
+        if e.method != "cash" and not (e.reference or "").strip():
+            p.need("pay", f"Earlier payment {i}: {ref_needed(e.method)}")
+        receive(e.amount, e.method, e.reference, e.paid_on)
     if pay.kind == "paid":
-        amount = pay.amount if pay.amount is not None else p.advance
-        p.paid = amount or ZERO
+        amount = pay.amount if pay.amount is not None else max(ZERO, p.advance - p.paid)
         if not amount:
             p.need("pay", "Enter how much the guest has paid.")
-        elif total and amount > total:
-            p.need("pay", f"That is more than the booking total of {send.inr(total)}. The security deposit has its own box.", True)
+        else:
+            receive(amount, pay.method, pay.reference, pay.paid_on or p.today)
+        if pay.paid_on is not None and pay.paid_on > p.today:
+            p.need("pay", "The payment date is in the future. Use the day the guest paid.", True)
         if pay.method != "cash" and not (pay.reference or "").strip():
-            p.need("pay", "Add the Razorpay payment id (starts with pay_) so the payment matches." if pay.method == "razorpay"
-                   else "Add the UPI or bank reference (UTR) so accounts can match the payment.")
-    elif pay.kind == "link":
+            p.need("pay", ref_needed(pay.method))
+    if total and p.paid > total:
+        p.need("pay", f"That is more than the booking total of {send.inr(total)}. The security deposit has its own box.", True)
+    if pay.kind == "link":
         if not _send_setup(db, tid)["razorpay_connected"]:
             p.need("pay", "Razorpay is not connected, so no link can be sent. Pick another option, or connect it in Settings > "
                           "Payments.", True)
         elif total and p.advance <= 0:
             p.need("pay", "The advance is ₹0, so there is nothing to send a link for.", True)
+        elif total and p.paid >= p.advance:
+            p.need("pay", "The payments above already cover the advance, so there is nothing to send a link for.", True)
 
 
 def _confirmation(db: Session, tenant: Tenant, body: ComposeIn, p: Plan) -> None:
@@ -428,8 +459,8 @@ def text_maker(db: Session, tenant: Tenant, body: ComposeIn, p: Plan, guest_name
             greeting=s["greeting"], brand=tenant.brand_name or tenant.name, guest_name=guest_name, ref=ref, title=trip_title(body, p),
             vehicle=vehicle, check_in=body.check_in, check_in_time=body.check_in_time, check_out=body.check_out,
             check_out_time=body.check_out_time, guests=body.guests, pickup=(body.pickup or "").strip() or None, total=p.total,
-            gst=p.gst, paid=p.paid if body.payment.kind == "paid" else ZERO, advance=p.advance, advance_due=p.advance_due,
-            link_url=link_url, balance=p.balance, balance_rule=body.balance_rule, balance_due=p.balance_due,
+            gst=p.gst, paid=p.paid, advance=p.advance, advance_due=p.advance_due,
+            link_url=link_url, balance=p.balance_left, balance_rule=body.balance_rule, balance_due=p.balance_due,
             deposit=body.deposit_amount, deposit_collect=body.deposit_collect, invoice=invoice)
     return make
 
