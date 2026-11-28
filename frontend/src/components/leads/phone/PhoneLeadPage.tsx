@@ -29,7 +29,7 @@ import { LeadComposer, type ComposerHandle } from "@/components/leads/lead-page/
 import { CallPanel, useClickToCall } from "@/components/leads/lead-page/CallPanel";
 import { LogCallSheet } from "@/components/leads/lead-page/LogCallSheet";
 import { LostSheet, MoreSheet, OwnerSheet, StageSheet, TaskSheet, type SheetKey } from "@/components/leads/lead-page/LeadSheets";
-import { OutcomeSheet } from "@/components/leads/lead-page/OutcomeSheet";
+import { SoldSheet } from "@/components/leads/lead-page/SoldSheet";
 import { SendPackageSheet } from "@/components/leads/lead-page/SendPackageSheet";
 import { TripFields } from "@/components/leads/lead-page/TripFields";
 import { LeadReviewCard } from "@/components/leads/lead-page/LeadReviewCard";
@@ -231,7 +231,7 @@ export function PhoneLeadPage({ inquiryId }: { inquiryId: string }) {
       <SendPackageSheet open={packageOpen} onClose={() => setPackageOpen(false)} inquiryId={inquiryId} name={name} />
       <StageSheet open={sheet === "stage"} onClose={() => setSheet(null)} inquiryId={inquiryId} stages={stages} currentKey={lead.stage_key}
         canReverse={["owner", "manager"].includes(role)} onLost={() => setSheet("lost")} onWon={s => { setWonStage(s); setSheet("won"); }} />
-      <OutcomeSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} kind="won" stage={wonStage ?? stages.find(s => s.is_closed_won)} />
+      <SoldSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} hasBooking={!!booking} stage={wonStage ?? stages.find(s => s.is_closed_won)} />
       <LostSheet open={sheet === "lost"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} lostStage={stages.find(s => s.is_closed_lost)} />
       <OwnerSheet open={sheet === "owner"} onClose={() => setSheet(null)} inquiryId={inquiryId} ownerId={lead.assigned_agent_id} />
       <TaskSheet open={sheet === "task"} onClose={() => setSheet(null)} inquiryId={inquiryId} guestId={lead.guest_id} meId={me?.id ?? user?.id} name={name} />

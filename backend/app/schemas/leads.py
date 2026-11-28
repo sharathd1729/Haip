@@ -131,6 +131,8 @@ class LeadCardSchema(BaseModel):
     # is a local HMAC signature, not a network call.
     assigned_agent_avatar_url: Optional[str] = None
     last_touch_at: Optional[datetime] = None
+    # When the guest last wrote (any conversation of the lead); None = no inbound message. Drives the card's heat.
+    last_inbound_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     # Response time — computed on read from messages, never stored (same

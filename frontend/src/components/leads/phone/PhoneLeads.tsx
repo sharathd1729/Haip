@@ -10,17 +10,17 @@ import { useSegment } from "@/lib/segments";
 import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { MessageCircle, Phone, UserPlus } from "@/lib/icons";
+import { ChevronDown, MessageCircle, Phone, SlidersHorizontal, UserPlus } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
-import { ChipRow, CompactRow, EmptyState, Fab, FilterSearch, RowAction, RowList, RowTag } from "@/components/ui/kit";
+import { CompactRow, EmptyState, Fab, FilterSearch, RowAction, RowList, RowTag } from "@/components/ui/kit";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import type { LeadCard } from "@/components/leads/LeadCard";
 import type { LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { useDial } from "@/components/myday/useDial";
 import { LeadFiltersSheet, LeadRowSheet } from "./LeadRowSheet";
 import { NewLeadAction } from "@/components/phone/QuickAdd";
-import { matches, tripText, waitedText } from "./leadRow";
+import { HEAT_LABEL, HEAT_ROW, leadHeat, matches, tripText, waitedText, type Heat } from "./leadRow";
 
 const AddLeadModal = dynamic(() => import("@/components/leads/AddLeadModal").then(m => m.AddLeadModal), { ssr: false });
 
@@ -29,7 +29,7 @@ const NEEDS_ACTION = "__needs_action__";
 interface LeadsPage { total: number; page: number; page_size: number; stages: Record<string, { count: number }>; leads: LeadCard[] }
 interface NeedsAction { buckets: { key: string; total: number; leads: LeadCard[] }[] }
 
-function Row({ lead, stageLabel, onOpen }: { lead: LeadCard; stageLabel?: string; onOpen: () => void }) {
+function Row({ lead, stageLabel, heat, onOpen }: { lead: LeadCard; stageLabel?: string; heat: Heat | null; onOpen: () => void }) {
   const dial = useDial(lead.display_name);
   const hasPhone = lead.identity_signals?.includes("phone");
   const trip = tripText(lead);
@@ -45,7 +45,9 @@ function Row({ lead, stageLabel, onOpen }: { lead: LeadCard; stageLabel?: string
     <CompactRow onClick={onOpen} label={`${lead.display_name}, open details`} avatar={<GuestAvatar name={lead.display_name} />}
       title={trip ? `${lead.display_name} · ${trip}` : lead.display_name}
       subtitle={lead.ai_summary || lead.ai_next_action || "No AI note yet"}
+      className={heat ? HEAT_ROW[heat] : undefined}
       extra={<>
+        {heat && <RowTag>{HEAT_LABEL[heat]}</RowTag>}
         {stageLabel && <RowTag tone="brand">{stageLabel}</RowTag>}
         {waiting && <RowTag tone={lead.sla_breached ? "danger" : "warning"}>waiting{waitedText(lead.response_time_seconds)}</RowTag>}
         {!lead.assigned_agent_id && <RowTag tone="warning">unassigned</RowTag>}
@@ -69,6 +71,7 @@ export function PhoneLeads() {
   const label = useMemo(() => Object.fromEntries(stages.map(s => [s.key, s.label])), [stages]);
   const nFilters = Object.values(filters).filter(Boolean).length;
   const onStage = chip !== NEEDS_ACTION;
+  const nOn = nFilters + (onStage ? 1 : 0);          // the filter button's badge: a picked stage counts as one
 
   // Counts for every stage chip: any /leads answer carries the full per-stage summary for these filters.
   const meta = useQuery<LeadsPage>({
@@ -107,11 +110,24 @@ export function PhoneLeads() {
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="grid gap-3 px-4 pb-24 pt-3">
         {/* "New lead" in words next to search: the floating "+" alone was missed on phones (owner feedback, Oct 2026). */}
+        {/* ONE row on top (owner, 28 Nov 2026): the search bar is the header, with one filter button (its badge counts what is
+            on) and one action. Stage and every other filter live in the sheet; no chip row. */}
         <div className="flex items-center gap-2">
           <FilterSearch value={q} onChange={setQ} placeholder={`Name or ${booking}`} label="Search leads" className="min-w-0 max-w-none" />
+          <button type="button" onClick={() => setShowFilters(true)} aria-label={nOn ? `Filters, ${nOn} on` : "Filters"}
+            className="relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-2)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+            <SlidersHorizontal size={18} aria-hidden />
+            {nOn > 0 && <span aria-hidden className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold tabular-nums text-primary-foreground">{nOn}</span>}
+          </button>
           <NewLeadAction primary />
         </div>
-        <ChipRow label="Leads by stage" value={chip} onChange={setChip} items={items} onFilters={() => setShowFilters(true)} filterCount={nFilters} />
+        {/* one thin line: what is shown and how many; tapping it opens the same sheet */}
+        <button type="button" onClick={() => setShowFilters(true)}
+          className="-my-1 flex min-h-8 cursor-pointer items-center gap-1 self-start rounded-lg text-left text-[13px] font-semibold text-[var(--haip-fg-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+          <span>{onStage ? label[chip] ?? "Stage" : "Needs action"}</span>
+          {total != null && <span className="tabular-nums text-[var(--haip-fg-subtle)]">· {total}</span>}
+          <ChevronDown size={14} aria-hidden className="text-[var(--haip-fg-subtle)]" />
+        </button>
         {!onStage && nFilters > 0 && <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">Filters apply to the stage lists, not to Needs action.</p>}
         {q && <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">Searching the {onStage ? (list.data?.pages.flatMap(p => p.leads).length ?? 0) : needsLeads.length} leads loaded here{onStage && list.hasNextPage ? " · load more to search further" : ""}.</p>}
 
@@ -126,7 +142,8 @@ export function PhoneLeads() {
         ) : (
           <>
             <RowList label={onStage ? label[chip] : "Needs action"}>
-              {rows.map(l => <Row key={l.inquiry_id} lead={l} stageLabel={onStage ? undefined : label[l.stage_key ?? ""]} onOpen={() => setPicked(l)} />)}
+              {rows.map(l => <Row key={l.inquiry_id} lead={l} stageLabel={onStage ? undefined : label[l.stage_key ?? ""]}
+                heat={leadHeat(l, stages.find(s => s.key === l.stage_key))} onOpen={() => setPicked(l)} />)}
             </RowList>
             {onStage && list.hasNextPage && (
               <button type="button" onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage} className="haip-btn-secondary min-h-11">
@@ -140,7 +157,8 @@ export function PhoneLeads() {
       <Fab label="New lead" onClick={() => setAdding(true)} />
       {adding && <AddLeadModal onClose={() => setAdding(false)} onCreated={() => setAdding(false)} />}
       <LeadRowSheet lead={picked} onClose={() => setPicked(null)} stages={stages} canReverse={role === "owner" || role === "manager"} />
-      <LeadFiltersSheet open={showFilters} onClose={() => setShowFilters(false)} filters={filters} onChange={setFilters} />
+      <LeadFiltersSheet open={showFilters} onClose={() => setShowFilters(false)} filters={filters} onChange={setFilters}
+        views={items} view={chip} onView={setChip} />
     </div>
   );
 }

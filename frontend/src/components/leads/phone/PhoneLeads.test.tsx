@@ -13,7 +13,7 @@ vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 import { PhoneLeads } from "./PhoneLeads";
-import { matches, tripText, waitedText } from "./leadRow";
+import { leadHeat, matches, tripText, waitedText } from "./leadRow";
 
 if (typeof window.PointerEvent === "undefined") {
   (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = class extends MouseEvent {} as typeof MouseEvent;
@@ -49,11 +49,18 @@ function renderIt() {
 beforeEach(() => { cleanup(); get.mockReset(); post.mockReset(); patch.mockReset(); route(); });
 
 describe("Phone Leads", () => {
-  it("opens on Needs action with stage chips and their counts, and compact rows with the one-line AI note", async () => {
+  it("opens on Needs action with one header row, a line saying what is shown, and compact rows with the one-line AI note", async () => {
     renderIt();
     expect(await screen.findByText("Monika · Goa, 26 Nov")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Needs action/ }).getAttribute("aria-pressed")).toBe("true");
-    expect(await screen.findByRole("button", { name: /Active\s*8/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /Needs action\s*·\s*2/ })).toBeTruthy();          // what is shown, how many
+    expect(screen.getByRole("button", { name: "Filters" })).toBeTruthy();                             // nothing on: no badge
+    expect(screen.queryByRole("group", { name: "Leads by stage" })).toBeNull();                       // no chip row on a phone
+    // the workspace's own stages, with their counts, live in the sheet
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect((await screen.findByRole("radio", { name: /Needs action/ })).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: /Active\s*8/ })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Show 2 leads" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByText(/Wants a weekend near Bengaluru/)).toBeTruthy();
     expect(screen.getByText("unassigned")).toBeTruthy();
     // Two ways to add a lead by hand: the labelled button beside search and the floating "+" (aria-label "New lead").
@@ -73,8 +80,11 @@ describe("Phone Leads", () => {
 
   it("switches to a stage and searches what is loaded", async () => {
     renderIt();
-    await userEvent.click(await screen.findByRole("button", { name: /Active\s*8/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Active\s*8/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Show 8 leads" }));
     expect(await screen.findByText("Vishal · Mysuru, 26 Nov")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Filters, 1 on" })).toBeTruthy();                       // a picked stage counts
     expect(get).toHaveBeenCalledWith("/leads", { params: { page: 1, page_size: 30, stage: "active" } });
     await userEvent.type(screen.getByRole("textbox", { name: "Search leads" }), "goa");
     expect(await screen.findByText("No leads match")).toBeTruthy();
@@ -107,5 +117,18 @@ describe("lead row helpers", () => {
     expect(matches(l, "kerala")).toBe(false);
     expect(waitedText(2 * 86400)).toBe(" 2d");
     expect(waitedText(null)).toBe("");
+  });
+
+  it("reads a lead's heat from when the guest last wrote, and gives closed leads none", () => {
+    const now = new Date("2026-11-28T06:00:00Z");
+    const open = { key: "active", is_closed_won: false, is_closed_lost: false };
+    const at = (iso: string | null, created = "2026-10-01T00:00:00Z") => lead("1", { last_inbound_at: iso, created_at: created }) as never;
+    expect(leadHeat(at("2026-11-27T06:00:00Z"), open, now)).toBe("hot");          // yesterday
+    expect(leadHeat(at("2026-11-24T06:00:00Z"), open, now)).toBe("warm");         // four days ago
+    expect(leadHeat(at("2026-11-01T06:00:00Z"), open, now)).toBe("cold");
+    expect(leadHeat(at(null, "2026-11-28T01:00:00Z"), open, now)).toBe("hot");    // no message yet: when the lead arrived
+    expect(leadHeat(at("2026-11-27T06:00:00Z"), { key: "lost", is_closed_won: false, is_closed_lost: true }, now)).toBeNull();
+    expect(leadHeat(at("2026-11-27T06:00:00Z"), { key: "sold", is_closed_won: true, is_closed_lost: false }, now)).toBeNull();
+    expect(leadHeat(at("2026-11-27T06:00:00Z"), null, now)).toBeNull();           // stage not loaded yet
   });
 });

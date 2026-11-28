@@ -450,6 +450,14 @@
   --haip-viz-answered:  #5470C6;
   --haip-viz-missed:    #E0694A;
   --haip-viz-soft:      color-mix(in srgb, var(--primary) 38%, var(--card));
+  /* Lead heat (owner, 28 Nov 2026): a lead card is tinted by how recently the guest reached us. Hot = coral, Warm = amber,
+     Cold = blue; always with the word or an icon beside it, never colour alone. */
+  --haip-heat-hot-bg:   var(--haip-dom-book-bg);
+  --haip-heat-hot-bd:   var(--haip-dom-book-bd);
+  --haip-heat-warm-bg:  #FBF1D9;
+  --haip-heat-warm-bd:  #EBD9A6;
+  --haip-heat-cold-bg:  var(--haip-dom-call-bg);
+  --haip-heat-cold-bd:  var(--haip-dom-call-bd);
   --haip-on-accent:     #3B1205;
   --haip-gold:          #E8663F;
   --haip-gold-light:    #FDE6DF;
@@ -624,6 +632,8 @@
   --haip-dom-call-bd:   rgba(143,168,232,0.30);
   --haip-dom-call-ink:  #AFC2F0;
   --haip-viz-answered:  #6680D2;
+  --haip-heat-warm-bg:  rgba(232,196,96,0.12);
+  --haip-heat-warm-bd:  rgba(232,196,96,0.30);
   --haip-on-accent:     #0B2B26;
   --haip-gold:          #D9785A;
   --haip-gold-light:    rgba(217,120,90,0.16);

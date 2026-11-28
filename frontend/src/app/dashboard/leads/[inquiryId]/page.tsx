@@ -26,7 +26,7 @@ import { CallPanel, useClickToCall } from "@/components/leads/lead-page/CallPane
 import { LogCallSheet } from "@/components/leads/lead-page/LogCallSheet";
 import { LeadDetailsPanel, StepButton, stepButtons, type LeadPerms } from "@/components/leads/lead-page/LeadDetailsPanel";
 import { LostSheet, MoreSheet, OwnerSheet, StageSheet, TaskSheet, type SheetKey } from "@/components/leads/lead-page/LeadSheets";
-import { OutcomeSheet } from "@/components/leads/lead-page/OutcomeSheet";
+import { SoldSheet } from "@/components/leads/lead-page/SoldSheet";
 import { SendPackageSheet } from "@/components/leads/lead-page/SendPackageSheet";
 import { useReveal } from "@/components/leads/lead-page/PanelSections";
 import { SalesActionCard } from "@/components/sales/SalesActionCard";
@@ -296,7 +296,7 @@ function DesktopLeadPage({ inquiryId }: { inquiryId: string }) {
       )}
       <StageSheet open={sheet === "stage"} onClose={() => setSheet(null)} inquiryId={inquiryId} stages={stages} currentKey={lead.stage_key}
         canReverse={["owner", "manager"].includes(role)} onLost={() => setSheet("lost")} onWon={s => { setWonStage(s); setSheet("won"); }} />
-      <OutcomeSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} kind="won"
+      <SoldSheet open={sheet === "won"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} hasBooking={!!booking}
         stage={wonStage ?? stages.find(s => s.is_closed_won)} />
       <LostSheet open={sheet === "lost"} onClose={() => setSheet(null)} inquiryId={inquiryId} name={name} lostStage={stages.find(s => s.is_closed_lost)} />
       <OwnerSheet open={sheet === "owner"} onClose={() => setSheet(null)} inquiryId={inquiryId} ownerId={lead.assigned_agent_id} />
